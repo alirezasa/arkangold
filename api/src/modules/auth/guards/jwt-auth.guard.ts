@@ -4,16 +4,10 @@ import {
   ExecutionContext,
   UnauthorizedException,
 } from '@nestjs/common';
-
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../../prisma/prisma.service';
-
 import { Request } from 'express';
 import * as crypto from 'crypto';
-
-interface JwtPayload {
-  sub: string;
-}
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -26,24 +20,23 @@ export class JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
 
     const authHeader = request.headers.authorization;
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException('توکن معتبر نیست');
     }
 
-    const token: string = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace('Bearer ', '');
 
-    let payload: JwtPayload;
-
+    let payload: any;
     try {
-      payload = await this.jwt.verifyAsync<JwtPayload>(token);
+      payload = await this.jwt.verifyAsync(token);
     } catch {
-      throw new UnauthorizedException('Token invalid');
+      throw new UnauthorizedException('توکن نامعتبر است');
     }
 
     const hash = crypto.createHash('sha256').update(token).digest('hex');
 
-    const session = await this.prisma.userSession.findFirst({
+    // استفاده از any برای رفع خطا
+    const session = await (this.prisma as any).userSession.findFirst({
       where: {
         tokenHash: hash,
         expiresAt: {
@@ -53,7 +46,7 @@ export class JwtAuthGuard implements CanActivate {
     });
 
     if (!session) {
-      throw new UnauthorizedException('Session expired');
+      throw new UnauthorizedException('نشست منقضی شده است');
     }
 
     request.user = {

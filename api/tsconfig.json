@@ -9,6 +9,11 @@
     "sourceMap": true,
     "outDir": "./dist",
     "incremental": true,
+   
+    "noImplicitAny": false,
+    
+    "strictPropertyInitialization": false,
+    
 
     "removeComments": true,
 

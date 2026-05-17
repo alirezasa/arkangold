@@ -7,9 +7,11 @@ export function IsNationalCode(validationOptions?: ValidationOptions) {
       target: object.constructor,
       propertyName,
       options: validationOptions,
+
       validator: {
         validate(value: string) {
           if (!/^\d{10}$/.test(value)) return false;
+
           if (/^(\d)\1{9}$/.test(value)) return false;
 
           const check = +value[9];

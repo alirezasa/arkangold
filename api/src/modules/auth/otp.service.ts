@@ -80,8 +80,8 @@ export class OtpService {
           used: false,
           attempts: 0,
           // sentAt: new Date(),
-          //ip: metadata?.ip,
-          //device: metadata?.device,
+          ip: metadata?.ip,
+          device: metadata?.device,
           userId: metadata?.userId,
         },
       });

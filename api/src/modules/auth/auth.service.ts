@@ -122,7 +122,7 @@ export class AuthService {
     userId: string,
     token: string,
     ip?: string,
-    device?: string,
+    //device?: string,
   ) {
     const hash = crypto.createHash('sha256').update(token).digest('hex');
     await this.prisma.userSession.create({
@@ -130,7 +130,7 @@ export class AuthService {
         userId,
         tokenHash: hash,
         ipAddress: ip,
-        device,
+        //device,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });

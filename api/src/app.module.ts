@@ -1,35 +1,20 @@
 import { Module } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ConfigModule } from '@nestjs/config';
-
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
-    // ✅ Environment Config
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
-
-    // ✅ Global Rate Limit
+    ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          ttl: 60_000, // 1 minute
-          limit: 5, // 20 request per minute globally
-        },
-      ],
+      throttlers: [{ ttl: 60000, limit: 5 }],
     }),
-
-    // ✅ Modules
     PrismaModule,
     AuthModule,
   ],
-
   controllers: [AppController],
   providers: [AppService],
 })

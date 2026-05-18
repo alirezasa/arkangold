@@ -3,7 +3,6 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 
-// تعریف type برای PrismaService
 type PrismaClientType = PrismaClient;
 
 @Injectable()
@@ -15,43 +14,33 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
     if (!databaseUrl) {
       throw new Error('DATABASE_URL is not defined in .env file');
     }
-
     const pool = new Pool({
       connectionString: databaseUrl,
       connectionTimeoutMillis: 5000,
     });
-
     const adapter = new PrismaPg(pool);
     this.prismaClient = new PrismaClient({ adapter });
   }
 
-  // Proxy all methods to prismaClient
   get userSession() {
     return this.prismaClient.userSession;
   }
-
   get user() {
     return this.prismaClient.user;
   }
-
   get userOtp() {
     return this.prismaClient.userOtp;
   }
-
   get userIdentity() {
     return this.prismaClient.userIdentity;
   }
-
   get wallet() {
     return this.prismaClient.wallet;
   }
-
   get order() {
     return this.prismaClient.order;
   }
-
-  // اضافه کردن بقیه مدل‌ها بر اساس نیاز
-  // می‌توانید تمام مدل‌ها را به صورت داینامیک اضافه کنید
+  // سایر مدل‌ها در صورت نیاز
 
   async onModuleInit() {
     await this.prismaClient.$connect();

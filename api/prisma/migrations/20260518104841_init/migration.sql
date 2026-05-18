@@ -11,7 +11,10 @@ CREATE TYPE "OtpType" AS ENUM ('LOGIN', 'REGISTER', 'VERIFY');
 CREATE TYPE "SessionStatus" AS ENUM ('ACTIVE', 'REVOKED', 'EXPIRED');
 
 -- CreateEnum
-CREATE TYPE "KycStatus" AS ENUM ('PENDING', 'VERIFIED', 'REJECTED');
+CREATE TYPE "KycStatus" AS ENUM ('PENDING', 'VERIFIED', 'REJECTED', 'FAILED');
+
+-- CreateEnum
+CREATE TYPE "RegistrationStep" AS ENUM ('OTP_VERIFIED', 'PASSWORD_SET', 'PROFILE_COMPLETED', 'KYC_VERIFIED');
 
 -- CreateEnum
 CREATE TYPE "WalletCurrency" AS ENUM ('TOMAN', 'GOLD');
@@ -58,6 +61,7 @@ CREATE TABLE "User" (
     "twoFactorEnabled" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "registrationStep" "RegistrationStep" NOT NULL DEFAULT 'OTP_VERIFIED',
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -71,7 +75,13 @@ CREATE TABLE "UserOtp" (
     "type" "OtpType" NOT NULL,
     "expiresAt" TIMESTAMP(3) NOT NULL,
     "used" BOOLEAN NOT NULL DEFAULT false,
+    "attempts" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "sentAt" TIMESTAMP(3),
+    "verifiedAt" TIMESTAMP(3),
+    "failedReason" TEXT,
+    "ip" TEXT,
+    "device" TEXT,
 
     CONSTRAINT "UserOtp_pkey" PRIMARY KEY ("id")
 );
@@ -80,12 +90,12 @@ CREATE TABLE "UserOtp" (
 CREATE TABLE "UserSession" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "token" TEXT NOT NULL,
     "status" "SessionStatus" NOT NULL DEFAULT 'ACTIVE',
     "ipAddress" TEXT,
-    "userAgent" TEXT,
+    "device" TEXT,
     "expiresAt" TIMESTAMP(3) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "tokenHash" TEXT NOT NULL,
 
     CONSTRAINT "UserSession_pkey" PRIMARY KEY ("id")
 );
@@ -368,10 +378,16 @@ CREATE INDEX "User_mobile_idx" ON "User"("mobile");
 CREATE INDEX "UserOtp_mobile_idx" ON "UserOtp"("mobile");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "UserSession_token_key" ON "UserSession"("token");
+CREATE INDEX "UserOtp_mobile_type_idx" ON "UserOtp"("mobile", "type");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "UserSession_tokenHash_key" ON "UserSession"("tokenHash");
 
 -- CreateIndex
 CREATE INDEX "UserSession_userId_idx" ON "UserSession"("userId");
+
+-- CreateIndex
+CREATE INDEX "UserSession_tokenHash_idx" ON "UserSession"("tokenHash");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "UserIdentity_userId_key" ON "UserIdentity"("userId");
@@ -452,10 +468,10 @@ ALTER TABLE "WalletHold" ADD CONSTRAINT "WalletHold_walletId_fkey" FOREIGN KEY (
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_journalId_fkey" FOREIGN KEY ("journalId") REFERENCES "JournalEntry"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "Account"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "LedgerEntry" ADD CONSTRAINT "LedgerEntry_journalId_fkey" FOREIGN KEY ("journalId") REFERENCES "JournalEntry"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PriceLock" ADD CONSTRAINT "PriceLock_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -467,10 +483,10 @@ ALTER TABLE "Product" ADD CONSTRAINT "Product_categoryId_fkey" FOREIGN KEY ("cat
 ALTER TABLE "Order" ADD CONSTRAINT "Order_priceLockId_fkey" FOREIGN KEY ("priceLockId") REFERENCES "PriceLock"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Order" ADD CONSTRAINT "Order_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Order" ADD CONSTRAINT "Order_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Order" ADD CONSTRAINT "Order_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Order" ADD CONSTRAINT "Order_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Withdrawal" ADD CONSTRAINT "Withdrawal_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

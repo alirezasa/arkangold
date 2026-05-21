@@ -1,0 +1,904 @@
+// ──────────────────────────────────────────────
+// آرکان گلد (Arkan Gold) - Prisma Schema v1.0
+// سازگار با Prisma 7 + PostgreSQL
+// تاریخ: ۲۰۲۶-۰۵-۱۹
+// ──────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ══════════════════════════════════════════════
+// ۱. ماژول Auth / Users
+// ══════════════════════════════════════════════
+
+model User {
+  id           String     @id @default(uuid())
+  phone        String     @unique
+  passwordHash String?    @map("password_hash")
+  type         UserType   @default(REAL)
+  status       UserStatus @default(ACTIVE)
+  referralCode String     @unique @map("referral_code")
+  referredById String?    @map("referred_by_id")
+  referredBy   User?      @relation("Referral", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals    User[]     @relation("Referral")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  sessions             UserSession[]
+  identity             UserIdentity?
+  legalProfile         LegalProfile?
+  wallet               Wallet?
+  bankAccounts         BankAccount[]
+  limits               UserLimit?
+  transactions         Transaction[]
+  orders               Order[]
+  cart                 Cart?
+  shopOrders           ShopOrder[]
+  payments             Payment[]
+  withdrawalRequests   WithdrawalRequest[]
+  physicalDeliveryReqs PhysicalDeliveryRequest[]
+  addresses            Address[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]                @relation("UserAudit")
+  adminAuditLogs       AuditLog[]                @relation("AdminAudit")
+  approvedByPhysical   PhysicalDeliveryRequest[] @relation("ApprovedBy")
+  processedWithdrawals WithdrawalRequest[]       @relation("ProcessedBy")
+  approvals            Approval[]
+  createdPayrollPlans  PayrollPlan[]
+  feeConfigs           FeeConfig[]
+  taxConfigs           TaxConfig[]
+  sentReferrals        Referral[]                @relation("Referrer")
+  receivedReferrals    Referral[]                @relation("Referred")
+  referralRewards      ReferralReward[]
+  settlementLogs       SettlementLog[]
+  payrollPlanUsers     PayrollPlanUser[]
+  priceLocks           PriceLock[]
+
+  @@map("users")
+}
+
+model UserOtp {
+  id        String     @id @default(uuid())
+  phone     String
+  codeHash  String     @map("code_hash")
+  attempts  Int        @default(0)
+  purpose   OtpPurpose
+  expiresAt DateTime   @map("expires_at")
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@index([phone, purpose])
+  @@map("user_otps")
+}
+
+model UserSession {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device           String?
+  ip               String?
+  refreshTokenHash String   @map("refresh_token_hash")
+  accessTokenHash  String?  @map("access_token_hash")
+  expiresAt        DateTime @map("expires_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("user_sessions")
+}
+
+model UserIdentity {
+  id           String         @id @default(uuid())
+  userId       String         @unique @map("user_id")
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName    String?        @map("first_name")
+  lastName     String?        @map("last_name")
+  nationalCode String?        @map("national_code")
+  birthDate    DateTime?      @map("birth_date")
+  status       IdentityStatus @default(PENDING)
+  verifiedAt   DateTime?      @map("verified_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  legalProfiles LegalProfile[]
+
+  @@map("user_identities")
+}
+
+model LegalProfile {
+  id                 String        @id @default(uuid())
+  userId             String        @unique @map("user_id")
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName        String        @map("company_name")
+  nationalId         String        @map("national_id")
+  economicCode       String?       @map("economic_code")
+  registrationNumber String?       @map("registration_number")
+  representativeId   String?       @map("representative_id")
+  representative     UserIdentity? @relation(fields: [representativeId], references: [id], onDelete: SetNull)
+  verified           Boolean       @default(false)
+  createdAt          DateTime      @default(now()) @map("created_at")
+
+  @@map("legal_profiles")
+}
+
+model BankAccount {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankName      String   @map("bank_name")
+  accountNumber String   @map("account_number")
+  cardNumber    String   @map("card_number")
+  sheba         String?
+  isVerified    Boolean  @default(false) @map("is_verified")
+  isDefault     Boolean  @default(false) @map("is_default")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  withdrawalRequests WithdrawalRequest[]
+
+  @@map("bank_accounts")
+}
+
+// ══════════════════════════════════════════════
+// ۲. ماژول Wallet / Accounting
+// ══════════════════════════════════════════════
+
+model Wallet {
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goldBalanceGrams Decimal  @default(0) @map("gold_balance_grams") @db.Decimal(18, 4)
+  rialBalance      Decimal  @default(0) @map("rial_balance") @db.Decimal(18, 0)
+  cardNumber       String   @unique @map("card_number")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  holds        WalletHold[]
+  transactions Transaction[]
+
+  @@map("wallets")
+}
+
+model WalletHold {
+  id          String   @id @default(uuid())
+  walletId    String   @map("wallet_id")
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amountGrams Decimal? @map("amount_grams") @db.Decimal(18, 4)
+  amountRial  Decimal? @map("amount_rial") @db.Decimal(18, 0)
+  holdType    HoldType @map("hold_type")
+  referenceId String?  @map("reference_id")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([walletId])
+  @@map("wallet_holds")
+}
+
+model Transaction {
+  id                   String            @id @default(uuid())
+  userId               String            @map("user_id")
+  user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  walletId             String            @map("wallet_id")
+  wallet               Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type                 TransactionType
+  amountGrams          Decimal?          @db.Decimal(18, 4)
+  amountRial           Decimal?          @db.Decimal(18, 0)
+  pricePerGram         Decimal?          @map("price_per_gram") @db.Decimal(18, 0)
+  feeAmount            Decimal?          @map("fee_amount") @db.Decimal(18, 0)
+  taxAmount            Decimal?          @map("tax_amount") @db.Decimal(18, 0)
+  status               TransactionStatus @default(PENDING)
+  description          String?
+  relatedTransactionId String?           @map("related_transaction_id")
+  relatedTransaction   Transaction?      @relation("RelatedTransaction", fields: [relatedTransactionId], references: [id], onDelete: SetNull)
+  childTransactions    Transaction[]     @relation("RelatedTransaction")
+  createdAt            DateTime          @default(now()) @map("created_at")
+
+  journalEntries  JournalEntry[]
+  referralRewards ReferralReward[]
+
+  @@index([userId])
+  @@index([walletId])
+  @@map("transactions")
+}
+
+model Account {
+  id           String      @id @default(uuid())
+  code         String      @unique
+  name         String
+  type         AccountType
+  subType      String?     @map("sub_type")
+  balanceRial  Decimal     @default(0) @map("balance_rial") @db.Decimal(18, 0)
+  balanceGrams Decimal     @default(0) @map("balance_grams") @db.Decimal(18, 4)
+
+  ledgerEntries LedgerEntry[]
+
+  @@map("accounts")
+}
+
+model JournalEntry {
+  id            String       @id @default(uuid())
+  transactionId String?      @map("transaction_id")
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  description   String?
+  totalRial     Decimal      @default(0) @map("total_rial") @db.Decimal(18, 0)
+  totalGrams    Decimal      @default(0) @map("total_grams") @db.Decimal(18, 4)
+  entryDate     DateTime     @default(now()) @map("entry_date")
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  ledgerEntries LedgerEntry[]
+
+  @@map("journal_entries")
+}
+
+model LedgerEntry {
+  id             String       @id @default(uuid())
+  journalEntryId String       @map("journal_entry_id")
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  accountId      String       @map("account_id")
+  account        Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  side           LedgerSide
+  amountRial     Decimal      @default(0) @map("amount_rial") @db.Decimal(18, 0)
+  amountGrams    Decimal      @default(0) @map("amount_grams") @db.Decimal(18, 4)
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@map("ledger_entries")
+}
+
+// ══════════════════════════════════════════════
+// ۳. ماژول Trading
+// ══════════════════════════════════════════════
+
+model MarketPrice {
+  id               String    @id @default(uuid())
+  metal            MetalType
+  pricePerGramRial Decimal   @map("price_per_gram_rial") @db.Decimal(18, 0)
+  source           String?
+  fetchedAt        DateTime  @default(now()) @map("fetched_at")
+
+  @@map("market_prices")
+}
+
+model PriceHistory {
+  id               String    @id @default(uuid())
+  metal            MetalType
+  pricePerGramRial Decimal   @map("price_per_gram_rial") @db.Decimal(18, 0)
+  recordedAt       DateTime  @default(now()) @map("recorded_at")
+
+  @@index([metal, recordedAt])
+  @@map("price_history")
+}
+
+model PriceLock {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metal       MetalType
+  amountGrams Decimal   @map("amount_grams") @db.Decimal(18, 4)
+  side        OrderSide
+  lockedPrice Decimal   @map("locked_price") @db.Decimal(18, 0)
+  expiresAt   DateTime  @map("expires_at")
+  used        Boolean   @default(false)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  orders Order[]
+
+  @@map("price_locks")
+}
+
+model Order {
+  id           String      @id @default(uuid())
+  userId       String      @map("user_id")
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lockId       String?     @map("lock_id")
+  lock         PriceLock?  @relation(fields: [lockId], references: [id], onDelete: SetNull)
+  metal        MetalType
+  side         OrderSide
+  amountGrams  Decimal     @map("amount_grams") @db.Decimal(18, 4)
+  pricePerGram Decimal     @map("price_per_gram") @db.Decimal(18, 0)
+  totalRial    Decimal     @map("total_rial") @db.Decimal(18, 0)
+  fee          Decimal     @default(0) @db.Decimal(18, 0)
+  tax          Decimal     @default(0) @db.Decimal(18, 0)
+  status       OrderStatus @default(PENDING)
+  completedAt  DateTime?   @map("completed_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("orders")
+}
+
+// ══════════════════════════════════════════════
+// ۴. ماژول فروشگاه (Store)
+// ══════════════════════════════════════════════
+
+model ProductCategory {
+  id          String            @id @default(uuid())
+  name        String
+  slug        String            @unique
+  description String?
+  parentId    String?           @map("parent_id")
+  parent      ProductCategory?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: SetNull)
+  children    ProductCategory[] @relation("SubCategories")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  products Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id            String          @id @default(uuid())
+  categoryId    String          @map("category_id")
+  category      ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name          String
+  slug          String          @unique
+  description   String?
+  basePriceRial Decimal         @map("base_price_rial") @db.Decimal(18, 0)
+  status        ProductStatus   @default(ACTIVE)
+  seoTitle      String?         @map("seo_title")
+  seoDesc       String?         @map("seo_desc")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  variants ProductVariant[]
+
+  @@map("products")
+}
+
+model ProductVariant {
+  id              String   @id @default(uuid())
+  productId       String   @map("product_id")
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  weightGrams     Decimal  @map("weight_grams") @db.Decimal(18, 4)
+  priceAdjustment Decimal  @default(0) @map("price_adjustment") @db.Decimal(18, 0)
+  stockQuantity   Int      @default(0) @map("stock_quantity")
+  sku             String?  @unique
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  cartItems      CartItem[]
+  shopOrderItems ShopOrderItem[]
+
+  @@map("product_variants")
+}
+
+model Cart {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String         @id @default(uuid())
+  cartId    String         @map("cart_id")
+  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId String         @map("variant_id")
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@map("cart_items")
+}
+
+model ShopOrder {
+  id           String          @id @default(uuid())
+  userId       String          @map("user_id")
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addressId    String          @map("address_id")
+  address      Address         @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  status       ShopOrderStatus @default(PENDING_PAYMENT)
+  totalRial    Decimal         @map("total_rial") @db.Decimal(18, 0)
+  trackingCode String?         @map("tracking_code")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  items    ShopOrderItem[]
+  payments Payment[]
+
+  @@map("shop_orders")
+}
+
+model ShopOrderItem {
+  id        String         @id @default(uuid())
+  orderId   String         @map("order_id")
+  order     ShopOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId String         @map("variant_id")
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity  Int
+  priceRial Decimal        @map("price_rial") @db.Decimal(18, 0)
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@map("shop_order_items")
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  userId        String        @map("user_id")
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId       String?       @map("order_id")
+  order         ShopOrder?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  amountRial    Decimal       @map("amount_rial") @db.Decimal(18, 0)
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  referenceCode String?       @map("reference_code")
+  paidAt        DateTime?     @map("paid_at")
+
+  @@map("payments")
+}
+
+// ══════════════════════════════════════════════
+// ۵. ماژول Finance
+// ══════════════════════════════════════════════
+
+model WithdrawalRequest {
+  id            String           @id @default(uuid())
+  userId        String           @map("user_id")
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankAccountId String           @map("bank_account_id")
+  bankAccount   BankAccount      @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  amountRial    Decimal          @map("amount_rial") @db.Decimal(18, 0)
+  status        WithdrawalStatus @default(PENDING)
+  adminNotes    String?          @map("admin_notes")
+  processedById String?          @map("processed_by_id")
+  processedBy   User?            @relation("ProcessedBy", fields: [processedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  approvals Approval[]
+
+  @@map("withdrawal_requests")
+}
+
+model Approval {
+  id                        String                   @id @default(uuid())
+  requestType               ApprovalType             @map("request_type")
+  requestId                 String                   @map("request_id")
+  approverId                String                   @map("approver_id")
+  approver                  User                     @relation(fields: [approverId], references: [id], onDelete: Cascade)
+  step                      Int                      @default(1)
+  status                    ApprovalStatus
+  comment                   String?
+  createdAt                 DateTime                 @default(now()) @map("created_at")
+  withdrawalRequest         WithdrawalRequest?       @relation(fields: [withdrawalRequestId], references: [id])
+  withdrawalRequestId       String?
+  physicalDeliveryRequest   PhysicalDeliveryRequest? @relation(fields: [physicalDeliveryRequestId], references: [id])
+  physicalDeliveryRequestId String?
+
+  @@map("approvals")
+}
+
+model UserLimit {
+  id                       String   @id @default(uuid())
+  userId                   String   @unique @map("user_id")
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyBuyLimitGrams       Decimal  @default(50) @map("daily_buy_limit_grams") @db.Decimal(18, 4)
+  dailySellLimitGrams      Decimal  @default(50) @map("daily_sell_limit_grams") @db.Decimal(18, 4)
+  monthlyWithdrawLimitRial Decimal  @default(500000000) @map("monthly_withdraw_limit_rial") @db.Decimal(18, 0)
+  dailyTransferLimitGrams  Decimal  @default(100) @map("daily_transfer_limit_grams") @db.Decimal(18, 4)
+  physicalDeliveryMinGrams Decimal  @default(1) @map("physical_delivery_min_grams") @db.Decimal(18, 4)
+  physicalDeliveryMaxGrams Decimal  @default(500) @map("physical_delivery_max_grams") @db.Decimal(18, 4)
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@map("user_limits")
+}
+
+model FeeConfig {
+  id           String   @id @default(uuid())
+  userId       String?  @map("user_id")
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         FeeType
+  feePercent   Decimal  @map("fee_percent") @db.Decimal(5, 2)
+  feeFixedRial Decimal? @map("fee_fixed_rial") @db.Decimal(18, 0)
+  isActive     Boolean  @default(true) @map("is_active")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("fee_configs")
+}
+
+model TaxConfig {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       TaxType
+  taxPercent Decimal  @map("tax_percent") @db.Decimal(5, 2)
+  isActive   Boolean  @default(true) @map("is_active")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("tax_configs")
+}
+
+model Referral {
+  id            String   @id @default(uuid())
+  referrerId    String   @map("referrer_id")
+  referrer      User     @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredId    String   @unique @map("referred_id")
+  referred      User     @relation("Referred", fields: [referredId], references: [id], onDelete: Cascade)
+  rewardClaimed Boolean  @default(false) @map("reward_claimed")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  rewards ReferralReward[]
+
+  @@map("referrals")
+}
+
+model ReferralReward {
+  id            String       @id @default(uuid())
+  userId        String       @map("user_id")
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  referralId    String       @map("referral_id")
+  referral      Referral     @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  amountGrams   Decimal?     @map("amount_grams") @db.Decimal(18, 4)
+  amountRial    Decimal?     @map("amount_rial") @db.Decimal(18, 0)
+  transactionId String?      @map("transaction_id")
+  transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  @@map("referral_rewards")
+}
+
+// ══════════════════════════════════════════════
+// ۶. ماژول تحویل فیزیکی (Physical Delivery)
+// ══════════════════════════════════════════════
+
+model Address {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String?
+  province      String?
+  city          String?
+  postalCode    String?  @map("postal_code")
+  fullAddress   String   @map("full_address")
+  receiverName  String?  @map("receiver_name")
+  receiverPhone String?  @map("receiver_phone")
+  isDefault     Boolean  @default(false) @map("is_default")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  shopOrders           ShopOrder[]
+  physicalDeliveryReqs PhysicalDeliveryRequest[]
+
+  @@map("addresses")
+}
+
+model PhysicalDeliveryRequest {
+  id           String                 @id @default(uuid())
+  userId       String                 @map("user_id")
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  addressId    String                 @map("address_id")
+  address      Address                @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  amountGrams  Decimal                @map("amount_grams") @db.Decimal(18, 4)
+  feeRial      Decimal                @default(0) @map("fee_rial") @db.Decimal(18, 0)
+  status       PhysicalDeliveryStatus @default(PENDING)
+  trackingCode String?                @map("tracking_code")
+  adminNotes   String?                @map("admin_notes")
+  approvedById String?                @map("approved_by_id")
+  approvedBy   User?                  @relation("ApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime               @default(now()) @map("created_at")
+  updatedAt    DateTime               @updatedAt @map("updated_at")
+
+  shippings Shipping[]
+  approvals Approval[]
+
+  @@map("physical_delivery_requests")
+}
+
+model Shipping {
+  id                String                  @id @default(uuid())
+  deliveryRequestId String                  @map("delivery_request_id")
+  deliveryRequest   PhysicalDeliveryRequest @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  carrierName       String?                 @map("carrier_name")
+  trackingCode      String?                 @map("tracking_code")
+  estimatedDelivery DateTime?               @map("estimated_delivery")
+  deliveredAt       DateTime?               @map("delivered_at")
+  status            ShippingStatus          @default(IN_TRANSIT)
+  createdAt         DateTime                @default(now()) @map("created_at")
+
+  @@map("shippings")
+}
+
+// ══════════════════════════════════════════════
+// ۷. ماژول Payroll
+// ══════════════════════════════════════════════
+
+model PayrollPlan {
+  id           String    @id @default(uuid())
+  name         String
+  amountGrams  Decimal   @map("amount_grams") @db.Decimal(18, 4)
+  executionDay Int       @map("execution_day")
+  isActive     Boolean   @default(true) @map("is_active")
+  startDate    DateTime? @map("start_date")
+  endDate      DateTime? @map("end_date")
+  createdById  String    @map("created_by_id")
+  createdBy    User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  users PayrollPlanUser[]
+  logs  PayrollLog[]
+
+  @@map("payroll_plans")
+}
+
+model PayrollPlanUser {
+  id     String      @id @default(uuid())
+  planId String      @map("plan_id")
+  plan   PayrollPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  userId String      @map("user_id")
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, userId])
+  @@map("payroll_plan_users")
+}
+
+model PayrollLog {
+  id            String        @id @default(uuid())
+  planId        String        @map("plan_id")
+  plan          PayrollPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  executionDate DateTime      @map("execution_date")
+  status        PayrollStatus
+  totalUsers    Int           @map("total_users")
+  successful    Int
+  failed        Int
+  details       Json?
+  startedAt     DateTime      @map("started_at")
+  finishedAt    DateTime?     @map("finished_at")
+
+  @@map("payroll_logs")
+}
+
+// ══════════════════════════════════════════════
+// ۸. ماژول System / Audit
+// ══════════════════════════════════════════════
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  user       User?    @relation("UserAudit", fields: [userId], references: [id], onDelete: SetNull)
+  adminId    String?  @map("admin_id")
+  admin      User?    @relation("AdminAudit", fields: [adminId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  ip         String?
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([adminId])
+  @@map("audit_logs")
+}
+
+model SystemConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_configs")
+}
+
+model VaultGoldInventory {
+  id          String             @id @default(uuid())
+  type        VaultInventoryType
+  amountGrams Decimal            @map("amount_grams") @db.Decimal(18, 4)
+  referenceId String?            @map("reference_id")
+  notes       String?
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  @@map("vault_gold_inventory")
+}
+
+model SettlementLog {
+  id                String           @id @default(uuid())
+  bankTransactionId String           @map("bank_transaction_id")
+  amountRial        Decimal          @map("amount_rial") @db.Decimal(18, 0)
+  userId            String?          @map("user_id")
+  user              User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  status            SettlementStatus @default(PENDING)
+  settledAt         DateTime?        @map("settled_at")
+
+  @@map("settlement_logs")
+}
+
+model Notification {
+  id      String           @id @default(uuid())
+  userId  String           @map("user_id")
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type    NotificationType
+  content String
+  sentAt  DateTime?        @map("sent_at")
+  readAt  DateTime?        @map("read_at")
+
+  @@map("notifications")
+}
+
+// ══════════════════════════════════════════════
+// ENUMS
+// ══════════════════════════════════════════════
+
+enum UserType {
+  REAL
+  LEGAL
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BANNED
+  PENDING_ACTIVATION
+}
+
+enum OtpPurpose {
+  REGISTER
+  LOGIN
+  RESET_PASSWORD
+}
+
+enum IdentityStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  MANUAL_REVIEW
+}
+
+enum HoldType {
+  ORDER
+  WITHDRAWAL
+  PHYSICAL_DELIVERY
+}
+
+enum TransactionType {
+  BUY_GOLD
+  SELL_GOLD
+  BUY_SILVER
+  SELL_SILVER
+  TRANSFER_IN
+  TRANSFER_OUT
+  WITHDRAWAL
+  DEPOSIT
+  FEE
+  TAX
+  REFERRAL_REWARD
+  SALARY
+  PHYSICAL_DELIVERY
+  SHOP_PURCHASE
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum LedgerSide {
+  DEBIT
+  CREDIT
+}
+
+enum MetalType {
+  GOLD
+  SILVER
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+enum OrderStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+}
+
+enum ShopOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  WALLET
+  BANK_GATEWAY
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSED
+}
+
+enum ApprovalType {
+  WITHDRAWAL
+  PHYSICAL_DELIVERY
+  MANUAL_TRANSACTION
+}
+
+enum ApprovalStatus {
+  APPROVED
+  REJECTED
+}
+
+enum FeeType {
+  BUY_GOLD
+  SELL_GOLD
+  TRANSFER
+  PHYSICAL_DELIVERY
+  WITHDRAWAL
+}
+
+enum TaxType {
+  BUY
+  SELL
+}
+
+enum PhysicalDeliveryStatus {
+  PENDING
+  APPROVED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum ShippingStatus {
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+}
+
+enum PayrollStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum VaultInventoryType {
+  PHYSICAL
+  RESERVED
+  IN_TRANSIT
+}
+
+enum SettlementStatus {
+  PENDING
+  SETTLED
+  FAILED
+}
+
+enum NotificationType {
+  SMS
+  IN_APP
+  EMAIL
+}

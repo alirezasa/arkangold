@@ -1,1 +1,44 @@
+/* app/globals.css */
 @import "tailwindcss";
+
+@theme {
+  /* تنظیم فونت شخصی‌سازی شده (مثلا ایران‌سنس یا شبنم) */
+  --font-sans: "Vazirmatn", "IRANSans", system-ui, sans-serif;
+
+  /* رنگ‌های اختصاصی پلتفرم طلا */
+  --color-gold-50: #fbf8eb;
+  --color-gold-100: #f5eed1;
+  --color-gold-500: #d4af37; /* رنگ اصلی طلایی */
+  --color-gold-600: #b5952f;
+  --color-gold-900: #42350c;
+
+  /* رنگ‌های داینامیک پس‌زمینه و متن */
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+}
+
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f3f4f6;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #0f172a; /* تم تاریک حرفه‌ای سرمه‌ای/مشکی */
+    --bg-secondary: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+  }
+}
+
+body {
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  /* بهینه‌سازی برای PWA و موبایل */
+  -webkit-tap-highlight-color: transparent;
+}

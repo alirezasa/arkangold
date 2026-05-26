@@ -1,24 +1,44 @@
 "use client";
 
-import { useState, useRef, KeyboardEvent } from "react";
+import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import Link from "next/link";
-import { Phone, Lock, Eye, EyeOff, ShieldCheck, ArrowLeft, Sparkles, UserPlus, AlertCircle, Loader2 } from "lucide-react";
+import { Phone, Lock, Eye, EyeOff, ShieldCheck, ArrowLeft, Sparkles, UserPlus, AlertCircle, Loader2, Timer } from "lucide-react";
 import { useLogin } from "../hooks/useLogin";
 
+type LoginMethod = "password" | "otp";
+type OtpStep = "request" | "verify";
+
 export default function LoginPage() {
-  const { loading, error, setError, loginWithPassword, sendLoginOtp, verifyLoginOtp } = useLogin();
+  const { loading, error, setError, loginWithPassword, sendLoginOtpCode, verifyLoginOtpCode } = useLogin();
 
-  const [method, setMethod] = useState<"password" | "otp">("password");
-  const [otpStep, setOtpStep] = useState<"request" | "verify">("request");
+  const [method, setMethod] = useState<LoginMethod>("password");
+  const [otpStep, setOtpStep] = useState<OtpStep>("request");
   const [showPassword, setShowPassword] = useState(false);
+  const [timer, setTimer] = useState(0);
 
+  // Form States
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // جلوگیری از تایپ حروف در شماره موبایل
+  // مدیریت تایمر OTP
+  useEffect(() => {
+    if (timer > 0) {
+      const interval = setInterval(() => setTimer((prev) => prev - 1), 1000);
+      return () => clearInterval(interval);
+    }
+  }, [timer]);
+
+  // فرمت زمان تایمر (مثلاً 01:45)
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  };
+
+  // اعتبارسنجی ورودی شماره موبایل (فقط عدد)
   const handlePhoneChange = (val: string) => {
     const onlyDigits = val.replace(/\D/g, "");
     if (onlyDigits.length <= 11) {
@@ -27,6 +47,7 @@ export default function LoginPage() {
     }
   };
 
+  // مدیریت فیلدهای OTP
   const handleOtpChange = (index: number, value: string) => {
     if (isNaN(Number(value))) return;
     const newOtp = [...otp];
@@ -34,7 +55,7 @@ export default function LoginPage() {
     setOtp(newOtp);
     if (error) setError(null);
 
-    // فوکوس خودکار به خانه بعدی
+    // فوکوس به جلو
     if (value !== "" && index < 5) {
       otpRefs.current[index + 1]?.focus();
     }
@@ -42,50 +63,56 @@ export default function LoginPage() {
     // ارسال خودکار با تکمیل رقم آخر
     if (value !== "" && index === 5) {
       const fullCode = newOtp.join("");
-      verifyLoginOtp(phone, fullCode);
+      verifyLoginOtpCode(phone, fullCode);
     }
-    
   };
 
+  // بک‌اسپیس برای OTP
   const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace" && otp[index] === "" && index > 0) {
       otpRefs.current[index - 1]?.focus();
     }
   };
 
+  // ارسال فرم
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (!/^09\d{9}$/.test(phone)) {
       setError("شماره موبایل باید ۱۱ رقم باشد و با 09 شروع شود.");
       return;
     }
 
     if (method === "password") {
-      if (!password) {
-        setError("لطفاً رمز عبور خود را وارد کنید.");
-        return;
-      }
+      if (!password) return setError("لطفاً رمز عبور خود را وارد کنید.");
       await loginWithPassword(phone, password);
     } 
     else if (method === "otp") {
       if (otpStep === "request") {
-        const success = await sendLoginOtp(phone);
-        if (success) setOtpStep("verify");
+        const success = await sendLoginOtpCode(phone);
+        if (success) {
+          setOtpStep("verify");
+          setTimer(120); // شروع تایمر ۲ دقیقه‌ای
+        }
       } else {
         const fullCode = otp.join("");
-        if (fullCode.length < 6) {
-          setError("لطفاً کد ۶ رقمی را کامل وارد کنید.");
-          return;
-        }
-        await verifyLoginOtp(phone, fullCode);
+        if (fullCode.length < 6) return setError("لطفاً کد ۶ رقمی را کامل وارد کنید.");
+        await verifyLoginOtpCode(phone, fullCode);
       }
     }
+  };
+
+  const resetToPhone = () => {
+    setOtpStep("request");
+    setOtp(["", "", "", "", "", ""]);
+    setTimer(0);
+    setError(null);
   };
 
   return (
     <div className="w-full min-h-screen flex flex-col lg:flex-row-reverse bg-[#fdfdfd]" dir="rtl">
       
-      {/* بخش راست: پنل برندینگ */}
+      {/* بخش راست: پنل برندینگ (بدون تغییر) */}
       <div className="hidden lg:flex lg:w-[45%] bg-[#064e3b] relative overflow-hidden flex-col justify-between p-16">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
         <div className="relative z-10">
@@ -109,13 +136,15 @@ export default function LoginPage() {
             <p className="text-gray-500 font-medium">لطفاً اطلاعات خود را وارد کنید</p>
           </div>
 
-          {/* تب‌های انتخاب روش ورود */}
-          <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8 border border-gray-200">
-            <button onClick={() => { setMethod("password"); setError(null); }} className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${method === "password" ? "bg-white shadow-sm text-[#064e3b]" : "text-gray-500"}`}>رمز عبور</button>
-            <button onClick={() => { setMethod("otp"); setOtpStep("request"); setError(null); }} className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${method === "otp" ? "bg-white shadow-sm text-[#064e3b]" : "text-gray-500"}`}>کد پیامکی</button>
-          </div>
+          {/* تب‌های انتخاب روش ورود (در زمان وارد کردن کد مخفی می‌شود) */}
+          {otpStep === "request" && (
+            <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8 border border-gray-200">
+              <button type="button" onClick={() => { setMethod("password"); setError(null); }} className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${method === "password" ? "bg-white shadow-sm text-[#064e3b]" : "text-gray-500"}`}>رمز عبور</button>
+              <button type="button" onClick={() => { setMethod("otp"); setError(null); }} className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${method === "otp" ? "bg-white shadow-sm text-[#064e3b]" : "text-gray-500"}`}>کد پیامکی</button>
+            </div>
+          )}
 
-          {/* باکسی برای نمایش خطاهای سرور و اعتبارسنجی */}
+          {/* باکسی برای نمایش خطاها */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl flex items-start gap-3 text-sm font-bold animate-in fade-in">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -126,7 +155,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             
             {/* فیلد شماره موبایل */}
-            {!(method === "otp" && otpStep === "verify") && (
+            {otpStep === "request" && (
               <div className="space-y-2 animate-in fade-in">
                 <label className="text-xs font-black text-gray-400 mr-1">شماره موبایل</label>
                 <div className="relative">
@@ -137,7 +166,7 @@ export default function LoginPage() {
             )}
 
             {/* فیلد رمز عبور */}
-            {method === "password" && (
+            {method === "password" && otpStep === "request" && (
               <div className="space-y-2 animate-in fade-in">
                 <label className="text-xs font-black text-gray-400 mr-1">گذرواژه</label>
                 <div className="relative flex items-center">
@@ -150,17 +179,33 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* فیلد OTP */}
+            {/* فیلد OTP و تایمر */}
             {method === "otp" && otpStep === "verify" && (
-              <div className="space-y-4 animate-in fade-in">
-                <p className="text-gray-500 text-center mb-6 font-medium text-sm">
-                  کد تایید به شماره <span className="font-bold text-[#064e3b]" dir="ltr">{phone}</span> ارسال شد.<br/>
-                  <button type="button" onClick={() => setOtpStep("request")} className="text-[#c5a059] underline mt-2 font-bold text-xs hover:text-[#a88646]">ویرایش شماره</button>
-                </p>
+              <div className="space-y-6 animate-in slide-in-from-left-4">
+                <div className="text-center">
+                  <p className="text-gray-500 font-medium text-sm">
+                    کد تایید به <span className="font-bold text-[#064e3b]" dir="ltr">{phone}</span> ارسال شد.
+                  </p>
+                  <button type="button" onClick={resetToPhone} className="text-[#c5a059] underline mt-1 font-bold text-xs hover:text-[#a88646]">ویرایش شماره موبایل</button>
+                </div>
+                
                 <div className="flex justify-center gap-2" dir="ltr">
                   {otp.map((digit, i) => (
                     <input key={i} type="text" maxLength={1} ref={(el) => { otpRefs.current[i] = el; }} value={digit} onChange={(e) => handleOtpChange(i, e.target.value)} onKeyDown={(e) => handleKeyDown(i, e)} className="w-12 h-14 text-center text-xl font-black bg-white border-2 border-gray-200 rounded-xl focus:border-[#064e3b] focus:scale-105 outline-none transition-all shadow-sm" />
                   ))}
+                </div>
+
+                <div className="flex items-center justify-center gap-2 text-sm font-bold text-gray-500">
+                  {timer > 0 ? (
+                    <>
+                      <Timer className="w-4 h-4" />
+                      <span>ارسال مجدد کد تا {formatTime(timer)} دیگر</span>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => sendLoginOtpCode(phone)} className="text-[#064e3b] hover:underline flex items-center gap-1">
+                      ارسال مجدد کد
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -169,7 +214,7 @@ export default function LoginPage() {
             <button type="submit" disabled={loading} className="w-full py-4 mt-8 bg-[#064e3b] text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-[#064e3b]/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed">
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (
                 <>
-                  {method === "password" ? "ورود ایمن به حساب" : otpStep === "request" ? "ارسال کد تایید" : "تایید و ورود"}
+                  {method === "password" ? "ورود ایمن به حساب" : otpStep === "request" ? "ارسال پیامک تایید" : "تایید و ورود"}
                   <ArrowLeft className="w-5 h-5" />
                 </>
               )}
@@ -178,7 +223,7 @@ export default function LoginPage() {
 
           <div className="mt-10 text-center">
             <Link href="/register" className="text-sm font-bold text-[#064e3b] hover:text-[#085f48] transition-colors flex items-center justify-center gap-2">
-              <UserPlus className="w-4 h-4" /> ایجاد حساب کاربری جدید
+              <UserPlus className="w-4 h-4" /> هنوز حساب کاربری ندارید؟ ثبت‌نام کنید
             </Link>
           </div>
         </div>

@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     
     // ارسال اطلاعات به بک‌اند اصلی (NestJS)
-    const response = await axios.post(`${NEST_API_URL}/set-password`, body);
+  const response = await axios.post(`${NEST_API_URL}/login`, body);
     const { accessToken, refreshToken, user } = response.data;
 
     const nextResponse = NextResponse.json({ success: true, user });

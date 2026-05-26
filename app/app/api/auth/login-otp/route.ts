@@ -6,9 +6,9 @@ const NEST_API_URL = process.env.NEST_API_URL || "http://localhost:5000/auth";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
+
     // ارسال اطلاعات به بک‌اند اصلی (NestJS)
-    const response = await axios.post(`${NEST_API_URL}/set-password`, body);
+    const response = await axios.post(`${NEST_API_URL}/verify-login-otp`, body);
     const { accessToken, refreshToken, user } = response.data;
 
     const nextResponse = NextResponse.json({ success: true, user });
@@ -40,9 +40,11 @@ export async function POST(request: Request) {
     // بررسی امن نوع خطا برای فرار از قانون explicit-any در ESLint
     if (axios.isAxiosError(error)) {
       status = error.response?.status || 500;
-      
+
       // فرض بر این است که ساختار خطای NestJS شامل شیء یا رشته پیام است
-      const errorData = error.response?.data as { message?: string } | undefined;
+      const errorData = error.response?.data as
+        | { message?: string }
+        | undefined;
       message = errorData?.message || error.message || message;
     } else if (error instanceof Error) {
       message = error.message;

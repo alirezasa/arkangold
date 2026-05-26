@@ -5,6 +5,10 @@ const NEST_API_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/auth";
 
 export const AuthService = {
+  // ==========================================
+  // ─── بخش اول: متدهای ثبت نام (کدهای قبلی شما)
+  // ==========================================
+
   // مرحله ۱: ارسال شماره همراه
   sendOtp: async (phone: string) => {
     const response = await axios.post(`${NEST_API_URL}/send-otp`, { phone });
@@ -40,17 +44,47 @@ export const AuthService = {
     });
     return response.data;
   },
-  // ─── متدهای جدید (مربوط به ورود) که باید اضافه کنید ⬇️ ───
 
+  // ==========================================
+  // ─── بخش دوم: متدهای ورود (اضافه شده برای رفع خطا)
+  // ==========================================
+
+  // ارسال کد پیامکی ورود (درخواست مستقیم به NestJS چون کوکی نیاز ندارد)
+  sendLoginOtp: async (phone: string) => {
+    const response = await axios.post(`${NEST_API_URL}/send-login-otp`, { phone });
+    return response.data;
+  },
+
+  // تایید کد ورود پیامکی (ارسال به BFF نکس‌جی‌اس برای ست کردن کوکی)
+  verifyLoginOtp: async (phone: string, code: string) => {
+    const response = await axios.post("/api/auth/verify-login-otp", { phone, code });
+    return response.data;
+  },
+
+  // ورود با رمز عبور (ارسال به BFF نکس‌جی‌اس برای ست کردن کوکی)
   login: async (phone: string, password: string) => {
-    // درخواست به روت لاگین با رمز عبور
-    const res = await axios.post(`${NEST_API_URL}/login`, { phone, password });
-    return res.data;
+    const response = await axios.post("/api/auth/login", { phone, password });
+    return response.data;
+  },
+  // ==========================================
+  // ─── بخش سوم: متدهای فراموشی رمز عبور
+  // ==========================================
+
+  // درخواست پیامک بازیابی
+  forgotPassword: async (phone: string) => {
+    const response = await axios.post(`${NEST_API_URL}/forgot-password`, { phone });
+    return response.data;
   },
 
-  loginWithOtp: async (phone: string, code: string) => {
-    // درخواست به روت لاگین با کد یکبار مصرف
-    const res = await axios.post(`${NEST_API_URL}/send-otp`, { phone, code });
-    return res.data;
+  // تایید پیامک و دریافت توکن بازیابی (resetToken)
+  verifyResetOtp: async (phone: string, code: string) => {
+    const response = await axios.post(`${NEST_API_URL}/verify-reset-otp`, { phone, code });
+    return response.data;
   },
+
+  // تنظیم رمز عبور جدید
+  resetPassword: async (resetToken: string, password: string) => {
+    const response = await axios.post(`${NEST_API_URL}/reset-password`, { resetToken, password });
+    return response.data;
+  }
 };

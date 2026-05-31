@@ -2,17 +2,17 @@
 @import "tailwindcss";
 
 @theme {
-  /* تنظیم فونت شخصی‌سازی شده */
+  /* فونت شخصی‌سازی شده */
   --font-sans: "Vazirmatn", "IRANSans", system-ui, sans-serif;
 
-  /* رنگ‌های اختصاصی طلایی (از قبل داشتید) */
+  /* رنگ‌های طلایی */
   --color-gold-50: #fbf8eb;
   --color-gold-100: #f5eed1;
-  --color-gold-500: #c5a059; /* اصلاح شده طبق طرح شما */
+  --color-gold-500: #c5a059;
   --color-gold-600: #b5952f;
   --color-gold-900: #42350c;
 
-  /* رنگ‌های اختصاصی برند آرکان گلد (اضافه شده) */
+  /* رنگ‌های برند آرکان گلد */
   --color-emerald: #064e3b;
   --color-emerald-light: #e8f5f0;
   --color-surface: #ffffff;
@@ -20,7 +20,7 @@
   --color-border: #e2e0d8;
   --color-red: #dc2626;
 
-  /* رنگ‌های داینامیک سیستم */
+  /* رنگ‌های داینامیک */
   --color-bg-primary: var(--bg-primary);
   --color-bg-secondary: var(--bg-secondary);
   --color-text-primary: var(--text-primary);
@@ -36,16 +36,84 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-primary: #0f172a; 
+    --bg-primary: #0f172a;
     --bg-secondary: #1e293b;
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
   }
 }
 
+/* ── Base ─────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Prevents font size inflation on orientation change (iOS) */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
-  background-color: var(--color-bg-page); /* استفاده از رنگ پس‌زمینه طرح شما */
+  background-color: var(--color-bg-page);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
+
+  /* Disable iOS tap highlight on all elements */
   -webkit-tap-highlight-color: transparent;
+
+  /* Prevent iOS rubber-band on body — individual scroll areas use
+     overflow-y: auto + overscroll-behavior: contain instead */
+  overscroll-behavior: none;
+}
+
+/* ── PWA: safe area helpers ───────────────────────────────── */
+
+/*
+  iOS notch / Dynamic Island / home indicator:
+  Use env() where Tailwind can't — e.g. in inline styles or here.
+*/
+.safe-top    { padding-top:    env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-left   { padding-left:   env(safe-area-inset-left); }
+.safe-right  { padding-right:  env(safe-area-inset-right); }
+
+/* ── Scrollbar (WebKit) ───────────────────────────────────── */
+::-webkit-scrollbar           { width: 4px; height: 4px; }
+::-webkit-scrollbar-track     { background: transparent; }
+::-webkit-scrollbar-thumb     { background: var(--color-border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #c5a059; }
+
+/* ── Animations ──────────────────────────────────────────── */
+
+/* Live gold price dot pulse */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+.live-dot {
+  animation: livePulse 1.5s ease-in-out infinite;
+}
+
+/* Sidebar slide transition */
+.sidebar-transition {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Utilities not in Tailwind v4 yet ─────────────────────── */
+
+/* h-svh = 100svh (small viewport height — correct on mobile) */
+.h-svh { height: 100svh; }
+
+/* overscroll */
+.overscroll-none    { overscroll-behavior: none; }
+.overscroll-contain { overscroll-behavior: contain; }
+
+/* ── Focus ring (accessibility) ───────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-gold-500);
+  outline-offset: 2px;
+  border-radius: 4px;
 }

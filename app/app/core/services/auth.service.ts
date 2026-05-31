@@ -57,13 +57,15 @@ export const AuthService = {
 
   // تایید کد ورود پیامکی (ارسال به BFF نکس‌جی‌اس برای ست کردن کوکی)
   verifyLoginOtp: async (phone: string, code: string) => {
-    const response = await axios.post("/api/auth/verify-login-otp", { phone, code });
+    // آدرس باید مستقیماً به API داخلی خود نکس‌جی‌اس بخورد نه NEST_API_URL
+    const response = await axios.post(`/api/auth/verify-login-otp`, { phone, code });
     return response.data;
   },
 
   // ورود با رمز عبور (ارسال به BFF نکس‌جی‌اس برای ست کردن کوکی)
   login: async (phone: string, password: string) => {
-    const response = await axios.post("/api/auth/login", { phone, password });
+    // برای این هم بهتر است آدرس صریح نوشته شود
+    const response = await axios.post(`/api/auth/login`, { phone, password });
     return response.data;
   },
   // ==========================================

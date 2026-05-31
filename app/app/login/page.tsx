@@ -48,7 +48,7 @@ export default function LoginPage() {
   };
 
   // مدیریت فیلدهای OTP
-  const handleOtpChange = (index: number, value: string) => {
+  const handleOtpChange = async (index: number, value: string) => {
     if (isNaN(Number(value))) return;
     const newOtp = [...otp];
     newOtp[index] = value;
@@ -60,10 +60,10 @@ export default function LoginPage() {
       otpRefs.current[index + 1]?.focus();
     }
     
-    // ارسال خودکار با تکمیل رقم آخر
-    if (value !== "" && index === 5) {
+    // ارسال خودکار با تکمیل رقم آخر (با اضافه کردن await و جلوگیری در صورت loading)
+    if (value !== "" && index === 5 && !loading) {
       const fullCode = newOtp.join("");
-      verifyLoginOtpCode(phone, fullCode);
+      await verifyLoginOtpCode(phone, fullCode);
     }
   };
 

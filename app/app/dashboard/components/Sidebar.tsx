@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { SIDEBAR_NAV, SIDEBAR_ACCOUNT_NAV } from "@/app/utils/mock-data";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
-
+import GoldPriceCard from "@/app/dashboard/components/gold/GoldPriceCard";
+import GoldPriceMini from "@/app/dashboard/components/gold/GoldPriceMini";
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
@@ -69,24 +70,9 @@ export default function Sidebar({
           </p>
         </div>
 
-        <div
-          className="relative mx-4 my-4 rounded-xl p-3"
-          style={{
-            background: "rgba(197,160,89,.15)",
-            border: "1px solid rgba(197,160,89,.3)",
-          }}
-        >
-          <p className="text-[10px] text-white/80 mb-1">قیمت لحظه‌ای طلا</p>
-          <p
-            className="text-[18px] font-black"
-            style={{ color: "var(--color-gold-500)" }}
-          >
-            ۴,۲۸۰,۰۰۰ ت
-          </p>
-          <p className="mt-1 text-[11px] text-emerald-300 font-bold">
-            ↑ ۱.۲٪ امروز
-          </p>
-        </div>
+        
+        <GoldPriceCard />
+      
 
         <nav className="relative flex-1 overflow-y-auto px-3 py-2 space-y-1">
           {SIDEBAR_NAV.map((item) => {

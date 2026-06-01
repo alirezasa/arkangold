@@ -28,3 +28,4 @@ export declare class ResetPasswordDto {
 export declare class RefreshTokenDto {
     refreshToken: string;
 }
+

@@ -1,116 +1,186 @@
 "use client";
 
-import React from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { 
+  X, 
+  ShieldCheck, 
+  ShieldAlert, 
+  ShieldCheck as ShieldPending, 
+  CreditCard, 
+  Lock, 
+  LogOut, 
+  ChevronLeft, 
+  User,
+  Settings
+} from "lucide-react";
 
 interface MobileProfileProps {
   isOpen: boolean;
   onClose: () => void;
+  userName?: string;
+  userPhone?: string;
+  identityStatus?: 'VERIFIED' | 'MANUAL_REVIEW' | 'PENDING' | null;
 }
 
-export default function MobileProfile({ isOpen, onClose }: MobileProfileProps) {
+export default function MobileProfile({
+  isOpen,
+  onClose,
+  userName = "کاربر گرامی",
+  userPhone = "۰۹۲۱****۷۰۴",
+  identityStatus = null,
+}: MobileProfileProps) {
   const router = useRouter();
 
-  if (!isOpen) return null;
+  // قفل کردن اسکرول صفحه پشت مودال در زمان باز بودن
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    }
+  }, [isOpen]);
 
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
+      onClose();
       router.replace("/login");
     } catch {
       console.error("خطا در خروج");
     }
   };
 
-  return (
-    <div 
-      className="fixed inset-0 z-9999 flex flex-col h-dvh overflow-y-auto lg:hidden animate-in slide-in-from-bottom duration-200"
-      style={{ backgroundColor: "#f4f5f7" }}
-      dir="rtl"
-    >
-      {/* هدر اپلیکیشنی ثابت */}
-      <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 bg-[#f4f5f7]">
-        <button 
-          onClick={onClose} 
-          className="p-1.5 rounded-full bg-white text-gray-500 active:scale-90 transition-transform shadow-sm border border-gray-100"
-        >
-          <i className="ti ti-x text-[20px]"></i>
-        </button>
-        <h2 className="text-[16px] font-black text-gray-900">حساب کاربری</h2>
-        <div className="w-9"></div> {/* ایجاد تقارن کامل هدر */}
-      </div>
+  if (!isOpen) return null;
 
-      {/* محتوای اسکرول شونده منو */}
-      <div className="flex-1 px-4 pb-10 space-y-4">
+  // تنظیم رنگ و متن وضعیت احراز هویت
+  const getStatusDetails = () => {
+    switch (identityStatus) {
+      case "VERIFIED":
+        return {
+          text: "احراز هویت شده",
+          color: "text-green-600 bg-green-50 border-green-200",
+          icon: <ShieldCheck className="w-5 h-5 text-green-500" />,
+        };
+      case "PENDING":
+      case "MANUAL_REVIEW":
+        return {
+          text: "در حال بررسی",
+          color: "text-amber-600 bg-amber-50 border-amber-200",
+          icon: <ShieldPending className="w-5 h-5 text-amber-500 animate-pulse" />,
+        };
+      default:
+        return {
+          text: "نیاز به احراز هویت",
+          color: "text-red-600 bg-red-50 border-red-200",
+          icon: <ShieldAlert className="w-5 h-5 text-red-500" />,
+        };
+    }
+  };
+
+  const status = getStatusDetails();
+
+  return (
+    <div className="fixed inset-0 z-[100] lg:hidden" dir="rtl">
+      {/* بک‌دراپ تاریک و مات کننده پشت مودال */}
+      <div 
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+        onClick={onClose}
+      />
+
+      {/* باکس اصلی منو که از پایین بالا می‌آید */}
+      <div className="fixed bottom-0 left-0 right-0 bg-gray-50 rounded-t-[24px] max-h-[92vh] overflow-y-auto flex flex-col shadow-[0_-8px_32px_rgba(0,0,0,0.15)] animate-slide-up pb-safe">
         
-        {/* ۱. کارت اطلاعات کاربر اصلی با تیک تایید */}
-        <div className="flex items-center justify-between p-5 bg-white rounded-3xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] border border-gray-50/50 active:scale-[0.99] transition-transform cursor-pointer">
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <div className="flex items-center justify-center w-14 h-14 bg-gray-50 rounded-full border border-gray-100">
-                <i className="ti ti-user text-[28px] text-gray-400"></i>
-              </div>
-              {/* تیک سبز تایید هویت مشابه اسنپ/دیجی‌کالا */}
-              <div className="absolute -bottom-1 -right-1 p-0.5 bg-white rounded-full shadow-sm">
-                <i className="ti ti-circle-check-filled text-[18px] text-emerald-500"></i>
-              </div>
-            </div>
-            <div className="flex flex-col text-right">
-              <h3 className="text-[15px] font-black text-gray-900">علیرضا صادق زاده قوی فکر</h3>
-              <p className="mt-0.5 text-[12px] font-bold text-gray-400 tracking-wider" dir="ltr">۰۹۲۱****۷۰۴</p>
-            </div>
+        {/* هدر مودال و دستگیره بالایی */}
+        <div className="flex flex-col items-center justify-center pt-3 pb-2 bg-white border-b border-gray-100 rounded-t-[24px]">
+          <div className="w-12 h-1 bg-gray-300 rounded-full mb-4" onClick={onClose} />
+          <div className="flex items-center justify-between w-full px-5">
+            <h2 className="text-[16px] font-black text-gray-800">پروفایل کاربری</h2>
+            <button 
+              onClick={onClose}
+              className="p-1.5 bg-gray-100 rounded-full text-gray-500 active:scale-95 transition-transform"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <i className="text-[20px] text-gray-300 ti ti-chevron-left"></i>
         </div>
 
-        {/* ۲. بنر دعوت از دوستان جذاب با تم جایزه طلایی */}
-        <div className="flex items-center justify-between p-4 bg-white rounded-3xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] border border-gray-50/50 active:scale-[0.99] transition-transform cursor-pointer">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-11 h-11 text-emerald-700 bg-emerald-50/70 rounded-2xl border border-emerald-100/30">
-              <i className="ti ti-gift text-[22px]"></i>
-            </div>
-            <div className="flex flex-col text-right">
-              <span className="text-[13px] font-black text-gray-800">۲ سوت جایزه برای دعوت هر دوست</span>
-              <span className="mt-0.5 text-[11px] font-bold text-gray-400">۱ سوت شما، ۱ سوت دوستان شما</span>
-            </div>
+        {/* بخش اطلاعات کاربر */}
+        <div className="p-5 bg-white border-b border-gray-100 flex items-center gap-4">
+          <div 
+            className="flex h-14 w-14 items-center justify-center rounded-full text-[20px] font-black"
+            style={{ background: "var(--color-gold-500)", color: "var(--color-emerald)" }}
+          >
+            {userName.charAt(0)}
           </div>
-          <i className="text-[20px] text-emerald-600/70 ti ti-chevron-left"></i>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-[15px] font-black text-gray-800 truncate mb-1">{userName}</h3>
+            <p className="text-[13px] text-gray-500 font-medium" dir="ltr" style={{ textAlign: 'right' }}>{userPhone}</p>
+          </div>
         </div>
 
-        {/* ۳. لیست مجتمع منوها (گروه‌بندی شده مانند تصاویر آی‌اواس) */}
-        <div className="flex flex-col bg-white rounded-3xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] border border-gray-50/50 overflow-hidden">
-          <MenuItem icon="ti-history" title="تاریخچه سفارشات" />
-          <MenuItem icon="ti-credit-card" title="حساب‌های بانکی" />
-          <MenuItem icon="ti-lock" title="تغییر رمزعبور" />
-          <MenuItem icon="ti-shield-check" title="مجوزهای آرکان گلد" />
-          <MenuItem icon="ti-file-description" title="قوانین و مقررات" />
-          <MenuItem icon="ti-help" title="سوالات متداول" />
-          <MenuItem icon="ti-headset" title="پشتیبانی آنلاین" hasBorder={false} />
+        {/* کارت وضعیت احراز هویت */}
+        <div className="p-4">
+          <div className={`flex items-center justify-between p-4 rounded-2xl border ${status.color} bg-white shadow-sm`}>
+            <div className="flex items-center gap-3">
+              {status.icon}
+              <div>
+                <p className="text-[13px] font-black">{status.text}</p>
+                {identityStatus !== "VERIFIED" && (
+                  <p className="text-[11px] opacity-80 mt-0.5">برای دسترسی به تمامی امکانات هویت خود را تایید کنید.</p>
+                )}
+              </div>
+            </div>
+            {identityStatus !== "VERIFIED" && (
+              <button 
+                onClick={() => { onClose(); router.push("/dashboard/identity"); }}
+                className="bg-[#064e3b] text-white text-[11px] font-bold px-3 py-1.5 rounded-xl shrink-0 active:scale-95 transition-transform"
+              >
+                شروع احراز
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* ۴. دکمه خروج مینیمال پلتفرم */}
-        <button 
-          onClick={handleLogout}
-          className="w-full py-4 font-black text-[14px] text-red-500 bg-white rounded-3xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] border border-gray-50/50 active:bg-red-50/30 active:text-red-600 transition-colors"
-        >
-          خروج از حساب کاربری
-        </button>
+        {/* منوهای ناوبری داخل پروفایل */}
+        <div className="px-4 space-y-2.5 flex-1">
+          {[
+            { title: "اطلاعات حساب کاربری", icon: <User className="w-5 h-5 text-gray-500" />, path: "/dashboard/profile" },
+            { title: "حساب‌ها و کارت‌های بانکی", icon: <CreditCard className="w-5 h-5 text-gray-500" />, path: "/dashboard/cards" },
+            { title: "امنیت و تغییر رمز عبور", icon: <Lock className="w-5 h-5 text-gray-500" />, path: "/dashboard/security" },
+            { title: "تنظیمات پیشرفته", icon: <Settings className="w-5 h-5 text-gray-500" />, path: "/dashboard/settings" },
+          ].map((menu, idx) => (
+            <button
+              key={idx}
+              onClick={() => { onClose(); router.push(menu.path); }}
+              className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-gray-100/50 active:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3.5">
+                <div className="p-2 bg-gray-50 rounded-xl text-gray-600">
+                  {menu.icon}
+                </div>
+                <span className="text-[13px] font-bold text-gray-700">{menu.title}</span>
+              </div>
+              <ChevronLeft className="w-4 h-4 text-gray-400" />
+            </button>
+          ))}
+        </div>
+
+        {/* دکمه خروج از حساب */}
+        <div className="p-4 mt-6">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-[13px] font-black active:bg-red-100 transition-colors"
+          >
+            <LogOut className="w-5 h-5" />
+            <span>خروج از حساب کاربری</span>
+          </button>
+        </div>
+
       </div>
-    </div>
-  );
-}
-
-// کامپوننت داخلی ردیف‌های منو جهت تمیزی کد
-function MenuItem({ icon, title, hasBorder = true }: { icon: string, title: string, hasBorder?: boolean }) {
-  return (
-    <div className={`flex items-center justify-between p-4.5 cursor-pointer active:bg-gray-50/70 transition-colors ${hasBorder ? 'border-b border-gray-100/60' : ''}`}>
-      <div className="flex items-center gap-3.5">
-        <div className="text-gray-500">
-          <i className={`ti ${icon} text-[22px]`}></i>
-        </div>
-        <span className="text-[13.5px] font-bold text-gray-800">{title}</span>
-      </div>
-      <i className="text-[18px] text-gray-300 ti ti-chevron-left"></i>
     </div>
   );
 }

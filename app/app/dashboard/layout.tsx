@@ -1,4 +1,3 @@
-// app/dashboard/layout.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,6 +6,7 @@ import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
+import IdentityBanner from "./components/IdentityBanner";
 import type { UserData } from "@/app/utils/types";
 
 export default function DashboardLayout({
@@ -43,16 +43,41 @@ export default function DashboardLayout({
         className="flex h-screen w-full flex-col items-center justify-center"
         style={{ backgroundColor: "var(--color-bg-page)" }}
       >
-        <svg className="mb-4 animate-spin" width="48" height="48" viewBox="0 0 48 48" fill="none">
-          <circle cx="24" cy="24" r="20" stroke="var(--color-emerald-light)" strokeWidth="4" />
-          <path d="M44 24a20 20 0 0 0-20-20" stroke="var(--color-emerald)" strokeWidth="4" strokeLinecap="round" />
+        <svg
+          className="mb-4 animate-spin"
+          width="48"
+          height="48"
+          viewBox="0 0 48 48"
+          fill="none"
+        >
+          <circle
+            cx="24"
+            cy="24"
+            r="20"
+            stroke="var(--color-emerald-light)"
+            strokeWidth="4"
+          />
+          <path
+            d="M44 24a20 20 0 0 0-20-20"
+            stroke="var(--color-emerald)"
+            strokeWidth="4"
+            strokeLinecap="round"
+          />
         </svg>
-        <p className="animate-pulse text-lg font-bold" style={{ color: "var(--color-text-secondary)" }}>
+        <p
+          className="animate-pulse text-lg font-bold"
+          style={{ color: "var(--color-text-secondary)" }}
+        >
           در حال برقراری ارتباط امن...
         </p>
       </div>
     );
   }
+
+  const identityStatus = userData?.identity?.status || null;
+  const displayName = userData?.identity?.firstName
+    ? `${userData.identity.firstName} ${userData.identity.lastName}`
+    : userData?.name || "کاربر جدید";
 
   return (
     <div
@@ -60,43 +85,33 @@ export default function DashboardLayout({
       dir="rtl"
       style={{ backgroundColor: "var(--color-bg-page)" }}
     >
-      {/* ── Desktop sidebar ── */}
-      {/* با اضافه کردن hidden lg:block مشکل نمایش سایدبار در موبایل کاملا حل می‌شود */}
       <div className="hidden lg:block h-full shrink-0">
         <Sidebar
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
-          userName={userData?.name}
+          userName={displayName}
           userPhone={userData?.phone}
+          identityStatus={identityStatus}
         />
       </div>
 
-      {/* ── Right column: topbar + content ── */}
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        
-        {/* Desktop topbar */}
         <div className="hidden lg:block">
-          <Topbar
-            onMenuOpen={() => setSidebarOpen(true)}
-            notifCount={3}
-          />
+          <Topbar onMenuOpen={() => setSidebarOpen(true)} notifCount={3} />
         </div>
 
-        {/* Mobile header */}
         <MobileHeader
-          userName={userData?.name}
+          userName={displayName}
+          identityStatus={identityStatus}
         />
 
-        {/* Page content */}
-        <main
-          className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8"
-        >
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
+          <IdentityBanner status={identityStatus} />
           {children}
         </main>
       </div>
 
-      {/* ── Mobile bottom navigation (که خودش مودال پروفایل رو هم هندل میکنه) ── */}
-      <BottomNav />
+      <BottomNav identityStatus={identityStatus} />
     </div>
   );
 }

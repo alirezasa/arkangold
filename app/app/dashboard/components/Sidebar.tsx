@@ -3,19 +3,22 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { SIDEBAR_NAV, SIDEBAR_ACCOUNT_NAV } from "@/app/utils/mock-data";
+import { ShieldCheck, ShieldAlert } from "lucide-react";
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   userName?: string;
   userPhone?: string;
+  identityStatus?: "VERIFIED" | "MANUAL_REVIEW" | "PENDING" | null;
 }
 
 export default function Sidebar({
   isOpen,
   onClose,
-  userName = "علیرضا صادق زاده",
-  userPhone = "۰۹۲۱****۷۰۴",
+  userName = "کاربر گرامی",
+  userPhone = "...",
+  identityStatus = null,
 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -31,7 +34,6 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Overlay for mobile */}
       {isOpen && (
         <div
           className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm"
@@ -47,27 +49,26 @@ export default function Sidebar({
           "w-65 min-w-65",
           isOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0",
         ].join(" ")}
-        style={{ backgroundColor: "var(--color-emerald)", boxShadow: "-4px 0 24px rgba(0,0,0,0.1)" }}
+        style={{
+          backgroundColor: "var(--color-emerald)",
+          boxShadow: "-4px 0 24px rgba(0,0,0,0.1)",
+        }}
       >
-        {/* Decorative blobs */}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -top-16 -left-16 w-56 h-56 rounded-full opacity-[0.08]"
           style={{ background: "var(--color-gold-500)" }}
         />
 
-        {/* ── Logo ── */}
         <div className="relative px-6 pt-6 pb-5 border-b border-white/10">
           <h1 className="text-[22px] font-black text-white leading-tight">
-            آرکان{" "}
-            <span style={{ color: "var(--color-gold-500)" }}>گلد</span>
+            آرکان <span style={{ color: "var(--color-gold-500)" }}>گلد</span>
           </h1>
           <p className="mt-1 text-[11px] font-medium text-white/70">
             پلتفرم طلای آب‌شده
           </p>
         </div>
 
-        {/* ── Gold price chip ── */}
         <div
           className="relative mx-4 my-4 rounded-xl p-3"
           style={{
@@ -82,15 +83,12 @@ export default function Sidebar({
           >
             ۴,۲۸۰,۰۰۰ ت
           </p>
-          <p className="mt-1 text-[11px] text-emerald-300 font-bold">↑ ۱.۲٪ امروز</p>
+          <p className="mt-1 text-[11px] text-emerald-300 font-bold">
+            ↑ ۱.۲٪ امروز
+          </p>
         </div>
 
-        {/* ── Navigation ── */}
         <nav className="relative flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          <p className="px-3 mt-2 mb-1 text-[11px] font-black tracking-wide text-white">
-            منوی اصلی
-          </p>
-
           {SIDEBAR_NAV.map((item) => {
             const active = pathname === item.path;
             return (
@@ -99,11 +97,11 @@ export default function Sidebar({
                 href={item.path}
                 onClick={onClose}
                 className={[
-                  "flex items-center gap-3 px-3 py-[11px] rounded-[12px]",
+                  "flex items-center gap-3 px-3 py-2.75 rounded-xl",
                   "text-[13px] font-bold transition-all duration-200",
                   active
-                    ? "text-white shadow-md font-black"
-                    : "text-white hover:bg-white/[.08]",
+                    ? "text-white! shadow-md font-black"
+                    : "text-white! hover:bg-white/8",
                 ].join(" ")}
                 style={
                   active
@@ -112,22 +110,18 @@ export default function Sidebar({
                 }
               >
                 <i
-                  className={`ti ${item.icon} w-5 text-center text-[19px] flex-shrink-0`}
+                  className={`ti ${item.icon} w-5 text-center text-[19px] shrink-0`}
                   aria-hidden="true"
                 />
                 <span>{item.name}</span>
                 {item.badge ? (
-                  <span className="mr-auto rounded-full bg-red-500 px-[7px] py-[2px] text-[10px] font-bold text-white">
+                  <span className="mr-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                     {item.badge}
                   </span>
                 ) : null}
               </Link>
             );
           })}
-
-          <p className="px-3 mt-5 mb-1 text-[11px] font-black tracking-wide text-white">
-            حساب کاربری
-          </p>
 
           {SIDEBAR_ACCOUNT_NAV.map((item) => {
             const active = pathname === item.path;
@@ -137,11 +131,11 @@ export default function Sidebar({
                 href={item.path}
                 onClick={onClose}
                 className={[
-                  "flex items-center gap-3 px-3 py-[11px] rounded-[12px]",
+                  "flex items-center gap-3 px-3 py-2.75 rounded-xl",
                   "text-[13px] font-bold transition-all duration-200",
                   active
-                    ? "text-white shadow-md font-black"
-                    : "text-white hover:bg-white/[.08]",
+                    ? "text-white! shadow-md font-black"
+                    : "text-white! hover:bg-white/8",
                 ].join(" ")}
                 style={
                   active
@@ -150,7 +144,7 @@ export default function Sidebar({
                 }
               >
                 <i
-                  className={`ti ${item.icon} w-5 text-center text-[19px] flex-shrink-0`}
+                  className={`ti ${item.icon} w-5 text-center text-[19px] shrink-0`}
                   aria-hidden="true"
                 />
                 <span>{item.name}</span>
@@ -159,14 +153,13 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* ── User card + logout ── */}
         <div className="relative p-3 border-t border-white/10">
           <div
-            className="flex items-center gap-2 rounded-[12px] px-3 py-[10px]"
+            className="flex items-center gap-2 rounded-xl px-3 py-2.5"
             style={{ background: "rgba(255,255,255,.09)" }}
           >
             <div
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[14px] font-black"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[14px] font-black"
               style={{
                 background: "var(--color-gold-500)",
                 color: "var(--color-emerald)",
@@ -175,11 +168,18 @@ export default function Sidebar({
               {userName.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="truncate text-[13px] font-bold text-white">
-                {userName}
-              </p>
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <p className="truncate text-[12px] font-bold text-white">
+                  {userName}
+                </p>
+                {identityStatus === "VERIFIED" ? (
+                  <ShieldCheck className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                ) : (
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                )}
+              </div>
               <p
-                className="text-[11px] text-white/80 font-medium"
+                className="text-[11px] text-white/60 font-medium truncate"
                 dir="ltr"
                 style={{ textAlign: "right" }}
               >

@@ -1,6 +1,12 @@
 export interface UserData {
   name: string;
   phone: string;
+  identity?: {
+    firstName?: string;
+    lastName?: string;
+    status: 'VERIFIED' | 'MANUAL_REVIEW' | 'PENDING' | null;
+  } | null;
+  // ... سایر فیلدهایی که از قبل داشتید
 }
 
 export interface GoldPrice {
@@ -48,3 +54,4 @@ export interface NavItem {
   path: string;
   badge?: number;
 }
+

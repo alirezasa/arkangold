@@ -113,16 +113,16 @@ export default function LoginPage() {
     <div className="w-full min-h-screen flex flex-col lg:flex-row-reverse bg-[#fdfdfd]" dir="rtl">
       
       {/* بخش راست: پنل برندینگ (بدون تغییر) */}
-      <div className="hidden lg:flex lg:w-[45%] bg-[#064e3b] relative overflow-hidden flex-col justify-between p-16">
+      <div className="hidden lg:flex lg:w-[45%] bg-emerald relative overflow-hidden flex-col justify-between p-16">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
         <div className="relative z-10">
-          <div className="w-16 h-16 bg-[#c5a059] rounded-2xl flex items-center justify-center mb-8 shadow-2xl">
-            <Sparkles className="text-[#064e3b] w-8 h-8" />
+          <div className="w-16 h-16 bg-gold-500 rounded-2xl flex items-center justify-center mb-8 shadow-2xl">
+            <Sparkles className="text-emerald w-8 h-8" />
           </div>
-          <h1 className="text-5xl font-black text-white leading-snug">آرکان گلد<br /><span className="text-[#c5a059]">طلای آب‌شده</span></h1>
+          <h1 className="text-5xl font-black text-white leading-snug">آرکان گلد<br /><span className="text-gold-500">طلای آب‌شده</span></h1>
           <p className="mt-8 text-xl text-emerald-100/80 font-light leading-relaxed max-w-sm">امنیت سرمایه شما، اولویت ماست. وارد پنل کاربری خود شوید و معاملات را مدیریت کنید.</p>
         </div>
-        <div className="relative z-10 flex items-center gap-3 text-[#c5a059]/90 font-bold">
+        <div className="relative z-10 flex items-center gap-3 text-gold-500/90 font-bold">
           <ShieldCheck className="w-6 h-6" />
           <span>تضمین امنیت با رمزنگاری پیشرفته</span>
         </div>
@@ -132,15 +132,15 @@ export default function LoginPage() {
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-20 py-12">
         <div className="w-full max-w-sm mx-auto">
           <div className="mb-10">
-            <h2 className="text-3xl font-black text-[#064e3b] mb-2">ورود به حساب</h2>
+            <h2 className="text-3xl font-black text-emerald mb-2">ورود به حساب</h2>
             <p className="text-gray-500 font-medium">لطفاً اطلاعات خود را وارد کنید</p>
           </div>
 
           {/* تب‌های انتخاب روش ورود (در زمان وارد کردن کد مخفی می‌شود) */}
           {otpStep === "request" && (
             <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8 border border-gray-200">
-              <button type="button" onClick={() => { setMethod("password"); setError(null); }} className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${method === "password" ? "bg-white shadow-sm text-[#064e3b]" : "text-gray-500"}`}>رمز عبور</button>
-              <button type="button" onClick={() => { setMethod("otp"); setError(null); }} className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${method === "otp" ? "bg-white shadow-sm text-[#064e3b]" : "text-gray-500"}`}>کد پیامکی</button>
+              <button type="button" onClick={() => { setMethod("password"); setError(null); }} className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${method === "password" ? "bg-white shadow-sm text-emerald" : "text-gray-500"}`}>رمز عبور</button>
+              <button type="button" onClick={() => { setMethod("otp"); setError(null); }} className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${method === "otp" ? "bg-white shadow-sm text-emerald" : "text-gray-500"}`}>کد پیامکی</button>
             </div>
           )}
 
@@ -159,8 +159,8 @@ export default function LoginPage() {
               <div className="space-y-2 animate-in fade-in">
                 <label className="text-xs font-black text-gray-400 mr-1">شماره موبایل</label>
                 <div className="relative">
-                  <Phone className="absolute right-4 top-4 text-[#064e3b] w-5 h-5" />
-                  <input type="tel" dir="ltr" placeholder="0912..." value={phone} onChange={(e) => handlePhoneChange(e.target.value)} className="w-full pr-12 pl-4 py-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-[#c5a059] transition-all text-lg font-medium text-left" />
+                  <Phone className="absolute right-4 top-4 text-emerald w-5 h-5" />
+                  <input type="tel" dir="ltr" placeholder="0912..." value={phone} onChange={(e) => handlePhoneChange(e.target.value)} className="w-full pr-12 pl-4 py-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 transition-all text-lg font-medium text-left" />
                 </div>
               </div>
             )}
@@ -170,9 +170,9 @@ export default function LoginPage() {
               <div className="space-y-2 animate-in fade-in">
                 <label className="text-xs font-black text-gray-400 mr-1">گذرواژه</label>
                 <div className="relative flex items-center">
-                  <Lock className="absolute right-4 text-[#064e3b] w-5 h-5" />
-                  <input type={showPassword ? "text" : "password"} dir="ltr" placeholder="••••••••" value={password} onChange={(e) => { setPassword(e.target.value); if(error) setError(null); }} className="w-full pr-12 pl-12 py-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-[#c5a059] transition-all text-lg font-medium text-left" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-4 text-gray-400 hover:text-[#064e3b] transition-colors focus:outline-none">
+                  <Lock className="absolute right-4 text-emerald w-5 h-5" />
+                  <input type={showPassword ? "text" : "password"} dir="ltr" placeholder="••••••••" value={password} onChange={(e) => { setPassword(e.target.value); if(error) setError(null); }} className="w-full pr-12 pl-12 py-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 transition-all text-lg font-medium text-left" />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-4 text-gray-400 hover:text-emerald transition-colors focus:outline-none">
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
@@ -184,14 +184,14 @@ export default function LoginPage() {
               <div className="space-y-6 animate-in slide-in-from-left-4">
                 <div className="text-center">
                   <p className="text-gray-500 font-medium text-sm">
-                    کد تایید به <span className="font-bold text-[#064e3b]" dir="ltr">{phone}</span> ارسال شد.
+                    کد تایید به <span className="font-bold text-emerald" dir="ltr">{phone}</span> ارسال شد.
                   </p>
-                  <button type="button" onClick={resetToPhone} className="text-[#c5a059] underline mt-1 font-bold text-xs hover:text-[#a88646]">ویرایش شماره موبایل</button>
+                  <button type="button" onClick={resetToPhone} className="text-gold-500 underline mt-1 font-bold text-xs hover:text-[#a88646]">ویرایش شماره موبایل</button>
                 </div>
                 
                 <div className="flex justify-center gap-2" dir="ltr">
                   {otp.map((digit, i) => (
-                    <input key={i} type="text" maxLength={1} ref={(el) => { otpRefs.current[i] = el; }} value={digit} onChange={(e) => handleOtpChange(i, e.target.value)} onKeyDown={(e) => handleKeyDown(i, e)} className="w-12 h-14 text-center text-xl font-black bg-white border-2 border-gray-200 rounded-xl focus:border-[#064e3b] focus:scale-105 outline-none transition-all shadow-sm" />
+                    <input key={i} type="text" maxLength={1} ref={(el) => { otpRefs.current[i] = el; }} value={digit} onChange={(e) => handleOtpChange(i, e.target.value)} onKeyDown={(e) => handleKeyDown(i, e)} className="w-12 h-14 text-center text-xl font-black bg-white border-2 border-gray-200 rounded-xl focus:border-emerald focus:scale-105 outline-none transition-all shadow-sm" />
                   ))}
                 </div>
 
@@ -202,7 +202,7 @@ export default function LoginPage() {
                       <span>ارسال مجدد کد تا {formatTime(timer)} دیگر</span>
                     </>
                   ) : (
-                    <button type="button" onClick={() => sendLoginOtpCode(phone)} className="text-[#064e3b] hover:underline flex items-center gap-1">
+                    <button type="button" onClick={() => sendLoginOtpCode(phone)} className="text-emerald hover:underline flex items-center gap-1">
                       ارسال مجدد کد
                     </button>
                   )}
@@ -211,7 +211,7 @@ export default function LoginPage() {
             )}
 
             {/* دکمه ارسال (Submit) */}
-            <button type="submit" disabled={loading} className="w-full py-4 mt-8 bg-[#064e3b] text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-[#064e3b]/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed">
+            <button type="submit" disabled={loading} className="w-full py-4 mt-8 bg-emerald text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-emerald/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed">
               {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (
                 <>
                   {method === "password" ? "ورود ایمن به حساب" : otpStep === "request" ? "ارسال پیامک تایید" : "تایید و ورود"}
@@ -222,7 +222,7 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-10 text-center">
-            <Link href="/register" className="text-sm font-bold text-[#064e3b] hover:text-[#085f48] transition-colors flex items-center justify-center gap-2">
+            <Link href="/register" className="text-sm font-bold text-emerald hover:text-[#085f48] transition-colors flex items-center justify-center gap-2">
               <UserPlus className="w-4 h-4" /> هنوز حساب کاربری ندارید؟ ثبت‌نام کنید
             </Link>
           </div>

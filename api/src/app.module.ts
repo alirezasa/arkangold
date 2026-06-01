@@ -5,14 +5,16 @@ import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { RedisModule } from './redis/redis.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60000, limit: 30 }]),
     PrismaModule,
-    RedisModule, // ← باید اینجا باشد
+    RedisModule,
     AuthModule,
+    UsersModule,
   ],
   providers: [
     {

@@ -7,33 +7,32 @@ interface MobileHeaderProps {
   goldGrams?: string;
   goldValue?: string;
   notifCount?: number;
+  identityStatus?: "VERIFIED" | "MANUAL_REVIEW" | "PENDING" | null;
 }
 
 export default function MobileHeader({
-  userName = "علی محمدی",
+  userName = "کاربر گرامی",
   goldGrams = "۱۲.۵۴",
   goldValue = "۵۳,۷۱۱,۲۰۰",
   notifCount = 3,
+  identityStatus,
 }: MobileHeaderProps) {
   return (
     <div
       className="lg:hidden relative overflow-hidden shrink-0"
       style={{ backgroundColor: "var(--color-emerald)" }}
     >
-      {/* Decorative blob */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -top-8 -right-8 h-32 w-32 rounded-full"
         style={{ background: "rgba(197,160,89,.12)" }}
       />
 
-      {/* Top bar */}
       <div className="relative flex items-center justify-between px-4 pt-4 pb-4">
         <h1 className="text-[18px] font-black text-white">
           آرکان <span style={{ color: "var(--color-gold-500)" }}>گلد</span>
         </h1>
         <div className="flex items-center gap-2">
-          {/* Search */}
           <button
             className="flex h-9 w-9 items-center justify-center rounded-[10px] text-white/80"
             style={{ background: "rgba(255,255,255,.12)" }}
@@ -41,7 +40,6 @@ export default function MobileHeader({
           >
             <i className="ti ti-search text-[18px]" aria-hidden="true" />
           </button>
-          {/* Bell */}
           <button
             className="relative flex h-9 w-9 items-center justify-center rounded-[10px] text-white/80"
             style={{ background: "rgba(255,255,255,.12)" }}
@@ -59,7 +57,20 @@ export default function MobileHeader({
               />
             )}
           </button>
-          {/* Avatar */}
+
+          {/* نمایش کاربر و وضعیت احراز هویت */}
+          <div className="flex flex-col items-end mr-1">
+            <span className="text-white text-[11px] font-bold">{userName}</span>
+            {identityStatus === "VERIFIED" ? (
+              <span className="text-[9px] text-green-300 font-medium">
+                تایید شده
+              </span>
+            ) : (
+              <span className="text-[9px] text-amber-300 font-medium">
+                تایید نشده
+              </span>
+            )}
+          </div>
           <div
             className="flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-black"
             style={{
@@ -72,7 +83,6 @@ export default function MobileHeader({
         </div>
       </div>
 
-      {/* Wallet card */}
       <div
         className="relative mx-4 mb-4 rounded-[14px] p-4"
         style={{
@@ -84,11 +94,13 @@ export default function MobileHeader({
         <p className="text-[26px] font-black text-white leading-tight">
           {goldGrams} گرم
         </p>
-        <p className="mt-1 text-[12px]" style={{ color: "var(--color-gold-500)" }}>
+        <p
+          className="mt-1 text-[12px]"
+          style={{ color: "var(--color-gold-500)" }}
+        >
           ارزش: {goldValue} تومان
         </p>
 
-        {/* Action buttons */}
         <div className="mt-3 flex gap-2">
           {[
             { label: "خرید طلا", primary: true },
@@ -118,7 +130,6 @@ export default function MobileHeader({
         </div>
       </div>
 
-      {/* Live gold prices */}
       <div
         className="mx-4 mb-4 rounded-xl p-3"
         style={{
@@ -144,9 +155,7 @@ export default function MobileHeader({
               <p className="text-[13px] font-black text-white">
                 {(g.price / 1_000_000).toFixed(2)}م
               </p>
-              <p className="mt-0.5 text-[10px] text-green-400">
-                +{g.change}٪
-              </p>
+              <p className="mt-0.5 text-[10px] text-green-400">+{g.change}٪</p>
             </div>
           ))}
         </div>

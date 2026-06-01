@@ -1,4 +1,4 @@
-import { IsPhoneNumber, IsString, Length, MinLength, MaxLength, IsOptional, IsIn } from 'class-validator';
+import { IsPhoneNumber, IsString, Length, MinLength, MaxLength, IsOptional, IsIn, Matches, } from 'class-validator';
 
 export class SendOtpDto {
   @IsString()
@@ -78,3 +78,4 @@ export class RefreshTokenDto {
   @IsString()
   refreshToken!: string;
 }
+

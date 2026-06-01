@@ -101,16 +101,17 @@ export const GOLD_HOLDINGS: GoldHolding[] = [
 ];
 
 export const CHART_DATA: ChartBar[] = [
-  { day: "ش", value: 68, prevValue: 55 },
-  { day: "ی", value: 74, prevValue: 62 },
-  { day: "د", value: 60, prevValue: 70 },
-  { day: "س", value: 82, prevValue: 58 },
-  { day: "چ", value: 79, prevValue: 72 },
-  { day: "پ", value: 91, prevValue: 65 },
-  { day: "ج", value: 85, prevValue: 76 },
+  { day: "شنبه", value: 68, prevValue: 55 },
+  { day: "یکشنبه", value: 74, prevValue: 62 },
+  { day: "دوشنبه", value: 60, prevValue: 70 },
+  { day: "سه شنبه", value: 82, prevValue: 58 },
+  { day: "چهار شنبه", value: 79, prevValue: 72 },
+  { day: "پنج شنبه", value: 91, prevValue: 65 },
+  { day: "جمعه", value: 85, prevValue: 76 },
 ];
 
 export const SIDEBAR_NAV: NavItem[] = [
+  { name: "احراز هویت", icon: "ti-shield-check", path: "/dashboard/identity" },
   { name: "پیشخوان", icon: "ti-layout-dashboard", path: "/dashboard" },
   { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
   { name: "خرید و فروش", icon: "ti-trending-up", path: "/dashboard/trade" },
@@ -128,7 +129,7 @@ export const SIDEBAR_ACCOUNT_NAV: NavItem[] = [
 export const BOTTOM_NAV: NavItem[] = [
   { name: "پیشخوان", icon: "ti-layout-dashboard", path: "/dashboard" },
   { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
-  { name: "خرید", icon: "ti-plus", path: "/dashboard/trade" },
+  { name: "خرید/فروش", icon: "ti-plus", path: "/dashboard/trade" },
   { name: "تراکنش‌ها", icon: "ti-history", path: "/dashboard/transactions", badge: 3 },
-  { name: "حساب", icon: "ti-user", path: "/dashboard/profile" },
+  { name: "پروفایل", icon: "ti-user", path: "/dashboard/profile" },
 ];

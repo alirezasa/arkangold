@@ -40,6 +40,7 @@ export const config = {
     '/',                  // صفحه اصلی
     '/dashboard/:path*',  // داشبورد و تمام صفحات داخل آن
     '/login',             // صفحه ورود
-    '/register'           // صفحه ثبت نام
+    '/register',
+    '/dashboard/identity'           // صفحه ثبت نام
   ],
 };

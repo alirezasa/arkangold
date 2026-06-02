@@ -2,8 +2,8 @@
 @import "tailwindcss";
 
 @theme {
-  /* فونت شخصی‌سازی شده */
-  --font-sans: "Vazirmatn", "IRANSans", system-ui, sans-serif;
+  /* فونت شخصی‌سازی شده (متصل به متغیر دانا در layout.tsx) */
+  --font-sans: var(--font-dana), system-ui, -apple-system, sans-serif;
 
   /* رنگ‌های طلایی */
   --color-gold-50: #fbf8eb;

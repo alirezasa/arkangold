@@ -3,122 +3,113 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-// فرض می‌کنیم آرایه BOTTOM_NAV از utils/mock-data می‌آید.
 import { BOTTOM_NAV } from "@/app/utils/mock-data";
 import MobileProfile from "./MobileProfile";
 
 interface BottomNavProps {
-  identityStatus?: "VERIFIED" | "MANUAL_REVIEW" | "PENDING" | null;
+  identityStatus?: 'VERIFIED' | 'MANUAL_REVIEW' | 'PENDING' | null;
   userName?: string;
   userPhone?: string;
 }
 
-export default function BottomNav({
-  identityStatus,
-  userName,
-  userPhone,
-}: BottomNavProps) {
+export default function BottomNav({ identityStatus, userName, userPhone }: BottomNavProps) {
   const pathname = usePathname();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   return (
     <>
-      <nav
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-[80] flex items-center justify-between px-2 bg-white/90 backdrop-blur-md border-t border-gray-100"
-        style={{
-          height: "76px",
-          paddingBottom: "env(safe-area-inset-bottom)",
-          WebkitTapHighlightColor: "transparent",
-        }}
-        aria-label="منوی پایین"
-      >
-        {BOTTOM_NAV.map((item) => {
-          const isCenter = item.icon === "ti-plus";
-          const isProfileButton = item.path === "/dashboard/profile";
-          const isActive =
-            pathname === item.path || (isProfileButton && isProfileOpen);
+      {/* نگهدارنده اصلی با فاصله از پایین و طرفین */}
+      <div className="lg:hidden fixed bottom-5 left-4 right-4 z-[80] pointer-events-none pb-safe">
+        <nav
+          className="pointer-events-auto flex items-center justify-between px-2 py-2 rounded-3xl bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
+          aria-label="منوی پایین"
+        >
+          {BOTTOM_NAV.map((item) => {
+            const isCenter = item.icon === "ti-plus";
+            const isProfileButton = item.path === "/dashboard/profile";
+            const isActive = pathname === item.path || (isProfileButton && isProfileOpen);
 
-          // استایل دکمه‌های معمولی (زمانی که فعال هستند تغییر ظاهر می‌دهند)
-          const ButtonContent = (
-            <div
-              className={`flex flex-col items-center justify-center w-full transition-all duration-300 ${isActive ? "-translate-y-1" : ""}`}
-            >
-              <div
-                className={`relative flex items-center justify-center w-[44px] h-[32px] rounded-2xl transition-colors duration-300 ${
-                  isActive ? "bg-[#064e3b]/15 text-[#064e3b]" : "text-gray-400"
-                }`}
-              >
-                <i
-                  className={`ti ${item.icon} text-[24px] ${isActive ? "font-black" : ""}`}
+            // ─── ۱. دکمه مرکزی (اکشن اصلی) ───
+            if (isCenter) {
+              return (
+                <div key={item.path} className="relative flex justify-center px-1">
+                  <div className="absolute bottom-1">
+                    <Link
+                      href={item.path}
+                      className="flex items-center justify-center w-[54px] h-[54px] rounded-2xl bg-gradient-to-tr from-[#064e3b] to-emerald-600 text-white shadow-[0_8px_20px_rgba(6,78,59,0.3)] active:scale-90 transition-transform duration-300"
+                    >
+                      <i className={`ti ${item.icon} text-[28px]`} aria-hidden="true" />
+                    </Link>
+                  </div>
+                </div>
+              );
+            }
+
+            // ─── ۲. ساختار دکمه‌های معمولی ───
+            const ButtonContent = (
+              <div className="relative flex flex-col items-center justify-center w-full h-[54px]">
+                {/* بک‌گراند فعال (Pill) که فقط در حالت فعال ظاهر می‌شود */}
+                <div 
+                  className={`absolute inset-0 rounded-2xl transition-all duration-300 ${
+                    isActive ? "bg-emerald-50/80 scale-100 opacity-100" : "scale-50 opacity-0"
+                  }`} 
                 />
-                {item.badge ? (
-                  <span className="absolute -top-1 -right-1 flex items-center justify-center w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full border-2 border-white">
-                    {item.badge}
-                  </span>
-                ) : null}
-              </div>
-              <span
-                className={`text-[10px] font-bold mt-1 transition-colors ${
-                  isActive ? "text-[#064e3b]" : "text-gray-400"
-                }`}
-              >
-                {item.name}
-              </span>
 
-              {/* نقطه کوچک زیر منوی فعال */}
-              {isActive && (
-                <div className="absolute -bottom-2 w-1.5 h-1.5 bg-[#064e3b] rounded-full animate-in fade-in zoom-in" />
-              )}
-            </div>
-          );
+                <div className="relative flex flex-col items-center justify-center z-10 transition-transform duration-300">
+                  {/* آیکون */}
+                  <div className="relative">
+                    <i 
+                      className={`ti ${item.icon} text-[22px] transition-all duration-300 ${
+                        isActive ? "text-[#064e3b] -translate-y-0.5" : "text-gray-400"
+                      }`} 
+                    />
+                    
+                    {/* بج نوتیفیکیشن */}
+                    {item.badge ? (
+                      <span className="absolute -top-1 -right-2 flex items-center justify-center w-3.5 h-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full border-2 border-white shadow-sm">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </div>
 
-          // دکمه پلاس مرکزی (متمایز)
-          if (isCenter) {
-            return (
-              <div
-                key={item.path}
-                className="relative flex justify-center w-[20%]"
-              >
-                <div className="absolute -top-9">
-                  <Link
-                    href={item.path}
-                    className="flex flex-col items-center justify-center w-[60px] h-[60px] rounded-[20px] bg-gradient-to-tr from-[#064e3b] to-[#047857] text-white shadow-lg shadow-emerald-900/30 active:scale-90 transition-transform rotate-45"
+                  {/* متن (فقط در حالت فعال کمی پررنگ‌تر می‌شود) */}
+                  <span
+                    className={`text-[10px] font-bold mt-0.5 transition-all duration-300 ${
+                      isActive ? "text-[#064e3b] translate-y-0 opacity-100" : "text-gray-400 translate-y-1 opacity-70"
+                    }`}
                   >
-                    <div className="-rotate-45 flex flex-col items-center">
-                      <i
-                        className={`ti ${item.icon} text-[28px]`}
-                        aria-hidden="true"
-                      />
-                    </div>
-                  </Link>
+                    {item.name}
+                  </span>
                 </div>
               </div>
             );
-          }
 
-          if (isProfileButton) {
+            // ─── ۳. دکمه پروفایل (باز کردن مودال) ───
+            if (isProfileButton) {
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => setIsProfileOpen(true)}
+                  className="relative flex-1 h-full active:scale-95 transition-transform outline-none touch-manipulation"
+                >
+                  {ButtonContent}
+                </button>
+              );
+            }
+
+            // ─── ۴. لینک‌های ناوبری ───
             return (
-              <button
+              <Link
                 key={item.path}
-                onClick={() => setIsProfileOpen(true)}
-                className="relative flex flex-col items-center justify-center w-[20%] h-full active:bg-transparent outline-none"
+                href={item.path}
+                className="relative flex-1 h-full active:scale-95 transition-transform outline-none touch-manipulation"
               >
                 {ButtonContent}
-              </button>
+              </Link>
             );
-          }
-
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              className="relative flex flex-col items-center justify-center w-[20%] h-full active:bg-transparent outline-none"
-            >
-              {ButtonContent}
-            </Link>
-          );
-        })}
-      </nav>
+          })}
+        </nav>
+      </div>
 
       <MobileProfile
         isOpen={isProfileOpen}

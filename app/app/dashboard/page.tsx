@@ -15,6 +15,7 @@ import {
   TrendingDown
 } from "lucide-react";
 
+
 // ─── کامپوننت آیکون تراکنش‌ها ───
 function TxIcon({ type }: { type: Transaction["type"] }) {
   const map = {

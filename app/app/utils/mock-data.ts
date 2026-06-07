@@ -115,7 +115,6 @@ export const SIDEBAR_NAV: NavItem[] = [
   { name: "احراز هویت", icon: "ti-shield-check", path: "/dashboard/identity" },
   { name: "پروفایل", icon: "ti-user", path: "/dashboard/me" },
   { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
-  { name: "خرید و فروش", icon: "ti-trending-up", path: "/dashboard/trade" },
   { name: "تراکنش‌ها", icon: "ti-history", path: "/dashboard/transactions", badge: 3 },
   { name: "نمودار قیمت", icon: "ti-chart-candle", path: "/dashboard/chart" },
   { name: "محاسبه‌گر", icon: "ti-calculator", path: "/dashboard/calculator" },

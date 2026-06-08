@@ -4,6 +4,7 @@ import { Request } from 'express';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SubmitIdentityDto } from '@arkan-gold/shared';
+import { UpdateLegalProfileDto } from '@arkan-gold/shared';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -29,5 +30,20 @@ export class UsersController {
     @Body() dto: SubmitIdentityDto,
   ) {
     return this.usersService.submitIdentity(req.user.userId, dto);
+  }
+
+  @Get('me/legal-profile')
+  @ApiOperation({ summary: 'دریافت پروفایل حقوقی' })
+  getLegalProfile(@Req() req: AuthenticatedRequest) {
+    return this.usersService.getLegalProfile(req.user.userId);
+  }
+
+  @Post('me/legal-profile')
+  @ApiOperation({ summary: 'ثبت/بروزرسانی اطلاعات شرکت' })
+  updateLegalProfile(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateLegalProfileDto,
+  ) {
+    return this.usersService.updateLegalProfile(req.user.userId, dto);
   }
 }

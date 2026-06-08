@@ -4,10 +4,12 @@ import {
   ConflictException,
   ServiceUnavailableException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CivilRegistryService } from './civil-registry.service';
 import { SubmitIdentityDto } from '@arkan-gold/shared';
+import { UpdateLegalProfileDto } from '@arkan-gold/shared';
 
 @Injectable()
 export class UsersService {
@@ -135,5 +137,75 @@ export class UsersService {
       create: { userId, ...data },
       update: data,
     });
+  }
+  // ══════════════════════════════════════════
+  async getLegalProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        identity: true,
+        legalProfile: true,
+      },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    if (user.type !== 'LEGAL') {
+      throw new BadRequestException('این کاربر حقوقی نیست');
+    }
+
+    return {
+      identity: user.identity
+        ? {
+            firstName: user.identity.firstName,
+            lastName: user.identity.lastName,
+            nationalCode: user.identity.nationalCode,
+            birthDate: user.identity.birthDate,
+            status: user.identity.status,
+            verifiedAt: user.identity.verifiedAt,
+          }
+        : null,
+      legalProfile: user.legalProfile ?? null,
+    };
+  }
+
+  async updateLegalProfile(userId: string, dto: UpdateLegalProfileDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { identity: true, legalProfile: true },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    if (user.type !== 'LEGAL') {
+      throw new BadRequestException('این کاربر حقوقی نیست');
+    }
+    if (!user.identity || user.identity.status !== 'VERIFIED') {
+      throw new BadRequestException('ابتدا باید احراز هویت نماینده تکمیل شود');
+    }
+    // اگر قبلاً تایید ادمین شده، اجازه ویرایش نده
+    if (user.legalProfile?.verified) {
+      throw new ConflictException('پروفایل حقوقی شما قبلاً تایید شده است');
+    }
+
+    const legalProfile = await this.prisma.legalProfile.upsert({
+      where: { userId },
+      create: {
+        userId,
+        companyName: dto.companyName,
+        nationalId: dto.nationalId,
+        economicCode: dto.economicCode,
+        registrationNumber: dto.registrationNumber,
+        representativeId: user.identity.id,
+      },
+      update: {
+        companyName: dto.companyName,
+        nationalId: dto.nationalId,
+        economicCode: dto.economicCode,
+        registrationNumber: dto.registrationNumber,
+        representativeId: user.identity.id,
+      },
+    });
+
+    return {
+      message: 'اطلاعات شرکت ثبت شد و در انتظار تایید ادمین است',
+      legalProfile,
+    };
   }
 }

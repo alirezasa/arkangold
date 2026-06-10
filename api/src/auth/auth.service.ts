@@ -141,7 +141,7 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const referralCode = await this.generateReferralCode();
-    const cardNumber = this.generateCardNumber();
+    const cardNumber = await this.generateCardNumber();
 
     const user = await this.prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
@@ -559,10 +559,18 @@ export class AuthService {
     return exists ? this.generateReferralCode() : code;
   }
 
-  private generateCardNumber(): string {
-    const prefix = '6037';
-    let num = prefix;
-    for (let i = 0; i < 12; i++) num += Math.floor(Math.random() * 10);
-    return num;
+  private async generateCardNumber(): Promise<string> {
+    const prefix = '1000';
+    let attempts = 0;
+    while (attempts < 10) {
+      let num = prefix;
+      for (let i = 0; i < 12; i++) num += Math.floor(Math.random() * 10);
+      const exists = await this.prisma.wallet.findUnique({
+        where: { cardNumber: num },
+      });
+      if (!exists) return num;
+      attempts++;
+    }
+    throw new Error('خطا در تولید شماره کارت یکتا');
   }
 }

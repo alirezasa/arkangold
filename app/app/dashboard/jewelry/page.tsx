@@ -17,7 +17,7 @@ const CATEGORIES = ["همه", "انگشتر", "گردنبند", "دستبند", 
 export default function JewelryPage() {
   const [selectedCategory, setSelectedCategory] = useState("همه");
 
-  // فیلتر کردن محصولات بر اساس دسته‌بندی
+  // فیلتر کردن محصولات بر اساس دسته‌بندیP
   const filteredProducts = selectedCategory === "همه" 
     ? PRODUCTS_MOCK 
     : PRODUCTS_MOCK.filter(p => p.category === selectedCategory);

@@ -7,6 +7,9 @@ import { AuthModule } from './auth/auth.module';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './users/users.module';
 import { BankModule } from './bank/bank.module';
+import { WalletModule } from './wallet/wallet.module';
+import { FinanceModule } from './finance/finance.module';
+import { ConfigModules } from './config/config.module';
 
 @Module({
   imports: [
@@ -17,6 +20,9 @@ import { BankModule } from './bank/bank.module';
     AuthModule,
     UsersModule,
     BankModule,
+    ConfigModules,
+    WalletModule,
+    FinanceModule,
   ],
   providers: [
     {

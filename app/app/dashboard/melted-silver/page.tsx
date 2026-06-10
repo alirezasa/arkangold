@@ -75,7 +75,7 @@ export default function MeltedSilverPage() {
         <div className="lg:col-span-8 space-y-6">
           
           {/* باکس قیمت لحظه‌ای (تم نقره‌ای) */}
-          <div className="bg-gradient-to-r from-slate-100 to-slate-50 border border-slate-200/80 rounded-[24px] p-5 flex items-center justify-between shadow-sm">
+          <div className="bg-linear-to-r from-slate-100 to-slate-50 border border-slate-200/80 rounded-3xl p-5 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-200 text-slate-600">
                 <Coins className="w-6 h-6" strokeWidth={1.5} />
@@ -95,12 +95,12 @@ export default function MeltedSilverPage() {
           </div>
 
           {/* کارت اصلی خرید و فروش */}
-          <div className="bg-white rounded-[24px] p-2 shadow-sm border border-slate-100">
+          <div className="bg-white rounded-3xl p-2 shadow-sm border border-slate-100">
             {/* تب‌ها */}
             <div className="flex bg-slate-50/80 p-1.5 rounded-[20px] mb-6 border border-slate-100/50">
               <button
                 onClick={() => setTradeType("buy")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[16px] text-[14px] font-bold transition-all duration-300 ${
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[14px] font-bold transition-all duration-300 ${
                   tradeType === "buy" 
                     ? "bg-white text-emerald-600 shadow-sm border border-slate-100/50" 
                     : "text-slate-400 hover:text-slate-600"
@@ -111,7 +111,7 @@ export default function MeltedSilverPage() {
               </button>
               <button
                 onClick={() => setTradeType("sell")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[16px] text-[14px] font-bold transition-all duration-300 ${
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[14px] font-bold transition-all duration-300 ${
                   tradeType === "sell" 
                     ? "bg-white text-rose-500 shadow-sm border border-slate-100/50" 
                     : "text-slate-400 hover:text-slate-600"
@@ -190,7 +190,7 @@ export default function MeltedSilverPage() {
         <div className="lg:col-span-4 space-y-4">
           
           {/* کارت موجودی */}
-          <div className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100">
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
             <div className="flex items-center gap-2 mb-6 text-slate-800">
               <Wallet className="w-5 h-5 text-slate-500" />
               <h3 className="text-[14px] font-black">موجودی کیف پول</h3>
@@ -204,7 +204,7 @@ export default function MeltedSilverPage() {
                   <span className="text-[10px] text-slate-400 mr-1">تومان</span>
                 </div>
               </div>
-              <div className="bg-gradient-to-l from-slate-100 to-slate-50 border border-slate-200/80 rounded-xl p-3.5 flex justify-between items-center">
+              <div className="bg-linear-to-l from-slate-100 to-slate-50 border border-slate-200/80 rounded-xl p-3.5 flex justify-between items-center">
                 <span className="text-[12px] font-bold text-slate-700">موجودی نقره</span>
                 <div className="text-left">
                   <span className="text-[15px] font-black text-slate-800">{userBalance.silver}</span>
@@ -221,7 +221,7 @@ export default function MeltedSilverPage() {
           </div>
 
           {/* کارت قوانین / راهنما */}
-          <div className="bg-slate-50 rounded-[24px] p-5 border border-slate-200/60">
+          <div className="bg-slate-50 rounded-3xl p-5 border border-slate-200/60">
             <div className="flex gap-3 text-slate-600">
               <Info className="w-5 h-5 shrink-0 text-slate-400" />
               <div className="text-[11px] leading-relaxed font-medium space-y-2">

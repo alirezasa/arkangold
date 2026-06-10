@@ -98,7 +98,7 @@ export default function DashboardPage() {
       
       {/* ── 1. نوار قیمت لحظه‌ای طلا ── */}
       <div className="rounded-2xl p-1 shadow-[0_8px_30px_rgba(251,191,36,0.15)] bg-white border border-amber-100 flex items-center justify-between">
-        <div className="flex items-center gap-4 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 rounded-xl px-5 py-4 w-full relative overflow-hidden">
+        <div className="flex items-center gap-4 bg-linear-to-r from-amber-400 via-amber-300 to-yellow-400 rounded-xl px-5 py-4 w-full relative overflow-hidden">
           {/* افکت‌های پس‌زمینه */}
           <div className="absolute inset-0 bg-white/10 opacity-50 mix-blend-overlay pointer-events-none" />
           <div className="absolute -left-10 top-1/2 -translate-y-1/2 w-32 h-32 bg-white/20 blur-2xl rounded-full" />
@@ -141,7 +141,7 @@ export default function DashboardPage() {
             <Link 
               key={idx} 
               href={service.href}
-              className={`group flex items-center justify-between p-5 rounded-[24px] transition-all duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-md ${service.bg} ${service.border} border ${isHero ? 'md:col-span-2' : ''}`}
+              className={`group flex items-center justify-between p-5 rounded-3xl transition-all duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-md ${service.bg} ${service.border} border ${isHero ? 'md:col-span-2' : ''}`}
             >
               <div className="flex items-center gap-4">
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${service.iconBg} ${service.iconColor} group-hover:scale-110 transition-transform duration-300`}>
@@ -168,7 +168,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100/80">
         
         {/* نمودار هفتگی */}
-        <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100">
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-[15px] font-black text-gray-800">نمودار دارایی (هفتگی)</h3>
             <button className="text-[12px] font-bold text-amber-500 transition-opacity hover:opacity-70">
@@ -180,7 +180,7 @@ export default function DashboardPage() {
             {CHART_DATA.map((d, i) => (
               <div key={d.day} className="flex flex-col items-center gap-3 w-full">
                 <div
-                  className="w-full max-w-[28px] rounded-t-lg transition-all duration-300 cursor-pointer min-h-1 relative group"
+                  className="w-full max-w-7 rounded-t-lg transition-all duration-300 cursor-pointer min-h-1 relative group"
                   style={{
                     height: `${(d.value / maxBar) * 100}%`,
                     background: i === 5 ? "var(--color-gold-500)" : "#e2e8f0",
@@ -198,7 +198,7 @@ export default function DashboardPage() {
         </div>
 
         {/* آخرین تراکنش‌ها */}
-        <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 flex flex-col">
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-[15px] font-black text-gray-800">آخرین تراکنش‌ها</h3>
             <Link href="/dashboard/transactions" className="text-[12px] font-bold text-[#064e3b] transition-opacity hover:opacity-70">
@@ -210,7 +210,7 @@ export default function DashboardPage() {
             {TRANSACTIONS.slice(0, 4).map((tx) => (
               <div
                 key={tx.id}
-                className="flex items-center gap-3 rounded-[16px] px-3 py-3 transition-colors hover:bg-gray-50 border border-transparent hover:border-gray-100"
+                className="flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-gray-50 border border-transparent hover:border-gray-100"
               >
                 <TxIcon type={tx.type} />
                 <div className="flex-1 min-w-0">

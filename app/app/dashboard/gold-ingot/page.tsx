@@ -70,9 +70,9 @@ export default function GoldIngotPage() {
               const finalPrice = (ingot.weight * basePrice24k) + ingot.fee;
 
               return (
-                <div key={ingot.id} className="bg-white border border-gray-100 rounded-[24px] p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                <div key={ingot.id} className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
                   {/* گرافیک شمش در پس‌زمینه */}
-                  <div className={`absolute -right-6 -top-6 w-32 h-32 bg-gradient-to-br ${ingot.color} rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition-opacity`} />
+                  <div className={`absolute -right-6 -top-6 w-32 h-32 bg-linear-to-br ${ingot.color} rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition-opacity`} />
                   
                   <div className="relative z-10">
                     <div className="flex justify-between items-start mb-4">
@@ -125,7 +125,7 @@ export default function GoldIngotPage() {
         <div className="lg:col-span-4 space-y-4">
           
           {/* کارت موجودی */}
-          <div className="bg-white rounded-[24px] p-5 shadow-sm border border-gray-100">
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100">
             <div className="flex items-center gap-2 mb-6 text-gray-800">
               <Wallet className="w-5 h-5 text-yellow-600" />
               <h3 className="text-[14px] font-black">قدرت خرید شما</h3>
@@ -147,7 +147,7 @@ export default function GoldIngotPage() {
           </div>
 
           {/* کارت قوانین / راهنما */}
-          <div className="bg-yellow-50/50 rounded-[24px] p-5 border border-yellow-100/50">
+          <div className="bg-yellow-50/50 rounded-3xl p-5 border border-yellow-100/50">
             <div className="flex gap-3 text-yellow-800/80">
               <Info className="w-5 h-5 shrink-0 text-yellow-600" />
               <div className="text-[11px] leading-relaxed font-medium space-y-2.5">

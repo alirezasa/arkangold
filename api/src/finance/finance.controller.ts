@@ -16,6 +16,11 @@ import { Request } from 'express';
 import { WithdrawalService } from './withdrawal.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { IsNumber, IsString, Min } from 'class-validator';
+import { DepositService } from './deposit.service';
+import {
+  GatewayDepositDto,
+  ConfirmGatewayDepositDto,
+} from '@arkan-gold/shared';
 
 class WithdrawDto {
   @IsNumber()
@@ -35,7 +40,10 @@ interface AuthReq extends Request {
 @UseGuards(JwtAuthGuard)
 @Controller('finance')
 export class FinanceController {
-  constructor(private withdrawalService: WithdrawalService) {}
+  constructor(
+    private withdrawalService: WithdrawalService,
+    private depositService: DepositService,
+  ) {}
 
   @Post('withdraw')
   @ApiOperation({ summary: 'درخواست برداشت' })
@@ -61,5 +69,24 @@ export class FinanceController {
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ) {
     return this.withdrawalService.getWithdrawals(req.user.userId, page, limit);
+  }
+
+  // endpointها:
+  @Post('deposit/gateway/validate')
+  @ApiOperation({ summary: 'اعتبارسنجی مبلغ واریز درگاه' })
+  validateDeposit(@Req() req: AuthReq, @Body() dto: GatewayDepositDto) {
+    return this.depositService.validateGatewayDeposit(req.user.userId, dto);
+  }
+
+  @Post('deposit/gateway/confirm')
+  @ApiOperation({ summary: 'تایید واریز موفق از درگاه' })
+  confirmDeposit(@Req() req: AuthReq, @Body() dto: ConfirmGatewayDepositDto) {
+    return this.depositService.confirmGatewayDeposit(req.user.userId, dto);
+  }
+
+  @Get('deposit/sheba-info')
+  @ApiOperation({ summary: 'اطلاعات واریز با شبا' })
+  getShebaInfo(@Req() req: AuthReq) {
+    return this.depositService.getShebaDepositInfo(req.user.userId);
   }
 }

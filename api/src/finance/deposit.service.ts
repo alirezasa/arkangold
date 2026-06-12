@@ -12,7 +12,7 @@ import {
   GatewayDepositDto,
   ConfirmGatewayDepositDto,
 } from '@arkan-gold/shared';
-import { Decimal } from '../generated/prisma/client/runtime/library';
+import { Prisma } from '../generated/prisma/client';
 
 @Injectable()
 export class DepositService {
@@ -97,7 +97,7 @@ export class DepositService {
           userId,
           walletId: wallet.id,
           type: 'DEPOSIT',
-          amountRial: new Decimal(dto.amountRial),
+          amountRial: new Prisma.Decimal(dto.amountRial),
           status: 'COMPLETED',
           description: `واریز درگاه | کد پیگیری: ${dto.referenceCode}`,
         },
@@ -106,7 +106,9 @@ export class DepositService {
       // بروزرسانی موجودی
       await tx.wallet.update({
         where: { id: wallet.id },
-        data: { rialBalance: { increment: new Decimal(dto.amountRial) } },
+        data: {
+          rialBalance: { increment: new Prisma.Decimal(dto.amountRial) },
+        },
       });
 
       // ثبت سند حسابداری

@@ -170,11 +170,11 @@ export class AuthService {
         data: { userId: newUser.id, type: 'BUY_GOLD', feePercent: 1.0 },
       });
       await tx.feeConfig.create({
-        data: { userId: newUser.id, type: 'SELL_GOLD', feePercent: 0.5 },
+        data: { userId: newUser.id, type: 'SELL_GOLD', feePercent: 1.0 },
       });
 
       await tx.taxConfig.create({
-        data: { userId: newUser.id, type: 'BUY', taxPercent: 9.0 },
+        data: { userId: newUser.id, type: 'BUY', taxPercent: 0.0 },
       });
 
       // LegalProfile با استفاده از رابطه
@@ -497,7 +497,7 @@ export class AuthService {
       { sub: userId, phone, sessionId },
       {
         secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
-        expiresIn: 900, // ۱۵ دقیقه به ثانیه
+        expiresIn: 1800, // ۱۵ دقیقه به ثانیه
       },
     );
     const refreshToken = this.jwtService.sign(

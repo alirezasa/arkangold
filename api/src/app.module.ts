@@ -7,6 +7,8 @@ import { AuthModule } from './auth/auth.module';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './users/users.module';
 import { BankModule } from './bank/bank.module';
+import { SystemConfigModule } from './system-config/system-config.module';
+import { WalletModule } from './wallet/wallet.module';
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { BankModule } from './bank/bank.module';
     AuthModule,
     UsersModule,
     BankModule,
+    SystemConfigModule, // ← اضافه شد (Global)
+    WalletModule, // ← اضافه شد
   ],
   providers: [
     {

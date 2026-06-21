@@ -8,10 +8,8 @@ import {
   TrendingUp,
   TrendingDown,
   Flame,
-  Coins,
-  Gem,
-  Hammer,
   GripHorizontal,
+  Gem,
   ChevronLeft
 } from "lucide-react";
 
@@ -39,58 +37,23 @@ export default function DashboardPage() {
   const maxBar = Math.max(...CHART_DATA.map((d) => d.value));
   const isPositiveChange = (goldData?.change24h ?? 0) >= 0;
 
-  // ─── اطلاعات بنرهای خدمات اصلی (لینک‌دار) ───
+  // ─── اطلاعات بنرهای خدمات اصلی ───
   const services = [
     { 
-      title: "خرید و فروش طلای آبشده", 
-      desc: "معامله لحظه‌ای، بدون کارمزد اضافی", 
+      title: "طلای آبشده", 
       href: "/dashboard/melted-gold", 
       icon: Flame, 
-      bg: "bg-gradient-to-l from-amber-50 to-white", 
-      iconColor: "text-amber-500", 
-      iconBg: "bg-amber-100/50",
-      border: "border-amber-200"
     },
     { 
-      title: "خرید شمش طلا", 
-      desc: "شمش‌های ۲۴ عیار شرکتی", 
+      title: "شمش طلا", 
       href: "/dashboard/gold-ingot", 
       icon: GripHorizontal, 
-      bg: "bg-white", 
-      iconColor: "text-yellow-600", 
-      iconBg: "bg-yellow-50",
-      border: "border-gray-100 hover:border-yellow-300"
     },
     { 
-      title: "نقره آب‌ شده", 
-      desc: "سرمایه‌گذاری روی نقره", 
-      href: "/dashboard/melted-silver", 
-      icon: Coins, 
-      bg: "bg-white", 
-      iconColor: "text-slate-500", 
-      iconBg: "bg-slate-100",
-      border: "border-gray-100 hover:border-slate-300"
-    },
-    { 
-      title: "خرید زیورآلات طلا", 
-      desc: "گالری متنوع جواهرات", 
+      title: "زیورآلات طلا", 
       href: "/dashboard/jewelry", 
       icon: Gem, 
-      bg: "bg-white", 
-      iconColor: "text-rose-500", 
-      iconBg: "bg-rose-50",
-      border: "border-gray-100 hover:border-rose-300"
-    },
-    { 
-      title: "زرگری طلا", 
-      desc: "طراحی و ساخت سفارشی", 
-      href: "/dashboard/goldsmith", 
-      icon: Hammer, 
-      bg: "bg-white", 
-      iconColor: "text-indigo-500", 
-      iconBg: "bg-indigo-50",
-      border: "border-gray-100 hover:border-indigo-300"
-    },
+    }
   ];
 
   return (
@@ -132,46 +95,43 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── 2. بنرهای خدمات اصلی (تغییر چیدمان به گرید 3 ستونه در دسکتاپ) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {services.map((service, idx) => {
-          // بنر اول دو ستون در سایزهای بزرگتر می‌گیرد تا برجسته‌تر باشد
-          const isHero = idx === 0;
-          return (
-            <Link 
-              key={idx} 
-              href={service.href}
-              className={`group flex items-center justify-between p-5 rounded-3xl transition-all duration-300 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-md ${service.bg} ${service.border} border ${isHero ? 'md:col-span-2' : ''}`}
-            >
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${service.iconBg} ${service.iconColor} group-hover:scale-110 transition-transform duration-300`}>
-                  <service.icon className="w-6 h-6" strokeWidth={1.5} />
-                </div>
-                <div>
-                  <h3 className={`font-bold text-gray-800 ${isHero ? 'text-[16px]' : 'text-[14px]'}`}>
-                    {service.title}
-                  </h3>
-                  <p className="text-[11px] text-gray-500 mt-1 font-medium">
-                    {service.desc}
-                  </p>
-                </div>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-gray-800 group-hover:text-white transition-colors border border-gray-100">
-                <ChevronLeft className="w-4 h-4" />
-              </div>
-            </Link>
-          );
-        })}
+      {/* ── 2. بنرهای خدمات اصلی (تم زرشکی تیره و طلایی سفارشی) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
+        {services.map((service, idx) => (
+          <Link 
+            key={idx} 
+            href={service.href}
+            // اعمال رنگ پس‌زمینه #330509 و حاشیه #c5a059
+            className="relative group flex flex-col items-center justify-center gap-3 md:gap-5 py-6 md:py-0 md:h-[200px] rounded-3xl transition-all duration-500 shadow-sm hover:shadow-[0_8px_30px_rgba(197,160,89,0.15)] bg-[#330509] border border-[#c5a059]/30 hover:border-[#c5a059] overflow-hidden"
+          >
+            {/* گرادیانت نوری ظریف طلایی از پایین در حالت هاور */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#c5a059]/15 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+
+            {/* باکس آیکون: کوچکتر در موبایل (w-10)، بزرگتر در دسکتاپ (md:w-16) */}
+            <div className="w-11 h-11 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center bg-[#c5a059]/10 text-[#c5a059] group-hover:scale-110 group-hover:bg-[#c5a059]/20 transition-all duration-500 z-10 border border-[#c5a059]/20 group-hover:border-[#c5a059]/50">
+              <service.icon className="w-5 h-5 md:w-8 md:h-8" strokeWidth={1.5} />
+            </div>
+            
+            <h3 className="font-bold text-white text-[14px] md:text-[16px] tracking-wide z-10 group-hover:text-[#c5a059] transition-colors drop-shadow-md">
+              {service.title}
+            </h3>
+
+            {/* فلش راهنما */}
+            <div className="absolute bottom-4 left-4 md:bottom-5 md:left-5 w-7 h-7 md:w-8 md:h-8 rounded-full bg-black/20 flex items-center justify-center text-[#c5a059] group-hover:bg-[#c5a059] group-hover:text-[#330509] transition-all duration-300 z-10">
+              <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
+            </div>
+          </Link>
+        ))}
       </div>
 
       {/* ── 3. بخش پایانی: نمودار و تراکنش‌ها ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100/80">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100/80 dark:border-gray-800/80">
         
         {/* نمودار هفتگی */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+        <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="text-[15px] font-black text-gray-800">نمودار دارایی (هفتگی)</h3>
-            <button className="text-[12px] font-bold text-amber-500 transition-opacity hover:opacity-70">
+            <h3 className="text-[15px] font-black text-gray-800 dark:text-gray-100">نمودار دارایی (هفتگی)</h3>
+            <button className="text-[12px] font-bold text-[#c5a059] transition-opacity hover:opacity-70">
               گزارش کامل ←
             </button>
           </div>
@@ -183,10 +143,9 @@ export default function DashboardPage() {
                   className="w-full max-w-7 rounded-t-lg transition-all duration-300 cursor-pointer min-h-1 relative group"
                   style={{
                     height: `${(d.value / maxBar) * 100}%`,
-                    background: i === 5 ? "var(--color-gold-500)" : "#e2e8f0",
+                    background: i === 5 ? "#c5a059" : "#e2e8f0",
                   }}
                 >
-                  {/* Tooltip در هاور */}
                   <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-20">
                     {d.value}م تومان
                   </div>
@@ -198,10 +157,10 @@ export default function DashboardPage() {
         </div>
 
         {/* آخرین تراکنش‌ها */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col">
+        <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-[15px] font-black text-gray-800">آخرین تراکنش‌ها</h3>
-            <Link href="/dashboard/transactions" className="text-[12px] font-bold text-[#064e3b] transition-opacity hover:opacity-70">
+            <h3 className="text-[15px] font-black text-gray-800 dark:text-gray-100">آخرین تراکنش‌ها</h3>
+            <Link href="/dashboard/transactions" className="text-[12px] font-bold text-[#064e3b] dark:text-emerald-500 transition-opacity hover:opacity-70">
               همه تراکنش‌ها ←
             </Link>
           </div>
@@ -210,17 +169,17 @@ export default function DashboardPage() {
             {TRANSACTIONS.slice(0, 4).map((tx) => (
               <div
                 key={tx.id}
-                className="flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-gray-50 border border-transparent hover:border-gray-100"
+                className="flex items-center gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 border border-transparent hover:border-gray-100 dark:hover:border-gray-600"
               >
                 <TxIcon type={tx.type} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-bold text-gray-800 truncate">{tx.title}</p>
+                  <p className="text-[13px] font-bold text-gray-800 dark:text-gray-200 truncate">{tx.title}</p>
                   <p className="text-[11px] text-gray-400 mt-1">{tx.date} · {tx.time}</p>
                 </div>
                 <div className="text-left shrink-0">
                   <p
                     className="text-[14px] font-black"
-                    style={{ color: tx.amountType === "plus" ? "#16a34a" : "var(--color-red)" }}
+                    style={{ color: tx.amountType === "plus" ? "#16a34a" : "var(--color-red, #dc2626)" }}
                   >
                     {tx.amount}
                   </p>

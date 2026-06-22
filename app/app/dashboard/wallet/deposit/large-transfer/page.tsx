@@ -48,6 +48,8 @@ export default function LargeTransferPage() {
   const { loading, error, setError, initiate } = useLargeTransferDeposit();
 
   const [step, setStep] = useState<Step>("enter-amount");
+
+  // تغییر: مقدار کاملاً خام و انگلیسی در استیت ذخیره می‌شود
   const [amount, setAmount] = useState("");
   const [proformaData, setProformaData] = useState<{
     transactionId: string;
@@ -66,7 +68,8 @@ export default function LargeTransferPage() {
   const minAmount = cfg?.minAmount ?? 4_000_000_000;
 
   const handleSubmit = async () => {
-    const amountRial = Number(amount.replace(/,/g, "")) * 10;
+    // تغییر: استفاده مستقیم از مقدار خام استیت و تبدیل به ریال
+    const amountRial = Number(amount) * 10;
     if (!amountRial || amountRial < minAmount) {
       return setError(
         `حداقل مبلغ برای این روش ${toToman(minAmount)} تومان است`,
@@ -163,13 +166,48 @@ export default function LargeTransferPage() {
                 inputMode="numeric"
                 dir="ltr"
                 placeholder="مبلغ موردنظر خود را وارد کنید"
-                value={amount}
+                // فرمت‌دهی به صورت خودکار فقط برای نمایش
+                value={amount ? Number(amount).toLocaleString("fa-IR") : ""}
                 onChange={(e) => {
-                  const raw = e.target.value.replace(/[^0-9]/g, "");
-                  setAmount(Number(raw).toLocaleString("fa-IR"));
+                  let val = e.target.value;
+
+                  // رفع مشکل کیبورد فارسی و عربی
+                  const persianNumbers = [
+                    /۰/g,
+                    /۱/g,
+                    /۲/g,
+                    /۳/g,
+                    /۴/g,
+                    /۵/g,
+                    /۶/g,
+                    /۷/g,
+                    /۸/g,
+                    /۹/g,
+                  ];
+                  const arabicNumbers = [
+                    /٠/g,
+                    /١/g,
+                    /٢/g,
+                    /٣/g,
+                    /٤/g,
+                    /٥/g,
+                    /٦/g,
+                    /٧/g,
+                    /٨/g,
+                    /٩/g,
+                  ];
+                  for (let i = 0; i < 10; i++) {
+                    val = val
+                      .replace(persianNumbers[i], i.toString())
+                      .replace(arabicNumbers[i], i.toString());
+                  }
+
+                  const raw = val.replace(/[^0-9]/g, "");
+                  setAmount(raw);
                   setError(null);
                 }}
-                className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[18px] font-black text-gray-800 bg-gray-50 transition-all"
+                // تغییر استایل: pr-4 و pl-14 برای رفع مشکل تداخل و text-right برای راست‌چین شدن اعداد
+                className="w-full py-4 pr-4 pl-14 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-right text-[18px] font-black text-gray-800 bg-gray-50 transition-all"
               />
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-gray-400">
                 تومان

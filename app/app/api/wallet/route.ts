@@ -1,30 +1,28 @@
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import axios from 'axios';
-
-const NEST_API_URL = 'http://localhost:5000';
-
-async function getToken() {
-  const cookieStore = await cookies();
-  return cookieStore.get('accessToken')?.value;
-}
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import axios from "axios";
+const NEST = "http://localhost:5000";
 
 export async function GET() {
   try {
-    const token = await getToken();
-    if (!token) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-
-    const res = await axios.get(`${NEST_API_URL}/wallet`, {
+    const token = (await cookies()).get("accessToken")?.value;
+    if (!token)
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    const res = await axios.get(`${NEST}/wallet`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return NextResponse.json(res.data);
-  } catch (error: unknown) {
-    if (axios.isAxiosError(error)) {
+  } catch (e: unknown) {
+    if (axios.isAxiosError(e))
       return NextResponse.json(
-        { message: error.response?.data?.message || 'خطا' },
-        { status: error.response?.status || 500 },
+        { message: e.response?.data?.message || "خطا" },
+        { status: e.response?.status || 500 },
       );
-    }
-    return NextResponse.json({ message: 'خطای سرور' }, { status: 500 });
+    return NextResponse.json({ message: "خطای سرور" }, { status: 500 });
   }
+}
+
+async function getToken() {
+  const { cookies } = await import('next/headers');
+  return (await cookies()).get('accessToken')?.value;
 }

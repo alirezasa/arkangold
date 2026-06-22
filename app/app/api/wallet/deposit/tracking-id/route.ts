@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     const body = await req.json();
-    const res = await axios.post(`${NEST}/wallet/withdrawal/request`, body, {
+    const res = await axios.post(`${NEST}/wallet/deposit/tracking-id`, body, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return NextResponse.json(res.data);

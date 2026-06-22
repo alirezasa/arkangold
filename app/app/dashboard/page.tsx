@@ -41,28 +41,30 @@ export default function DashboardPage() {
   const services = [
     { 
       title: "طلای آبشده", 
+      subtitle: "خرید و فروش لحظه‌ای",
       href: "/dashboard/melted-gold", 
       icon: Flame, 
     },
     { 
       title: "شمش طلا", 
+      subtitle: "سرمایه‌گذاری امن",
       href: "/dashboard/gold-ingot", 
       icon: GripHorizontal, 
     },
     { 
-      title: "زیورآلات طلا", 
+      title: "زیورآلات", 
+      subtitle: "ویترین آنلاین",
       href: "/dashboard/jewelry", 
       icon: Gem, 
     }
   ];
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-500" dir="rtl">
+    <div className="w-full max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-700" dir="rtl">
       
       {/* ── 1. نوار قیمت لحظه‌ای طلا ── */}
-      <div className="rounded-2xl p-1 shadow-[0_8px_30px_rgba(251,191,36,0.15)] bg-white border border-amber-100 flex items-center justify-between">
-        <div className="flex items-center gap-4 bg-linear-to-r from-amber-400 via-amber-300 to-yellow-400 rounded-xl px-5 py-4 w-full relative overflow-hidden">
-          {/* افکت‌های پس‌زمینه */}
+      <div className="rounded-3xl p-1 shadow-[0_8px_30px_rgba(251,191,36,0.15)] bg-white border border-amber-100 flex items-center justify-between">
+        <div className="flex items-center gap-4 bg-linear-to-r from-amber-400 via-amber-300 to-yellow-400 rounded-[20px] px-5 py-4 w-full relative overflow-hidden">
           <div className="absolute inset-0 bg-white/10 opacity-50 mix-blend-overlay pointer-events-none" />
           <div className="absolute -left-10 top-1/2 -translate-y-1/2 w-32 h-32 bg-white/20 blur-2xl rounded-full" />
           
@@ -81,7 +83,6 @@ export default function DashboardPage() {
             </div>
           </div>
           
-          {/* درصد تغییرات */}
           {!loadingGold && goldData && (
             <div className={`mr-auto relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[13px] font-black backdrop-blur-md shadow-sm border ${
               isPositiveChange 
@@ -95,33 +96,52 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── 2. بنرهای خدمات اصلی (تم زرشکی تیره و طلایی سفارشی) ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
-        {services.map((service, idx) => (
-          <Link 
-            key={idx} 
-            href={service.href}
-            // اعمال رنگ پس‌زمینه #330509 و حاشیه #c5a059
-            className="relative group flex flex-col items-center justify-center gap-3 md:gap-5 py-6 md:py-0 md:h-[200px] rounded-3xl transition-all duration-500 shadow-sm hover:shadow-[0_8px_30px_rgba(197,160,89,0.15)] bg-[#330509] border border-[#c5a059]/30 hover:border-[#c5a059] overflow-hidden"
-          >
-            {/* گرادیانت نوری ظریف طلایی از پایین در حالت هاور */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#c5a059]/15 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      {/* ── 2. بنرهای خدمات اصلی (طراحی بنتو گرید یکپارچه) ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
+        {services.map((service, idx) => {
+          const isHeroCard = idx === 0;
 
-            {/* باکس آیکون: کوچکتر در موبایل (w-10)، بزرگتر در دسکتاپ (md:w-16) */}
-            <div className="w-11 h-11 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center bg-[#c5a059]/10 text-[#c5a059] group-hover:scale-110 group-hover:bg-[#c5a059]/20 transition-all duration-500 z-10 border border-[#c5a059]/20 group-hover:border-[#c5a059]/50">
-              <service.icon className="w-5 h-5 md:w-8 md:h-8" strokeWidth={1.5} />
-            </div>
-            
-            <h3 className="font-bold text-white text-[14px] md:text-[16px] tracking-wide z-10 group-hover:text-[#c5a059] transition-colors drop-shadow-md">
-              {service.title}
-            </h3>
+          return (
+            <Link 
+              key={idx} 
+              href={service.href}
+              // ساختار flex-col و justify-between برای همه یکسان شد
+              className={`relative group overflow-hidden rounded-3xl:rounded-[32px] p-5 md:p-6 transition-all duration-500 border border-gold-500/20 hover:border-gold-500/60bg-gradient-to-br from-emerald to-[#1a0204] shadow-lg hover:shadow-[0_12px_40px_rgba(197,160,89,0.2)] flex flex-col justify-between
+                ${isHeroCard 
+                  ? "col-span-2 md:col-span-1 min-h-35 md:min-h-55" 
+                  : "col-span-1 aspect-square md:aspect-auto md:min-h-55"
+                }
+              `}
+            >
+              {/* افکت واترمارک بزرگ پس‌زمینه */}
+              <service.icon className="absolute -left-6 -bottom-6 w-32 h-32 text-gold-500 opacity-5 group-hover:opacity-10 transition-all duration-700 transform group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
 
-            {/* فلش راهنما */}
-            <div className="absolute bottom-4 left-4 md:bottom-5 md:left-5 w-7 h-7 md:w-8 md:h-8 rounded-full bg-black/20 flex items-center justify-center text-[#c5a059] group-hover:bg-[#c5a059] group-hover:text-[#330509] transition-all duration-300 z-10">
-              <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
-            </div>
-          </Link>
-        ))}
+              {/* بخش بالایی: آیکون + فلش */}
+              <div className="flex justify-between items-start w-full z-10">
+                <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-linear-to-br from-[#e6c887] via-gold-500 to-[#8c703b] flex items-center justify-center shrink-0 shadow-[0_4px_15px_rgba(197,160,89,0.4)] text-emerald">
+                  <service.icon className="w-6 h-6 md:w-7 md:h-7" strokeWidth={2} />
+                </div>
+
+                {/* فلش راهنما در بالا سمت چپ کارت اصلی */}
+                {isHeroCard && (
+                  <div className="w-8 h-8 rounded-full bg-white/5 backdrop-blur-md flex items-center justify-center text-gold-500 group-hover:bg-gold-500 group-hover:text-emerald transition-all border border-white/10 shadow-sm">
+                    <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
+                  </div>
+                )}
+              </div>
+              
+              {/* بخش پایینی: متون دکمه (کلاس mt-auto باعث می‌شود همیشه به پایین بچسبد) */}
+              <div className="z-10 flex flex-col mt-auto text-right w-full pt-4">
+                <h3 className="font-black text-white text-[15px] sm:text-[16px] md:text-[20px] tracking-tight group-hover:text-[#e6c887] transition-colors drop-shadow-md">
+                  {service.title}
+                </h3>
+                <p className="text-gold-500/80 text-[11px] md:text-[13px] font-medium mt-1">
+                  {service.subtitle}
+                </p>
+              </div>
+            </Link>
+          );
+        })}
       </div>
 
       {/* ── 3. بخش پایانی: نمودار و تراکنش‌ها ── */}
@@ -131,7 +151,7 @@ export default function DashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-[15px] font-black text-gray-800 dark:text-gray-100">نمودار دارایی (هفتگی)</h3>
-            <button className="text-[12px] font-bold text-[#c5a059] transition-opacity hover:opacity-70">
+            <button className="text-[12px] font-bold text-gold-500 transition-opacity hover:opacity-70">
               گزارش کامل ←
             </button>
           </div>

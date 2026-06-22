@@ -51,6 +51,8 @@ export default function CardToCardPage() {
 
   const [step, setStep] = useState<Step>("select-card");
   const [selectedCardId, setSelectedCardId] = useState("");
+
+  // تغییر: مقدار کاملاً خام و انگلیسی در استیت ذخیره می‌شود
   const [amount, setAmount] = useState("");
   const [depositInfo, setDepositInfo] = useState<{
     transactionId: string;
@@ -73,7 +75,8 @@ export default function CardToCardPage() {
 
   // ── مرحله ۲: ثبت مبلغ و دریافت اطلاعات مقصد ──
   const handleSubmitAmount = async () => {
-    const amountRial = Number(amount.replace(/,/g, "")) * 10;
+    // تغییر: تبدیل مستقیم مقدار خام به ریال بدون نیاز به ریپلیس کردن کاما
+    const amountRial = Number(amount) * 10;
     if (!amountRial || amountRial < (cfg?.minAmount ?? 100000)) {
       return setError(
         `حداقل مبلغ ${toToman(cfg?.minAmount ?? 100000)} تومان است`,
@@ -182,7 +185,7 @@ export default function CardToCardPage() {
           }}
         >
           <h2 className="text-[14px] font-black text-gray-800">
-            مبداهای مجاز واریز
+            مبدأهای مجاز واریز
           </h2>
 
           {verifiedCards.length === 0 ? (
@@ -289,13 +292,48 @@ export default function CardToCardPage() {
               inputMode="numeric"
               dir="ltr"
               placeholder="مبلغ را وارد کنید"
-              value={amount}
+              // فرمت‌دهی به صورت خودکار فقط برای نمایش کاربر
+              value={amount ? Number(amount).toLocaleString("fa-IR") : ""}
               onChange={(e) => {
-                const raw = e.target.value.replace(/[^0-9]/g, "");
-                setAmount(Number(raw).toLocaleString("fa-IR"));
+                let val = e.target.value;
+
+                // تبدیل کیبورد فارسی و عربی به انگلیسی برای جلوگیری از باگ حذف ارقام
+                const persianNumbers = [
+                  /۰/g,
+                  /۱/g,
+                  /۲/g,
+                  /۳/g,
+                  /۴/g,
+                  /۵/g,
+                  /۶/g,
+                  /۷/g,
+                  /۸/g,
+                  /۹/g,
+                ];
+                const arabicNumbers = [
+                  /٠/g,
+                  /١/g,
+                  /٢/g,
+                  /٣/g,
+                  /٤/g,
+                  /٥/g,
+                  /٦/g,
+                  /٧/g,
+                  /٨/g,
+                  /٩/g,
+                ];
+                for (let i = 0; i < 10; i++) {
+                  val = val
+                    .replace(persianNumbers[i], i.toString())
+                    .replace(arabicNumbers[i], i.toString());
+                }
+
+                const raw = val.replace(/[^0-9]/g, "");
+                setAmount(raw);
                 setError(null);
               }}
-              className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all"
+              // تغییر استایل: pr-4 و pl-14 برای ایجاد فاصله از کلمه تومان و text-right برای خوانایی مالی
+              className="w-full py-4 pr-4 pl-14 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-right text-[20px] font-black text-gray-800 bg-gray-50 transition-all"
             />
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-gray-400">
               تومان
@@ -308,7 +346,7 @@ export default function CardToCardPage() {
               <button
                 key={v}
                 onClick={() => {
-                  setAmount(v.toLocaleString("fa-IR"));
+                  setAmount(v.toString());
                   setError(null);
                 }}
                 className="py-2 rounded-xl text-[11px] font-bold border border-gray-200 bg-gray-50 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition-all"
@@ -390,7 +428,7 @@ export default function CardToCardPage() {
                 <ArrowDown
                   className="w-4 h-4"
                   style={{ color: "var(--color-emerald)" }}
-                />
+                ></ArrowDown>
               </div>
             </div>
 

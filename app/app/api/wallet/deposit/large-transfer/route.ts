@@ -8,9 +8,11 @@ export async function POST(req: Request) {
     if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     const body = await req.json();
-    const res = await axios.post(`${NEST}/wallet/withdrawal/request`, body, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await axios.post(
+      `${NEST}/wallet/deposit/large-transfer/initiate`,
+      body,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
     return NextResponse.json(res.data);
   } catch (e: unknown) {
     if (axios.isAxiosError(e)) {
@@ -26,4 +28,9 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ message: "خطای سرور" }, { status: 500 });
   }
+}
+
+async function getToken() {
+  const { cookies } = await import('next/headers');
+  return (await cookies()).get('accessToken')?.value;
 }

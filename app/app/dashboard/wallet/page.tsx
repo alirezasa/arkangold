@@ -1,204 +1,253 @@
 "use client";
 
 import Link from "next/link";
-import { useDepositConfig } from "@/app/hooks/useWallet";
+import { useWallet } from "@/app/hooks/useWallet";
 import { useGoldPrice } from "@/app/hooks/useGoldPrice";
-import { ChevronLeft, Loader2, AlertCircle } from "lucide-react";
+import {
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Loader2,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Coins,
+  Lock,
+  TrendingUp,
+  ChevronLeft,
+} from "lucide-react";
+import { useState } from "react";
 
-function toToman(rial: number) {
-  if (rial === 0) return "بدون محدودیت";
-  if (rial >= 1_000_000_000) return `${(rial / 1_000_000_000).toLocaleString("fa-IR")} میلیارد تومان`;
-  if (rial >= 1_000_000) return `${(rial / 1_000_000).toLocaleString("fa-IR")} میلیون تومان`;
-  return `${(rial / 10).toLocaleString("fa-IR")} تومان`;
+function rialToToman(rial: number): string {
+  const toman = rial / 10;
+  if (toman >= 1_000_000_000)
+    return `${(toman / 1_000_000_000).toLocaleString("fa-IR")} میلیارد`;
+  if (toman >= 1_000_000)
+    return `${(toman / 1_000_000).toLocaleString("fa-IR")} میلیون`;
+  return toman.toLocaleString("fa-IR");
+}
+function rialToTomanFull(rial: number): string {
+  return (rial / 10).toLocaleString("fa-IR");
 }
 
-export default function DepositSelectPage() {
-  const { config, loading } = useDepositConfig();
+export default function WalletPage() {
+  const { wallet, loading, error, refresh } = useWallet();
   const { data: goldPrice } = useGoldPrice();
+  const [hideBalance, setHideBalance] = useState(false);
 
-  const methods = config
-    ? [
-        {
-          key: "online-gateway",
-          title: "درگاه آنلاین",
-          subtitle: `روزانه تا ${toToman(config.online.dailyLimit)}`,
-          badge: "در لحظه",
-          badgeColor: "bg-green-100 text-green-700",
-          icon: "ti-device-desktop",
-          iconBg: "bg-blue-50",
-          iconColor: "text-blue-600",
-          href: "/dashboard/wallet/deposit/online-gateway",
-          enabled: config.online.enabled,
-          disabledMsg: "به زودی فعال می‌شود",
-        },
-        {
-          key: "card-to-card",
-          title: "کارت به کارت",
-          subtitle: `روزانه تا سقف ${toToman(config.cardToCard.dailyLimit)}`,
-          badge: config.cardToCard.processingTime,
-          badgeColor: "bg-amber-100 text-amber-700",
-          icon: "ti-credit-card",
-          iconBg: "bg-amber-50",
-          iconColor: "text-amber-600",
-          href: "/dashboard/wallet/deposit/card-to-card",
-          enabled: config.cardToCard.enabled,
-        },
-        {
-          key: "bank-transfer",
-          title: "حساب به حساب",
-          subtitle: "واریز بدون محدودیت",
-          badge: config.bankTransfer.processingTime,
-          badgeColor: "bg-purple-100 text-purple-700",
-          icon: "ti-building-bank",
-          iconBg: "bg-purple-50",
-          iconColor: "text-purple-600",
-          href: "/dashboard/wallet/deposit/bank-transfer",
-          enabled: config.bankTransfer.enabled,
-        },
-        {
-          key: "tracking-id",
-          title: "واریز شناسه‌دار",
-          subtitle: `واریز تا سقف ${toToman(config.trackingId.dailyLimit)} | سیکل پایا`,
-          badge: "پایا",
-          badgeColor: "bg-indigo-100 text-indigo-700",
-          icon: "ti-fingerprint",
-          iconBg: "bg-indigo-50",
-          iconColor: "text-indigo-600",
-          href: "/dashboard/wallet/deposit/tracking-id",
-          enabled: config.trackingId.enabled,
-        },
-        {
-          key: "large-transfer",
-          title: "مبالغ بالا (پیش‌فاکتور)",
-          subtitle: `واریز مبالغ بیش از ${toToman(config.largeTransfer.minAmount)} | سیکل پایا`,
-          badge: "پایا",
-          badgeColor: "bg-rose-100 text-rose-700",
-          icon: "ti-building-bank",
-          iconBg: "bg-rose-50",
-          iconColor: "text-rose-600",
-          href: "/dashboard/wallet/deposit/large-transfer",
-          enabled: config.largeTransfer.enabled,
-        },
-        {
-          key: "direct",
-          title: "واریز مستقیم",
-          subtitle: `روزانه تا ${toToman(config.direct.dailyLimit)}`,
-          badge: "در لحظه",
-          badgeColor: "bg-teal-100 text-teal-700",
-          icon: "ti-transfer",
-          iconBg: "bg-teal-50",
-          iconColor: "text-teal-600",
-          href: "/dashboard/wallet/deposit/direct",
-          enabled: config.direct.enabled,
-        },
-      ]
-    : [];
+  const goldValueRial = wallet
+    ? wallet.goldBalanceGrams * (goldPrice?.price ?? 0) * 1000
+    : 0;
+  const totalValueRial = (wallet?.rialBalance ?? 0) + goldValueRial;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64" dir="rtl">
+        <Loader2
+          className="w-8 h-8 animate-spin"
+          style={{ color: "#c5a059" }}
+        />
+      </div>
+    );
+  }
+
+  if (error || !wallet) {
+    return (
+      <div className="max-w-lg mx-auto text-center py-16" dir="rtl">
+        <p className="text-red-500 font-bold mb-4">
+          {error ?? "خطا در دریافت اطلاعات"}
+        </p>
+        <button
+          onClick={() => refresh()}
+          className="flex items-center gap-2 mx-auto px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-emerald border border-gold-500/40hhover:border-gold-500transition-all"
+        >
+          <RefreshCw className="w-4 h-4" /> تلاش مجدد
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-lg mx-auto space-y-4 pb-24" dir="rtl">
+    <div className="max-w-2xl mx-auto space-y-5 pb-24 px-4 sm:px-0" dir="rtl">
+      
+      {/* ── کارت اصلی موجودی (تم جدید یاغوتی و طلایی) ── */}
+      <div
+        className="relative overflow-hidden rounded-4xl p-6 text-white border border-gold-500/30 shadow-[0_15px_35px_rgba(51,5,9,0.25)] bg-linear-to-brrfrom-emeraldo-[#1a0204]"
+      >
+        {/* هاله نوری پس‌زمینه کارت */}
+        <div className="absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-15 blur-2xl bg-gold-500" />
+        <div className="absolute -bottom-12 -right-6 w-40 h-40 rounded-full opacity-10 blur-xl bg-gold-500" />
 
-      {/* ── هدر ── */}
-      <div className="flex items-center gap-3 mb-2">
-        <Link
-          href="/dashboard/wallet"
-          className="w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-colors"
-        >
-          <ChevronLeft className="w-5 h-5 rotate-180" />
-        </Link>
-        <div>
-          <h1 className="text-[17px] font-black text-gray-900">انتخاب روش واریز</h1>
-          <p className="text-[11px] text-gray-400 mt-0.5">روش مناسب را انتخاب کنید</p>
+        {/* هدر کارت */}
+        <div className="flex items-center justify-between mb-6 relative z-10">
+          <span className="text-[12px] font-bold text-gold-500 tracking-wide bg-white/5 px-3 py-1 rounded-full border border-white/5">
+            کیف پول آرکان گلد
+          </span>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setHideBalance(!hideBalance)}
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white/80"
+            >
+              {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={() => refresh()}
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors text-white/80"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* ارزش کل دارایی */}
+        <div className="relative z-10 mb-6">
+          <p className="text-[11px] text-white/60 mb-1">ارزش کل دارایی (ریال + طلا)</p>
+          <p className="text-[28px] sm:text-[32px] font-black tracking-tight text-white">
+            {hideBalance ? "••••••••" : rialToTomanFull(totalValueRial)}
+            <span className="text-[13px] font-bold text-gold-500mr-2">
+              تومان
+            </span>
+          </p>
+        </div>
+
+        {/* تفکیک موجودی‌ها (سازه گلس‌مورفیسم یکدست) */}
+        <div className="grid grid-cols-2 gap-3 relative z-10">
+          {/* موجودی ریال */}
+          <div className="rounded-2xl p-4 bg-white/4 border border-white/10 backdrop-blur-md">
+            <p className="text-[11px] text-white/50 mb-1">موجودی نقدی</p>
+            <p className="text-[16px] sm:text-[18px] font-black text-white">
+              {hideBalance ? "••••••" : rialToTomanFull(wallet.rialBalance)}
+              <span className="text-[10px] font-normal text-white/50 mr-1">تومان</span>
+            </p>
+            
+            {wallet.holdRial > 0 && (
+              <div className="flex items-center gap-1 mt-2 text-amber-400/80">
+                <Lock className="w-3 h-3" />
+                <span className="text-[10px]">
+                  {rialToToman(wallet.holdRial)} ت در انتظار
+                </span>
+              </div>
+            )}
+            {wallet.holdRial > 0 && (
+              <p className="text-[10px] mt-1 text-white/40">
+                قابل برداشت: {rialToTomanFull(wallet.availableRial)} ت
+              </p>
+            )}
+          </div>
+
+          {/* موجودی طلا */}
+          <div className="rounded-2xl p-4 bg-gold-500/10border bborder-gold-500/20backdrop-blur-md">
+            <p className="text-[11px] text-gold-500 mb-1">موجودی طلای آبشده</p>
+            <p className="text-[16px] sm:text-[18px] font-black text-[#e6c887]">
+              {hideBalance ? "••••••" : wallet.goldBalanceGrams.toFixed(4)}
+              <span className="text-[10px] font-normal text-[#c5a059] mr-1">گرم</span>
+            </p>
+            
+            {goldPrice && !hideBalance && (
+              <p className="text-[10px] mt-2 text-white/60">
+                ≈ {rialToToman(goldValueRial)} تومان
+              </p>
+            )}
+            {wallet.holdGrams > 0 && (
+              <div className="flex items-center gap-1 mt-1 text-amber-400/80">
+                <Lock className="w-3 h-3" />
+                <span className="text-[10px]">
+                  {wallet.holdGrams.toFixed(4)} گ در انتظار
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* شماره کارت شتابی اختصاصی کیف پول */}
+        <div className="mt-5 pt-4 border-t border-white/[0.08] relative z-10 flex items-center justify-between text-white/40">
+          <span className="text-[12px] tracking-[0.15em] font-medium font-mono" dir="ltr">
+            {wallet.cardNumber.replace(/(.{4})/g, "$1 ").trim()}
+          </span>
+          <Coins className="w-4 h-4 text-[#c5a059]/60" />
         </div>
       </div>
 
-      {/* ── قیمت لحظه‌ای ── */}
-      {goldPrice && (
-        <div
-          className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm"
-          style={{ background: "rgba(197,160,89,.1)", border: "1px solid rgba(197,160,89,.3)" }}
+      {/* ── دکمه‌های عملیات (طراحی فلات و مدرن) ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <Link
+          href="/dashboard/wallet/deposit"
+          className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl text-white transition-all active:scale-95 shadow-md bg-gradient-to-br from-[#16a34a] to-[#15803d] hover:shadow-[0_6px_20px_rgba(22,163,74,0.2)]"
         >
-          <div className="flex items-center gap-2">
-            <span>🪙</span>
-            <span className="text-[12px] font-bold text-amber-800">قیمت لحظه‌ای طلا:</span>
+          <ArrowDownCircle className="w-6 h-6" />
+          <span className="text-[14px] font-bold">واریز وجه</span>
+          <span className="text-[10px] text-white/70">افزایش موجودی ریالی</span>
+        </Link>
+
+        <Link
+          href="/dashboard/wallet/withdrawal"
+          className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-2xl transition-all active:scale-95 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750"
+        >
+          <ArrowUpCircle className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+          <span className="text-[14px] font-bold text-gray-800 dark:text-gray-200">برداشت وجه</span>
+          <span className="text-[10px] text-gray-400 dark:text-gray-500">انتقال شبا به بانک</span>
+        </Link>
+      </div>
+
+      {/* ── آمار مالی ── */}
+      <div className="rounded-2xl p-5 space-y-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm">
+        <h3 className="text-[13px] font-black text-gray-800 dark:text-gray-200 flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-[#c5a059]" />
+          آمار تراکنش‌های اخیر
+        </h3>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50">
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">واریز امروز</p>
+            <p className="text-[14px] font-black text-green-600 dark:text-green-500">
+              {rialToTomanFull(wallet.stats.todayDeposit)}
+              <span className="text-[10px] font-normal text-gray-400 mr-1">ت</span>
+            </p>
           </div>
-          <span className="font-black text-amber-900 text-[13px]">
-            {(goldPrice.price * 1000).toLocaleString("fa-IR")} تومان
-          </span>
+          <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/50">
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-1">برداشت این ماه</p>
+            <p className="text-[14px] font-black text-red-500 dark:text-red-400">
+              {rialToTomanFull(wallet.stats.monthWithdrawal)}
+              <span className="text-[10px] font-normal text-gray-400 mr-1">ت</span>
+            </p>
+          </div>
         </div>
-      )}
+      </div>
 
-      {/* ── لیست روش‌ها ── */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-7 h-7 animate-spin text-gray-400" />
-        </div>
-      ) : (
-        <div
-          className="rounded-2xl overflow-hidden"
-          style={{ border: "1px solid var(--color-border)" }}
-        >
-          {methods.map((method, idx) => {
-            const Inner = (
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${method.iconBg}`}>
-                  <i className={`ti ${method.icon} text-[20px] ${method.iconColor}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[14px] font-black text-gray-800">{method.title}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${method.badgeColor}`}>
-                      {method.badge}
-                    </span>
-                    {!method.enabled && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
-                        {(method as { disabledMsg?: string }).disabledMsg ?? "غیرفعال"}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[12px] text-gray-500 mt-0.5 truncate">{method.subtitle}</p>
-                </div>
-                <ChevronLeft className={`w-4 h-4 shrink-0 ${method.enabled ? "text-gray-400" : "text-gray-200"}`} />
-              </div>
-            );
-
-            return method.enabled ? (
-              <Link
-                key={method.key}
-                href={method.href}
-                className="flex items-center px-4 py-4 transition-colors hover:bg-gray-50 active:bg-gray-100"
-                style={{
-                  backgroundColor: "var(--color-surface)",
-                  borderTop: idx > 0 ? "1px solid var(--color-border)" : undefined,
-                }}
-              >
-                {Inner}
-              </Link>
-            ) : (
-              <div
-                key={method.key}
-                className="flex items-center px-4 py-4 opacity-50 cursor-not-allowed"
-                style={{
-                  backgroundColor: "var(--color-surface)",
-                  borderTop: idx > 0 ? "1px solid var(--color-border)" : undefined,
-                }}
-              >
-                {Inner}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── نکته امنیتی ── */}
-      <div
-        className="flex items-start gap-3 p-4 rounded-xl text-[12px]"
-        style={{ backgroundColor: "#fefce8", border: "1px solid #fef08a", color: "#713f12" }}
-      >
-        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-        <p>
-          واریز وجه فقط از طریق کارت‌های بانکی که در سیستم ثبت کرده‌اید مجاز است.
-          در صورت واریز از کارت دیگری، مبلغ در سیکل پایا به حساب مبدا برگشت داده می‌شود.
-        </p>
+      {/* ── لینک‌های سریع منو ── */}
+      <div className="rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm">
+        {[
+          {
+            label: "تاریخچه تراکنش‌ها",
+            icon: "ti-history",
+            href: "/dashboard/transactions",
+          },
+          {
+            label: "حساب‌ها و کارت‌های بانکی",
+            icon: "ti-credit-card",
+            href: "/dashboard/cards",
+          },
+          {
+            label: "معامله آنلاین طلای آبشده",
+            icon: "ti-coins",
+            href: "/dashboard/melted-gold",
+          },
+        ].map((item, idx) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="flex items-center justify-between px-5 py-4 transition-colors bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50 active:bg-gray-100"
+            style={{
+              borderTop: idx > 0 ? "1px solid var(--color-border, #f3f4f6)" : undefined,
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <i className={`ti ${item.icon} text-[18px] text-[#c5a059]`} />
+              <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300">
+                {item.label}
+              </span>
+            </div>
+            <ChevronLeft className="w-4 h-4 text-gray-400" />
+          </Link>
+        ))}
       </div>
     </div>
   );

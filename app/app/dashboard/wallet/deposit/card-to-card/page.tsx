@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 import Link from "next/link";
 import { useDepositConfig, useCardToCardDeposit } from "@/app/hooks/useWallet";
@@ -15,21 +16,33 @@ import {
   Clock,
 } from "lucide-react";
 
-function toToman(rial: number) {
+// ── ریال API → تومان نمایش ──
+function rT(rial: number) {
   return (rial / 10).toLocaleString("fa-IR");
+}
+function rTLabel(rial: number) {
+  const t = rial / 10;
+  if (t >= 1_000_000_000)
+    return `${(t / 1_000_000_000).toLocaleString("fa-IR")} میلیارد`;
+  if (t >= 1_000_000)
+    return `${(t / 1_000_000).toLocaleString("fa-IR")} میلیون`;
+  return t.toLocaleString("fa-IR");
+}
+// تومان ورودی کاربر → ریال برای API
+function tomanToRial(tomanStr: string): number {
+  return Number(tomanStr.replace(/,/g, "").replace(/،/g, "")) * 10;
 }
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
   return (
     <button
-      onClick={handleCopy}
-      className="p-1.5 rounded-lg transition-colors hover:bg-gray-100 active:scale-95"
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors active:scale-95"
     >
       {copied ? (
         <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -51,9 +64,7 @@ export default function CardToCardPage() {
 
   const [step, setStep] = useState<Step>("select-card");
   const [selectedCardId, setSelectedCardId] = useState("");
-
-  // تغییر: مقدار کاملاً خام و انگلیسی در استیت ذخیره می‌شود
-  const [amount, setAmount] = useState("");
+  const [amountToman, setAmountToman] = useState("");
   const [depositInfo, setDepositInfo] = useState<{
     transactionId: string;
     destinationCard: string;
@@ -66,27 +77,29 @@ export default function CardToCardPage() {
   const cfg = config?.cardToCard;
   const verifiedCards = accounts.filter((a) => a.isVerified);
 
-  // ── مرحله ۱: انتخاب کارت ──
+  // سقف تومانی برای نمایش و validation
+  const minToman = cfg ? cfg.minAmount / 10 : 10_000;
+  const maxToman = cfg ? cfg.maxAmount / 10 : 15_000_000;
+
   const handleSelectCard = () => {
     if (!selectedCardId) return setError("یک کارت بانکی انتخاب کنید");
     setError(null);
     setStep("enter-amount");
   };
 
-  // ── مرحله ۲: ثبت مبلغ و دریافت اطلاعات مقصد ──
   const handleSubmitAmount = async () => {
-    // تغییر: تبدیل مستقیم مقدار خام به ریال بدون نیاز به ریپلیس کردن کاما
-    const amountRial = Number(amount) * 10;
-    if (!amountRial || amountRial < (cfg?.minAmount ?? 100000)) {
+    const amtToman = Number(amountToman.replace(/,/g, "").replace(/،/g, ""));
+    if (!amtToman || amtToman < minToman) {
       return setError(
-        `حداقل مبلغ ${toToman(cfg?.minAmount ?? 100000)} تومان است`,
+        `حداقل مبلغ ${minToman.toLocaleString("fa-IR")} تومان است`,
       );
     }
-    if (amountRial > (cfg?.maxAmount ?? 150000000)) {
+    if (amtToman > maxToman) {
       return setError(
-        `حداکثر مبلغ ${toToman(cfg?.maxAmount ?? 150000000)} تومان است`,
+        `حداکثر مبلغ ${maxToman.toLocaleString("fa-IR")} تومان است`,
       );
     }
+    const amountRial = amtToman * 10;
     const result = await initiate(selectedCardId, amountRial);
     if (result) {
       setDepositInfo(result);
@@ -94,18 +107,31 @@ export default function CardToCardPage() {
     }
   };
 
-  // ── مرحله ۳: تایید انجام واریز ──
   const handleConfirm = async () => {
     if (!depositInfo) return;
     const result = await confirm(depositInfo.transactionId);
     if (result) setStep("confirmed");
   };
 
-  const formatCard = (card: string) => card.replace(/(.{4})/g, "$1 ").trim();
+  const formatCard = (c: string) => c.replace(/(.{4})/g, "$1 ").trim();
+
+  // مبالغ پیشنهادی بر اساس سقف واقعی
+  const quickAmounts = [
+    1_000_000,
+    5_000_000,
+    10_000_000,
+    Math.min(15_000_000, maxToman),
+  ].filter((v, i, arr) => arr.indexOf(v) === i && v <= maxToman);
+
+  const stepLabels: Step[] = [
+    "select-card",
+    "enter-amount",
+    "show-destination",
+  ];
 
   return (
     <div className="max-w-lg mx-auto pb-24" dir="rtl">
-      {/* ── هدر ── */}
+      {/* هدر */}
       <div className="flex items-center gap-3 mb-5">
         <Link
           href="/dashboard/wallet/deposit"
@@ -115,9 +141,11 @@ export default function CardToCardPage() {
         </Link>
         <div>
           <h1 className="text-[17px] font-black text-gray-900">کارت به کارت</h1>
-          <p className="text-[11px] text-gray-400">
-            سقف روزانه: {toToman(cfg?.dailyLimit ?? 0)} تومان
-          </p>
+          {cfg && (
+            <p className="text-[11px] text-gray-400">
+              سقف روزانه: {rTLabel(cfg.dailyLimit)} تومان
+            </p>
+          )}
         </div>
         {goldPrice && (
           <div
@@ -129,45 +157,38 @@ export default function CardToCardPage() {
         )}
       </div>
 
-      {/* ── نوار پیشرفت ── */}
+      {/* نوار پیشرفت */}
       {step !== "confirmed" && (
-        <div className="flex items-center gap-2 mb-6">
-          {(["select-card", "enter-amount", "show-destination"] as Step[]).map(
-            (s, i) => (
-              <div key={s} className="flex items-center gap-2 flex-1">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-black transition-all ${
-                    step === s
+        <div className="flex items-center gap-2 mb-5">
+          {stepLabels.map((s, i) => (
+            <div key={s} className="flex items-center gap-2 flex-1">
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-black transition-all ${
+                  stepLabels.indexOf(step) > i
+                    ? "bg-green-500 text-white"
+                    : step === s
                       ? "text-white"
-                      : ["enter-amount", "show-destination"].indexOf(step) >
-                          ["enter-amount", "show-destination"].indexOf(s)
-                        ? "bg-green-500 text-white"
-                        : "bg-gray-100 text-gray-400"
-                  }`}
-                  style={
-                    step === s
-                      ? { backgroundColor: "var(--color-emerald)" }
-                      : undefined
-                  }
-                >
-                  {i + 1}
-                </div>
-                {i < 2 && (
-                  <div
-                    className={`flex-1 h-0.5 rounded-full ${
-                      ["enter-amount", "show-destination"].indexOf(step) > i
-                        ? "bg-green-400"
-                        : "bg-gray-200"
-                    }`}
-                  />
-                )}
+                      : "bg-gray-100 text-gray-400"
+                }`}
+                style={
+                  step === s
+                    ? { backgroundColor: "var(--color-emerald)" }
+                    : undefined
+                }
+              >
+                {stepLabels.indexOf(step) > i ? "✓" : i + 1}
               </div>
-            ),
-          )}
+              {i < 2 && (
+                <div
+                  className={`flex-1 h-0.5 rounded-full ${stepLabels.indexOf(step) > i ? "bg-green-400" : "bg-gray-200"}`}
+                />
+              )}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* ── خطا ── */}
+      {/* خطا */}
       {error && (
         <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 flex items-start gap-2 text-red-600 text-[13px] font-bold">
           <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -185,21 +206,21 @@ export default function CardToCardPage() {
           }}
         >
           <h2 className="text-[14px] font-black text-gray-800">
-            مبدأهای مجاز واریز
+            مبداهای مجاز واریز
           </h2>
 
           {verifiedCards.length === 0 ? (
-            <div className="text-center py-6">
-              <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-              <p className="text-[13px] text-gray-400 font-medium">
+            <div className="text-center py-8">
+              <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-[13px] text-gray-400 font-medium mb-3">
                 کارت تایید شده‌ای ندارید
               </p>
               <Link
                 href="/dashboard/cards"
-                className="inline-block mt-3 px-4 py-2 rounded-xl text-[12px] font-bold text-white"
+                className="inline-block px-5 py-2.5 rounded-xl text-[13px] font-bold text-white"
                 style={{ backgroundColor: "var(--color-emerald)" }}
               >
-                افزودن کارت
+                افزودن کارت بانکی
               </Link>
             </div>
           ) : (
@@ -211,15 +232,17 @@ export default function CardToCardPage() {
                     setSelectedCardId(card.id);
                     setError(null);
                   }}
-                  className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-right ${
+                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-right ${
                     selectedCardId === card.id
                       ? "border-emerald-500 bg-emerald-50"
-                      : "border-gray-100 bg-gray-50 hover:border-gray-200"
+                      : "border-gray-100 bg-gray-50 hover:border-gray-300"
                   }`}
                 >
                   <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                      selectedCardId === card.id ? "bg-emerald-100" : "bg-white"
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      selectedCardId === card.id
+                        ? "bg-emerald-100"
+                        : "bg-white border border-gray-200"
                     }`}
                   >
                     <CreditCard
@@ -230,15 +253,12 @@ export default function CardToCardPage() {
                     <p className="text-[13px] font-black text-gray-800">
                       {card.bankName}
                     </p>
-                    <p
-                      className="text-[12px] text-gray-400 font-medium"
-                      dir="ltr"
-                    >
+                    <p className="text-[12px] text-gray-400 mt-0.5" dir="ltr">
                       {card.cardNumber}
                     </p>
                   </div>
                   {selectedCardId === card.id && (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
                   )}
                 </button>
               ))}
@@ -248,17 +268,17 @@ export default function CardToCardPage() {
           <div className="pt-2 border-t border-gray-100">
             <Link
               href="/dashboard/cards"
-              className="flex items-center gap-2 text-[12px] font-bold"
+              className="text-[12px] font-bold"
               style={{ color: "var(--color-emerald)" }}
             >
-              <span>+ افزودن کارت جدید</span>
+              + افزودن کارت جدید
             </Link>
           </div>
 
           <button
             onClick={handleSelectCard}
             disabled={!selectedCardId}
-            className="w-full py-3.5 rounded-xl font-black text-white text-[14px] transition-all disabled:opacity-40"
+            className="w-full py-3.5 rounded-xl font-black text-white text-[14px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: "var(--color-emerald)" }}
           >
             ادامه
@@ -280,78 +300,44 @@ export default function CardToCardPage() {
               مبلغ افزایش اعتبار
             </h2>
             <p className="text-[12px] text-gray-400">
-              {toToman(cfg?.minAmount ?? 0)} ~ {toToman(cfg?.maxAmount ?? 0)}{" "}
-              تومان
+              {minToman.toLocaleString("fa-IR")} ~{" "}
+              {maxToman.toLocaleString("fa-IR")} تومان
             </p>
           </div>
 
-          {/* ورودی مبلغ */}
           <div className="relative">
             <input
               type="text"
               inputMode="numeric"
               dir="ltr"
-              placeholder="مبلغ را وارد کنید"
-              // فرمت‌دهی به صورت خودکار فقط برای نمایش کاربر
-              value={amount ? Number(amount).toLocaleString("fa-IR") : ""}
+              placeholder={`${minToman.toLocaleString("fa-IR")} تا ${maxToman.toLocaleString("fa-IR")}`}
+              value={amountToman}
               onChange={(e) => {
-                let val = e.target.value;
-
-                // تبدیل کیبورد فارسی و عربی به انگلیسی برای جلوگیری از باگ حذف ارقام
-                const persianNumbers = [
-                  /۰/g,
-                  /۱/g,
-                  /۲/g,
-                  /۳/g,
-                  /۴/g,
-                  /۵/g,
-                  /۶/g,
-                  /۷/g,
-                  /۸/g,
-                  /۹/g,
-                ];
-                const arabicNumbers = [
-                  /٠/g,
-                  /١/g,
-                  /٢/g,
-                  /٣/g,
-                  /٤/g,
-                  /٥/g,
-                  /٦/g,
-                  /٧/g,
-                  /٨/g,
-                  /٩/g,
-                ];
-                for (let i = 0; i < 10; i++) {
-                  val = val
-                    .replace(persianNumbers[i], i.toString())
-                    .replace(arabicNumbers[i], i.toString());
-                }
-
-                const raw = val.replace(/[^0-9]/g, "");
-                setAmount(raw);
+                const raw = e.target.value.replace(/[^0-9]/g, "");
+                setAmountToman(raw ? Number(raw).toLocaleString("fa-IR") : "");
                 setError(null);
               }}
-              // تغییر استایل: pr-4 و pl-14 برای ایجاد فاصله از کلمه تومان و text-right برای خوانایی مالی
-              className="w-full py-4 pr-4 pl-14 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-right text-[20px] font-black text-gray-800 bg-gray-50 transition-all"
+              className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all pr-4 pl-20"
             />
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-gray-400">
               تومان
             </span>
           </div>
 
-          {/* مبالغ پیشنهادی */}
+          {/* مبالغ پیشنهادی - بر اساس سقف واقعی */}
           <div className="grid grid-cols-4 gap-2">
-            {[1_000_000, 5_000_000, 10_000_000, 25_000_000].map((v) => (
+            {quickAmounts.map((v) => (
               <button
                 key={v}
                 onClick={() => {
-                  setAmount(v.toString());
+                  setAmountToman(v.toLocaleString("fa-IR"));
                   setError(null);
                 }}
-                className="py-2 rounded-xl text-[11px] font-bold border border-gray-200 bg-gray-50 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition-all"
+                className="py-2.5 rounded-xl text-[11px] font-bold border border-gray-200 bg-gray-50 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition-all"
               >
-                {v >= 1_000_000 ? `${v / 1_000_000}م` : `${v / 1000}ه`}
+                {v >= 1_000_000
+                  ? `${(v / 1_000_000).toLocaleString("fa-IR")}م`
+                  : `${(v / 1_000).toLocaleString("fa-IR")}ه`}
               </button>
             ))}
           </div>
@@ -359,14 +345,14 @@ export default function CardToCardPage() {
           <div className="flex gap-3">
             <button
               onClick={() => setStep("select-card")}
-              className="flex-1 py-3.5 rounded-xl font-bold text-[14px] border-2 border-gray-200 text-gray-600 hover:bg-gray-50"
+              className="flex-1 py-3.5 rounded-xl font-bold text-[13px] border-2 border-gray-200 text-gray-600 hover:bg-gray-50"
             >
               بازگشت
             </button>
             <button
               onClick={handleSubmitAmount}
-              disabled={loading || !amount}
-              className="flex-2 grow-2 py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-50"
+              disabled={loading || !amountToman}
+              className="flex-2 py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-50"
               style={{ backgroundColor: "var(--color-emerald)" }}
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "ادامه"}
@@ -375,7 +361,7 @@ export default function CardToCardPage() {
         </div>
       )}
 
-      {/* ══ مرحله ۳: نمایش اطلاعات مقصد ══ */}
+      {/* ══ مرحله ۳: اطلاعات مقصد ══ */}
       {step === "show-destination" && depositInfo && (
         <div className="space-y-4">
           <div
@@ -389,27 +375,20 @@ export default function CardToCardPage() {
               مشخصات حساب مقصد
             </h2>
 
-            {/* اطلاعات کارت مقصد */}
-            <div
-              className="rounded-xl p-4 space-y-3"
-              style={{ backgroundColor: "var(--color-bg-page)" }}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] text-gray-500 font-medium">
-                  نام بانک
+            <div className="rounded-xl overflow-hidden border border-gray-100">
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
+                <span className="text-[12px] text-gray-500">
+                  نام بانک / صاحب حساب
                 </span>
                 <span className="text-[13px] font-black text-gray-800">
                   {depositInfo.destinationOwner}
                 </span>
               </div>
-              <div className="h-px bg-gray-200" />
-              <div className="flex items-center justify-between">
-                <span className="text-[12px] text-gray-500 font-medium">
-                  شماره کارت
-                </span>
+              <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-100">
+                <span className="text-[12px] text-gray-500">شماره کارت</span>
                 <div className="flex items-center gap-2">
                   <span
-                    className="text-[13px] font-black text-gray-800 tracking-widest"
+                    className="text-[14px] font-black text-gray-900 tracking-widest"
                     dir="ltr"
                   >
                     {formatCard(depositInfo.destinationCardFull)}
@@ -419,7 +398,6 @@ export default function CardToCardPage() {
               </div>
             </div>
 
-            {/* فلش */}
             <div className="flex justify-center">
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center"
@@ -428,11 +406,10 @@ export default function CardToCardPage() {
                 <ArrowDown
                   className="w-4 h-4"
                   style={{ color: "var(--color-emerald)" }}
-                ></ArrowDown>
+                />
               </div>
             </div>
 
-            {/* مبلغ */}
             <div
               className="rounded-xl p-4 text-center"
               style={{
@@ -440,10 +417,12 @@ export default function CardToCardPage() {
                 border: "1px solid rgba(197,160,89,.3)",
               }}
             >
-              <p className="text-[12px] text-amber-700 mb-1">مبلغ واریز</p>
-              <p className="text-[24px] font-black text-amber-900">
-                {toToman(depositInfo.amount)}
-                <span className="text-[14px] font-bold mr-1">تومان</span>
+              <p className="text-[11px] text-amber-700 mb-1">مبلغ واریز</p>
+              <p className="text-[26px] font-black text-amber-900">
+                {rT(depositInfo.amount)}
+                <span className="text-[14px] font-bold mr-1.5 text-amber-700">
+                  تومان
+                </span>
               </p>
             </div>
           </div>
@@ -457,12 +436,12 @@ export default function CardToCardPage() {
               color: "#713f12",
             }}
           >
-            <p className="font-black">راهنمای واریز کارت به کارت</p>
+            <p className="font-black text-[13px]">راهنمای واریز کارت به کارت</p>
             {[
-              "انتخاب کارت مبدأ — از طریق کارت، از شماره کارتی که در حساب‌های بانکی ملی‌گلد ثبت کرده‌اید اقدام کنید.",
-              "کپی شماره کارت مقصد — شماره کارت مقصد (حساب ملی‌گلد) را کپی کنید.",
-              "انجام واریز در اپلیکیشن بانکی یا خودپرداز — با استفاده از شماره کارت مقصد، مبلغ مورد نظر را واریز کنید.",
-              "انتظار برای تایید و شارژ کیف پول — بعد از واریز، کیف پول شما تا حداکثر ۱۵ دقیقه شارژ خواهد شد.",
+              "از کارتی که در حساب‌های بانکی ملی‌گلد ثبت کرده‌اید واریز کنید.",
+              "شماره کارت مقصد (حساب ملی‌گلد) را کپی کنید.",
+              "از اپلیکیشن بانکی یا خودپرداز مبلغ مورد نظر را واریز کنید.",
+              "بعد از واریز، کیف پول شما تا حداکثر ۱۰ دقیقه شارژ خواهد شد.",
             ].map((t, i) => (
               <div key={i} className="flex items-start gap-2">
                 <span
@@ -479,7 +458,6 @@ export default function CardToCardPage() {
             ))}
           </div>
 
-          {/* زمان پردازش */}
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-gray-50 border border-gray-100">
             <Clock className="w-4 h-4 text-gray-400" />
             <span className="text-[12px] text-gray-600 font-medium">
@@ -516,8 +494,7 @@ export default function CardToCardPage() {
             درخواست ثبت شد
           </h2>
           <p className="text-[13px] text-gray-500 leading-relaxed mb-6">
-            پس از تایید کارشناسان، مبلغ به کیف پول شما افزوده می‌شود. این فرآیند
-            معمولاً کمتر از ۱۵ دقیقه طول می‌کشد.
+            پس از تایید کارشناسان، مبلغ به کیف پول شما افزوده می‌شود.
           </p>
           <div className="flex flex-col gap-3">
             <Link
@@ -529,7 +506,7 @@ export default function CardToCardPage() {
             </Link>
             <Link
               href="/dashboard/transactions"
-              className="py-3.5 rounded-xl font-bold text-[13px] text-center border border-gray-200 text-gray-600 hover:bg-gray-50"
+              className="py-3.5 rounded-xl font-bold text-[13px] text-center border border-gray-200 text-gray-600"
             >
               مشاهده تراکنش‌ها
             </Link>

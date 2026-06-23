@@ -5,13 +5,15 @@ import { useDepositConfig } from "@/app/hooks/useWallet";
 import { useGoldPrice } from "@/app/hooks/useGoldPrice";
 import { ChevronLeft, Loader2, AlertCircle } from "lucide-react";
 
-function toToman(rial: number) {
-  if (rial === 0) return "بدون محدودیت";
-  if (rial >= 1_000_000_000)
-    return `${(rial / 1_000_000_000).toLocaleString("fa-IR")} میلیارد تومان`;
-  if (rial >= 1_000_000)
-    return `${(rial / 1_000_000).toLocaleString("fa-IR")} میلیون تومان`;
-  return `${(rial / 10).toLocaleString("fa-IR")} تومان`;
+// ── ریال از API → نمایش تومان ──
+function rialToDisplay(rial: number): string {
+  const toman = rial / 10;
+  if (toman === 0) return "بدون محدودیت";
+  if (toman >= 1_000_000_000)
+    return `${(toman / 1_000_000_000).toLocaleString("fa-IR")} میلیارد تومان`;
+  if (toman >= 1_000_000)
+    return `${(toman / 1_000_000).toLocaleString("fa-IR")} میلیون تومان`;
+  return `${toman.toLocaleString("fa-IR")} تومان`;
 }
 
 export default function DepositSelectPage() {
@@ -23,7 +25,7 @@ export default function DepositSelectPage() {
         {
           key: "online-gateway",
           title: "درگاه آنلاین",
-          subtitle: `روزانه تا ${toToman(config.online.dailyLimit)}`,
+          subtitle: `روزانه تا ${rialToDisplay(config.online.dailyLimit)}`,
           badge: "در لحظه",
           badgeColor: "bg-green-100 text-green-700",
           icon: "ti-device-desktop",
@@ -31,13 +33,13 @@ export default function DepositSelectPage() {
           iconColor: "text-blue-600",
           href: "/dashboard/wallet/deposit/online-gateway",
           enabled: config.online.enabled,
-          disabledMsg: "به زودی فعال می‌شود",
+          disabledMsg: "به زودی",
         },
         {
           key: "card-to-card",
           title: "کارت به کارت",
-          subtitle: `روزانه تا سقف ${toToman(config.cardToCard.dailyLimit)}`,
-          badge: config.cardToCard.processingTime,
+          subtitle: `روزانه تا سقف ${rialToDisplay(config.cardToCard.dailyLimit)}`,
+          badge: "کمتر از ۱۰ دقیقه",
           badgeColor: "bg-amber-100 text-amber-700",
           icon: "ti-credit-card",
           iconBg: "bg-amber-50",
@@ -49,7 +51,7 @@ export default function DepositSelectPage() {
           key: "bank-transfer",
           title: "حساب به حساب",
           subtitle: "واریز بدون محدودیت",
-          badge: config.bankTransfer.processingTime,
+          badge: "واریز در سیکل پایا",
           badgeColor: "bg-purple-100 text-purple-700",
           icon: "ti-building-bank",
           iconBg: "bg-purple-50",
@@ -60,7 +62,7 @@ export default function DepositSelectPage() {
         {
           key: "tracking-id",
           title: "واریز شناسه‌دار",
-          subtitle: `واریز تا سقف ${toToman(config.trackingId.dailyLimit)} | سیکل پایا`,
+          subtitle: `واریز تا سقف ${rialToDisplay(config.trackingId.dailyLimit)} | سیکل پایا`,
           badge: "پایا",
           badgeColor: "bg-indigo-100 text-indigo-700",
           icon: "ti-fingerprint",
@@ -72,7 +74,7 @@ export default function DepositSelectPage() {
         {
           key: "large-transfer",
           title: "مبالغ بالا (پیش‌فاکتور)",
-          subtitle: `واریز مبالغ بیش از ${toToman(config.largeTransfer.minAmount)} | سیکل پایا`,
+          subtitle: `واریز مبالغ بیش از ${rialToDisplay(config.largeTransfer.minAmount)} | سیکل پایا`,
           badge: "پایا",
           badgeColor: "bg-rose-100 text-rose-700",
           icon: "ti-building-bank",
@@ -84,7 +86,7 @@ export default function DepositSelectPage() {
         {
           key: "direct",
           title: "واریز مستقیم",
-          subtitle: `روزانه تا ${toToman(config.direct.dailyLimit)}`,
+          subtitle: `روزانه تا ${rialToDisplay(config.direct.dailyLimit)}`,
           badge: "در لحظه",
           badgeColor: "bg-teal-100 text-teal-700",
           icon: "ti-transfer",
@@ -98,7 +100,7 @@ export default function DepositSelectPage() {
 
   return (
     <div className="max-w-lg mx-auto space-y-4 pb-24" dir="rtl">
-      {/* ── هدر ── */}
+      {/* هدر */}
       <div className="flex items-center gap-3 mb-2">
         <Link
           href="/dashboard/wallet"
@@ -116,7 +118,7 @@ export default function DepositSelectPage() {
         </div>
       </div>
 
-      {/* ── قیمت لحظه‌ای ── */}
+      {/* قیمت لحظه‌ای */}
       {goldPrice && (
         <div
           className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm"
@@ -137,7 +139,7 @@ export default function DepositSelectPage() {
         </div>
       )}
 
-      {/* ── لیست روش‌ها ── */}
+      {/* لیست روش‌ها */}
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-7 h-7 animate-spin text-gray-400" />
@@ -158,7 +160,7 @@ export default function DepositSelectPage() {
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
                     <span className="text-[14px] font-black text-gray-800">
                       {method.title}
                     </span>
@@ -168,13 +170,13 @@ export default function DepositSelectPage() {
                       {method.badge}
                     </span>
                     {!method.enabled && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
                         {(method as { disabledMsg?: string }).disabledMsg ??
                           "غیرفعال"}
                       </span>
                     )}
                   </div>
-                  <p className="text-[12px] text-gray-500 mt-0.5 truncate">
+                  <p className="text-[12px] text-gray-500 truncate">
                     {method.subtitle}
                   </p>
                 </div>
@@ -214,7 +216,7 @@ export default function DepositSelectPage() {
         </div>
       )}
 
-      {/* ── نکته امنیتی ── */}
+      {/* نکته امنیتی */}
       <div
         className="flex items-start gap-3 p-4 rounded-xl text-[12px]"
         style={{

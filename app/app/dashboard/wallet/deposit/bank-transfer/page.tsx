@@ -81,7 +81,7 @@ export default function BankTransferPage() {
         <div>
           <h1 className="text-[17px] font-black text-gray-900">حساب به حساب</h1>
           <p className="text-[11px] text-gray-400">
-            واریز بدون محدودیت | {cfg?.processingTime}
+            واریز بدون محدودیت | {cfg?.processingTime ?? "واریز در سیکل پایا"}
           </p>
         </div>
         {goldPrice && (
@@ -101,7 +101,7 @@ export default function BankTransferPage() {
         </div>
       )}
 
-      {/* ── مرحله ۱: انتخاب کارت ── */}
+      {/* ══ مرحله ۱: انتخاب کارت ══ */}
       {step === "select-card" && (
         <div
           className="rounded-2xl p-5 space-y-4"
@@ -115,17 +115,17 @@ export default function BankTransferPage() {
           </h2>
 
           {verifiedCards.length === 0 ? (
-            <div className="text-center py-6">
-              <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-              <p className="text-[13px] text-gray-400">
+            <div className="text-center py-8">
+              <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-[13px] text-gray-400 mb-3">
                 کارت تایید شده‌ای ندارید
               </p>
               <Link
                 href="/dashboard/cards"
-                className="inline-block mt-3 px-4 py-2 rounded-xl text-[12px] font-bold text-white"
+                className="inline-block px-5 py-2.5 rounded-xl text-[13px] font-bold text-white"
                 style={{ backgroundColor: "var(--color-emerald)" }}
               >
-                افزودن کارت
+                افزودن کارت بانکی
               </Link>
             </div>
           ) : (
@@ -137,14 +137,18 @@ export default function BankTransferPage() {
                     setSelectedCardId(card.id);
                     setError(null);
                   }}
-                  className={`w-full flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all text-right ${
+                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all text-right ${
                     selectedCardId === card.id
                       ? "border-emerald-500 bg-emerald-50"
-                      : "border-gray-100 bg-gray-50 hover:border-gray-200"
+                      : "border-gray-100 bg-gray-50 hover:border-gray-300"
                   }`}
                 >
                   <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${selectedCardId === card.id ? "bg-emerald-100" : "bg-white"}`}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      selectedCardId === card.id
+                        ? "bg-emerald-100"
+                        : "bg-white border border-gray-200"
+                    }`}
                   >
                     <CreditCard
                       className={`w-4 h-4 ${selectedCardId === card.id ? "text-emerald-600" : "text-gray-400"}`}
@@ -154,15 +158,12 @@ export default function BankTransferPage() {
                     <p className="text-[13px] font-black text-gray-800">
                       {card.bankName}
                     </p>
-                    <p
-                      className="text-[12px] text-gray-400 font-medium"
-                      dir="ltr"
-                    >
+                    <p className="text-[12px] text-gray-400 mt-0.5" dir="ltr">
                       {card.cardNumber}
                     </p>
                   </div>
                   {selectedCardId === card.id && (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
                   )}
                 </button>
               ))}
@@ -180,7 +181,7 @@ export default function BankTransferPage() {
         </div>
       )}
 
-      {/* ── مرحله ۲: اطلاعات حساب مقصد ── */}
+      {/* ══ مرحله ۲: اطلاعات حساب مقصد ══ */}
       {step === "show-info" && transferInfo && (
         <div className="space-y-4">
           <div
@@ -190,7 +191,7 @@ export default function BankTransferPage() {
               border: "1px solid var(--color-border)",
             }}
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
               <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
                 <Building2 className="w-5 h-5 text-purple-600" />
               </div>
@@ -198,7 +199,7 @@ export default function BankTransferPage() {
                 <h2 className="text-[14px] font-black text-gray-800">
                   {transferInfo.destinationOwner}
                 </h2>
-                <p className="text-[11px] text-gray-400">حساب مقصد</p>
+                <p className="text-[11px] text-gray-400">مشخصات حساب مقصد</p>
               </div>
             </div>
 
@@ -209,8 +210,11 @@ export default function BankTransferPage() {
               ].map((row, i) => (
                 <div
                   key={i}
-                  className={`flex items-center justify-between px-4 py-3 ${i > 0 ? "border-t border-gray-100" : ""}`}
-                  style={{ backgroundColor: "var(--color-bg-page)" }}
+                  className={`flex items-center justify-between px-4 py-3.5 ${i > 0 ? "border-t border-gray-100" : ""}`}
+                  style={{
+                    backgroundColor:
+                      i % 2 === 0 ? "var(--color-bg-page)" : "white",
+                  }}
                 >
                   <span className="text-[12px] text-gray-500 font-medium">
                     {row.label}
@@ -238,13 +242,25 @@ export default function BankTransferPage() {
               color: "#713f12",
             }}
           >
-            <p className="font-black">راهنمای واریز حساب به حساب</p>
+            <p className="font-black text-[13px]">راهنمای واریز حساب به حساب</p>
             {[
-              "انتخاب کارت مبدأ — واریز فقط از طریق کارت‌هایی که در ملی‌گلد ثبت کرده‌اید انجام می‌شود.",
-              "کپی شماره حساب مقصد — شماره حساب مقصد (حساب ملی‌گلد) را کپی کنید.",
-              "انجام واریز در اپلیکیشن بانکی یا خودپرداز — با استفاده از شماره حساب مقصد، مبلغ را واریز کنید.",
-              `انتظار برای تایید — بعد از واریز، در صورتیکه بانک شما مبدا باشد بانک کشاورزی، کیف پول شما تا حداکثر ۱۵ دقیقه شارژ خواهد شد. در غیر اینصورت مبلغ در سیکل پایا به کیف پول شما واریز خواهد شد.`,
-            ].map((t, i) => (
+              {
+                title: "انتخاب کارت مبدأ",
+                desc: "واریز فقط از طریق کارت‌هایی که در ملی‌گلد ثبت کرده‌اید انجام می‌شود.",
+              },
+              {
+                title: "کپی شماره حساب مقصد",
+                desc: "شماره حساب یا شبای مقصد (حساب ملی‌گلد) را کپی کنید.",
+              },
+              {
+                title: "انجام واریز",
+                desc: "از اپلیکیشن بانکی یا خودپرداز مبلغ را واریز کنید.",
+              },
+              {
+                title: "انتظار برای تایید",
+                desc: "در صورتیکه مبدا بانک کشاورزی باشد تا ۱۵ دقیقه، در غیر اینصورت در سیکل پایا شارژ می‌شوید.",
+              },
+            ].map((item, i) => (
               <div key={i} className="flex items-start gap-2">
                 <span
                   className="w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5"
@@ -255,12 +271,12 @@ export default function BankTransferPage() {
                 >
                   {i + 1}
                 </span>
-                <p>{t}</p>
+                <div>
+                  <span className="font-black">{item.title} — </span>
+                  <span>{item.desc}</span>
+                </div>
               </div>
             ))}
-            <Link href="#" className="font-black underline block mt-1">
-              مشاهده راهنمای واریز حساب به حساب
-            </Link>
           </div>
 
           <button
@@ -273,7 +289,7 @@ export default function BankTransferPage() {
         </div>
       )}
 
-      {/* ── تایید ── */}
+      {/* ══ تایید ══ */}
       {step === "confirmed" && (
         <div
           className="rounded-2xl p-8 text-center"
@@ -291,7 +307,7 @@ export default function BankTransferPage() {
           </p>
           <Link
             href="/dashboard/wallet"
-            className="block py-3.5 rounded-xl font-black text-white text-[14px]"
+            className="block py-3.5 rounded-xl font-black text-white text-[14px] text-center"
             style={{ backgroundColor: "var(--color-emerald)" }}
           >
             بازگشت به کیف پول

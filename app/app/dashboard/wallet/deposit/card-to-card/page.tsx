@@ -279,7 +279,7 @@ export default function CardToCardPage() {
             onClick={handleSelectCard}
             disabled={!selectedCardId}
             className="w-full py-3.5 rounded-xl font-black text-white text-[14px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ backgroundColor: "var(--color-emerald)" }}
+            style={{ backgroundColor: "var(--color-green)" }}
           >
             ادامه
           </button>
@@ -353,7 +353,7 @@ export default function CardToCardPage() {
               onClick={handleSubmitAmount}
               disabled={loading || !amountToman}
               className="flex-2 py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-50"
-              style={{ backgroundColor: "var(--color-emerald)" }}
+              style={{ backgroundColor: "var(--color-green)" }}
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "ادامه"}
             </button>
@@ -438,8 +438,8 @@ export default function CardToCardPage() {
           >
             <p className="font-black text-[13px]">راهنمای واریز کارت به کارت</p>
             {[
-              "از کارتی که در حساب‌های بانکی ملی‌گلد ثبت کرده‌اید واریز کنید.",
-              "شماره کارت مقصد (حساب ملی‌گلد) را کپی کنید.",
+              "از کارتی که در حساب‌های بانکی آرکان گلد ثبت کرده‌اید واریز کنید.",
+              "شماره کارت مقصد (حساب آرکان گلد) را کپی کنید.",
               "از اپلیکیشن بانکی یا خودپرداز مبلغ مورد نظر را واریز کنید.",
               "بعد از واریز، کیف پول شما تا حداکثر ۱۰ دقیقه شارژ خواهد شد.",
             ].map((t, i) => (

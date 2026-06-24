@@ -19,6 +19,9 @@
   --color-bg-page: #f3f4f0;
   --color-border: #e2e0d8;
   --color-red: #dc2626;
+  --color-green: #004d40;
+  --color-yellow: #ffc107;
+
 
   /* رنگ‌های داینامیک */
   --color-bg-primary: var(--bg-primary);

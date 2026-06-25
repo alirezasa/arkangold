@@ -168,7 +168,7 @@ export default function TrackingIdPage() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 mt-2">
               {verifiedCards.map((card) => (
                 <button
                   key={card.id}
@@ -213,7 +213,7 @@ export default function TrackingIdPage() {
             onClick={handleGetInfo}
             disabled={loading || !selectedCardId}
             className="w-full py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-40"
-            style={{ backgroundColor: "var(--color-emerald)" }}
+            style={{ backgroundColor: "var(--color-green)" }}
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" />

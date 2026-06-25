@@ -174,7 +174,7 @@ export default function BankTransferPage() {
             onClick={handleSelectCard}
             disabled={loading || !selectedCardId}
             className="w-full py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-40"
-            style={{ backgroundColor: "var(--color-emerald)" }}
+            style={{ backgroundColor: "var(--color-green)" }}
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "ادامه"}
           </button>
@@ -282,7 +282,7 @@ export default function BankTransferPage() {
           <button
             onClick={() => setStep("confirmed")}
             className="w-full py-4 rounded-xl font-black text-white text-[15px]"
-            style={{ backgroundColor: "var(--color-emerald)" }}
+            style={{ backgroundColor: "var(--color-yellow)" }}
           >
             متوجه شدم
           </button>
@@ -307,8 +307,8 @@ export default function BankTransferPage() {
           </p>
           <Link
             href="/dashboard/wallet"
-            className="block py-3.5 rounded-xl font-black text-white text-[14px] text-center"
-            style={{ backgroundColor: "var(--color-emerald)" }}
+            className="block py-3.5 rounded-xl font-black text-white! text-[14px] text-center mt-2"
+            style={{ backgroundColor: "var(--color-green)" }}
           >
             بازگشت به کیف پول
           </Link>

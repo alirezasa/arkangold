@@ -117,7 +117,7 @@ export default function DirectDepositPage() {
           <button onClick={handleConfirm}
             disabled={!selectedCardId}
             className="w-full py-4 rounded-xl font-black text-white text-[14px] disabled:opacity-40"
-            style={{ backgroundColor: "var(--color-emerald)" }}>
+            style={{ backgroundColor: "var(--color-green)" }}>
             متوجه شدم
           </button>
         </div>
@@ -130,8 +130,8 @@ export default function DirectDepositPage() {
             پس از واریز از کارت ثبت‌شده، مبلغ به صورت خودکار به کیف پول شما افزوده می‌شود.
           </p>
           <Link href="/dashboard/wallet"
-            className="block py-3.5 rounded-xl font-black text-white text-[14px]"
-            style={{ backgroundColor: "var(--color-emerald)" }}>
+            className="block py-3.5 rounded-xl font-black text-white! text-[14px] mt-2"
+            style={{ backgroundColor: "var(--color-green)" }}>
             بازگشت به کیف پول
           </Link>
         </div>

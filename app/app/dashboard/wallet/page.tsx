@@ -86,7 +86,7 @@ export default function WalletPage() {
         <div className="md:col-span-7 space-y-3">
           {/* کارت اصلی دارایی (فشرده‌تر با پدینگ بهینه شده p-5) */}
           {/* ── کارت اصلی دارایی (ارتقا یافته برای خوانایی و حس لوکس) ── */}
-          <div className="relative overflow-hidden rounded-[24px] p-5 border border-gold-500/30 shadow-[0_10px_30px_rgba(51,5,9,0.3)] bg-gradient-to-br from-[#330509] to-[#140103]">
+          <div className="relative overflow-hidden rounded-3xl p-5 border border-gold-500/30 shadow-[0_10px_30px_rgba(51,5,9,0.3)] bg-linear-to-br from-emerald to-[#140103]">
             {/* هاله نوری پس‌زمینه کارت */}
             <div className="absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-15 blur-[32px] bg-gold-500 pointer-events-none" />
             
@@ -134,7 +134,7 @@ export default function WalletPage() {
               {/* موجودی طلا */}
               <div className="rounded-xl p-3 bg-gold-500/15 border border-gold-500/25 backdrop-blur-sm shadow-inner">
                 <p className="text-[10px] text-gold-500 font-bold mb-1">طلای آبشده</p>
-                <p className="text-[14px] font-black text-[#f5eed1] truncate">
+                <p className="text-[14px] font-black text-gold-100 truncate">
                   {hideBalance ? "••••••" : wallet.goldBalanceGrams.toFixed(4)}
                   <span className="text-[9px] font-normal text-gold-500 mr-1">گرم</span>
                 </p>
@@ -159,7 +159,7 @@ export default function WalletPage() {
           <div className="grid grid-cols-2 gap-2">
             <Link
               href="/dashboard/wallet/deposit"
-              className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-white font-bold text-[13px] bg-gradient-to-r from-emerald-600 to-emerald-700 active:scale-[0.98] transition-all shadow-2xs hover:brightness-110"
+              className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-white! font-bold text-[13px] bg-linear-to-r from-emerald-600 to-emerald-700 active:scale-[0.98] transition-all shadow-2xs hover:brightness-110"
             >
               <ArrowDownCircle className="w-4 h-4 text-white/90" />
               واریز وجه

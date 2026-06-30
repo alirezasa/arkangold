@@ -253,7 +253,7 @@ model LedgerEntry {
 
 model MarketPrice {
   id               String    @id @default(uuid())
-  metal            MetalType
+  metal            String   @unique
   pricePerGramRial Decimal   @map("price_per_gram_rial") @db.Decimal(18, 0)
   source           String?
   fetchedAt        DateTime  @default(now()) @map("fetched_at")

@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module';
 import { BankModule } from './bank/bank.module';
 import { SystemConfigModule } from './system-config/system-config.module';
 import { WalletModule } from './wallet/wallet.module';
+import { MarketModule } from './market/market.module';
 
 @Module({
   imports: [
@@ -19,14 +20,10 @@ import { WalletModule } from './wallet/wallet.module';
     AuthModule,
     UsersModule,
     BankModule,
-    SystemConfigModule, // ← اضافه شد (Global)
-    WalletModule, // ← اضافه شد
+    SystemConfigModule,
+    WalletModule,
+    MarketModule, // ← اضافه شد
   ],
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
-  ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

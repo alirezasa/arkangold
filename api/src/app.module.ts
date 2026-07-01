@@ -1,3 +1,5 @@
+// api/src/app.module.ts
+
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -22,7 +24,7 @@ import { MarketModule } from './market/market.module';
     BankModule,
     SystemConfigModule,
     WalletModule,
-    MarketModule, // ← اضافه شد
+    MarketModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -1,3 +1,5 @@
+// api/src/system-config/system-config.seed.ts
+
 export const WALLET_CONFIG_DEFAULTS = [
   // ══ واریز آنلاین ══
   {
@@ -35,12 +37,12 @@ export const WALLET_CONFIG_DEFAULTS = [
   {
     key: 'deposit.card_to_card.max_amount',
     value: '150000000',
-    description: 'حداکثر مبلغ کارت به کارت در یک تراکنش (ریال)',
+    description: 'حداکثر مبلغ کارت به کارت (ریال)',
   },
   {
     key: 'deposit.card_to_card.destination_card',
     value: '6037707500624484',
-    description: 'شماره کارت مقصد کارت به کارت',
+    description: 'شماره کارت مقصد',
   },
   {
     key: 'deposit.card_to_card.destination_owner',
@@ -50,7 +52,7 @@ export const WALLET_CONFIG_DEFAULTS = [
   {
     key: 'deposit.card_to_card.processing_time',
     value: 'کمتر از ۱۰ دقیقه',
-    description: 'زمان پردازش کارت به کارت',
+    description: 'زمان پردازش',
   },
 
   // ══ حساب به حساب ══
@@ -62,12 +64,12 @@ export const WALLET_CONFIG_DEFAULTS = [
   {
     key: 'deposit.bank_transfer.destination_account',
     value: '1128175516',
-    description: 'شماره حساب مقصد حساب به حساب',
+    description: 'شماره حساب مقصد',
   },
   {
     key: 'deposit.bank_transfer.destination_sheba',
     value: 'IR370160000000001128175516',
-    description: 'شماره شبا مقصد حساب به حساب',
+    description: 'شماره شبا مقصد',
   },
   {
     key: 'deposit.bank_transfer.destination_owner',
@@ -77,58 +79,58 @@ export const WALLET_CONFIG_DEFAULTS = [
   {
     key: 'deposit.bank_transfer.processing_time',
     value: 'واریز در سیکل پایا',
-    description: 'زمان پردازش حساب به حساب',
+    description: 'زمان پردازش',
   },
 
   // ══ واریز شناسه‌دار ══
   {
     key: 'deposit.tracking_id.daily_limit',
     value: '4000000000',
-    description: 'سقف واریز شناسه‌دار روزانه (ریال)',
+    description: 'سقف روزانه (ریال)',
   },
   {
     key: 'deposit.tracking_id.destination_account',
     value: '1128175516',
-    description: 'شماره حساب مقصد شناسه‌دار',
+    description: 'شماره حساب مقصد',
   },
   {
     key: 'deposit.tracking_id.destination_sheba',
     value: 'IR370160000000001128175516',
-    description: 'شماره شبا مقصد شناسه‌دار',
+    description: 'شماره شبا مقصد',
   },
   {
     key: 'deposit.tracking_id.destination_owner',
     value: 'بانک کشاورزی - یارا تجارت الکترونیک بنیان',
-    description: 'نام صاحب حساب شناسه‌دار',
+    description: 'نام صاحب حساب',
   },
 
   // ══ مبالغ بالا ══
   {
     key: 'deposit.large_transfer.min_amount',
     value: '4000000000',
-    description: 'حداقل مبلغ واریز مبالغ بالا (ریال)',
+    description: 'حداقل مبلغ (ریال)',
   },
   {
     key: 'deposit.large_transfer.destination_account',
     value: '1128175516',
-    description: 'شماره حساب مقصد مبالغ بالا',
+    description: 'شماره حساب مقصد',
   },
   {
     key: 'deposit.large_transfer.destination_sheba',
     value: 'IR370160000000001128175516',
-    description: 'شماره شبا مقصد مبالغ بالا',
+    description: 'شماره شبا مقصد',
   },
 
   // ══ واریز مستقیم ══
   {
     key: 'deposit.direct.daily_limit',
     value: '150000000',
-    description: 'سقف واریز مستقیم روزانه (ریال)',
+    description: 'سقف روزانه (ریال)',
   },
   {
     key: 'deposit.direct.destination_card',
     value: '6037707500624484',
-    description: 'شماره کارت مقصد واریز مستقیم',
+    description: 'شماره کارت مقصد',
   },
 
   // ══ برداشت ══
@@ -150,29 +152,29 @@ export const WALLET_CONFIG_DEFAULTS = [
   {
     key: 'withdrawal.max_amount',
     value: '2000000000',
-    description: 'حداکثر مبلغ برداشت در یک تراکنش (ریال)',
+    description: 'حداکثر مبلغ برداشت (ریال)',
   },
   {
     key: 'withdrawal.processing_time',
     value: 'سیکل پایا - روزهای کاری بین ۱۲:۴۵ تا ۱۳:۴۵',
-    description: 'زمان پردازش برداشت',
+    description: 'زمان پردازش',
   },
 
   // ══ معاملات طلا ══
   {
     key: 'trade.gold.min_grams',
     value: '0.1',
-    description: 'حداقل مقدار خرید/فروش طلا (گرم)',
+    description: 'حداقل مقدار خرید/فروش (گرم)',
   },
   {
     key: 'trade.gold.max_grams',
     value: '1000',
-    description: 'حداکثر مقدار خرید/فروش طلا در یک معامله (گرم)',
+    description: 'حداکثر مقدار در یک معامله (گرم)',
   },
   {
     key: 'trade.gold.spread_percent',
     value: '0.3',
-    description: 'اسپرد خرید/فروش طلا (درصد)',
+    description: 'اسپرد خرید/فروش (درصد)',
   },
   {
     key: 'trade.lock_duration_seconds',
@@ -182,22 +184,22 @@ export const WALLET_CONFIG_DEFAULTS = [
   {
     key: 'trade.gold.daily_buy_limit_grams',
     value: '50',
-    description: 'سقف خرید روزانه طلا (گرم)',
+    description: 'سقف خرید روزانه (گرم)',
   },
   {
     key: 'trade.gold.daily_sell_limit_grams',
     value: '50',
-    description: 'سقف فروش روزانه طلا (گرم)',
+    description: 'سقف فروش روزانه (گرم)',
   },
   {
     key: 'trade.gold.monthly_buy_limit_grams',
     value: '500',
-    description: 'سقف خرید ماهانه طلا (گرم)',
+    description: 'سقف خرید ماهانه (گرم)',
   },
   {
     key: 'trade.gold.monthly_sell_limit_grams',
     value: '500',
-    description: 'سقف فروش ماهانه طلا (گرم)',
+    description: 'سقف فروش ماهانه (گرم)',
   },
 
   // ══ کارمزد و مالیات ══

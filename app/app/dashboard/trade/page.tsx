@@ -1,3 +1,4 @@
+// app/app/dashboard/trade/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -366,8 +367,8 @@ export default function TradePage() {
             disabled={lockLoading || !gramValue || !currentPriceToman}
             className={`w-full py-4 rounded-2xl font-black text-white text-[15px] flex items-center justify-center gap-2 transition-all disabled:opacity-40 shadow-lg ${
               side === "BUY"
-                ? "bg-gradient-to-l from-emerald-600 to-emerald-500"
-                : "bg-gradient-to-l from-red-600 to-red-500"
+                ? "bg-linear-to-l from-emerald-600 to-emerald-500"
+                : "bg-linear-to-l from-red-600 to-red-500"
             }`}
             style={{
               boxShadow:
@@ -520,7 +521,7 @@ export default function TradePage() {
                   !!wallet &&
                   lock.totalPayableRial > wallet.rialBalance)
               }
-              className={`flex-[2] py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 ${
+              className={`flex-2 py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-50 ${
                 side === "BUY" ? "bg-emerald-500" : "bg-red-500"
               }`}
             >

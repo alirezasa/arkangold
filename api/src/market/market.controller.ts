@@ -1,35 +1,47 @@
+// api/src/market/market.controller.ts
+
 import {
-  Body,
   Controller,
   Get,
   Post,
-  Query,
+  Body,
   Req,
   UseGuards,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiOperation,
-  ApiQuery,
   ApiTags,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Public } from '../auth/decorators/public.decorator';
 import { PriceService } from './price.service';
 import { TradingService } from './trading.service';
-
-import { LockPriceDto } from '@arkan-gold/shared/dto/market/lock-price.dto';
-import { CreateOrderDto } from '@arkan-gold/shared/dto/market/create-order.dto';
-import { GetOrdersQueryDto } from '@arkan-gold/shared/dto/market/get-orders-query.dto';
-import { GetPriceHistoryQueryDto } from '@arkan-gold/shared/dto/market/get-price-history-query.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../auth/decorators/public.decorator';
+import { IsString, IsIn, IsNumber, Min } from 'class-validator';
 
 interface AuthenticatedRequest extends Request {
-  user: {
-    userId: string;
-    phone: string;
-    sessionId: string;
-  };
+  user: { userId: string; phone: string; sessionId: string };
+}
+
+// ── DTOهای validation - هرگز body خام را بدون validation قبول نکن ──
+class LockPriceDto {
+  @IsIn(['BUY', 'SELL'])
+  side!: 'BUY' | 'SELL';
+
+  @IsNumber()
+  @Min(0.0001)
+  amountGrams!: number;
+}
+
+class CreateOrderDto {
+  @IsString()
+  lockId!: string;
 }
 
 @ApiTags('Market')
@@ -44,50 +56,52 @@ export class MarketController {
 
   @Public()
   @Get('price')
-  @ApiOperation({ summary: 'Get current gold price' })
-  async getPrice() {
+  @ApiOperation({ summary: 'قیمت لحظه‌ای طلا' })
+  getPrice() {
     return this.priceService.getGoldPriceResponse();
   }
 
   @Public()
   @Get('price/history')
-  @ApiOperation({ summary: 'Get gold price history' })
+  @ApiOperation({ summary: 'تاریخچه قیمت برای نمودار' })
   @ApiQuery({ name: 'hours', required: false, type: Number })
-  async getPriceHistory(@Query() query: GetPriceHistoryQueryDto) {
-    return this.priceService.getPriceHistory(query.hours);
+  getPriceHistory(
+    @Query('hours', new DefaultValuePipe(24), ParseIntPipe) hours: number,
+  ) {
+    // محدود کردن بازه برای جلوگیری از abuse (حداکثر 30 روز)
+    const safeHours = Math.min(Math.max(hours, 1), 720);
+    return this.priceService.getPriceHistory(safeHours);
   }
 
+  // ── Rate limit سخت‌گیرانه روی lock-price: جلوگیری از spam قفل کردن ──
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('lock-price')
-  @ApiOperation({ summary: 'Lock current trade price for user order' })
-  async lockPrice(@Req() req: AuthenticatedRequest, @Body() dto: LockPriceDto) {
+  @ApiOperation({ summary: 'قفل قیمت برای مدت محدود قبل از ثبت سفارش' })
+  lockPrice(@Req() req: AuthenticatedRequest, @Body() body: LockPriceDto) {
     return this.tradingService.lockPrice(
       req.user.userId,
-      dto.side,
-      dto.amountGrams,
+      body.side,
+      body.amountGrams,
     );
   }
 
+  // ── Rate limit روی ثبت سفارش - حیاتی برای جلوگیری از سوءاستفاده ──
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('orders')
-  @ApiOperation({ summary: 'Create market order from a valid price lock' })
-  async createOrder(
-    @Req() req: AuthenticatedRequest,
-    @Body() dto: CreateOrderDto,
-  ) {
-    return this.tradingService.createOrder(req.user.userId, dto.lockId);
+  @ApiOperation({ summary: 'ثبت سفارش خرید/فروش طلا' })
+  createOrder(@Req() req: AuthenticatedRequest, @Body() body: CreateOrderDto) {
+    return this.tradingService.createOrder(req.user.userId, body.lockId);
   }
 
   @Get('orders')
-  @ApiOperation({ summary: 'Get user market orders' })
+  @ApiOperation({ summary: 'تاریخچه سفارشات کاربر' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  async getUserOrders(
+  getUserOrders(
     @Req() req: AuthenticatedRequest,
-    @Query() query: GetOrdersQueryDto,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    return this.tradingService.getUserOrders(
-      req.user.userId,
-      query.page,
-      query.limit,
-    );
+    return this.tradingService.getUserOrders(req.user.userId, page, limit);
   }
 }

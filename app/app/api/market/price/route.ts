@@ -1,3 +1,4 @@
+// app/app/api/market/price/route.ts
 import { NextResponse } from "next/server";
 import axios from "axios";
 const NEST = "http://localhost:5000";

@@ -1,5 +1,8 @@
+// api/src/system-config/system-config.service.ts
+
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '../generated/prisma/client';
 import { WALLET_CONFIG_DEFAULTS } from './system-config.seed';
 
 @Injectable()
@@ -16,13 +19,12 @@ export class SystemConfigService implements OnModuleInit {
     await this.loadCache();
   }
 
-  // ── Seed مقادیر پیش‌فرض اگر وجود نداشتند ──
   private async seedDefaults() {
     for (const item of WALLET_CONFIG_DEFAULTS) {
       await this.prisma.systemConfig.upsert({
         where: { key: item.key },
         create: item,
-        update: { description: item.description }, // فقط description آپدیت بشه، value دست نزنه
+        update: { description: item.description },
       });
     }
     this.logger.log(
@@ -30,7 +32,6 @@ export class SystemConfigService implements OnModuleInit {
     );
   }
 
-  // ── بارگذاری کش ──
   private async loadCache() {
     const configs = await this.prisma.systemConfig.findMany();
     this.cache.clear();
@@ -40,7 +41,6 @@ export class SystemConfigService implements OnModuleInit {
     this.cacheLoadedAt = Date.now();
   }
 
-  // ── دریافت مقدار ──
   async get(key: string, fallback?: string): Promise<string> {
     if (Date.now() - this.cacheLoadedAt > this.CACHE_TTL) {
       await this.loadCache();
@@ -54,44 +54,53 @@ export class SystemConfigService implements OnModuleInit {
     return isNaN(num) ? fallback : num;
   }
 
+  /**
+   * دریافت مقدار به‌صورت Prisma.Decimal - باید برای همه محاسبات
+   * مالی/معاملاتی استفاده شود (نه getNumber که دقت float دارد و
+   * برای مبالغ بزرگ ریالی یا اعشار طلا قابل اعتماد نیست).
+   */
+  async getDecimal(key: string, fallback: string): Promise<Prisma.Decimal> {
+    const val = await this.get(key);
+    try {
+      return new Prisma.Decimal(val || fallback);
+    } catch {
+      this.logger.warn(
+        `[SystemConfig] مقدار نامعتبر برای ${key}="${val}", استفاده از fallback`,
+      );
+      return new Prisma.Decimal(fallback);
+    }
+  }
+
   async getBoolean(key: string, fallback = false): Promise<boolean> {
     const val = await this.get(key);
     if (!val) return fallback;
     return val === 'true' || val === '1';
   }
 
-  // ── دریافت همه کانفیگ‌های یک prefix ──
   async getGroup(prefix: string): Promise<Record<string, string>> {
     if (Date.now() - this.cacheLoadedAt > this.CACHE_TTL) {
       await this.loadCache();
     }
     const result: Record<string, string> = {};
     for (const [k, v] of this.cache.entries()) {
-      if (k.startsWith(prefix)) {
-        result[k] = v;
-      }
+      if (k.startsWith(prefix)) result[k] = v;
     }
     return result;
   }
 
-  // ── آپدیت (برای ادمین) ──
   async set(key: string, value: string): Promise<void> {
     await this.prisma.systemConfig.upsert({
       where: { key },
       create: { key, value },
       update: { value },
     });
-    this.cache.set(key, value); // کش رو هم آپدیت کن
+    this.cache.set(key, value);
   }
 
-  // ── دریافت همه برای ادمین ──
   async getAll() {
-    return this.prisma.systemConfig.findMany({
-      orderBy: { key: 'asc' },
-    });
+    return this.prisma.systemConfig.findMany({ orderBy: { key: 'asc' } });
   }
 
-  // ── پاک کردن کش (برای force refresh) ──
   async invalidateCache() {
     this.cacheLoadedAt = 0;
     await this.loadCache();

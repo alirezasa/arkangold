@@ -243,7 +243,7 @@ export class TradingService {
 
           const amountGrams = lock.amountGrams;
           const pricePerGram = lock.lockedPrice;
-          const side = lock.side as Side;
+          const side = lock.side;
           const totalRial = amountGrams.times(pricePerGram);
 
           const [feePercent, taxPercent] = await Promise.all([

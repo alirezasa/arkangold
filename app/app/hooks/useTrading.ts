@@ -83,33 +83,26 @@ export const usePriceHistory = (hours = 24) => {
 };
 
 // ── Hook: تایمر Countdown ──
+// ── Hook: تایمر Countdown (اصلاح‌شده) ──
 export const useCountdown = (expiresAt: string | null) => {
-  const [remaining, setRemaining] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  // تنها زمان فعلی را در state نگه می‌داریم
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (!expiresAt) {
-      setRemaining(0);
-      return;
-    }
+    if (!expiresAt) return;
 
-    const calc = () => {
-      const diff = Math.max(
-        0,
-        Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000),
-      );
-      setRemaining(diff);
-      if (diff === 0 && intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
+    // آپدیت کردن زمان فعلی هر ۱ ثانیه
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
 
-    calc();
-    intervalRef.current = setInterval(calc, 1000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    return () => clearInterval(interval);
   }, [expiresAt]);
+
+  // محاسبه زمان باقی‌مانده به صورت مشتق‌شده در زمان رندر
+  const remaining = expiresAt
+    ? Math.max(0, Math.floor((new Date(expiresAt).getTime() - now) / 1000))
+    : 0;
 
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
   const ss = String(remaining % 60).padStart(2, "0");

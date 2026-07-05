@@ -1,34 +1,60 @@
 // api/src/accounting/accounts.seed.ts
 
-export const CHART_OF_ACCOUNTS_DEFAULTS = [
+import { AccountType } from '../generated/prisma/client';
+
+export interface AccountSeed {
+  code: string;
+  name: string;
+  type: AccountType;
+  subType?: string;
+}
+
+/**
+ * حساب‌های پایه (Chart of Accounts)
+ * ⚠️ کد حساب (code) کلید یکتاست و هرگز نباید بعد از استفاده تغییر کند.
+ * مانده‌ها (balanceRial/balanceGrams) عمداً seed نمی‌شوند —
+ * فقط از طریق LedgerEntry تغییر می‌کنند.
+ */
+export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
+  // ─── دارایی‌ها (ASSET) ───
   {
-    code: 'CUSTOMER_GOLD_ASSET',
-    name: 'دارایی طلای مشتریان',
-    type: 'ASSET',
+    code: '1010',
+    name: 'موجودی نقد (ریال)',
+    type: AccountType.ASSET,
+    subType: 'CASH',
   },
   {
-    code: 'CUSTOMER_RIAL_ASSET',
-    name: 'دارایی ریالی مشتریان',
-    type: 'ASSET',
+    code: '1020',
+    name: 'موجودی طلای فیزیکی (گرم)',
+    type: AccountType.ASSET,
+    subType: 'GOLD_INVENTORY',
+  },
+
+  // ─── بدهی‌ها (LIABILITY) ───
+  {
+    code: '2010',
+    name: 'بدهی ریالی به کاربران',
+    type: AccountType.LIABILITY,
+    subType: 'USER_WALLET_RIAL',
   },
   {
-    code: 'CUSTOMER_GOLD_LIABILITY',
-    name: 'بدهی طلایی به مشتریان',
-    type: 'LIABILITY',
+    code: '2020',
+    name: 'بدهی طلایی به کاربران (گرم)',
+    type: AccountType.LIABILITY,
+    subType: 'USER_WALLET_GOLD',
   },
   {
-    code: 'CUSTOMER_RIAL_LIABILITY',
-    name: 'بدهی ریالی به مشتریان',
-    type: 'LIABILITY',
-  },
-  {
-    code: 'FEE_INCOME',
-    name: 'درآمد کارمزد',
-    type: 'INCOME',
-  },
-  {
-    code: 'TAX_PAYABLE',
+    code: '2030',
     name: 'مالیات پرداختنی',
     type: 'LIABILITY',
+    subType: 'TAX_PAYABLE',
   },
-] as const;
+
+  // ─── درآمدها (INCOME) ───
+  {
+    code: '4010',
+    name: 'درآمد کارمزد معاملات',
+    type: AccountType.INCOME,
+    subType: 'TRADE_FEE',
+  },
+];

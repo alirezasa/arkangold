@@ -12,6 +12,8 @@ import { BankModule } from './bank/bank.module';
 import { SystemConfigModule } from './system-config/system-config.module';
 import { WalletModule } from './wallet/wallet.module';
 import { MarketModule } from './market/market.module';
+import { AccountingModule } from './/accounting/accounting.module';
+import { TransactionsModule } from './transactions/transactions.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { MarketModule } from './market/market.module';
     SystemConfigModule,
     WalletModule,
     MarketModule,
+    AccountingModule,
+    TransactionsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

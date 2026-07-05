@@ -27,6 +27,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PriceService } from './price.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { Prisma } from '../generated/prisma/client';
+import {
+  AccountingService,
+  LedgerLineInput,
+} from '../accounting/accounting.service';
 
 type Side = 'BUY' | 'SELL';
 
@@ -51,6 +55,7 @@ export class TradingService {
     private readonly prisma: PrismaService,
     private readonly priceService: PriceService,
     private readonly systemConfig: SystemConfigService,
+    private readonly accountingService: AccountingService, // ⬅️ جدید
   ) {}
 
   // ════════════════════════════════════════════════════════
@@ -399,7 +404,7 @@ export class TradingService {
           // ReadCommitted (پیش‌فرض) کافی است چون از FOR UPDATE صریح
           // استفاده می‌کنیم؛ Serializable فقط overhead اضافه می‌کرد.
           maxWait: 5000,
-          timeout: 10000,
+          timeout: 14000,
         },
       );
     } catch (err) {
@@ -418,7 +423,8 @@ export class TradingService {
     if (
       err instanceof BadRequestException ||
       err instanceof NotFoundException ||
-      err instanceof ForbiddenException
+      err instanceof ForbiddenException ||
+      err instanceof InternalServerErrorException // ⬅️ جدید
     ) {
       return err;
     }
@@ -489,6 +495,9 @@ export class TradingService {
   // ════════════════════════════════════════════════════════
   // اسناد حسابداری دوطرفه
   // ════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════
+  // اسناد حسابداری دوطرفه - متوازن + به‌روزرسانی مانده‌ها
+  // ════════════════════════════════════════════════════════
   private async postDoubleEntryAccounting(
     tx: Prisma.TransactionClient,
     params: {
@@ -502,96 +511,98 @@ export class TradingService {
   ) {
     const { side, orderId, totalRial, amountGrams, feeRial, taxRial } = params;
 
-    const accountCodes =
-      side === 'BUY'
-        ? {
-            asset: 'CUSTOMER_GOLD_ASSET',
-            liability: 'CUSTOMER_RIAL_LIABILITY',
-            income: 'FEE_INCOME',
-          }
-        : {
-            asset: 'CUSTOMER_RIAL_ASSET',
-            liability: 'CUSTOMER_GOLD_LIABILITY',
-            income: 'FEE_INCOME',
-          };
+    const CODES = {
+      bankRial: '1010', // CUSTOMER_RIAL_ASSET  (نقد/بانک)
+      goldInventory: '1020', // CUSTOMER_GOLD_ASSET  (طلای نگهداری‌شده)
+      rialLiability: '2010', // CUSTOMER_RIAL_LIABILITY
+      goldLiability: '2020', // CUSTOMER_GOLD_LIABILITY
+      taxPayable: '2030', // TAX_PAYABLE
+      feeIncome: '4010', // FEE_INCOME
+    } as const;
 
-    const [assetAccount, liabilityAccount, incomeAccount] = await Promise.all([
-      tx.account.findUnique({ where: { code: accountCodes.asset } }),
-      tx.account.findUnique({ where: { code: accountCodes.liability } }),
-      tx.account.findUnique({ where: { code: accountCodes.income } }),
-    ]);
-
-    if (!assetAccount || !liabilityAccount || !incomeAccount) {
-      this.logger.error(
-        `[Accounting][ALERT] حساب‌های پایه seed نشده‌اند برای order=${orderId} - ` +
-          `سند حسابداری ثبت نشد. این باید فوراً بررسی شود (تراکنش کاربر صحیح است)`,
-      );
-      return;
-    }
-
-    const journalEntry = await tx.journalEntry.create({
-      data: {
-        description: `${side === 'BUY' ? 'خرید' : 'فروش'} طلا - سفارش ${orderId}`,
-        totalRial,
-        totalGrams: amountGrams,
-      },
-    });
+    const description = `${side === 'BUY' ? 'خرید' : 'فروش'} طلا - سفارش ${orderId}`;
+    const lines: LedgerLineInput[] = [];
 
     if (side === 'BUY') {
-      await tx.ledgerEntry.createMany({
-        data: [
-          {
-            journalEntryId: journalEntry.id,
-            accountId: assetAccount.id,
-            side: 'DEBIT',
-            amountGrams,
-          },
-          {
-            journalEntryId: journalEntry.id,
-            accountId: liabilityAccount.id,
-            side: 'CREDIT',
-            amountRial: totalRial.plus(feeRial).plus(taxRial),
-          },
-          ...(feeRial.greaterThan(0)
-            ? [
-                {
-                  journalEntryId: journalEntry.id,
-                  accountId: incomeAccount.id,
-                  side: 'CREDIT' as const,
-                  amountRial: feeRial,
-                },
-              ]
-            : []),
-        ],
+      const payable = totalRial.plus(feeRial).plus(taxRial);
+
+      // بدهی ریالی به مشتری کم می‌شود (کل مبلغ پرداختی او)
+      lines.push({
+        accountCode: CODES.rialLiability,
+        side: 'DEBIT',
+        amountRial: payable,
+      });
+      // بدهی طلایی به مشتری زیاد می‌شود (به ارزش معامله)
+      lines.push({
+        accountCode: CODES.goldLiability,
+        side: 'CREDIT',
+        amountRial: totalRial,
+        amountGrams,
+      });
+      // طلای نگهداری‌شده زیاد، نقد بابت تأمین آن کم
+      lines.push({
+        accountCode: CODES.goldInventory,
+        side: 'DEBIT',
+        amountRial: totalRial,
+        amountGrams,
+      });
+      lines.push({
+        accountCode: CODES.bankRial,
+        side: 'CREDIT',
+        amountRial: totalRial,
       });
     } else {
-      await tx.ledgerEntry.createMany({
-        data: [
-          {
-            journalEntryId: journalEntry.id,
-            accountId: liabilityAccount.id,
-            side: 'DEBIT',
-            amountGrams,
-          },
-          {
-            journalEntryId: journalEntry.id,
-            accountId: assetAccount.id,
-            side: 'CREDIT',
-            amountRial: totalRial.minus(feeRial).minus(taxRial),
-          },
-          ...(feeRial.greaterThan(0)
-            ? [
-                {
-                  journalEntryId: journalEntry.id,
-                  accountId: incomeAccount.id,
-                  side: 'CREDIT' as const,
-                  amountRial: feeRial,
-                },
-              ]
-            : []),
-        ],
+      const receivable = totalRial.minus(feeRial).minus(taxRial);
+
+      // بدهی طلایی به مشتری کم می‌شود
+      lines.push({
+        accountCode: CODES.goldLiability,
+        side: 'DEBIT',
+        amountRial: totalRial,
+        amountGrams,
+      });
+      // بدهی ریالی به مشتری زیاد می‌شود (خالص دریافتی او)
+      lines.push({
+        accountCode: CODES.rialLiability,
+        side: 'CREDIT',
+        amountRial: receivable,
+      });
+      // طلای نگهداری‌شده کم، نقد حاصل از فروش زیاد
+      lines.push({
+        accountCode: CODES.goldInventory,
+        side: 'CREDIT',
+        amountRial: totalRial,
+        amountGrams,
+      });
+      lines.push({
+        accountCode: CODES.bankRial,
+        side: 'DEBIT',
+        amountRial: totalRial,
       });
     }
+
+    // کارمزد و مالیات (مشترک بین خرید و فروش)
+    if (feeRial.greaterThan(0)) {
+      lines.push({
+        accountCode: CODES.feeIncome,
+        side: 'CREDIT',
+        amountRial: feeRial,
+      });
+    }
+    if (taxRial.greaterThan(0)) {
+      lines.push({
+        accountCode: CODES.taxPayable,
+        side: 'CREDIT',
+        amountRial: taxRial,
+      });
+    }
+
+    await this.accountingService.postJournal(tx, {
+      description,
+      totalRial,
+      totalGrams: amountGrams,
+      lines,
+    });
   }
 
   // ══════════════════════════════

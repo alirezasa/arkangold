@@ -4,7 +4,7 @@ import { OrderSide } from "../enums";
 
 export class LockPriceDto {
   @IsEnum(OrderSide)
-  side: OrderSide;
+  side!: OrderSide;
 
   @Transform(({ value }) => Number(value))
   @IsNumber()

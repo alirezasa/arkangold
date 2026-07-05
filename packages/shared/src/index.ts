@@ -8,3 +8,4 @@ export * from "./dto/create-order.dto";
 export * from "./dto/lock-price.dto";
 export * from "./dto/get-orders-query.dto";
 export * from "./dto/get-price-history-query.dto";
+export * from './dto/get-transactions-query.dto';

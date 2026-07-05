@@ -424,6 +424,7 @@ export class TradingService {
     }
 
     if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      // سریال‌سازی conflict (P2034)
       if (err.code === 'P2034') {
         this.logger.warn(
           `[Order] write conflict برای کاربر ${userId} - lockId=${lockId}`,
@@ -432,9 +433,15 @@ export class TradingService {
           'سیستم در حال پردازش درخواست مشابه است. لطفاً چند لحظه دیگر دوباره تلاش کنید',
         );
       }
-      if (err.code === 'P2010' || err.meta?.code === '23514') {
+
+      // نقض constraint (فقط کدهای 23xxx واقعی PostgreSQL)
+      if (
+        err.meta?.code &&
+        typeof err.meta.code === 'string' &&
+        err.meta.code.startsWith('23')
+      ) {
         this.logger.error(
-          `[ALERT][DB-CONSTRAINT] نقض محدودیت دیتابیس برای کاربر ${userId} - lockId=${lockId}. ` +
+          `[ALERT][DB-CONSTRAINT] نقض محدودیت دیتابیس (کد ${err.meta.code}) برای کاربر ${userId} - lockId=${lockId}. ` +
             `این نشانه یک باگ منطقی در لایه اپلیکیشن است که باید فوراً بررسی شود!`,
         );
         return new BadRequestException(
@@ -587,7 +594,7 @@ export class TradingService {
     }
   }
 
-  // ════════════════════════════════════════════════════════
+  // ══════════════════════════════
   // تاریخچه سفارشات
   // ════════════════════════════════════════════════════════
   async getUserOrders(userId: string, page = 1, limit = 20) {

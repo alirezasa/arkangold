@@ -1,13 +1,16 @@
 // ──────────────────────────────────────────────
-// آرکان گلد (Arkan Gold) - Prisma Schema v1.0
+// آرکان گلد (Arkan Gold) - Prisma Schema v1.2
 // سازگار با Prisma 7 + PostgreSQL
-// تاریخ: ۲۰۲۶-۰۵-۱۹
+// تغییرات v1.2:
+//   - نوع بومی UUID برای تمام شناسه‌ها (@db.Uuid)
+//   - Idempotency سطح DB: unique روی Order.lockId
+//   - ذخیره fee/tax در PriceLock (تثبیت quote)
+//   - ایندکس‌های عملیاتی جدید
 // ──────────────────────────────────────────────
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
-  
 }
 
 datasource db {
@@ -19,13 +22,13 @@ datasource db {
 // ══════════════════════════════════════════════
 
 model User {
-  id           String     @id @default(uuid())
+  id           String     @id @default(uuid()) @db.Uuid // ✅
   phone        String     @unique
   passwordHash String?    @map("password_hash")
   type         UserType   @default(REAL)
   status       UserStatus @default(ACTIVE)
   referralCode String     @unique @map("referral_code")
-  referredById String?    @map("referred_by_id")
+  referredById String?    @map("referred_by_id") @db.Uuid // ✅
   referredBy   User?      @relation("Referral", fields: [referredById], references: [id], onDelete: SetNull)
   referrals    User[]     @relation("Referral")
   createdAt    DateTime   @default(now()) @map("created_at")
@@ -65,7 +68,7 @@ model User {
 }
 
 model UserOtp {
-  id        String     @id @default(uuid())
+  id        String     @id @default(uuid()) @db.Uuid // ✅
   phone     String
   codeHash  String     @map("code_hash")
   attempts  Int        @default(0)
@@ -78,8 +81,8 @@ model UserOtp {
 }
 
 model UserSession {
-  id               String   @id @default(uuid())
-  userId           String   @map("user_id")
+  id               String   @id @default(uuid()) @db.Uuid // ✅
+  userId           String   @map("user_id") @db.Uuid // ✅
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   device           String?
   ip               String?
@@ -93,12 +96,12 @@ model UserSession {
 }
 
 model UserIdentity {
-  id           String         @id @default(uuid())
-  userId       String         @unique @map("user_id")
+  id           String         @id @default(uuid()) @db.Uuid // ✅
+  userId       String         @unique @map("user_id") @db.Uuid // ✅
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   firstName    String?        @map("first_name")
   lastName     String?        @map("last_name")
-  nationalCode String?        @map("national_code")
+  nationalCode String?        @unique @map("national_code")
   birthDate    DateTime?      @map("birth_date")
   status       IdentityStatus @default(PENDING)
   verifiedAt   DateTime?      @map("verified_at")
@@ -110,14 +113,14 @@ model UserIdentity {
 }
 
 model LegalProfile {
-  id                 String        @id @default(uuid())
-  userId             String        @unique @map("user_id")
+  id                 String        @id @default(uuid()) @db.Uuid // ✅
+  userId             String        @unique @map("user_id") @db.Uuid // ✅
   user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   companyName        String        @map("company_name")
-  nationalId         String        @map("national_id")
+  nationalId         String        @unique @map("national_id")
   economicCode       String?       @map("economic_code")
   registrationNumber String?       @map("registration_number")
-  representativeId   String?       @map("representative_id")
+  representativeId   String?       @map("representative_id") @db.Uuid // ✅
   representative     UserIdentity? @relation(fields: [representativeId], references: [id], onDelete: SetNull)
   verified           Boolean       @default(false)
   createdAt          DateTime      @default(now()) @map("created_at")
@@ -126,8 +129,8 @@ model LegalProfile {
 }
 
 model BankAccount {
-  id            String   @id @default(uuid())
-  userId        String   @map("user_id")
+  id            String   @id @default(uuid()) @db.Uuid // ✅
+  userId        String   @map("user_id") @db.Uuid // ✅
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   bankName      String   @map("bank_name")
   accountNumber String   @map("account_number")
@@ -139,6 +142,7 @@ model BankAccount {
 
   withdrawalRequests WithdrawalRequest[]
 
+  @@index([userId])
   @@map("bank_accounts")
 }
 
@@ -146,9 +150,14 @@ model BankAccount {
 // ۲. ماژول Wallet / Accounting
 // ══════════════════════════════════════════════
 
+// ⚠️ توجه: CHECK constraint موجودی غیرمنفی را Prisma پشتیبانی نمی‌کند.
+// بعد از migrate، فایل migration را ویرایش کرده و SQL زیر را اضافه کنید:
+//   ALTER TABLE "wallets"
+//     ADD CONSTRAINT "wallets_rial_non_negative" CHECK ("rial_balance" >= 0),
+//     ADD CONSTRAINT "wallets_gold_non_negative" CHECK ("gold_balance_grams" >= 0);
 model Wallet {
-  id               String   @id @default(uuid())
-  userId           String   @unique @map("user_id")
+  id               String   @id @default(uuid()) @db.Uuid // ✅
+  userId           String   @unique @map("user_id") @db.Uuid // ✅
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   goldBalanceGrams Decimal  @default(0) @map("gold_balance_grams") @db.Decimal(18, 4)
   rialBalance      Decimal  @default(0) @map("rial_balance") @db.Decimal(18, 0)
@@ -163,25 +172,26 @@ model Wallet {
 }
 
 model WalletHold {
-  id          String   @id @default(uuid())
-  walletId    String   @map("wallet_id")
+  id          String   @id @default(uuid()) @db.Uuid // ✅
+  walletId    String   @map("wallet_id") @db.Uuid // ✅
   wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   amountGrams Decimal? @map("amount_grams") @db.Decimal(18, 4)
   amountRial  Decimal? @map("amount_rial") @db.Decimal(18, 0)
   holdType    HoldType @map("hold_type")
-  referenceId String?  @map("reference_id")
+  referenceId String?  @map("reference_id") @db.Uuid // ✅
   expiresAt   DateTime @map("expires_at")
   createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([walletId])
+  @@index([expiresAt]) // ✅ برای cron آزادسازی hold های منقضی
   @@map("wallet_holds")
 }
 
 model Transaction {
-  id                   String            @id @default(uuid())
-  userId               String            @map("user_id")
+  id                   String            @id @default(uuid()) @db.Uuid // ✅
+  userId               String            @map("user_id") @db.Uuid // ✅
   user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  walletId             String            @map("wallet_id")
+  walletId             String            @map("wallet_id") @db.Uuid // ✅
   wallet               Wallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
   type                 TransactionType
   amountGrams          Decimal?          @db.Decimal(18, 4)
@@ -191,22 +201,28 @@ model Transaction {
   taxAmount            Decimal?          @map("tax_amount") @db.Decimal(18, 0)
   status               TransactionStatus @default(PENDING)
   description          String?
-  relatedTransactionId String?           @map("related_transaction_id")
+  relatedTransactionId String?           @map("related_transaction_id") @db.Uuid // ✅
   relatedTransaction   Transaction?      @relation("RelatedTransaction", fields: [relatedTransactionId], references: [id], onDelete: SetNull)
   childTransactions    Transaction[]     @relation("RelatedTransaction")
-  createdAt            DateTime          @default(now()) @map("created_at")
+
+  shopOrderId        String?                  @map("shop_order_id") @db.Uuid // ✅
+  shopOrder          ShopOrder?               @relation(fields: [shopOrderId], references: [id], onDelete: SetNull)
+  physicalDeliveryId String?                  @map("physical_delivery_id") @db.Uuid // ✅
+  physicalDelivery   PhysicalDeliveryRequest? @relation(fields: [physicalDeliveryId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
 
   journalEntries  JournalEntry[]
   referralRewards ReferralReward[]
 
   @@index([userId])
   @@index([walletId])
-  @@index([userId, type, status, createdAt])
+  @@index([userId, type, status, createdAt]) // پوشش کوئری سقف روزانه/ماهانه
   @@map("transactions")
 }
 
 model Account {
-  id           String      @id @default(uuid())
+  id           String      @id @default(uuid()) @db.Uuid // ✅
   code         String      @unique
   name         String
   type         AccountType
@@ -220,8 +236,8 @@ model Account {
 }
 
 model JournalEntry {
-  id            String       @id @default(uuid())
-  transactionId String?      @map("transaction_id")
+  id            String       @id @default(uuid()) @db.Uuid // ✅
+  transactionId String?      @map("transaction_id") @db.Uuid // ✅
   transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
   description   String?
   totalRial     Decimal      @default(0) @map("total_rial") @db.Decimal(18, 0)
@@ -235,16 +251,17 @@ model JournalEntry {
 }
 
 model LedgerEntry {
-  id             String       @id @default(uuid())
-  journalEntryId String       @map("journal_entry_id")
+  id             String       @id @default(uuid()) @db.Uuid // ✅
+  journalEntryId String       @map("journal_entry_id") @db.Uuid // ✅
   journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
-  accountId      String       @map("account_id")
+  accountId      String       @map("account_id") @db.Uuid // ✅
   account        Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
   side           LedgerSide
   amountRial     Decimal      @default(0) @map("amount_rial") @db.Decimal(18, 0)
   amountGrams    Decimal      @default(0) @map("amount_grams") @db.Decimal(18, 4)
   createdAt      DateTime     @default(now()) @map("created_at")
 
+  @@index([accountId]) // ✅ برای گزارش‌گیری دفتر کل
   @@map("ledger_entries")
 }
 
@@ -253,7 +270,7 @@ model LedgerEntry {
 // ══════════════════════════════════════════════
 
 model MarketPrice {
-  id               String    @id @default(uuid())
+  id               String    @id @default(uuid()) @db.Uuid // ✅
   metal            MetalType @unique
   pricePerGramRial Decimal   @map("price_per_gram_rial") @db.Decimal(18, 0)
   source           String?
@@ -263,7 +280,7 @@ model MarketPrice {
 }
 
 model PriceHistory {
-  id               String    @id @default(uuid())
+  id               String    @id @default(uuid()) @db.Uuid // ✅
   metal            MetalType
   pricePerGramRial Decimal   @map("price_per_gram_rial") @db.Decimal(18, 0)
   recordedAt       DateTime  @default(now()) @map("recorded_at")
@@ -273,28 +290,31 @@ model PriceHistory {
 }
 
 model PriceLock {
-  id          String    @id @default(uuid())
-  userId      String    @map("user_id")
+  id          String    @id @default(uuid()) @db.Uuid // ✅
+  userId      String    @map("user_id") @db.Uuid // ✅
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   metal       MetalType
   amountGrams Decimal   @map("amount_grams") @db.Decimal(18, 4)
   side        OrderSide
   lockedPrice Decimal   @map("locked_price") @db.Decimal(18, 0)
+  feeRial     Decimal   @default(0) @map("fee_rial") @db.Decimal(18, 0) // ✅ تثبیت کارمزد لحظه quote
+  taxRial     Decimal   @default(0) @map("tax_rial") @db.Decimal(18, 0) // ✅ تثبیت مالیات لحظه quote
   expiresAt   DateTime  @map("expires_at")
   used        Boolean   @default(false)
   createdAt   DateTime  @default(now()) @map("created_at")
 
-  orders Order[]
+  order Order? // ✅ رابطه یک‌به‌یک (به‌جای یک‌به‌چند)
 
   @@index([userId, used])
+  @@index([used, expiresAt]) // ✅ برای cron پاکسازی lock های منقضی
   @@map("price_locks")
 }
 
 model Order {
-  id           String      @id @default(uuid())
-  userId       String      @map("user_id")
+  id           String      @id @default(uuid()) @db.Uuid // ✅
+  userId       String      @map("user_id") @db.Uuid // ✅
   user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lockId       String?     @map("lock_id")
+  lockId       String?     @unique @map("lock_id") @db.Uuid // ✅ unique = idempotency سطح DB
   lock         PriceLock?  @relation(fields: [lockId], references: [id], onDelete: SetNull)
   metal        MetalType
   side         OrderSide
@@ -307,7 +327,7 @@ model Order {
   completedAt  DateTime?   @map("completed_at")
   createdAt    DateTime    @default(now()) @map("created_at")
 
-  @@index([userId])
+  @@index([userId, status, createdAt]) // ✅ پوشش کوئری تاریخچه سفارشات
   @@map("orders")
 }
 
@@ -316,11 +336,11 @@ model Order {
 // ══════════════════════════════════════════════
 
 model ProductCategory {
-  id          String            @id @default(uuid())
+  id          String            @id @default(uuid()) @db.Uuid // ✅
   name        String
   slug        String            @unique
   description String?
-  parentId    String?           @map("parent_id")
+  parentId    String?           @map("parent_id") @db.Uuid // ✅
   parent      ProductCategory?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: SetNull)
   children    ProductCategory[] @relation("SubCategories")
   createdAt   DateTime          @default(now()) @map("created_at")
@@ -331,8 +351,8 @@ model ProductCategory {
 }
 
 model Product {
-  id            String          @id @default(uuid())
-  categoryId    String          @map("category_id")
+  id            String          @id @default(uuid()) @db.Uuid // ✅
+  categoryId    String          @map("category_id") @db.Uuid // ✅
   category      ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   name          String
   slug          String          @unique
@@ -350,8 +370,8 @@ model Product {
 }
 
 model ProductVariant {
-  id              String   @id @default(uuid())
-  productId       String   @map("product_id")
+  id              String   @id @default(uuid()) @db.Uuid // ✅
+  productId       String   @map("product_id") @db.Uuid // ✅
   product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   weightGrams     Decimal  @map("weight_grams") @db.Decimal(18, 4)
   priceAdjustment Decimal  @default(0) @map("price_adjustment") @db.Decimal(18, 0)
@@ -366,8 +386,8 @@ model ProductVariant {
 }
 
 model Cart {
-  id        String   @id @default(uuid())
-  userId    String   @unique @map("user_id")
+  id        String   @id @default(uuid()) @db.Uuid // ✅
+  userId    String   @unique @map("user_id") @db.Uuid // ✅
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -377,22 +397,23 @@ model Cart {
 }
 
 model CartItem {
-  id        String         @id @default(uuid())
-  cartId    String         @map("cart_id")
+  id        String         @id @default(uuid()) @db.Uuid // ✅
+  cartId    String         @map("cart_id") @db.Uuid // ✅
   cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  variantId String         @map("variant_id")
+  variantId String         @map("variant_id") @db.Uuid // ✅
   variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
   quantity  Int
   createdAt DateTime       @default(now()) @map("created_at")
 
+  @@unique([cartId, variantId]) // ✅ جلوگیری از آیتم تکراری در سبد
   @@map("cart_items")
 }
 
 model ShopOrder {
-  id           String          @id @default(uuid())
-  userId       String          @map("user_id")
+  id           String          @id @default(uuid()) @db.Uuid // ✅
+  userId       String          @map("user_id") @db.Uuid // ✅
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  addressId    String          @map("address_id")
+  addressId    String          @map("address_id") @db.Uuid // ✅
   address      Address         @relation(fields: [addressId], references: [id], onDelete: Cascade)
   status       ShopOrderStatus @default(PENDING_PAYMENT)
   totalRial    Decimal         @map("total_rial") @db.Decimal(18, 0)
@@ -400,17 +421,19 @@ model ShopOrder {
   createdAt    DateTime        @default(now()) @map("created_at")
   updatedAt    DateTime        @updatedAt @map("updated_at")
 
-  items    ShopOrderItem[]
-  payments Payment[]
+  items        ShopOrderItem[]
+  payments     Payment[]
+  transactions Transaction[]
 
+  @@index([userId]) // ✅
   @@map("shop_orders")
 }
 
 model ShopOrderItem {
-  id        String         @id @default(uuid())
-  orderId   String         @map("order_id")
+  id        String         @id @default(uuid()) @db.Uuid // ✅
+  orderId   String         @map("order_id") @db.Uuid // ✅
   order     ShopOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  variantId String         @map("variant_id")
+  variantId String         @map("variant_id") @db.Uuid // ✅
   variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
   quantity  Int
   priceRial Decimal        @map("price_rial") @db.Decimal(18, 0)
@@ -420,64 +443,70 @@ model ShopOrderItem {
 }
 
 model Payment {
-  id            String        @id @default(uuid())
-  userId        String        @map("user_id")
+  id            String        @id @default(uuid()) @db.Uuid // ✅
+  userId        String        @map("user_id") @db.Uuid // ✅
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orderId       String?       @map("order_id")
+  orderId       String?       @map("order_id") @db.Uuid // ✅
   order         ShopOrder?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
   amountRial    Decimal       @map("amount_rial") @db.Decimal(18, 0)
   method        PaymentMethod
   status        PaymentStatus @default(PENDING)
-  referenceCode String?       @map("reference_code")
+  referenceCode String?       @unique @map("reference_code") // ✅ یونیک: جلوگیری از double-spend رسید درگاه
   paidAt        DateTime?     @map("paid_at")
+  createdAt     DateTime      @default(now()) @map("created_at") // ✅ برای audit ضروری است
 
+  @@index([userId]) // ✅
   @@map("payments")
 }
 
 // ══════════════════════════════════════════════
-// ۵. ماژول Finance
+// ۵. ماژول Finance & Approval
 // ══════════════════════════════════════════════
 
 model WithdrawalRequest {
-  id            String           @id @default(uuid())
-  userId        String           @map("user_id")
+  id            String           @id @default(uuid()) @db.Uuid // ✅
+  userId        String           @map("user_id") @db.Uuid // ✅
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bankAccountId String           @map("bank_account_id")
+  bankAccountId String           @map("bank_account_id") @db.Uuid // ✅
   bankAccount   BankAccount      @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
   amountRial    Decimal          @map("amount_rial") @db.Decimal(18, 0)
   status        WithdrawalStatus @default(PENDING)
   adminNotes    String?          @map("admin_notes")
-  processedById String?          @map("processed_by_id")
+  processedById String?          @map("processed_by_id") @db.Uuid // ✅
   processedBy   User?            @relation("ProcessedBy", fields: [processedById], references: [id], onDelete: SetNull)
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
 
   approvals Approval[]
 
+  @@index([userId, status]) // ✅
   @@map("withdrawal_requests")
 }
 
 model Approval {
-  id                        String                   @id @default(uuid())
-  requestType               ApprovalType             @map("request_type")
-  requestId                 String                   @map("request_id")
-  approverId                String                   @map("approver_id")
-  approver                  User                     @relation(fields: [approverId], references: [id], onDelete: Cascade)
-  step                      Int                      @default(1)
-  status                    ApprovalStatus
-  comment                   String?
-  createdAt                 DateTime                 @default(now()) @map("created_at")
-  withdrawalRequest         WithdrawalRequest?       @relation(fields: [withdrawalRequestId], references: [id])
-  withdrawalRequestId       String?
-  physicalDeliveryRequest   PhysicalDeliveryRequest? @relation(fields: [physicalDeliveryRequestId], references: [id])
-  physicalDeliveryRequestId String?
+  id          String       @id @default(uuid()) @db.Uuid // ✅
+  requestType ApprovalType @map("request_type")
+  requestId   String       @map("request_id") @db.Uuid // ✅
+  approverId  String       @map("approver_id") @db.Uuid // ✅
+  approver    User         @relation(fields: [approverId], references: [id], onDelete: Cascade)
+  step        Int          @default(1)
+  status      ApprovalStatus
+  comment     String?
+  createdAt   DateTime     @default(now()) @map("created_at")
 
+  withdrawalRequestId String?            @map("withdrawal_request_id") @db.Uuid // ✅
+  withdrawalRequest   WithdrawalRequest? @relation(fields: [withdrawalRequestId], references: [id], onDelete: Cascade)
+
+  physicalDeliveryRequestId String?                  @map("physical_delivery_request_id") @db.Uuid // ✅
+  physicalDeliveryRequest   PhysicalDeliveryRequest? @relation(fields: [physicalDeliveryRequestId], references: [id], onDelete: Cascade)
+
+  @@index([requestType, requestId]) // ✅
   @@map("approvals")
 }
 
 model UserLimit {
-  id                       String   @id @default(uuid())
-  userId                   String   @unique @map("user_id")
+  id                       String   @id @default(uuid()) @db.Uuid // ✅
+  userId                   String   @unique @map("user_id") @db.Uuid // ✅
   user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   dailyBuyLimitGrams       Decimal  @default(50) @map("daily_buy_limit_grams") @db.Decimal(18, 4)
   dailySellLimitGrams      Decimal  @default(50) @map("daily_sell_limit_grams") @db.Decimal(18, 4)
@@ -491,8 +520,8 @@ model UserLimit {
 }
 
 model FeeConfig {
-  id           String   @id @default(uuid())
-  userId       String?  @map("user_id")
+  id           String   @id @default(uuid()) @db.Uuid // ✅
+  userId       String?  @map("user_id") @db.Uuid // ✅
   user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   type         FeeType
   feePercent   Decimal  @map("fee_percent") @db.Decimal(5, 2)
@@ -500,12 +529,13 @@ model FeeConfig {
   isActive     Boolean  @default(true) @map("is_active")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  @@index([type, isActive]) // ✅
   @@map("fee_configs")
 }
 
 model TaxConfig {
-  id         String   @id @default(uuid())
-  userId     String?  @map("user_id")
+  id         String   @id @default(uuid()) @db.Uuid // ✅
+  userId     String?  @map("user_id") @db.Uuid // ✅
   user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   type       TaxType
   taxPercent Decimal  @map("tax_percent") @db.Decimal(5, 2)
@@ -516,28 +546,29 @@ model TaxConfig {
 }
 
 model Referral {
-  id            String   @id @default(uuid())
-  referrerId    String   @map("referrer_id")
+  id            String   @id @default(uuid()) @db.Uuid // ✅
+  referrerId    String   @map("referrer_id") @db.Uuid // ✅
   referrer      User     @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
-  referredId    String   @unique @map("referred_id")
+  referredId    String   @unique @map("referred_id") @db.Uuid // ✅
   referred      User     @relation("Referred", fields: [referredId], references: [id], onDelete: Cascade)
   rewardClaimed Boolean  @default(false) @map("reward_claimed")
   createdAt     DateTime @default(now()) @map("created_at")
 
   rewards ReferralReward[]
 
+  @@index([referrerId]) // ✅
   @@map("referrals")
 }
 
 model ReferralReward {
-  id            String       @id @default(uuid())
-  userId        String       @map("user_id")
+  id            String       @id @default(uuid()) @db.Uuid // ✅
+  userId        String       @map("user_id") @db.Uuid // ✅
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  referralId    String       @map("referral_id")
+  referralId    String       @map("referral_id") @db.Uuid // ✅
   referral      Referral     @relation(fields: [referralId], references: [id], onDelete: Cascade)
   amountGrams   Decimal?     @map("amount_grams") @db.Decimal(18, 4)
   amountRial    Decimal?     @map("amount_rial") @db.Decimal(18, 0)
-  transactionId String?      @map("transaction_id")
+  transactionId String?      @map("transaction_id") @db.Uuid // ✅
   transaction   Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
   createdAt     DateTime     @default(now()) @map("created_at")
 
@@ -549,8 +580,8 @@ model ReferralReward {
 // ══════════════════════════════════════════════
 
 model Address {
-  id            String   @id @default(uuid())
-  userId        String   @map("user_id")
+  id            String   @id @default(uuid()) @db.Uuid // ✅
+  userId        String   @map("user_id") @db.Uuid // ✅
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title         String?
   province      String?
@@ -565,34 +596,37 @@ model Address {
   shopOrders           ShopOrder[]
   physicalDeliveryReqs PhysicalDeliveryRequest[]
 
+  @@index([userId]) // ✅
   @@map("addresses")
 }
 
 model PhysicalDeliveryRequest {
-  id           String                 @id @default(uuid())
-  userId       String                 @map("user_id")
+  id           String                 @id @default(uuid()) @db.Uuid // ✅
+  userId       String                 @map("user_id") @db.Uuid // ✅
   user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  addressId    String                 @map("address_id")
+  addressId    String                 @map("address_id") @db.Uuid // ✅
   address      Address                @relation(fields: [addressId], references: [id], onDelete: Cascade)
   amountGrams  Decimal                @map("amount_grams") @db.Decimal(18, 4)
   feeRial      Decimal                @default(0) @map("fee_rial") @db.Decimal(18, 0)
   status       PhysicalDeliveryStatus @default(PENDING)
   trackingCode String?                @map("tracking_code")
   adminNotes   String?                @map("admin_notes")
-  approvedById String?                @map("approved_by_id")
+  approvedById String?                @map("approved_by_id") @db.Uuid // ✅
   approvedBy   User?                  @relation("ApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
   createdAt    DateTime               @default(now()) @map("created_at")
   updatedAt    DateTime               @updatedAt @map("updated_at")
 
-  shippings Shipping[]
-  approvals Approval[]
+  shippings    Shipping[]
+  approvals    Approval[]
+  transactions Transaction[]
 
+  @@index([userId, status]) // ✅
   @@map("physical_delivery_requests")
 }
 
 model Shipping {
-  id                String                  @id @default(uuid())
-  deliveryRequestId String                  @map("delivery_request_id")
+  id                String                  @id @default(uuid()) @db.Uuid // ✅
+  deliveryRequestId String                  @map("delivery_request_id") @db.Uuid // ✅
   deliveryRequest   PhysicalDeliveryRequest @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
   carrierName       String?                 @map("carrier_name")
   trackingCode      String?                 @map("tracking_code")
@@ -609,14 +643,14 @@ model Shipping {
 // ══════════════════════════════════════════════
 
 model PayrollPlan {
-  id           String    @id @default(uuid())
+  id           String    @id @default(uuid()) @db.Uuid // ✅
   name         String
   amountGrams  Decimal   @map("amount_grams") @db.Decimal(18, 4)
   executionDay Int       @map("execution_day")
   isActive     Boolean   @default(true) @map("is_active")
   startDate    DateTime? @map("start_date")
   endDate      DateTime? @map("end_date")
-  createdById  String    @map("created_by_id")
+  createdById  String    @map("created_by_id") @db.Uuid // ✅
   createdBy    User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
   createdAt    DateTime  @default(now()) @map("created_at")
 
@@ -627,10 +661,10 @@ model PayrollPlan {
 }
 
 model PayrollPlanUser {
-  id     String      @id @default(uuid())
-  planId String      @map("plan_id")
+  id     String      @id @default(uuid()) @db.Uuid // ✅
+  planId String      @map("plan_id") @db.Uuid // ✅
   plan   PayrollPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  userId String      @map("user_id")
+  userId String      @map("user_id") @db.Uuid // ✅
   user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([planId, userId])
@@ -638,8 +672,8 @@ model PayrollPlanUser {
 }
 
 model PayrollLog {
-  id            String        @id @default(uuid())
-  planId        String        @map("plan_id")
+  id            String        @id @default(uuid()) @db.Uuid // ✅
+  planId        String        @map("plan_id") @db.Uuid // ✅
   plan          PayrollPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
   executionDate DateTime      @map("execution_date")
   status        PayrollStatus
@@ -658,14 +692,14 @@ model PayrollLog {
 // ══════════════════════════════════════════════
 
 model AuditLog {
-  id         String   @id @default(uuid())
-  userId     String?  @map("user_id")
+  id         String   @id @default(uuid()) @db.Uuid // ✅
+  userId     String?  @map("user_id") @db.Uuid // ✅
   user       User?    @relation("UserAudit", fields: [userId], references: [id], onDelete: SetNull)
-  adminId    String?  @map("admin_id")
+  adminId    String?  @map("admin_id") @db.Uuid // ✅
   admin      User?    @relation("AdminAudit", fields: [adminId], references: [id], onDelete: SetNull)
   action     String
   entityType String?  @map("entity_type")
-  entityId   String?  @map("entity_id")
+  entityId   String?  @map("entity_id") // عمداً text ماند: ممکن است به موجودیت غیر UUID اشاره کند
   oldValue   Json?    @map("old_value")
   newValue   Json?    @map("new_value")
   ip         String?
@@ -674,11 +708,12 @@ model AuditLog {
 
   @@index([userId])
   @@index([adminId])
+  @@index([entityType, entityId]) // ✅
   @@map("audit_logs")
 }
 
 model SystemConfig {
-  id          String   @id @default(uuid())
+  id          String   @id @default(uuid()) @db.Uuid // ✅
   key         String   @unique
   value       String
   description String?
@@ -688,10 +723,10 @@ model SystemConfig {
 }
 
 model VaultGoldInventory {
-  id          String             @id @default(uuid())
+  id          String             @id @default(uuid()) @db.Uuid // ✅
   type        VaultInventoryType
   amountGrams Decimal            @map("amount_grams") @db.Decimal(18, 4)
-  referenceId String?            @map("reference_id")
+  referenceId String?            @map("reference_id") @db.Uuid // ✅
   notes       String?
   createdAt   DateTime           @default(now()) @map("created_at")
 
@@ -699,31 +734,34 @@ model VaultGoldInventory {
 }
 
 model SettlementLog {
-  id                String           @id @default(uuid())
-  bankTransactionId String           @map("bank_transaction_id")
+  id                String           @id @default(uuid()) @db.Uuid // ✅
+  bankTransactionId String           @unique @map("bank_transaction_id") // ✅ یونیک: جلوگیری از settle تکراری
   amountRial        Decimal          @map("amount_rial") @db.Decimal(18, 0)
-  userId            String?          @map("user_id")
+  userId            String?          @map("user_id") @db.Uuid // ✅
   user              User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   status            SettlementStatus @default(PENDING)
   settledAt         DateTime?        @map("settled_at")
+  createdAt         DateTime         @default(now()) @map("created_at") // ✅
 
   @@map("settlement_logs")
 }
 
 model Notification {
-  id      String           @id @default(uuid())
-  userId  String           @map("user_id")
+  id      String           @id @default(uuid()) @db.Uuid // ✅
+  userId  String           @map("user_id") @db.Uuid // ✅
   user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   type    NotificationType
   content String
   sentAt  DateTime?        @map("sent_at")
   readAt  DateTime?        @map("read_at")
+  createdAt DateTime       @default(now()) @map("created_at") // ✅
 
+  @@index([userId, readAt]) // ✅ کوئری «اعلان‌های خوانده‌نشده»
   @@map("notifications")
 }
 
 // ══════════════════════════════════════════════
-// ENUMS
+// ENUMS (بدون تغییر)
 // ══════════════════════════════════════════════
 
 enum UserType {

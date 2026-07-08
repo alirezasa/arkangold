@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@arkan-gold/shared": ["../../packages/shared/src"] //
     }
   },
   "include": [

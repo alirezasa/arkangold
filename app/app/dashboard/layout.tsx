@@ -7,7 +7,8 @@ import Topbar from "./components/Topbar";
 import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
 import IdentityBanner from "./components/IdentityBanner";
-import type { UserData } from "@/app/utils/types";
+import LegalProfileBanner from "./components/LegalProfileBanner"; // اضافه شد
+import { UserType, type UserData } from '@arkan-gold/shared';
 
 export default function DashboardLayout({
   children,
@@ -79,6 +80,11 @@ export default function DashboardLayout({
     ? `${userData.identity.firstName} ${userData.identity.lastName}`
     : userData?.name || "کاربر جدید";
 
+  // متغیرهای تصمیم‌گیری (هسته اصلی منطق درخواستی شما)
+  const isLegalUser = userData?.type === UserType.LEGAL;
+  const isLegalVerified = userData?.legalProfile?.verified === true;
+  const needsLegalProfileCompletion = isLegalUser && !isLegalVerified;
+
   return (
     <div
       className="flex h-screen overflow-hidden"
@@ -100,13 +106,17 @@ export default function DashboardLayout({
           <Topbar onMenuOpen={() => setSidebarOpen(true)} notifCount={3} />
         </div>
 
-        <MobileHeader
-          userName={displayName}
-          identityStatus={identityStatus}
-        />
+        <MobileHeader userName={displayName} identityStatus={identityStatus} />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
-          <IdentityBanner status={identityStatus} />
+          {/* اگر کاربر حقوقی است و فرم را کامل نکرده -> بنر حقوقی نشان بده */}
+          {/* در غیر این صورت -> برو سراغ نمایش بنر احراز هویت */}
+          {needsLegalProfileCompletion ? (
+            <LegalProfileBanner />
+          ) : (
+            <IdentityBanner status={identityStatus} />
+          )}
+
           {children}
         </main>
       </div>

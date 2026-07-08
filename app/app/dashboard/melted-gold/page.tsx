@@ -11,6 +11,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   Wallet,
+  Coins,
   Info,
   Scale,
   Banknote,
@@ -29,11 +30,10 @@ function rT(rial: number): string {
     return `${(t / 1_000_000_000).toLocaleString("fa-IR")} م.م`;
   if (t >= 1_000_000)
     return `${(t / 1_000_000).toLocaleString("fa-IR")} میلیون`;
-  return t.toLocaleString("fa-IR");
+  return Math.round(t).toLocaleString("fa-IR");
 }
 
 // ── کامپوننت کوچک نمودار تاریخچه ──
-// رفع خطا: تغییر تایپ priceToman برای پشتیبانی از number و string
 function MiniChart({ data }: { data: { priceToman: string | number }[] }) {
   if (!data.length) return null;
 
@@ -92,7 +92,6 @@ export default function MeltedGoldPage() {
     ? parseFloat(String(marketPriceData.pricePerGramToman))
     : null;
 
-  // رفع خطا: ایجاد یک متغیر کمکی برای استخراج change24h با استفاده از Type Casting ایمن
   const change24h = (marketPriceData as { change24h?: number })?.change24h ?? 0;
 
   const {
@@ -121,12 +120,10 @@ export default function MeltedGoldPage() {
       return;
     }
 
-    // بررسی موجودی سریع (بررسی دقیق در مودال انجام می‌شود)
     if (tradeType === "BUY") {
-      const totalRial = grams * currentPriceToman * 10; // تومان → ریال
+      const totalRial = grams * currentPriceToman * 10;
       if (wallet && wallet.availableRial < totalRial * 0.99) {
         setFormError("موجودی ریال شما احتمالاً کافی نیست. ادامه می‌دهید؟");
-        // اجازه ادامه رو می‌دیم - مودال موجودی دقیق رو چک می‌کنه
       }
     } else {
       if (wallet && wallet.availableGrams < grams) {
@@ -139,8 +136,6 @@ export default function MeltedGoldPage() {
   };
 
   const isBuy = tradeType === "BUY";
-  const accentBuy = "var(--color-emerald)";
-  const accentSell = "#dc2626";
 
   return (
     <div
@@ -182,17 +177,22 @@ export default function MeltedGoldPage() {
             className="relative overflow-hidden rounded-2xl p-5"
             style={{
               background:
-                "linear-gradient(135deg, var(--color-emerald) 0%, #200306 100%)",
-              border: "1px solid rgba(197,160,89,.2)",
+                "linear-gradient(135deg, var(--color-emerald) 0%, #24060a 55%, #12030a 100%)",
+              border: "1px solid rgba(197,160,89,.25)",
+              boxShadow: "0 10px 30px rgba(51,5,9,.25)",
             }}
           >
             {/* هاله نوری */}
             <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-10 blur-2xl bg-gold-500 pointer-events-none" />
+            <div className="absolute -bottom-14 -left-14 w-40 h-40 rounded-full opacity-[0.06] blur-2xl bg-gold-500 pointer-events-none" />
 
             <div className="relative z-10 flex items-start justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  </span>
                   <span className="text-[11px] text-white/60 font-medium">
                     قیمت زنده طلای آبشده ۱۸ عیار
                   </span>
@@ -220,8 +220,8 @@ export default function MeltedGoldPage() {
                   <div
                     className={`inline-flex items-center gap-1 mt-2 px-2.5 py-1 rounded-lg text-[11px] font-bold ${
                       change24h >= 0
-                        ? "bg-green-500/20 text-green-300"
-                        : "bg-red-500/20 text-red-300"
+                        ? "bg-emerald-500/15 text-emerald-300"
+                        : "bg-red-500/15 text-red-300"
                     }`}
                   >
                     {change24h >= 0 ? (
@@ -260,6 +260,54 @@ export default function MeltedGoldPage() {
             )}
           </div>
 
+          {/* ── موجودی کیف پول: نسخه کارتی موبایل (فقط موبایل، کنار قیمت زنده) ── */}
+          <div className="grid grid-cols-2 gap-3 lg:hidden">
+            <div
+              className="rounded-2xl p-3.5 flex flex-col gap-1.5 shadow-sm"
+              style={{
+                backgroundColor: "var(--color-surface)",
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              <div className="flex items-center gap-1.5 text-gray-400">
+                <Wallet className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold">موجودی نقدی</span>
+              </div>
+              <p className="text-[15px] font-black text-gray-800 leading-none">
+                {walletLoading ? "..." : rT(wallet?.availableRial ?? 0)}
+                <span className="text-[9px] font-bold text-gray-400 mr-1">
+                  ت
+                </span>
+              </p>
+            </div>
+            <div
+              className="rounded-2xl p-3.5 flex flex-col gap-1.5 border shadow-sm"
+              style={{
+                backgroundColor: "rgba(197,160,89,.08)",
+                borderColor: "rgba(197,160,89,.3)",
+              }}
+            >
+              <div
+                className="flex items-center gap-1.5"
+                style={{ color: "var(--color-gold-600)" }}
+              >
+                <Coins className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold">موجودی طلا</span>
+              </div>
+              <p
+                className="text-[15px] font-black leading-none"
+                style={{ color: "var(--color-gold-600)" }}
+              >
+                {walletLoading
+                  ? "..."
+                  : (wallet?.availableGrams.toFixed(3) ?? "0.000")}
+                <span className="text-[9px] font-bold text-gray-400 mr-1">
+                  گرم
+                </span>
+              </p>
+            </div>
+          </div>
+
           {/* ── فرم معامله ── */}
           <div
             className="rounded-2xl overflow-hidden shadow-sm"
@@ -293,7 +341,7 @@ export default function MeltedGoldPage() {
                 }}
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[10px] text-[14px] font-bold transition-all duration-300 ${
                   !isBuy
-                    ? "bg-white shadow-sm text-red-600"
+                    ? "bg-white shadow-sm text-rose-600"
                     : "text-gray-400 hover:text-gray-600"
                 }`}
               >
@@ -371,8 +419,10 @@ export default function MeltedGoldPage() {
                           : ""
                       }
                       onChange={(e) => {
-                        const raw = e.target.value.replace(/[^0-9]/g, "");
-                        handleAmountChange(raw);
+                        // مقدار خام (شامل ارقام فارسی/انگلیسی) مستقیم به هوک پاس داده می‌شود
+                        // تا خودش تبدیل و نرمال‌سازی را انجام دهد - پیش‌فیلتر نکردن اینجا
+                        // باعث می‌شد فقط آخرین رقم تایپ‌شده باقی بماند.
+                        handleAmountChange(e.target.value);
                         setFormError(null);
                       }}
                       className="w-full bg-gray-50 border-2 border-gray-100 hover:border-gray-200 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-400/10 rounded-xl py-4 pr-12 pl-4 text-left text-[20px] font-black text-gray-800 transition-all outline-none"
@@ -410,8 +460,7 @@ export default function MeltedGoldPage() {
                           : ""
                       }
                       onChange={(e) => {
-                        const raw = e.target.value.replace(/[^0-9]/g, "");
-                        handleAmountChange(raw);
+                        handleAmountChange(e.target.value);
                         setInputMode("toman");
                         setFormError(null);
                       }}
@@ -473,7 +522,7 @@ export default function MeltedGoldPage() {
                             setInputMode("toman");
                             setFormError(null);
                           }}
-                          className="py-2 rounded-xl text-[11px] font-bold border border-gray-200 bg-gray-50 hover:border-red-400 hover:bg-red-50 hover:text-red-700 transition-all"
+                          className="py-2 rounded-xl text-[11px] font-bold border border-gray-200 bg-gray-50 hover:border-rose-400 hover:bg-rose-50 hover:text-rose-700 transition-all"
                         >
                           {v >= 1_000_000
                             ? `${v / 1_000_000}م`
@@ -502,10 +551,12 @@ export default function MeltedGoldPage() {
                 }
                 className="w-full py-4 rounded-xl text-[15px] font-black text-white transition-all active:scale-[0.98] shadow-lg disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 style={{
-                  backgroundColor: isBuy ? accentBuy : accentSell,
+                  background: isBuy
+                    ? "linear-gradient(135deg, var(--color-emerald), #4a0d13)"
+                    : "linear-gradient(135deg, #dc2626, #8f1d1d)",
                   boxShadow: isBuy
-                    ? "0 8px 20px rgba(51,5,9,.25)"
-                    : "0 8px 20px rgba(220,38,38,.25)",
+                    ? "0 8px 20px rgba(51,5,9,.3)"
+                    : "0 8px 20px rgba(220,38,38,.3)",
                 }}
               >
                 {priceLoading ? (
@@ -526,11 +577,11 @@ export default function MeltedGoldPage() {
           </div>
         </div>
 
-        {/* ══ ستون کناری ══ */}
+        {/* ══ ستون کناری (فقط دسکتاپ برای موجودی) ══ */}
         <div className="lg:col-span-4 space-y-4">
-          {/* کارت موجودی */}
+          {/* کارت موجودی - فقط دسکتاپ (در موبایل نسخه کارتی بالای صفحه نمایش داده می‌شود) */}
           <div
-            className="rounded-2xl p-5 shadow-sm"
+            className="hidden lg:block rounded-2xl p-5 shadow-sm"
             style={{
               backgroundColor: "var(--color-surface)",
               border: "1px solid var(--color-border)",
@@ -550,7 +601,6 @@ export default function MeltedGoldPage() {
             </div>
 
             <div className="space-y-3">
-              {/* موجودی ریال */}
               <div
                 className="rounded-xl p-3.5 flex justify-between items-center"
                 style={{ backgroundColor: "var(--color-bg-page)" }}
@@ -566,7 +616,6 @@ export default function MeltedGoldPage() {
                 </div>
               </div>
 
-              {/* موجودی طلا */}
               <div
                 className="rounded-xl p-3.5 flex justify-between items-center border"
                 style={{
@@ -608,6 +657,18 @@ export default function MeltedGoldPage() {
             </div>
           </div>
 
+          {/* دکمه افزایش موجودی سریع - فقط موبایل */}
+          <Link
+            href="/dashboard/wallet/deposit"
+            className="lg:hidden block w-full text-center py-3 rounded-xl text-[12px] font-bold transition-colors"
+            style={{
+              backgroundColor: "var(--color-emerald-light)",
+              color: "var(--color-emerald)",
+            }}
+          >
+            + افزایش موجودی کیف پول
+          </Link>
+
           {/* راهنما و قوانین */}
           <div
             className="rounded-2xl p-4 space-y-3"
@@ -626,6 +687,11 @@ export default function MeltedGoldPage() {
               <p>
                 • قیمت هر ۳۰ ثانیه از بازار واقعی دریافت می‌شود. هنگام ثبت
                 سفارش، قیمت به مدت ۲ دقیقه قفل می‌گردد.
+              </p>
+              <p>
+                • قیمت قفل‌شده شامل اسپرد استاندارد معاملاتی (خرید/فروش) است؛
+                بنابراین ممکن است کمی با قیمت لحظه‌ای نمایش داده‌شده در بالای
+                صفحه تفاوت داشته باشد.
               </p>
               <p>
                 • کارمزد معاملات ۱٪ از ارزش کل معامله است و جداگانه محاسبه

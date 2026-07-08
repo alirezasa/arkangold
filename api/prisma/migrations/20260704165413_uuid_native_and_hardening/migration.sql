@@ -983,6 +983,3 @@ ALTER TABLE "settlement_logs" ADD CONSTRAINT "settlement_logs_user_id_fkey" FORE
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 
-ALTER TABLE "wallets"
-  ADD CONSTRAINT "wallets_rial_non_negative" CHECK ("rial_balance" >= 0),
-  ADD CONSTRAINT "wallets_gold_non_negative" CHECK ("gold_balance_grams" >= 0);

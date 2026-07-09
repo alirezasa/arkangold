@@ -1,9 +1,9 @@
 "use client";
-
+import { IdentityStatus } from "@arkan-gold/shared"; // این خط اضافه شود
 interface MobileHeaderProps {
   userName?: string;
   notifCount?: number;
-  identityStatus?: 'VERIFIED' | 'MANUAL_REVIEW' | 'PENDING' | null;
+  identityStatus?: IdentityStatus | null;
 }
 
 export default function MobileHeader({
@@ -27,7 +27,7 @@ export default function MobileHeader({
         <h1 className="text-[20px] font-black text-white">
           آرکان <span style={{ color: "var(--color-gold-500)" }}>گلد</span>
         </h1>
-        
+
         <div className="flex items-center gap-2.5">
           {/* دکمه جستجو */}
           <button
@@ -37,7 +37,7 @@ export default function MobileHeader({
           >
             <i className="ti ti-search text-[18px]" aria-hidden="true" />
           </button>
-          
+
           {/* دکمه اعلان‌ها */}
           <button
             className="relative flex h-9 w-9 items-center justify-center rounded-[12px] text-white/90 transition-colors active:bg-white/20"
@@ -53,15 +53,21 @@ export default function MobileHeader({
               />
             )}
           </button>
-          
+
           {/* اطلاعات کاربر و وضعیت احراز */}
           <div className="flex items-center gap-2 mr-1 pl-1 border-r border-white/10">
             <div className="flex flex-col items-end">
-              <span className="text-white text-[12px] font-bold">{userName}</span>
-              {identityStatus === 'VERIFIED' ? (
-                <span className="text-[10px] text-emerald-300 font-medium">تایید شده</span>
+              <span className="text-white text-[12px] font-bold">
+                {userName}
+              </span>
+              {identityStatus === "VERIFIED" ? (
+                <span className="text-[10px] text-emerald-300 font-medium">
+                  تایید شده
+                </span>
               ) : (
-                <span className="text-[10px] text-amber-300 font-medium">تایید نشده</span>
+                <span className="text-[10px] text-amber-300 font-medium">
+                  تایید نشده
+                </span>
               )}
             </div>
             <div

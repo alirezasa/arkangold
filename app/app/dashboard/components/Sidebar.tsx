@@ -5,13 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { SIDEBAR_NAV, SIDEBAR_ACCOUNT_NAV } from "@/app/utils/mock-data";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import GoldPriceCard from "@/app/dashboard/components/gold/GoldPriceCard";
-import GoldPriceMini from "@/app/dashboard/components/gold/GoldPriceMini";
+import { IdentityStatus } from "@arkan-gold/shared"; // این خط اضافه شود
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   userName?: string;
   userPhone?: string;
-  identityStatus?: "VERIFIED" | "MANUAL_REVIEW" | "PENDING" | null;
+  identityStatus?: IdentityStatus | null;
 }
 
 export default function Sidebar({

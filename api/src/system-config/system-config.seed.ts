@@ -173,7 +173,7 @@ export const WALLET_CONFIG_DEFAULTS = [
   },
   {
     key: 'trade.gold.spread_percent',
-    value: '0.3',
+    value: '0',
     description: 'اسپرد خرید/فروش (درصد)',
   },
   {

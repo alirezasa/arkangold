@@ -20,7 +20,7 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "@arkan-gold/shared": ["../../packages/shared/src"] //
+      "@arkan-gold/shared": ["../packages/shared/src"] //
     }
   },
   "include": [

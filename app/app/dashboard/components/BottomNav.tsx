@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { BOTTOM_NAV } from "@/app/utils/mock-data";
 import MobileProfile from "./MobileProfile";
+import { IdentityStatus } from "@arkan-gold/shared"; // این خط اضافه شود
 
 interface BottomNavProps {
-  identityStatus?: 'VERIFIED' | 'MANUAL_REVIEW' | 'PENDING' | null;
+ identityStatus?: IdentityStatus | null;
   userName?: string;
   userPhone?: string;
 }

@@ -86,7 +86,7 @@ export class TradingService {
     ] = await Promise.all([
       this.systemConfig.getDecimal('trade.gold.min_grams', '0.1'),
       this.systemConfig.getDecimal('trade.gold.max_grams', '1000'),
-      this.systemConfig.getDecimal('trade.gold.spread_percent', '0.3'),
+      this.systemConfig.getDecimal('trade.gold.spread_percent', '0'),
       this.systemConfig.getNumber('trade.lock_duration_seconds', 120),
       this.systemConfig.getDecimal(
         side === 'BUY' ? 'fee.buy_gold' : 'fee.sell_gold',

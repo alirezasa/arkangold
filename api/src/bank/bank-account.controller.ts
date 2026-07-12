@@ -13,6 +13,7 @@ import { Request } from 'express';
 import { BankAccountService } from './bank-account.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AddBankAccountDto } from '@arkan-gold/shared';
+import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -20,7 +21,7 @@ interface AuthenticatedRequest extends Request {
 
 @ApiTags('Bank Accounts')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ActiveUserGuard)
 @Controller('users/me/bank-accounts')
 export class BankAccountController {
   constructor(private readonly bankAccountService: BankAccountService) {}

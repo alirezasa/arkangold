@@ -9,6 +9,7 @@ import { Request } from 'express';
 import { TransactionsService } from './transactions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetTransactionsQueryDto } from '@arkan-gold/shared';
+import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -16,7 +17,7 @@ interface AuthenticatedRequest extends Request {
 
 @ApiTags('Transactions')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ActiveUserGuard)
 @Controller('transactions')
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}

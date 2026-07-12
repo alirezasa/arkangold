@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -10,7 +11,7 @@ interface AuthenticatedRequest extends Request {
 
 @ApiTags('Wallet')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ActiveUserGuard)
 @Controller('wallet')
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}

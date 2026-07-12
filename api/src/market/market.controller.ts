@@ -24,6 +24,7 @@ import { TradingService } from './trading.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Public } from '../auth/decorators/public.decorator';
 import { IsString, IsIn, IsNumber, Min } from 'class-validator';
+import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -46,7 +47,7 @@ class CreateOrderDto {
 
 @ApiTags('Market')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ActiveUserGuard)
 @Controller('market')
 export class MarketController {
   constructor(

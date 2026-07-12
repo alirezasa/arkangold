@@ -1,14 +1,61 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
 import IdentityBanner from "./components/IdentityBanner";
-import LegalProfileBanner from "./components/LegalProfileBanner"; // اضافه شد
-import { UserType, type UserData } from '@arkan-gold/shared';
+import LegalProfileBanner from "./components/LegalProfileBanner";
+import { UserType, IdentityStatus, type UserData } from "@arkan-gold/shared";
+
+const IDENTITY_PATH = "/dashboard/identity";
+const LEGAL_PROFILE_PATH = "/dashboard/identity/legal";
+
+type LegalOnboardingStep =
+  | "not_applicable" // کاربر حقیقی
+  | "identity" // حقوقی، هنوز احراز هویت شخصی نشده
+  | "legal_profile_submit" // احراز شده، هنوز اطلاعات شرکت ثبت نشده
+  | "legal_profile_pending" // اطلاعات شرکت ثبت شده، منتظر تایید ادمین
+  | "done"; // همه چیز تمام و تایید شده
+
+function FullScreenLoader({ text }: { text: string }) {
+  return (
+    <div
+      className="flex h-screen w-full flex-col items-center justify-center"
+      style={{ backgroundColor: "var(--color-bg-page)" }}
+    >
+      <svg
+        className="mb-4 animate-spin"
+        width="48"
+        height="48"
+        viewBox="0 0 48 48"
+        fill="none"
+      >
+        <circle
+          cx="24"
+          cy="24"
+          r="20"
+          stroke="var(--color-emerald-light)"
+          strokeWidth="4"
+        />
+        <path
+          d="M44 24a20 20 0 0 0-20-20"
+          stroke="var(--color-emerald)"
+          strokeWidth="4"
+          strokeLinecap="round"
+        />
+      </svg>
+      <p
+        className="animate-pulse text-lg font-bold"
+        style={{ color: "var(--color-text-secondary)" }}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -16,6 +63,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [isVerifying, setIsVerifying] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -34,56 +82,80 @@ export default function DashboardLayout({
         setIsVerifying(false);
       }
     };
-
     verifySession();
   }, [router]);
-
-  if (isVerifying) {
-    return (
-      <div
-        className="flex h-screen w-full flex-col items-center justify-center"
-        style={{ backgroundColor: "var(--color-bg-page)" }}
-      >
-        <svg
-          className="mb-4 animate-spin"
-          width="48"
-          height="48"
-          viewBox="0 0 48 48"
-          fill="none"
-        >
-          <circle
-            cx="24"
-            cy="24"
-            r="20"
-            stroke="var(--color-emerald-light)"
-            strokeWidth="4"
-          />
-          <path
-            d="M44 24a20 20 0 0 0-20-20"
-            stroke="var(--color-emerald)"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-        </svg>
-        <p
-          className="animate-pulse text-lg font-bold"
-          style={{ color: "var(--color-text-secondary)" }}
-        >
-          در حال برقراری ارتباط امن...
-        </p>
-      </div>
-    );
-  }
 
   const identityStatus = userData?.identity?.status || null;
   const displayName = userData?.identity?.firstName
     ? `${userData.identity.firstName} ${userData.identity.lastName}`
     : userData?.name || "کاربر جدید";
 
-  // متغیرهای تصمیم‌گیری (هسته اصلی منطق درخواستی شما)
+  // ── تشخیص مرحله‌ی onboarding برای کاربر حقوقی ──
   const isLegalUser = userData?.type === UserType.LEGAL;
-  const isLegalVerified = userData?.legalProfile?.verified === true;
-  const needsLegalProfileCompletion = isLegalUser && !isLegalVerified;
+  const isIdentityVerified = identityStatus === IdentityStatus.VERIFIED;
+  const legalProfile = userData?.legalProfile ?? null;
+  const isLegalProfileVerified = legalProfile?.verified === true;
+  const hasSubmittedLegalProfile = !!legalProfile?.companyName?.trim();
+
+  const legalOnboardingStep: LegalOnboardingStep = !isLegalUser
+    ? "not_applicable"
+    : !isIdentityVerified
+      ? "identity"
+      : isLegalProfileVerified
+        ? "done"
+        : hasSubmittedLegalProfile
+          ? "legal_profile_pending"
+          : "legal_profile_submit";
+
+  // مسیر اجباری برای این مرحله (اگر null باشد یعنی محدودیتی نیست)
+  const gateTargetPath =
+    legalOnboardingStep === "identity"
+      ? IDENTITY_PATH
+      : legalOnboardingStep === "legal_profile_submit" ||
+          legalOnboardingStep === "legal_profile_pending"
+        ? LEGAL_PROFILE_PATH
+        : null;
+
+  useEffect(() => {
+    if (isVerifying) return;
+    if (gateTargetPath && pathname !== gateTargetPath) {
+      router.replace(gateTargetPath);
+    }
+  }, [isVerifying, gateTargetPath, pathname, router]);
+
+  if (isVerifying) {
+    return <FullScreenLoader text="در حال برقراری ارتباط امن..." />;
+  }
+
+  if (gateTargetPath && pathname !== gateTargetPath) {
+    return <FullScreenLoader text="در حال بررسی وضعیت حساب کاربری..." />;
+  }
+
+  // ── تعیین بنر قابل‌نمایش ──
+  // اگر روی خودِ صفحه‌ی گیت هستیم، بنر تکراری نشون نده (خودِ صفحه وضعیت رو توضیح می‌ده)
+  const onGateTargetPage =
+    gateTargetPath !== null && pathname === gateTargetPath;
+
+  let bannerNode: React.ReactNode = null;
+  if (!onGateTargetPage) {
+    if (
+      legalOnboardingStep === "legal_profile_submit" ||
+      legalOnboardingStep === "legal_profile_pending"
+    ) {
+      bannerNode = (
+        <LegalProfileBanner
+          status={
+            legalOnboardingStep === "legal_profile_pending"
+              ? "pending_approval"
+              : "need_submit"
+          }
+        />
+      );
+    } else {
+      // کاربر حقیقی، یا کاربر حقوقیِ تایید‌شده (done) — بنر معمولیِ احراز هویت
+      bannerNode = <IdentityBanner status={identityStatus} />;
+    }
+  }
 
   return (
     <div
@@ -109,14 +181,7 @@ export default function DashboardLayout({
         <MobileHeader userName={displayName} identityStatus={identityStatus} />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8">
-          {/* اگر کاربر حقوقی است و فرم را کامل نکرده -> بنر حقوقی نشان بده */}
-          {/* در غیر این صورت -> برو سراغ نمایش بنر احراز هویت */}
-          {needsLegalProfileCompletion ? (
-            <LegalProfileBanner />
-          ) : (
-            <IdentityBanner status={identityStatus} />
-          )}
-
+          {bannerNode}
           {children}
         </main>
       </div>

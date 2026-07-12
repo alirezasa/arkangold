@@ -63,6 +63,9 @@ export class UsersService {
   }
 
   // ══════════════════════════════════════════
+  // احراز هویت شخصیِ نماینده — اولین مرحله برای کاربر حقوقی، بدون هیچ
+  // پیش‌نیازی به‌جز لاگین بودن (JwtStrategy دیگر PENDING_ACTIVATION را بلاک نمی‌کند)
+  // ══════════════════════════════════════════
   async submitIdentity(userId: string, dto: SubmitIdentityDto) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -86,7 +89,6 @@ export class UsersService {
       );
     } catch (err) {
       this.logger.error('خطا در ارتباط با وب‌سرویس ثبت احوال', err);
-      // در صورت خطای وب‌سرویس: ذخیره با وضعیت MANUAL_REVIEW
       await this.upsertIdentity(userId, dto, 'MANUAL_REVIEW');
       throw new ServiceUnavailableException(
         'سرویس احراز هویت موقتاً در دسترس نیست. اطلاعات شما ذخیره شد و بعداً بررسی خواهد شد.',
@@ -94,7 +96,6 @@ export class UsersService {
     }
 
     if (!civilResult.matched) {
-      // ذخیره برای بررسی دستی
       await this.upsertIdentity(userId, dto, 'MANUAL_REVIEW');
       return {
         status: 'MANUAL_REVIEW',
@@ -103,7 +104,6 @@ export class UsersService {
       };
     }
 
-    // تایید خودکار
     const identity = await this.upsertIdentity(userId, dto, 'VERIFIED');
     return {
       status: 'VERIFIED',
@@ -138,6 +138,7 @@ export class UsersService {
       update: data,
     });
   }
+
   // ══════════════════════════════════════════
   async getLegalProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -167,6 +168,8 @@ export class UsersService {
     };
   }
 
+  // ⬅️ برگردوندیم به منطق اصلی: تکمیل پروفایل حقوقی فقط بعد از احراز هویت
+  // شخصیِ نماینده مجاز است — چون قراره اطلاعات شرکت با هویت نماینده تطبیق داده شود.
   async updateLegalProfile(userId: string, dto: UpdateLegalProfileDto) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -207,5 +210,72 @@ export class UsersService {
       message: 'اطلاعات شرکت ثبت شد و در انتظار تایید ادمین است',
       legalProfile,
     };
+  }
+
+  // ══════════════════════════════════════════
+  // (ادمین) تایید نهایی پروفایل حقوقی: بعد از این‌که هم هویت نماینده
+  // verified است و هم پروفایل شرکت ثبت شده، ادمین مدارک را با هم تطبیق
+  // می‌دهد و اینجا تایید می‌کند → legalProfile.verified=true + user.status=ACTIVE
+  // TODO: بعد از ساخت پنل ادمین، پشت گارد نقش ادمین قرار بگیرد.
+  // ══════════════════════════════════════════
+  async approveLegalProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { identity: true, legalProfile: true },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    if (user.type !== 'LEGAL') {
+      throw new BadRequestException('این کاربر حقوقی نیست');
+    }
+    if (!user.identity || user.identity.status !== 'VERIFIED') {
+      throw new BadRequestException(
+        'هویت نماینده هنوز تایید نشده است؛ ابتدا باید احراز هویت شخصی تکمیل شود',
+      );
+    }
+    if (!user.legalProfile) {
+      throw new BadRequestException('اطلاعات حقوقی هنوز ثبت نشده است');
+    }
+    if (user.legalProfile.verified) {
+      throw new ConflictException('پروفایل حقوقی قبلاً تایید شده است');
+    }
+
+    const [legalProfile] = await this.prisma.$transaction([
+      this.prisma.legalProfile.update({
+        where: { userId },
+        data: { verified: true },
+      }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { status: 'ACTIVE' },
+      }),
+    ]);
+
+    this.logger.log(
+      `[LegalProfile] پروفایل حقوقی کاربر ${userId} تایید و حساب فعال شد`,
+    );
+
+    return {
+      message: 'پروفایل حقوقی تایید و حساب کاربر فعال شد',
+      legalProfile,
+    };
+  }
+
+  async rejectLegalProfile(userId: string, reason?: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { legalProfile: true },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    if (!user.legalProfile) {
+      throw new BadRequestException('اطلاعات حقوقی هنوز ثبت نشده است');
+    }
+
+    await this.prisma.legalProfile.delete({ where: { userId } });
+
+    this.logger.log(
+      `[LegalProfile] پروفایل حقوقی کاربر ${userId} رد شد${reason ? `: ${reason}` : ''}`,
+    );
+
+    return { message: 'پروفایل حقوقی رد شد. کاربر باید مجدداً ثبت کند' };
   }
 }

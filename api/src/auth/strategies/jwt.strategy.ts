@@ -29,13 +29,25 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
       throw new UnauthorizedException('نشست نامعتبر است');
     }
-    if (session.user.status !== 'ACTIVE') {
-      throw new UnauthorizedException('حساب کاربری فعال نیست');
+
+    // ⬅️ تغییر مهم: فقط کاربران BANNED/INACTIVE کامل بلاک می‌شوند.
+    // کاربر PENDING_ACTIVATION (مثلاً حقوقیِ در انتظار تایید) باید بتواند
+    // وارد شود و مراحل احراز هویت شخصی + تکمیل پروفایل حقوقی را طی کند.
+    // محدودیت دسترسی به بخش‌های حساس با ActiveUserGuard روی همان
+    // کنترلرها (کیف‌پول، معاملات، حساب بانکی) اعمال می‌شود.
+    if (
+      session.user.status === 'BANNED' ||
+      session.user.status === 'INACTIVE'
+    ) {
+      throw new UnauthorizedException('حساب کاربری شما مسدود شده است');
     }
+
     return {
       userId: payload.sub,
       phone: payload.phone,
       sessionId: payload.sessionId,
+      status: session.user.status,
+      type: session.user.type,
     };
   }
 }

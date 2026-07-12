@@ -25,7 +25,7 @@ import {
   Loader2,
   Coins,
 } from "lucide-react";
-import { rialToToman, rialToTomanNum } from "./wallet/_helpers";
+import { rialToTomanNum } from "./wallet/_helpers";
 
 // ─── نگاشت دسته‌بندی تراکنش به آیکون/رنگ ───
 const CATEGORY_STYLE: Record<
@@ -342,7 +342,7 @@ export default function DashboardPage() {
             <Link
               key={idx}
               href={service.href}
-              className={`relative group overflow-hidden rounded-[28px] md:rounded-[32px] p-5 md:p-6 transition-all duration-500 border border-gold-500/20 hover:border-gold-500/60 bg-linear-to-br from-emerald to-[#1a0204] shadow-lg hover:shadow-[0_12px_40px_rgba(197,160,89,0.2)] flex flex-col justify-between
+              className={`relative group overflow-hidden rounded-[28px] md:rounded-4xl p-5 md:p-6 transition-all duration-500 border border-gold-500/20 hover:border-gold-500/60 bg-linear-to-br from-emerald to-[#1a0204] shadow-lg hover:shadow-[0_12px_40px_rgba(197,160,89,0.2)] flex flex-col justify-between
                 ${isHeroCard ? "col-span-2 md:col-span-1 min-h-35 md:min-h-55" : "col-span-1 aspect-square md:aspect-auto md:min-h-55"}
               `}
             >

@@ -89,17 +89,27 @@ export default function WalletPage() {
           <div className="relative overflow-hidden rounded-3xl p-5 border border-gold-500/30 shadow-[0_10px_30px_rgba(51,5,9,0.3)] bg-linear-to-br from-emerald to-[#140103]">
             {/* هاله نوری پس‌زمینه کارت */}
             <div className="absolute -top-12 -left-12 w-48 h-48 rounded-full opacity-15 blur-[32px] bg-gold-500 pointer-events-none" />
-            
+
             {/* هدر کارت */}
             <div className="flex items-center justify-between mb-5 relative z-10">
               <span className="text-[10px] font-bold text-gold-600 bg-gold-500/10 px-2.5 py-1 rounded-full border border-gold-500/20 shadow-sm backdrop-blur-md">
                 کیف پول آرکان گلد
               </span>
               <div className="flex items-center gap-1">
-                <button onClick={() => setHideBalance(!hideBalance)} className="p-1.5 rounded-lg text-gold-100/70 hover:text-gold-50 hover:bg-white/5 transition-all">
-                  {hideBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <button
+                  onClick={() => setHideBalance(!hideBalance)}
+                  className="p-1.5 rounded-lg text-gold-100/70 hover:text-gold-50 hover:bg-white/5 transition-all"
+                >
+                  {hideBalance ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
-                <button onClick={() => refresh()} className="p-1.5 rounded-lg text-gold-100/70 hover:text-gold-50 hover:bg-white/5 transition-all">
+                <button
+                  onClick={() => refresh()}
+                  className="p-1.5 rounded-lg text-gold-100/70 hover:text-gold-50 hover:bg-white/5 transition-all"
+                >
                   <RefreshCw className="w-4 h-4" />
                 </button>
               </div>
@@ -107,10 +117,14 @@ export default function WalletPage() {
 
             {/* ارزش کل دارایی */}
             <div className="relative z-10 mb-5">
-              <p className="text-[10px] text-gold-100/60 font-medium mb-1">ارزش کل دارایی (ریال + طلا)</p>
+              <p className="text-[10px] text-gold-100/60 font-medium mb-1">
+                ارزش کل دارایی (ریال + طلا)
+              </p>
               <p className="text-[26px] font-black tracking-tight text-gold-50 drop-shadow-sm">
                 {hideBalance ? "••••••••" : rialToTomanFull(totalValueRial)}
-                <span className="text-[12px] font-bold text-gold-500 mr-2">تومان</span>
+                <span className="text-[12px] font-bold text-gold-500 mr-2">
+                  تومان
+                </span>
               </p>
             </div>
 
@@ -118,10 +132,14 @@ export default function WalletPage() {
             <div className="grid grid-cols-2 gap-2 relative z-10">
               {/* موجودی نقدی */}
               <div className="rounded-xl p-3 bg-black/20 border border-gold-500/10 backdrop-blur-sm shadow-inner">
-                <p className="text-[10px] text-gold-100/50 font-medium mb-1">موجودی نقدی</p>
+                <p className="text-[10px] text-gold-100/50 font-medium mb-1">
+                  موجودی نقدی
+                </p>
                 <p className="text-[14px] font-black text-gold-50 truncate">
                   {hideBalance ? "••••••" : rialToTomanFull(wallet.rialBalance)}
-                  <span className="text-[9px] font-normal text-gold-100/60 mr-1">ت</span>
+                  <span className="text-[9px] font-normal text-gold-100/60 mr-1">
+                    ت
+                  </span>
                 </p>
                 {wallet.holdRial > 0 && (
                   <div className="flex items-center gap-0.5 mt-2 text-amber-400 text-[9px] font-bold">
@@ -133,10 +151,14 @@ export default function WalletPage() {
 
               {/* موجودی طلا */}
               <div className="rounded-xl p-3 bg-gold-500/15 border border-gold-500/25 backdrop-blur-sm shadow-inner">
-                <p className="text-[10px] text-gold-500 font-bold mb-1">طلای آبشده</p>
+                <p className="text-[10px] text-gold-500 font-bold mb-1">
+                  طلای آبشده
+                </p>
                 <p className="text-[14px] font-black text-gold-100 truncate">
                   {hideBalance ? "••••••" : wallet.goldBalanceGrams.toFixed(4)}
-                  <span className="text-[9px] font-normal text-gold-500 mr-1">گرم</span>
+                  <span className="text-[9px] font-normal text-gold-500 mr-1">
+                    گرم
+                  </span>
                 </p>
                 {goldPrice && !hideBalance && (
                   <p className="text-[9px] mt-1.5 text-gold-100/60 font-medium truncate">
@@ -148,7 +170,10 @@ export default function WalletPage() {
 
             {/* شماره کارت شتابی اختصاصی */}
             <div className="mt-4 pt-3 border-t border-gold-500/15 relative z-10 flex items-center justify-between text-gold-100/40 text-[11px]">
-              <span className="tracking-[0.15em] font-mono font-medium" dir="ltr">
+              <span
+                className="tracking-[0.15em] font-mono font-medium"
+                dir="ltr"
+              >
                 {wallet.cardNumber.replace(/(.{4})/g, "$1 ").trim()}
               </span>
               <Coins className="w-4 h-4 text-gold-500/50" />
@@ -226,6 +251,11 @@ export default function WalletPage() {
                 label: "معامله آنلاین طلای آبشده",
                 icon: "ti-coins",
                 href: "/dashboard/melted-gold",
+              },
+              {
+                label: "درخواست تحویل فیزیکی طلا",
+                icon: "ti-package",
+                href: "/dashboard/wallet/physical-delivery",
               },
             ].map((item, idx) => (
               <Link

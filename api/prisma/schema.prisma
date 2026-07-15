@@ -184,7 +184,7 @@ model Transaction {
   shopOrder            ShopOrder?               @relation(fields: [shopOrderId], references: [id])
   user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   wallet               Wallet                   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-
+  
   @@index([userId])
   @@index([walletId])
   @@index([userId, type, status, createdAt])
@@ -534,8 +534,8 @@ model Address {
   id                   String                    @id @default(uuid()) @db.Uuid
   userId               String                    @map("user_id") @db.Uuid
   user                 User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  physicalDeliveryReqs PhysicalDeliveryRequest[]
-  shopOrders           ShopOrder[]
+  physicalDeliveryReqs PhysicalDeliveryRequest[] // ← این خط
+  shopOrders           ShopOrder[] // ← این خط
 
   @@index([userId])
   @@map("addresses")

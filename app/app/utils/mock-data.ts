@@ -115,12 +115,25 @@ export const SIDEBAR_NAV: NavItem[] = [
   { name: "احراز هویت", icon: "ti-shield-check", path: "/dashboard/identity" },
   { name: "پروفایل", icon: "ti-user", path: "/dashboard/me" },
   { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
-  { name: "تراکنش‌ها", icon: "ti-history", path: "/dashboard/transactions", badge: 3 },
+  {
+    name: "تراکنش‌ها",
+    icon: "ti-history",
+    path: "/dashboard/transactions",
+    badge: 3,
+  },
+  {
+    name: "تحویل فیزیکی طلا",
+    icon: "ti-package",
+    path: "/dashboard/wallet/physical-delivery",
+  }, // ← جدید
   { name: "نمودار قیمت", icon: "ti-chart-candle", path: "/dashboard/chart" },
   { name: "محاسبه‌گر", icon: "ti-calculator", path: "/dashboard/calculator" },
-  { name: "گواهی سرمایه", icon: "ti-certificate", path: "/dashboard/certificate" },
+  {
+    name: "گواهی سرمایه",
+    icon: "ti-certificate",
+    path: "/dashboard/certificate",
+  },
 ];
-
 export const SIDEBAR_ACCOUNT_NAV: NavItem[] = [
   { name: "تنظیمات", icon: "ti-settings", path: "/dashboard/settings" },
   { name: "پشتیبانی", icon: "ti-help-circle", path: "/dashboard/support" },
@@ -130,6 +143,11 @@ export const BOTTOM_NAV: NavItem[] = [
   { name: "پیشخوان", icon: "ti-layout-dashboard", path: "/dashboard" },
   { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
   { name: "خرید/فروش", icon: "ti-plus", path: "/dashboard/trade" },
-  { name: "تراکنش‌ها", icon: "ti-history", path: "/dashboard/transactions", badge: 3 },
+  {
+    name: "تراکنش‌ها",
+    icon: "ti-history",
+    path: "/dashboard/transactions",
+    badge: 3,
+  },
   { name: "پروفایل", icon: "ti-user", path: "/dashboard/profile" },
 ];

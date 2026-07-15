@@ -14,6 +14,8 @@ import { WalletModule } from './wallet/wallet.module';
 import { MarketModule } from './market/market.module';
 import { AccountingModule } from './/accounting/accounting.module';
 import { TransactionsModule } from './transactions/transactions.module';
+import { PhysicalDeliveryModule } from './/physical-delivery/physical-delivery.module';
+//import { AddressesModule } from './transactions/transactions.module';
 
 @Module({
   imports: [
@@ -29,6 +31,8 @@ import { TransactionsModule } from './transactions/transactions.module';
     MarketModule,
     AccountingModule,
     TransactionsModule,
+    PhysicalDeliveryModule,
+    // AddressesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

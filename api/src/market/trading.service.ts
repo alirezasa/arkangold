@@ -47,6 +47,11 @@ interface OrderLike {
   tax: Prisma.Decimal;
 }
 
+type PrismaKnownRequestErrorLike = {
+  code: string;
+  meta?: Record<string, unknown> | null;
+};
+
 @Injectable()
 export class TradingService {
   private readonly logger = new Logger(TradingService.name);
@@ -55,7 +60,7 @@ export class TradingService {
     private readonly prisma: PrismaService,
     private readonly priceService: PriceService,
     private readonly systemConfig: SystemConfigService,
-    private readonly accountingService: AccountingService, // ⬅️ جدید
+    private readonly accountingService: AccountingService,
   ) {}
 
   // ════════════════════════════════════════════════════════
@@ -206,7 +211,6 @@ export class TradingService {
       throw new BadRequestException('شناسه قفل قیمت نامعتبر است');
     }
 
-    // ── fast-path idempotency (خارج از تراکنش سنگین) ──
     const existingCompletedOrder = await this.prisma.order.findFirst({
       where: { lockId, userId, status: 'COMPLETED' },
     });
@@ -217,8 +221,6 @@ export class TradingService {
     try {
       return await this.prisma.$transaction(
         async (tx) => {
-          // گام ۱: قفل priceLock با FOR UPDATE (فقط برای lock گرفتن؛
-          // مقدار Decimal واقعی را در ادامه با Prisma Client می‌خوانیم)
           await tx.$executeRaw`SELECT 1 FROM "price_locks" WHERE "id" = ${lockId}::uuid FOR UPDATE`;
 
           const lock = await tx.priceLock.findUnique({ where: { id: lockId } });
@@ -261,6 +263,7 @@ export class TradingService {
               '0',
             ),
           ]);
+
           const feeRial = totalRial
             .times(feePercent)
             .dividedBy(100)
@@ -270,16 +273,13 @@ export class TradingService {
             .dividedBy(100)
             .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP);
 
-          // گام ۲: قفل wallet (ترتیب ثابت بعد از priceLock - جلوگیری از deadlock)
           await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId}::uuid FOR UPDATE`;
           const wallet = await tx.wallet.findUnique({ where: { userId } });
           if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
 
-          // گام ۳: چک سقف‌های روزانه/ماهانه (هر دو قفل گرفته شده‌اند)
           await this.assertWithinDailyLimit(tx, userId, side, amountGrams);
           await this.assertWithinMonthlyLimit(tx, userId, side, amountGrams);
 
-          // گام ۴: چک موجودی کافی
           if (side === 'BUY') {
             const totalPayable = totalRial.plus(feeRial).plus(taxRial);
             if (wallet.rialBalance.lessThan(totalPayable)) {
@@ -295,7 +295,6 @@ export class TradingService {
             }
           }
 
-          // گام ۵: ثبت Order
           const order = await tx.order.create({
             data: {
               userId,
@@ -312,7 +311,6 @@ export class TradingService {
             },
           });
 
-          // گام ۶: ثبت تراکنش اصلی
           const mainTransaction = await tx.transaction.create({
             data: {
               userId,
@@ -328,7 +326,6 @@ export class TradingService {
             },
           });
 
-          // گام ۷: آپدیت اتمیک موجودی (increment/decrement سمت DB)
           if (side === 'BUY') {
             const totalDeduct = totalRial.plus(feeRial).plus(taxRial);
             await tx.wallet.update({
@@ -349,13 +346,11 @@ export class TradingService {
             });
           }
 
-          // گام ۸: mark lock به used
           await tx.priceLock.update({
             where: { id: lock.id },
             data: { used: true },
           });
 
-          // گام ۹: تراکنش‌های جداگانه کارمزد/مالیات
           if (feeRial.greaterThan(0)) {
             await tx.transaction.create({
               data: {
@@ -369,6 +364,7 @@ export class TradingService {
               },
             });
           }
+
           if (taxRial.greaterThan(0)) {
             await tx.transaction.create({
               data: {
@@ -383,7 +379,6 @@ export class TradingService {
             });
           }
 
-          // گام ۱۰: اسناد حسابداری دوطرفه
           await this.postDoubleEntryAccounting(tx, {
             side,
             orderId: order.id,
@@ -394,15 +389,12 @@ export class TradingService {
           });
 
           this.logger.log(
-            `[Order] ${side} ${amountGrams.toString()}g GOLD @ ${pricePerGram.toString()} ` +
-              `توسط ${userId} | orderId=${order.id}`,
+            `[Order] ${side} ${amountGrams.toString()}g GOLD @ ${pricePerGram.toString()} توسط ${userId} | orderId=${order.id}`,
           );
 
           return this.buildOrderResponse(order, false);
         },
         {
-          // ReadCommitted (پیش‌فرض) کافی است چون از FOR UPDATE صریح
-          // استفاده می‌کنیم؛ Serializable فقط overhead اضافه می‌کرد.
           maxWait: 5000,
           timeout: 14000,
         },
@@ -410,6 +402,17 @@ export class TradingService {
     } catch (err) {
       throw this.translateDbError(err, userId, lockId);
     }
+  }
+
+  private isPrismaKnownRequestErrorLike(
+    err: unknown,
+  ): err is PrismaKnownRequestErrorLike {
+    return (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      typeof (err as { code?: unknown }).code === 'string'
+    );
   }
 
   // ════════════════════════════════════════════════════════
@@ -424,13 +427,12 @@ export class TradingService {
       err instanceof BadRequestException ||
       err instanceof NotFoundException ||
       err instanceof ForbiddenException ||
-      err instanceof InternalServerErrorException // ⬅️ جدید
+      err instanceof InternalServerErrorException
     ) {
       return err;
     }
 
-    if (err instanceof Prisma.PrismaClientKnownRequestError) {
-      // سریال‌سازی conflict (P2034)
+    if (this.isPrismaKnownRequestErrorLike(err)) {
       if (err.code === 'P2034') {
         this.logger.warn(
           `[Order] write conflict برای کاربر ${userId} - lockId=${lockId}`,
@@ -440,15 +442,12 @@ export class TradingService {
         );
       }
 
-      // نقض constraint (فقط کدهای 23xxx واقعی PostgreSQL)
-      if (
-        err.meta?.code &&
-        typeof err.meta.code === 'string' &&
-        err.meta.code.startsWith('23')
-      ) {
+      const postgresCode = err.meta?.code;
+
+      if (typeof postgresCode === 'string' && postgresCode.startsWith('23')) {
         this.logger.error(
-          `[ALERT][DB-CONSTRAINT] نقض محدودیت دیتابیس (کد ${err.meta.code}) برای کاربر ${userId} - lockId=${lockId}. ` +
-            `این نشانه یک باگ منطقی در لایه اپلیکیشن است که باید فوراً بررسی شود!`,
+          `[ALERT][DB-CONSTRAINT] نقض محدودیت دیتابیس (کد ${postgresCode}) برای کاربر ${userId} - lockId=${lockId}. ` +
+            'این نشانه یک باگ منطقی در لایه اپلیکیشن است که باید فوراً بررسی شود!',
         );
         return new BadRequestException(
           'خطا در پردازش تراکنش. لطفاً با پشتیبانی تماس بگیرید',
@@ -460,6 +459,7 @@ export class TradingService {
       `[Order][UNEXPECTED] خطای پیش‌بینی‌نشده برای کاربر ${userId} - lockId=${lockId}:`,
       err instanceof Error ? err.stack : err,
     );
+
     return new InternalServerErrorException(
       'خطایی در پردازش سفارش رخ داد. لطفاً مجدداً تلاش کنید',
     );
@@ -470,6 +470,7 @@ export class TradingService {
   // ════════════════════════════════════════════════════════
   private buildOrderResponse(order: OrderLike, alreadyExisted: boolean) {
     const side = order.side as Side;
+
     return {
       orderId: order.id,
       side,
@@ -493,9 +494,6 @@ export class TradingService {
   }
 
   // ════════════════════════════════════════════════════════
-  // اسناد حسابداری دوطرفه
-  // ════════════════════════════════════════════════════════
-  // ════════════════════════════════════════════════════════
   // اسناد حسابداری دوطرفه - متوازن + به‌روزرسانی مانده‌ها
   // ════════════════════════════════════════════════════════
   private async postDoubleEntryAccounting(
@@ -512,12 +510,12 @@ export class TradingService {
     const { side, orderId, totalRial, amountGrams, feeRial, taxRial } = params;
 
     const CODES = {
-      bankRial: '1010', // CUSTOMER_RIAL_ASSET  (نقد/بانک)
-      goldInventory: '1020', // CUSTOMER_GOLD_ASSET  (طلای نگهداری‌شده)
-      rialLiability: '2010', // CUSTOMER_RIAL_LIABILITY
-      goldLiability: '2020', // CUSTOMER_GOLD_LIABILITY
-      taxPayable: '2030', // TAX_PAYABLE
-      feeIncome: '4010', // FEE_INCOME
+      bankRial: '1010',
+      goldInventory: '1020',
+      rialLiability: '2010',
+      goldLiability: '2020',
+      taxPayable: '2030',
+      feeIncome: '4010',
     } as const;
 
     const description = `${side === 'BUY' ? 'خرید' : 'فروش'} طلا - سفارش ${orderId}`;
@@ -526,20 +524,17 @@ export class TradingService {
     if (side === 'BUY') {
       const payable = totalRial.plus(feeRial).plus(taxRial);
 
-      // بدهی ریالی به مشتری کم می‌شود (کل مبلغ پرداختی او)
       lines.push({
         accountCode: CODES.rialLiability,
         side: 'DEBIT',
         amountRial: payable,
       });
-      // بدهی طلایی به مشتری زیاد می‌شود (به ارزش معامله)
       lines.push({
         accountCode: CODES.goldLiability,
         side: 'CREDIT',
         amountRial: totalRial,
         amountGrams,
       });
-      // طلای نگهداری‌شده زیاد، نقد بابت تأمین آن کم
       lines.push({
         accountCode: CODES.goldInventory,
         side: 'DEBIT',
@@ -554,20 +549,17 @@ export class TradingService {
     } else {
       const receivable = totalRial.minus(feeRial).minus(taxRial);
 
-      // بدهی طلایی به مشتری کم می‌شود
       lines.push({
         accountCode: CODES.goldLiability,
         side: 'DEBIT',
         amountRial: totalRial,
         amountGrams,
       });
-      // بدهی ریالی به مشتری زیاد می‌شود (خالص دریافتی او)
       lines.push({
         accountCode: CODES.rialLiability,
         side: 'CREDIT',
         amountRial: receivable,
       });
-      // طلای نگهداری‌شده کم، نقد حاصل از فروش زیاد
       lines.push({
         accountCode: CODES.goldInventory,
         side: 'CREDIT',
@@ -581,7 +573,6 @@ export class TradingService {
       });
     }
 
-    // کارمزد و مالیات (مشترک بین خرید و فروش)
     if (feeRial.greaterThan(0)) {
       lines.push({
         accountCode: CODES.feeIncome,
@@ -589,6 +580,7 @@ export class TradingService {
         amountRial: feeRial,
       });
     }
+
     if (taxRial.greaterThan(0)) {
       lines.push({
         accountCode: CODES.taxPayable,
@@ -607,7 +599,7 @@ export class TradingService {
 
   // ══════════════════════════════
   // تاریخچه سفارشات
-  // ════════════════════════════════════════════════════════
+  // ══════════════════════════════
   async getUserOrders(userId: string, page = 1, limit = 20) {
     const safeLimit = Math.min(Math.max(limit, 1), 100);
     const safePage = Math.max(page, 1);
@@ -654,6 +646,7 @@ export class TradingService {
         identity: { select: { status: true } },
       },
     });
+
     if (!user) throw new NotFoundException('کاربر یافت نشد');
     if (user.status !== 'ACTIVE') {
       throw new ForbiddenException('حساب کاربری شما فعال نیست');
@@ -689,6 +682,7 @@ export class TradingService {
       },
       _sum: { amountGrams: true },
     });
+
     const used = result._sum.amountGrams ?? new Prisma.Decimal(0);
 
     if (used.plus(amountGrams).greaterThan(dailyLimit)) {
@@ -727,6 +721,7 @@ export class TradingService {
       },
       _sum: { amountGrams: true },
     });
+
     const used = result._sum.amountGrams ?? new Prisma.Decimal(0);
 
     if (used.plus(amountGrams).greaterThan(monthlyLimit)) {

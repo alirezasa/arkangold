@@ -10,5 +10,9 @@ export * from "./dto/get-orders-query.dto";
 export * from "./dto/get-price-history-query.dto";
 export * from './dto/get-transactions-query.dto';
 
+export * from "./dto/physical-delivery.dto";
+export * from "./dto/get-physical-deliveries-query.dto";
+
 export * from "./interfaces/jwt-payload.interface";
 export * from './interfaces/user.interface';
+

@@ -16,6 +16,9 @@ import { AccountingModule } from './/accounting/accounting.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { PhysicalDeliveryModule } from './/physical-delivery/physical-delivery.module';
 import { AddressesModule } from './addresses/addresses.module';
+import { CatalogModule } from './catalog/catalog.module';
+import { CartModule } from './cart/cart.module';
+import { ShopOrdersModule } from './shop-orders/shop-orders.module';
 
 @Module({
   imports: [
@@ -33,6 +36,9 @@ import { AddressesModule } from './addresses/addresses.module';
     TransactionsModule,
     PhysicalDeliveryModule,
     AddressesModule,
+    CatalogModule,
+    CartModule,
+    ShopOrdersModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

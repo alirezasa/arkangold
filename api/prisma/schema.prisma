@@ -378,7 +378,7 @@ model ShopOrder {
   address      Address         @relation(fields: [addressId], references: [id], onDelete: Cascade)
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
-
+  shippings Shipping[]
   @@index([userId])
   @@map("shop_orders")
 }
@@ -565,18 +565,21 @@ model PhysicalDeliveryRequest {
 }
 
 model Shipping {
-  carrierName       String?                 @map("carrier_name")
-  trackingCode      String?                 @map("tracking_code")
-  estimatedDelivery DateTime?               @map("estimated_delivery")
-  deliveredAt       DateTime?               @map("delivered_at")
-  status            ShippingStatus          @default(IN_TRANSIT)
-  createdAt         DateTime                @default(now()) @map("created_at")
-  id                String                  @id @default(uuid()) @db.Uuid
-  deliveryRequestId String                  @map("delivery_request_id") @db.Uuid
-  deliveryRequest   PhysicalDeliveryRequest @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  carrierName       String?                  @map("carrier_name")
+  trackingCode      String?                  @map("tracking_code")
+  estimatedDelivery DateTime?                @map("estimated_delivery")
+  deliveredAt       DateTime?                @map("delivered_at")
+  status            ShippingStatus           @default(IN_TRANSIT)
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  id                String                   @id @default(uuid()) @db.Uuid
+  deliveryRequestId String?                  @map("delivery_request_id") @db.Uuid
+  shopOrderId       String?                  @map("shop_order_id") @db.Uuid
+  deliveryRequest   PhysicalDeliveryRequest? @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  shopOrder         ShopOrder?               @relation(fields: [shopOrderId], references: [id], onDelete: Cascade)
 
   @@map("shippings")
 }
+
 
 model PayrollPlan {
   name         String

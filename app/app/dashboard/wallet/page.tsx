@@ -36,7 +36,7 @@ export default function WalletPage() {
   const [hideBalance, setHideBalance] = useState(false);
 
   const goldValueRial = wallet
-    ? wallet.goldBalanceGrams * (goldPrice?.price ?? 0) * 1000
+    ? wallet.goldBalanceGrams * (goldPrice?.price ?? 0) * 10000
     : 0;
   const totalValueRial = (wallet?.rialBalance ?? 0) + goldValueRial;
 
@@ -162,7 +162,7 @@ export default function WalletPage() {
                 </p>
                 {goldPrice && !hideBalance && (
                   <p className="text-[9px] mt-1.5 text-gold-100/60 font-medium truncate">
-                    ≈ {rialToToman(goldValueRial)} ت
+                     {rialToTomanFull(goldValueRial)} ت
                   </p>
                 )}
               </div>

@@ -15,7 +15,7 @@ import { MarketModule } from './market/market.module';
 import { AccountingModule } from './/accounting/accounting.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { PhysicalDeliveryModule } from './/physical-delivery/physical-delivery.module';
-//import { AddressesModule } from './transactions/transactions.module';
+import { AddressesModule } from './addresses/addresses.module';
 
 @Module({
   imports: [
@@ -32,7 +32,7 @@ import { PhysicalDeliveryModule } from './/physical-delivery/physical-delivery.m
     AccountingModule,
     TransactionsModule,
     PhysicalDeliveryModule,
-    // AddressesModule,
+    AddressesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

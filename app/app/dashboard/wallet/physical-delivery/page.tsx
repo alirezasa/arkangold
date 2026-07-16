@@ -37,11 +37,31 @@ const STATUS_META: Record<
   string,
   { label: string; color: string; bg: string; icon: React.ElementType }
 > = {
-  PENDING: { label: "در انتظار بررسی", color: "#b45309", bg: "#fef3c7", icon: Clock },
-  APPROVED: { label: "تایید شده", color: "#2563eb", bg: "#dbeafe", icon: ShieldCheck },
+  PENDING: {
+    label: "در انتظار بررسی",
+    color: "#b45309",
+    bg: "#fef3c7",
+    icon: Clock,
+  },
+  APPROVED: {
+    label: "تایید شده",
+    color: "#2563eb",
+    bg: "#dbeafe",
+    icon: ShieldCheck,
+  },
   SHIPPED: { label: "ارسال شده", color: "#7c3aed", bg: "#ede9fe", icon: Truck },
-  DELIVERED: { label: "تحویل داده شده", color: "#16a34a", bg: "#dcfce7", icon: CheckCircle2 },
-  CANCELLED: { label: "لغو شده", color: "#dc2626", bg: "#fee2e2", icon: XCircle },
+  DELIVERED: {
+    label: "تحویل داده شده",
+    color: "#16a34a",
+    bg: "#dcfce7",
+    icon: CheckCircle2,
+  },
+  CANCELLED: {
+    label: "لغو شده",
+    color: "#dc2626",
+    bg: "#fee2e2",
+    icon: XCircle,
+  },
 };
 
 const TIMELINE_STEPS = [
@@ -135,7 +155,9 @@ function AddAddressForm({
           type="text"
           placeholder="نام گیرنده"
           value={form.receiverName}
-          onChange={(e) => setForm((f) => ({ ...f, receiverName: e.target.value }))}
+          onChange={(e) =>
+            setForm((f) => ({ ...f, receiverName: e.target.value }))
+          }
           className="px-3 py-2.5 rounded-xl text-[13px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white"
         />
       </div>
@@ -161,7 +183,9 @@ function AddAddressForm({
         rows={3}
         placeholder="آدرس کامل پستی"
         value={form.fullAddress}
-        onChange={(e) => setForm((f) => ({ ...f, fullAddress: e.target.value }))}
+        onChange={(e) =>
+          setForm((f) => ({ ...f, fullAddress: e.target.value }))
+        }
         className="w-full px-3 py-2.5 rounded-xl text-[13px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white resize-none"
       />
 
@@ -172,7 +196,12 @@ function AddAddressForm({
           placeholder="کد پستی"
           maxLength={10}
           value={form.postalCode}
-          onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value.replace(/\D/g, "") }))}
+          onChange={(e) =>
+            setForm((f) => ({
+              ...f,
+              postalCode: e.target.value.replace(/\D/g, ""),
+            }))
+          }
           className="px-3 py-2.5 rounded-xl text-[13px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white text-left"
         />
         <input
@@ -181,7 +210,12 @@ function AddAddressForm({
           placeholder="شماره تماس گیرنده"
           maxLength={11}
           value={form.receiverPhone}
-          onChange={(e) => setForm((f) => ({ ...f, receiverPhone: e.target.value.replace(/\D/g, "") }))}
+          onChange={(e) =>
+            setForm((f) => ({
+              ...f,
+              receiverPhone: e.target.value.replace(/\D/g, ""),
+            }))
+          }
           className="px-3 py-2.5 rounded-xl text-[13px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white text-left"
         />
       </div>
@@ -221,7 +255,11 @@ function CreateRequestModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const { addresses, loading: addressesLoading, refresh: refreshAddresses } = useAddresses();
+  const {
+    addresses,
+    loading: addressesLoading,
+    refresh: refreshAddresses,
+  } = useAddresses();
   const { config } = usePhysicalDeliveryConfig();
   const { wallet } = useWallet();
   const { loading, error, setError, create } = useCreatePhysicalDelivery();
@@ -260,8 +298,10 @@ function CreateRequestModal({
   const handleSubmitAmount = () => {
     if (!config) return;
     if (!grams || grams <= 0) return setError("مقدار را وارد کنید");
-    if (grams < config.minGrams) return setError(`حداقل مقدار درخواست ${config.minGrams} گرم است`);
-    if (grams > config.maxGrams) return setError(`حداکثر مقدار درخواست ${config.maxGrams} گرم است`);
+    if (grams < config.minGrams)
+      return setError(`حداقل مقدار درخواست ${config.minGrams} گرم است`);
+    if (grams > config.maxGrams)
+      return setError(`حداکثر مقدار درخواست ${config.maxGrams} گرم است`);
     if (wallet && grams > wallet.availableGrams) {
       return setError(
         `موجودی طلای قابل استفاده کافی نیست (موجودی: ${wallet.availableGrams.toFixed(4)} گرم)`,
@@ -272,7 +312,10 @@ function CreateRequestModal({
   };
 
   const handleConfirm = async () => {
-    const res = await create({ addressId: selectedAddressId, amountGrams: grams });
+    const res = await create({
+      addressId: selectedAddressId,
+      amountGrams: grams,
+    });
     if (res) {
       setResult({ requestId: res.id });
       setStep("done");
@@ -307,9 +350,14 @@ function CreateRequestModal({
               className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
               style={{ backgroundColor: "var(--color-emerald-light)" }}
             >
-              <Package className="w-5 h-5" style={{ color: "var(--color-emerald)" }} />
+              <Package
+                className="w-5 h-5"
+                style={{ color: "var(--color-emerald)" }}
+              />
             </div>
-            <h2 className="text-[15px] font-black text-gray-900">درخواست تحویل فیزیکی طلا</h2>
+            <h2 className="text-[15px] font-black text-gray-900">
+              درخواست تحویل فیزیکی طلا
+            </h2>
           </div>
           <button
             onClick={handleClose}
@@ -340,7 +388,9 @@ function CreateRequestModal({
                 />
               ) : (
                 <>
-                  <p className="text-[13px] font-bold text-gray-700">آدرس تحویل را انتخاب کنید</p>
+                  <p className="text-[13px] font-bold text-gray-700">
+                    آدرس تحویل را انتخاب کنید
+                  </p>
 
                   {addressesLoading ? (
                     <div className="flex justify-center py-8">
@@ -349,7 +399,9 @@ function CreateRequestModal({
                   ) : addresses.length === 0 ? (
                     <div className="text-center py-8">
                       <MapPin className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                      <p className="text-[13px] text-gray-400 font-medium">هنوز آدرسی ثبت نکرده‌اید</p>
+                      <p className="text-[13px] text-gray-400 font-medium">
+                        هنوز آدرسی ثبت نکرده‌اید
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -368,7 +420,9 @@ function CreateRequestModal({
                         >
                           <div
                             className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                              selectedAddressId === addr.id ? "bg-emerald-100" : "bg-white"
+                              selectedAddressId === addr.id
+                                ? "bg-emerald-100"
+                                : "bg-white"
                             }`}
                           >
                             {addr.title?.includes("کار") ? (
@@ -381,11 +435,15 @@ function CreateRequestModal({
                             <p className="text-[13px] font-black text-gray-800">
                               {addr.title || "آدرس"}{" "}
                               {addr.isDefault && (
-                                <span className="text-[10px] font-bold text-amber-600">(پیش‌فرض)</span>
+                                <span className="text-[10px] font-bold text-amber-600">
+                                  (پیش‌فرض)
+                                </span>
                               )}
                             </p>
                             <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
-                              {[addr.province, addr.city, addr.fullAddress].filter(Boolean).join("، ")}
+                              {[addr.province, addr.city, addr.fullAddress]
+                                .filter(Boolean)
+                                .join("، ")}
                             </p>
                           </div>
                           {selectedAddressId === addr.id && (
@@ -449,7 +507,9 @@ function CreateRequestModal({
 
               {wallet && (
                 <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-gray-50">
-                  <span className="text-[12px] text-gray-500 font-medium">موجودی قابل استفاده</span>
+                  <span className="text-[12px] text-gray-500 font-medium">
+                    موجودی قابل استفاده
+                  </span>
                   <span className="text-[13px] font-black text-gray-800">
                     {wallet.availableGrams.toFixed(4)} گرم
                   </span>
@@ -461,7 +521,9 @@ function CreateRequestModal({
                   className="flex items-center justify-between px-4 py-3 rounded-xl"
                   style={{ background: "rgba(197,160,89,.1)" }}
                 >
-                  <span className="text-[12px] font-bold text-amber-800">کارمزد بسته‌بندی تخمینی</span>
+                  <span className="text-[12px] font-bold text-amber-800">
+                    کارمزد بسته‌بندی تخمینی
+                  </span>
                   <span className="text-[13px] font-black text-amber-900">
                     {fmtToman(totalFeeToman)} تومان
                   </span>
@@ -488,18 +550,32 @@ function CreateRequestModal({
 
           {step === "confirm" && config && (
             <div className="space-y-4">
-              <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--color-border)" }}>
+              <div
+                className="rounded-xl overflow-hidden border"
+                style={{ borderColor: "var(--color-border)" }}
+              >
                 {[
                   { label: "آدرس تحویل", value: selectedAddress?.title || "—" },
                   {
                     label: "جزئیات آدرس",
-                    value: [selectedAddress?.province, selectedAddress?.city, selectedAddress?.fullAddress]
+                    value: [
+                      selectedAddress?.province,
+                      selectedAddress?.city,
+                      selectedAddress?.fullAddress,
+                    ]
                       .filter(Boolean)
                       .join("، "),
                     small: true,
                   },
-                  { label: "مقدار طلا", value: `${fmtGrams(grams)} گرم`, big: true },
-                  { label: "کارمزد بسته‌بندی و پلمپ", value: `${fmtToman(totalFeeToman)} تومان` },
+                  {
+                    label: "مقدار طلا",
+                    value: `${fmtGrams(grams)} گرم`,
+                    big: true,
+                  },
+                  {
+                    label: "کارمزد بسته‌بندی و پلمپ",
+                    value: `${fmtToman(totalFeeToman)} تومان`,
+                  },
                   { label: "زمان تقریبی پردازش", value: config.processingTime },
                 ].map((row, i) => (
                   <div
@@ -509,7 +585,9 @@ function CreateRequestModal({
                     }`}
                     style={{ borderColor: "var(--color-border)" }}
                   >
-                    <span className="text-[12px] text-gray-500 font-medium shrink-0">{row.label}</span>
+                    <span className="text-[12px] text-gray-500 font-medium shrink-0">
+                      {row.label}
+                    </span>
                     <span
                       className={
                         row.big
@@ -528,8 +606,9 @@ function CreateRequestModal({
               <div className="flex items-start gap-2 px-1 text-[11px] text-gray-400 leading-relaxed">
                 <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <p>
-                  با ثبت درخواست، مقدار طلای انتخابی تا زمان تایید یا لغو توسط کارشناسان رزرو می‌شود و
-                  کارمزد فقط در صورت تایید نهایی از کیف پول شما کسر خواهد شد.
+                  با ثبت درخواست، مقدار طلای انتخابی تا زمان تایید یا لغو توسط
+                  کارشناسان رزرو می‌شود و کارمزد فقط در صورت تایید نهایی از کیف
+                  پول شما کسر خواهد شد.
                 </p>
               </div>
 
@@ -547,7 +626,11 @@ function CreateRequestModal({
                   className="flex-2 py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-60"
                   style={{ backgroundColor: "var(--color-emerald)" }}
                 >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "ثبت درخواست"}
+                  {loading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    "ثبت درخواست"
+                  )}
                 </button>
               </div>
             </div>
@@ -559,12 +642,18 @@ function CreateRequestModal({
                 className="w-16 h-16 rounded-full flex items-center justify-center"
                 style={{ backgroundColor: "var(--color-emerald-light)" }}
               >
-                <CheckCircle2 className="w-9 h-9" style={{ color: "var(--color-emerald)" }} />
+                <CheckCircle2
+                  className="w-9 h-9"
+                  style={{ color: "var(--color-emerald)" }}
+                />
               </div>
               <div>
-                <h3 className="text-[16px] font-black text-gray-900 mb-1">درخواست ثبت شد</h3>
+                <h3 className="text-[16px] font-black text-gray-900 mb-1">
+                  درخواست ثبت شد
+                </h3>
                 <p className="text-[12px] text-gray-500 leading-relaxed">
-                  {fmtGrams(grams)} گرم طلا رزرو شد و درخواست شما در انتظار بررسی کارشناسان است.
+                  {fmtGrams(grams)} گرم طلا رزرو شد و درخواست شما در انتظار
+                  بررسی کارشناسان است.
                 </p>
               </div>
               <button
@@ -584,7 +673,8 @@ function CreateRequestModal({
 
 // ─────────────────────────────────────────────
 // مودال جزئیات + تایم‌لاین وضعیت
-// ─────────────────────────────────────────────
+// ────────────────────────────────────────────
+
 function DetailModal({
   request,
   onClose,
@@ -595,8 +685,17 @@ function DetailModal({
   onCancelled: () => void;
 }) {
   const { loading, cancel } = useCancelPhysicalDelivery();
+  const { config } = usePhysicalDeliveryConfig();
+
   const isCancelled = request.status === "CANCELLED";
-  const currentStepIndex = TIMELINE_STEPS.findIndex((s) => s.key === request.status);
+  const isPending = request.status === "PENDING";
+  const currentStepIndex = TIMELINE_STEPS.findIndex(
+    (s) => s.key === request.status,
+  );
+
+  const estimatedFeeToman = config
+    ? Number(request.amountGrams) * Number(config.feePerGramToman)
+    : 0;
 
   const handleCancel = async () => {
     await cancel(request.id);
@@ -621,7 +720,9 @@ function DetailModal({
           style={{ borderColor: "var(--color-border)" }}
         >
           <div>
-            <h3 className="text-[14px] font-black text-gray-900">جزئیات درخواست</h3>
+            <h3 className="text-[14px] font-black text-gray-900">
+              جزئیات درخواست
+            </h3>
             <p className="text-[11px] text-gray-400 mt-0.5" dir="ltr">
               {request.id.slice(0, 8)}…
             </p>
@@ -648,11 +749,19 @@ function DetailModal({
                 const Icon = step.icon;
                 const done = i <= currentStepIndex;
                 return (
-                  <div key={step.key} className="flex-1 flex flex-col items-center relative">
+                  <div
+                    key={step.key}
+                    className="flex-1 flex flex-col items-center relative"
+                  >
                     {i > 0 && (
                       <div
                         className="absolute top-4 right-1/2 w-full h-0.5 -z-10"
-                        style={{ backgroundColor: i <= currentStepIndex ? "var(--color-emerald)" : "#e5e7eb" }}
+                        style={{
+                          backgroundColor:
+                            i <= currentStepIndex
+                              ? "var(--color-emerald)"
+                              : "#e5e7eb",
+                        }}
                       />
                     )}
                     <div
@@ -666,7 +775,9 @@ function DetailModal({
                     </div>
                     <span
                       className="text-[9px] font-bold mt-1.5 text-center leading-tight"
-                      style={{ color: done ? "var(--color-emerald)" : "#9ca3af" }}
+                      style={{
+                        color: done ? "var(--color-emerald)" : "#9ca3af",
+                      }}
                     >
                       {step.label}
                     </span>
@@ -679,23 +790,45 @@ function DetailModal({
               <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
               این درخواست لغو شده است
               {request.adminNotes && (
-                <span className="font-medium block mt-1">{request.adminNotes}</span>
+                <span className="font-medium block mt-1">
+                  {request.adminNotes}
+                </span>
               )}
             </div>
           )}
 
-          <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--color-border)" }}>
+          <div
+            className="rounded-xl overflow-hidden border"
+            style={{ borderColor: "var(--color-border)" }}
+          >
             {[
-              { label: "کارمزد", value: `${fmtToman(request.feeToman)} تومان` },
+              {
+                label: isPending
+                  ? "کارمزد (تخمینی — تا قبل از تایید)"
+                  : "کارمزد",
+                value: isPending
+                  ? `${fmtToman(estimatedFeeToman)} تومان`
+                  : `${fmtToman(request.feeToman)} تومان`,
+              },
               {
                 label: "آدرس",
-                value: [request.address?.province, request.address?.city, request.address?.fullAddress]
+                value: [
+                  request.address?.province,
+                  request.address?.city,
+                  request.address?.fullAddress,
+                ]
                   .filter(Boolean)
                   .join("، "),
                 small: true,
               },
               ...(request.trackingCode
-                ? [{ label: "کد رهگیری مرسوله", value: request.trackingCode, ltr: true }]
+                ? [
+                    {
+                      label: "کد رهگیری مرسوله",
+                      value: request.trackingCode,
+                      ltr: true,
+                    },
+                  ]
                 : []),
               {
                 label: "تاریخ ثبت",
@@ -711,7 +844,9 @@ function DetailModal({
                 className="flex items-start justify-between gap-3 px-4 py-3 border-t first:border-t-0 bg-white"
                 style={{ borderColor: "var(--color-border)" }}
               >
-                <span className="text-[12px] text-gray-500 font-medium shrink-0">{row.label}</span>
+                <span className="text-[12px] text-gray-500 font-medium shrink-0">
+                  {row.label}
+                </span>
                 <span
                   className={`text-[12px] font-bold text-gray-700 ${row.small ? "text-left leading-relaxed" : ""}`}
                   dir={row.ltr ? "ltr" : undefined}
@@ -722,13 +857,27 @@ function DetailModal({
             ))}
           </div>
 
+          {isPending && (
+            <div className="flex items-start gap-2 px-1 text-[11px] text-gray-400 leading-relaxed">
+              <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <p>
+                مبلغ کارمزد نهایی در لحظه‌ی تایید توسط کارشناسان محاسبه و از کیف
+                پول شما کسر خواهد شد؛ عدد بالا صرفاً تخمین است.
+              </p>
+            </div>
+          )}
+
           {request.status === "PENDING" && (
             <button
               onClick={handleCancel}
               disabled={loading}
               className="w-full py-3.5 rounded-xl font-bold text-[13px] text-red-600 border-2 border-red-100 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "لغو درخواست"}
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                "لغو درخواست"
+              )}
             </button>
           )}
         </div>
@@ -742,7 +891,8 @@ function DetailModal({
 // ─────────────────────────────────────────────
 export default function PhysicalDeliveryPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<PhysicalDeliveryRequestItem | null>(null);
+  const [selectedRequest, setSelectedRequest] =
+    useState<PhysicalDeliveryRequestItem | null>(null);
 
   const { config } = usePhysicalDeliveryConfig();
   const { requests, loading, refresh } = usePhysicalDeliveryRequests();
@@ -757,25 +907,38 @@ export default function PhysicalDeliveryPage() {
           <ChevronRight className="w-5 h-5" />
         </Link>
         <div>
-          <h1 className="text-[17px] font-black text-gray-900">تحویل فیزیکی طلا</h1>
-          <p className="text-[11px] text-gray-400 mt-0.5">دریافت پستی شمش طلا</p>
+          <h1 className="text-[17px] font-black text-gray-900">
+            تحویل فیزیکی طلا
+          </h1>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            دریافت پستی شمش طلا
+          </p>
         </div>
       </div>
 
       <div
         className="relative overflow-hidden rounded-2xl p-5 mb-5"
-        style={{ background: "linear-gradient(135deg, var(--color-emerald) 0%, #24060a 100%)" }}
+        style={{
+          background:
+            "linear-gradient(135deg, var(--color-emerald) 0%, #24060a 100%)",
+        }}
       >
         <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full opacity-10 blur-2xl bg-gold-500 pointer-events-none" />
         <div className="relative z-10 flex items-center gap-3 mb-4">
           <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
-            <Package className="w-5 h-5" style={{ color: "var(--color-gold-500)" }} />
+            <Package
+              className="w-5 h-5"
+              style={{ color: "var(--color-gold-500)" }}
+            />
           </div>
           <div>
-            <p className="text-[13px] font-black text-white">تحویل طلای فیزیکی</p>
+            <p className="text-[13px] font-black text-white">
+              تحویل طلای فیزیکی
+            </p>
             {config && (
               <p className="text-[11px] text-white/60 mt-0.5">
-                از {config.minGrams} تا {config.maxGrams} گرم — {config.processingTime}
+                از {config.minGrams} تا {config.maxGrams} گرم —{" "}
+                {config.processingTime}
               </p>
             )}
           </div>
@@ -783,7 +946,10 @@ export default function PhysicalDeliveryPage() {
         <button
           onClick={() => setShowCreateModal(true)}
           className="relative z-10 w-full py-3 rounded-xl font-black text-[13px] flex items-center justify-center gap-2"
-          style={{ backgroundColor: "var(--color-gold-500)", color: "var(--color-emerald)" }}
+          style={{
+            backgroundColor: "var(--color-gold-500)",
+            color: "var(--color-emerald)",
+          }}
         >
           <Plus className="w-4 h-4" />
           ثبت درخواست جدید
@@ -796,7 +962,10 @@ export default function PhysicalDeliveryPage() {
 
       <div
         className="rounded-2xl overflow-hidden"
-        style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+        style={{
+          backgroundColor: "var(--color-surface)",
+          border: "1px solid var(--color-border)",
+        }}
       >
         {loading ? (
           <div className="flex justify-center py-12">
@@ -805,7 +974,9 @@ export default function PhysicalDeliveryPage() {
         ) : requests.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 gap-2">
             <Package className="w-10 h-10 text-gray-300" />
-            <p className="text-[13px] font-bold text-gray-400">هنوز درخواستی ثبت نکرده‌اید</p>
+            <p className="text-[13px] font-bold text-gray-400">
+              هنوز درخواستی ثبت نکرده‌اید
+            </p>
           </div>
         ) : (
           requests.map((r, idx) => (
@@ -813,18 +984,29 @@ export default function PhysicalDeliveryPage() {
               key={r.id}
               onClick={() => setSelectedRequest(r)}
               className="w-full flex items-center gap-3 px-4 py-3.5 text-right transition-colors hover:bg-gray-50"
-              style={{ borderTop: idx > 0 ? "1px solid var(--color-border)" : undefined }}
+              style={{
+                borderTop:
+                  idx > 0 ? "1px solid var(--color-border)" : undefined,
+              }}
             >
               <div
                 className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
                 style={{ backgroundColor: "var(--color-emerald-light)" }}
               >
-                <Coins className="w-4 h-4" style={{ color: "var(--color-emerald)" }} />
+                <Coins
+                  className="w-4 h-4"
+                  style={{ color: "var(--color-emerald)" }}
+                />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-black text-gray-800">{fmtGrams(r.amountGrams)} گرم طلا</p>
+                <p className="text-[13px] font-black text-gray-800">
+                  {fmtGrams(r.amountGrams)} گرم طلا
+                </p>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  {new Date(r.createdAt).toLocaleDateString("fa-IR", { month: "short", day: "numeric" })}
+                  {new Date(r.createdAt).toLocaleDateString("fa-IR", {
+                    month: "short",
+                    day: "numeric",
+                  })}
                 </p>
               </div>
               <StatusBadge status={r.status} />
@@ -833,10 +1015,18 @@ export default function PhysicalDeliveryPage() {
         )}
       </div>
 
-      <CreateRequestModal open={showCreateModal} onClose={() => setShowCreateModal(false)} onCreated={refresh} />
+      <CreateRequestModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={refresh}
+      />
 
       {selectedRequest && (
-        <DetailModal request={selectedRequest} onClose={() => setSelectedRequest(null)} onCancelled={refresh} />
+        <DetailModal
+          request={selectedRequest}
+          onClose={() => setSelectedRequest(null)}
+          onCancelled={refresh}
+        />
       )}
     </div>
   );

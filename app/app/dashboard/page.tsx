@@ -200,7 +200,7 @@ export default function DashboardPage() {
     {
       title: "زیورآلات",
       subtitle: "ویترین آنلاین",
-      href: "/dashboard/jewelry",
+      href: "/dashboard/shop",
       icon: Gem,
     },
   ];

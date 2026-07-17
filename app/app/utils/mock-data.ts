@@ -115,6 +115,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { name: "احراز هویت", icon: "ti-shield-check", path: "/dashboard/identity" },
   { name: "پروفایل", icon: "ti-user", path: "/dashboard/me" },
   { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
+  
   {
     name: "تراکنش‌ها",
     icon: "ti-history",

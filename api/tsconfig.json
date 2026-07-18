@@ -20,6 +20,6 @@
       "@prisma/client": ["./src/generated/prisma"]
     }
   },
-  "include": ["src/**/*", "prisma.config.ts", "prisma/seed.ts"],
+  "include": ["src/**/*", "prisma.config.ts", "prisma/seed.ts", "scripts/**/*"],
   "exclude": ["node_modules", "dist"]
 }

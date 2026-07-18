@@ -19,6 +19,7 @@ import { AddressesModule } from './addresses/addresses.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { CartModule } from './cart/cart.module';
 import { ShopOrdersModule } from './shop-orders/shop-orders.module';
+import { AdminAuthModule } from './admin-auth/admin-auth.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ShopOrdersModule } from './shop-orders/shop-orders.module';
     CatalogModule,
     CartModule,
     ShopOrdersModule,
+    AdminAuthModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -694,6 +694,103 @@ model Notification {
   @@map("notifications")
 }
 
+model AdminUser {
+  id                String    @id @default(uuid()) @db.Uuid
+  username          String    @unique
+  passwordHash      String    @map("password_hash")
+  fullName          String    @map("full_name")
+  isActive          Boolean   @default(true) @map("is_active")
+
+  totpSecret        String?   @map("totp_secret")
+  totpEnabled       Boolean   @default(false) @map("totp_enabled")
+  totpEnabledAt     DateTime? @map("totp_enabled_at")
+  backupCodesHash   String[]  @default([]) @map("backup_codes_hash")
+
+  failedLoginCount  Int       @default(0) @map("failed_login_count")
+  lockedUntil       DateTime? @map("locked_until")
+  lastLoginAt       DateTime? @map("last_login_at")
+  lastLoginIp       String?   @map("last_login_ip")
+
+  roleId            String    @map("role_id") @db.Uuid
+  role              AdminRole @relation(fields: [roleId], references: [id])
+
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  createdById       String?   @map("created_by_id") @db.Uuid
+  createdBy         AdminUser?  @relation("AdminCreatedBy", fields: [createdById], references: [id])
+  createdAdmins     AdminUser[] @relation("AdminCreatedBy")
+
+  sessions          AdminSession[]
+  auditLogs         AdminAuditLog[]
+
+  @@map("admin_users")
+}
+
+model AdminRole {
+  id          String                @id @default(uuid()) @db.Uuid
+  key         String                @unique
+  name        String
+  description String?
+  isSystem    Boolean               @default(false) @map("is_system")
+  permissions AdminRolePermission[]
+  users       AdminUser[]
+  createdAt   DateTime              @default(now()) @map("created_at")
+
+  @@map("admin_roles")
+}
+
+model AdminPermission {
+  id          String                @id @default(uuid()) @db.Uuid
+  key         String                @unique
+  group       String
+  description String?
+  roles       AdminRolePermission[]
+
+  @@map("admin_permissions")
+}
+
+model AdminRolePermission {
+  roleId       String          @map("role_id") @db.Uuid
+  permissionId String          @map("permission_id") @db.Uuid
+  role         AdminRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   AdminPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("admin_role_permissions")
+}
+
+model AdminSession {
+  id               String     @id @default(uuid()) @db.Uuid
+  adminUserId      String     @map("admin_user_id") @db.Uuid
+  adminUser        AdminUser  @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  refreshTokenHash String     @map("refresh_token_hash")
+  ip               String?
+  userAgent        String?    @map("user_agent")
+  expiresAt        DateTime   @map("expires_at")
+  createdAt        DateTime   @default(now()) @map("created_at")
+
+  @@index([adminUserId])
+  @@map("admin_sessions")
+}
+
+model AdminAuditLog {
+  id          String    @id @default(uuid()) @db.Uuid
+  adminUserId String    @map("admin_user_id") @db.Uuid
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+  action      String
+  entityType  String?   @map("entity_type")
+  entityId    String?   @map("entity_id")
+  oldValue    Json?     @map("old_value")
+  newValue    Json?     @map("new_value")
+  ip          String?
+  userAgent   String?   @map("user_agent")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([adminUserId])
+  @@index([entityType, entityId])
+  @@map("admin_audit_logs")
+}
+
 enum UserType {
   REAL
   LEGAL

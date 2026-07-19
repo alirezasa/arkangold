@@ -1,26 +1,133 @@
+/* app/globals.css */
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* فونت شخصی‌سازی شده (متصل به متغیر دانا در layout.tsx) */
+  --font-sans: var(--font-dana), system-ui, -apple-system, sans-serif;
+
+  /* رنگ‌های طلایی */
+  --color-gold-50: #fbf8eb;
+  --color-gold-100: #f5eed1;
+  --color-gold-500: #c5a059;
+  --color-gold-600: #b5952f;
+  --color-gold-900: #42350c;
+
+  /* رنگ‌های برند آرکان گلد */
+  --color-emerald: #330509;
+  --color-emerald-light: #e8f5f0;
+  --color-surface: #ffffff;
+  --color-bg-page: #f3f4f0;
+  --color-border: #e2e0d8;
+  --color-red: #dc2626;
+  --color-green: #004d40;
+  --color-yellow: #ffc107;
+
+
+  /* رنگ‌های داینامیک */
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --animate-slide-up: slide-up 0.3s ease-out forwards;
+
+  /* تعریف کی‌فریم‌ها (Keyframes) */
+  @keyframes slide-up {
+    0% {
+      transform: translateY(100%);
+    }
+    100% {
+      transform: translateY(0);
+    }
+  }
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f3f4f6;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
   }
 }
 
+/* ── Base ─────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Prevents font size inflation on orientation change (iOS) */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-bg-page);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+
+  /* Disable iOS tap highlight on all elements */
+  -webkit-tap-highlight-color: transparent;
+
+  /* Prevent iOS rubber-band on body — individual scroll areas use
+     overflow-y: auto + overscroll-behavior: contain instead */
+  overscroll-behavior: none;
+}
+
+/* ── PWA: safe area helpers ───────────────────────────────── */
+
+/*
+  iOS notch / Dynamic Island / home indicator:
+  Use env() where Tailwind can't — e.g. in inline styles or here.
+*/
+.safe-top    { padding-top:    env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-left   { padding-left:   env(safe-area-inset-left); }
+.safe-right  { padding-right:  env(safe-area-inset-right); }
+
+/* ── Scrollbar (WebKit) ───────────────────────────────────── */
+::-webkit-scrollbar           { width: 4px; height: 4px; }
+::-webkit-scrollbar-track     { background: transparent; }
+::-webkit-scrollbar-thumb     { background: var(--color-border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #c5a059; }
+
+/* ── Animations ──────────────────────────────────────────── */
+
+/* Live gold price dot pulse */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+.live-dot {
+  animation: livePulse 1.5s ease-in-out infinite;
+}
+
+/* Sidebar slide transition */
+.sidebar-transition {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Utilities not in Tailwind v4 yet ─────────────────────── */
+
+/* h-svh = 100svh (small viewport height — correct on mobile) */
+.h-svh { height: 100svh; }
+
+/* overscroll */
+.overscroll-none    { overscroll-behavior: none; }
+.overscroll-contain { overscroll-behavior: contain; }
+
+/* ── Focus ring (accessibility) ───────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-gold-500);
+  outline-offset: 2px;
+  border-radius: 4px;
 }

@@ -8,6 +8,8 @@ import { AdminAuthService } from './admin-auth.service';
 import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
 import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 import { RbacModule } from './rbac.module';
+import { AdminManagementController } from './admin-management.controller';
+import { AdminManagementService } from './admin-management.service';
 
 @Module({
   imports: [
@@ -22,8 +24,13 @@ import { RbacModule } from './rbac.module';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AdminAuthController],
-  providers: [AdminAuthService, AdminJwtStrategy, AdminJwtAuthGuard],
+  controllers: [AdminAuthController, AdminManagementController],
+  providers: [
+    AdminAuthService,
+    AdminManagementService,
+    AdminJwtStrategy,
+    AdminJwtAuthGuard,
+  ],
   exports: [AdminJwtAuthGuard, AdminAuthService],
 })
 export class AdminAuthModule {}

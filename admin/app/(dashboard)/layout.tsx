@@ -115,7 +115,7 @@ export default function DashboardLayout({
                 key={item.href}
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-bold transition-colors ${
-                  active ? "text-white" : "text-white/60 hover:bg-white/5"
+                  active ? "text-white" : "text-white! hover:bg-white/5"
                 }`}
                 style={
                   active
@@ -135,7 +135,7 @@ export default function DashboardLayout({
 
         <div className="p-3 border-t border-white/10">
           <div className="px-3 py-2 mb-2">
-            <p className="text-white text-[12px] font-bold">{me.fullName}</p>
+            <p className="text-white! text-[12px] font-bold">{me.fullName}</p>
             <p className="text-white/40 text-[11px]">{me.role.name}</p>
           </div>
           <button

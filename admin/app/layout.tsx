@@ -1,6 +1,33 @@
 // admin/app/layout.tsx
 import type { Metadata } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
+
+const dana = localFont({
+  src: [
+    {
+      path: "../public/fonts/DanaFaNum-Regular.woff",
+      weight: "400",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/DanaFaNum-Bold.woff",
+      weight: "500",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/DanaFaNum-Bold.woff",
+      weight: "700",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/DanaFaNum-Bold.woff",
+      weight: "900",
+      style: "normal",
+    },
+  ],
+  variable: "--font-dana",
+});
 
 export const metadata: Metadata = {
   title: "پنل مدیریت | آرکان گلد",
@@ -13,16 +40,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fa" dir="rtl">
+    <html lang="fa" dir="rtl" className={`${dana.variable} font-sans`}>
       <head>
-        {/* فونت وزیرمتن از گوگل فونت (فارسی، خوانا، نزدیک به Dana) */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700;900&display=swap"
           rel="stylesheet"
+          href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css"
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased bg-gray-50 text-gray-900">{children}</body>
     </html>
   );
 }

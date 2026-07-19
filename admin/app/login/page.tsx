@@ -76,13 +76,13 @@ export default function AdminLoginPage() {
             type="submit"
             disabled={loading}
             className="w-full py-3 rounded-xl font-black text-white flex items-center justify-center gap-2 disabled:opacity-60"
-            style={{ backgroundColor: "var(--color-emerald)" }}
+            style={{ backgroundColor: "var(--color-green)" }}
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "ورود به پنل"}
           </button>
         </form>
 
-        <p className="text-center text-white/30 text-[11px] mt-6">
+        <p className="text-center text-white text-[11px] mt-2">
           دسترسی به این پنل صرفاً برای کارشناسان مجاز است
         </p>
       </div>

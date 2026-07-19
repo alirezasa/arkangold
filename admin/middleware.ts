@@ -1,3 +1,4 @@
+// admin/middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -22,5 +23,8 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico).*)"],
+  // مهم: مسیرهای /api باید مستثنی شوند چون route handlerها خودشان
+  // کوکی را از cookies() می‌خوانند و بررسی مجدد در middleware باعث
+  // بلاک‌شدن درخواست‌های POST به این مسیرها (مثل خودِ لاگین) می‌شود
+  matcher: ["/((?!_next|api|favicon.ico).*)"],
 };

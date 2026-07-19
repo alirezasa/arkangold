@@ -41,11 +41,12 @@ export class UsersService {
       referralCode: user.referralCode,
       wallet: user.wallet
         ? {
-            goldBalanceGrams: user.wallet.goldBalanceGrams,
-            rialBalance: user.wallet.rialBalance,
+            goldBalanceGrams: String(user.wallet.goldBalanceGrams),
+            rialBalance: String(user.wallet.rialBalance),
             cardNumber: user.wallet.cardNumber,
           }
         : null,
+
       identity: user.identity
         ? {
             firstName: user.identity.firstName,

@@ -6,20 +6,14 @@ import {
   Body,
   Param,
   Query,
-  Req,
   UseGuards,
-  UseInterceptors,
 } from '@nestjs/common';
-import { Request } from 'express';
 import { IsOptional, IsString } from 'class-validator';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
-import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
-import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
-import { AdminAuthenticatedUser } from '../admin-auth/interfaces/admin-jwt-payload.interface';
 
 class RejectLegalProfileDto {
   @IsOptional()
@@ -35,10 +29,6 @@ class ListPendingLegalQueryDto {
   limit?: number;
 }
 
-interface AdminRequest extends Request {
-  user: AdminAuthenticatedUser;
-}
-
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
 @Controller('admin/legal-profiles')
 export class UsersAdminController {
@@ -47,7 +37,6 @@ export class UsersAdminController {
     private readonly prisma: PrismaService,
   ) {}
 
-  // ── لیست پروفایل‌های حقوقیِ ثبت‌شده و منتظر تایید ──
   @RequirePermission('legal_profile.view')
   @Get('pending')
   async listPending(@Query() query: ListPendingLegalQueryDto) {
@@ -56,7 +45,7 @@ export class UsersAdminController {
 
     const where = {
       verified: false,
-      companyName: { not: '' }, // یعنی واقعاً ثبت شده، نه رکورد خالی اولیه
+      companyName: { not: '' },
     };
 
     const [items, total] = await Promise.all([
@@ -99,16 +88,12 @@ export class UsersAdminController {
   }
 
   @RequirePermission('legal_profile.approve')
-  @AuditLog('legal_profile.approve')
-  @UseInterceptors(AuditLogInterceptor)
   @Post(':userId/approve')
   approve(@Param('userId') userId: string) {
     return this.usersService.approveLegalProfile(userId);
   }
 
   @RequirePermission('legal_profile.approve')
-  @AuditLog('legal_profile.reject')
-  @UseInterceptors(AuditLogInterceptor)
   @Post(':userId/reject')
   reject(@Param('userId') userId: string, @Body() dto: RejectLegalProfileDto) {
     return this.usersService.rejectLegalProfile(userId, dto.reason);

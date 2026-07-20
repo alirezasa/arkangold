@@ -10,6 +10,7 @@ import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 import { RbacModule } from './rbac.module';
 import { AdminManagementController } from './admin-management.controller';
 import { AdminManagementService } from './admin-management.service';
+import { AdminAuditLogController } from './admin-audit-log.controller';
 
 @Module({
   imports: [
@@ -24,7 +25,11 @@ import { AdminManagementService } from './admin-management.service';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AdminAuthController, AdminManagementController],
+  controllers: [
+    AdminAuthController,
+    AdminManagementController,
+    AdminAuditLogController,
+  ],
   providers: [
     AdminAuthService,
     AdminManagementService,

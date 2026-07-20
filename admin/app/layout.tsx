@@ -1,5 +1,5 @@
 // admin/app/layout.tsx
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -32,6 +32,15 @@ const dana = localFont({
 export const metadata: Metadata = {
   title: "پنل مدیریت | آرکان گلد",
   description: "پنل مدیریت پلتفرم آرکان گلد",
+  manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#330509",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -47,7 +56,9 @@ export default function RootLayout({
           href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css"
         />
       </head>
-      <body className="antialiased bg-gray-50 text-gray-900">{children}</body>
+      <body className="antialiased bg-gray-50 text-gray-900 overscroll-none">
+        {children}
+      </body>
     </html>
   );
 }

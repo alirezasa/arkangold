@@ -1,0 +1,29 @@
+
+{
+  "name": "پنل مدیریت آرکان گلد",
+  "short_name": "ادمین آرکان گلد",
+  "description": "پنل مدیریت پلتفرم آرکان گلد",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#330509",
+  "theme_color": "#330509",
+  "lang": "fa",
+  "dir": "rtl",
+  "categories": ["business", "finance"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ]
+}

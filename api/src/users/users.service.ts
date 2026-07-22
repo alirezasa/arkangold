@@ -6,6 +6,7 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
+import * as fs from 'fs/promises';
 import { PrismaService } from '../prisma/prisma.service';
 import { CivilRegistryService } from './civil-registry.service';
 import { SubmitIdentityDto } from '@arkan-gold/shared';
@@ -183,7 +184,6 @@ export class UsersService {
     if (!user.identity || user.identity.status !== 'VERIFIED') {
       throw new BadRequestException('ابتدا باید احراز هویت نماینده تکمیل شود');
     }
-    // اگر قبلاً تایید ادمین شده، اجازه ویرایش نده
     if (user.legalProfile?.verified) {
       throw new ConflictException('پروفایل حقوقی شما قبلاً تایید شده است');
     }
@@ -197,6 +197,7 @@ export class UsersService {
         economicCode: dto.economicCode,
         registrationNumber: dto.registrationNumber,
         representativeId: user.identity.id,
+        status: 'PENDING',
       },
       update: {
         companyName: dto.companyName,
@@ -204,6 +205,8 @@ export class UsersService {
         economicCode: dto.economicCode,
         registrationNumber: dto.registrationNumber,
         representativeId: user.identity.id,
+        status: 'PENDING',
+        rejectionReason: null, // ارسال مجدد یعنی وضعیت قبلی پاک می‌شود
       },
     });
 
@@ -243,7 +246,7 @@ export class UsersService {
     const [legalProfile] = await this.prisma.$transaction([
       this.prisma.legalProfile.update({
         where: { userId },
-        data: { verified: true },
+        data: { verified: true, status: 'VERIFIED', rejectionReason: null },
       }),
       this.prisma.user.update({
         where: { id: userId },
@@ -261,22 +264,86 @@ export class UsersService {
     };
   }
 
-  async rejectLegalProfile(userId: string, reason?: string) {
+  // ── رد پروفایل حقوقی: دو حالت ──
+  async rejectLegalProfile(userId: string, reason: string, editable: boolean) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: { legalProfile: true },
+      include: { legalProfile: { include: { documents: true } } },
     });
     if (!user) throw new NotFoundException('کاربر یافت نشد');
     if (!user.legalProfile) {
       throw new BadRequestException('اطلاعات حقوقی هنوز ثبت نشده است');
     }
 
-    await this.prisma.legalProfile.delete({ where: { userId } });
+    if (editable) {
+      // ── رد قابل ویرایش: اطلاعات نگه داشته می‌شود، کاربر می‌تواند اصلاح و ارسال مجدد کند ──
+      await this.prisma.legalProfile.update({
+        where: { userId },
+        data: { status: 'REJECTED', rejectionReason: reason, verified: false },
+      });
+      this.logger.log(
+        `[LegalProfile] پروفایل حقوقی کاربر ${userId} رد شد (قابل ویرایش)`,
+      );
+      return {
+        message:
+          'درخواست رد شد. کاربر می‌تواند اطلاعات را اصلاح و مجدداً ارسال کند',
+        mode: 'editable',
+      };
+    }
+
+    // ── رد کامل: حذف اطلاعات حقوقی + بازگشت کاربر به حقیقی ──
+    const documents = user.legalProfile.documents;
+    await this.prisma.$transaction([
+      this.prisma.legalProfile.delete({ where: { userId } }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { type: 'REAL', status: 'ACTIVE' },
+      }),
+    ]);
+
+    // پاکسازی فایل‌های فیزیکی (best-effort، نباید عملیات اصلی را fail کند)
+    for (const doc of documents) {
+      fs.unlink(doc.filePath).catch(() => {
+        this.logger.warn(`[LegalProfile] حذف فایل ${doc.filePath} ناموفق بود`);
+      });
+    }
 
     this.logger.log(
-      `[LegalProfile] پروفایل حقوقی کاربر ${userId} رد شد${reason ? `: ${reason}` : ''}`,
+      `[LegalProfile] پروفایل حقوقی کاربر ${userId} کاملاً رد و کاربر به حقیقی تبدیل شد`,
     );
+    return {
+      message: 'درخواست به‌طور کامل رد شد و حساب کاربر به حقیقی تغییر یافت',
+      mode: 'final',
+    };
+  }
 
-    return { message: 'پروفایل حقوقی رد شد. کاربر باید مجدداً ثبت کند' };
+  // ── درخواست ارتقا از حقیقی به حقوقی (از پروفایل کاربر) ──
+  async requestLegalUpgrade(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { identity: true },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    if (user.type === 'LEGAL') {
+      throw new ConflictException('حساب شما از قبل حقوقی است');
+    }
+    if (!user.identity || user.identity.status !== 'VERIFIED') {
+      throw new BadRequestException(
+        'ابتدا باید احراز هویت شخصی خود را تکمیل کنید',
+      );
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { type: 'LEGAL', status: 'PENDING_ACTIVATION' },
+    });
+
+    this.logger.log(
+      `[LegalProfile] کاربر ${userId} درخواست ارتقا به حقوقی داد`,
+    );
+    return {
+      message:
+        'درخواست تبدیل حساب به حقوقی ثبت شد. لطفاً اطلاعات شرکت را تکمیل کنید',
+    };
   }
 }

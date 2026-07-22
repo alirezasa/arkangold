@@ -46,4 +46,9 @@ export class UsersController {
   ) {
     return this.usersService.updateLegalProfile(req.user.userId, dto);
   }
+
+  @Post('me/request-legal-upgrade')
+  requestLegalUpgrade(@Req() req: AuthenticatedRequest) {
+    return this.usersService.requestLegalUpgrade(req.user.userId);
+  }
 }

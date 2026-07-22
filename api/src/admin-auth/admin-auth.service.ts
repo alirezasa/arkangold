@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   ForbiddenException,
   NotFoundException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -208,5 +209,46 @@ export class AdminAuthService {
     });
 
     return { accessToken, refreshToken, expiresIn: 1800 };
+  }
+  // api/src/admin-auth/admin-auth.service.ts
+  // این متد را به کلاس AdminAuthService اضافه کنید
+
+  async changeOwnPassword(
+    adminUserId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    if (newPassword.length < 12) {
+      throw new BadRequestException('رمز عبور جدید باید حداقل ۱۲ کاراکتر باشد');
+    }
+
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: adminUserId },
+    });
+    if (!admin) throw new NotFoundException('ادمین یافت نشد');
+
+    const validCurrent = await bcrypt.compare(
+      currentPassword,
+      admin.passwordHash,
+    );
+    if (!validCurrent) {
+      throw new UnauthorizedException('رمز عبور فعلی نادرست است');
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.adminUser.update({
+      where: { id: adminUserId },
+      data: { passwordHash: newHash },
+    });
+
+    // به‌جز نشست فعلی، بقیه‌ی نشست‌ها باطل شوند (کاربر در همین نشست باقی می‌ماند)
+    // توجه: چون sessionId فعلی را اینجا نداریم مگر پاس داده شود، برای سادگی همه نشست‌ها باطل و کاربر باید دوباره وارد شود
+    await this.prisma.adminSession.deleteMany({ where: { adminUserId } });
+
+    this.logger.log(
+      `[AdminAuth] رمز عبور توسط خودِ ادمین ${admin.username} تغییر یافت`,
+    );
+
+    return { message: 'رمز عبور با موفقیت تغییر یافت. لطفاً دوباره وارد شوید' };
   }
 }

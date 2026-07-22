@@ -20,6 +20,11 @@ import {
   useProfilePage,
   useLegalProfileForm,
 } from "@/app/hooks/useProfilePage";
+import { useRequestLegalUpgrade } from "@/app/hooks/useLegalDocuments";
+import {
+  Building2 as BuildingIcon,
+  ArrowLeft as ArrowLeftIcon,
+} from "lucide-react";
 
 // ─── کامپوننت نمایش یک فیلد اطلاعاتی ───
 function InfoField({
@@ -223,7 +228,18 @@ function LegalProfileForm({
 
 // ─── صفحه اصلی پروفایل ───
 export default function ProfilePage() {
+  const {
+    request: requestUpgrade,
+    loading: upgradeLoading,
+    error: upgradeError,
+  } = useRequestLegalUpgrade();
   const router = useRouter();
+  const handleRequestUpgrade = async () => {
+    if (!confirm("آیا می‌خواهید حساب خود را به حساب حقوقی (شرکتی) تبدیل کنید؟"))
+      return;
+    const ok = await requestUpgrade();
+    if (ok) router.push("/dashboard/identity/legal");
+  };
   const { data, loading, refetch } = useProfilePage();
   // اگر لود شد و احراز هویت نشده → ریدایرکت
   useEffect(() => {
@@ -429,6 +445,47 @@ export default function ProfilePage() {
               />
             </div>
           )}
+        </div>
+      )}
+      {data.type === "REAL" && isVerified && (
+        <div
+          className="rounded-2xl p-5"
+          style={{
+            backgroundColor: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <BuildingIcon
+              className="w-4 h-4"
+              style={{ color: "var(--color-emerald)" }}
+            />
+            <h2 className="text-[14px] font-black text-gray-800">حساب حقوقی</h2>
+          </div>
+          <p className="text-[12px] text-gray-500 mb-4 leading-relaxed">
+            اگر می‌خواهید به‌عنوان شرکت یا موسسه فعالیت کنید، می‌توانید درخواست
+            تبدیل حساب خود به حقوقی را ثبت کنید.
+          </p>
+          {upgradeError && (
+            <p className="text-[12px] text-red-600 font-bold mb-3">
+              {upgradeError}
+            </p>
+          )}
+          <button
+            onClick={handleRequestUpgrade}
+            disabled={upgradeLoading}
+            className="w-full py-3 rounded-xl font-bold text-white text-[13px] flex items-center justify-center gap-2 disabled:opacity-60"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+          >
+            {upgradeLoading ? (
+              "در حال ثبت..."
+            ) : (
+              <>
+                درخواست تبدیل به حساب حقوقی{" "}
+                <ArrowLeftIcon className="w-4 h-4" />
+              </>
+            )}
+          </button>
         </div>
       )}
     </div>

@@ -2,6 +2,18 @@ import { useCallback, useState } from "react";
 import axios from "axios";
 import useSWR from "swr";
 
+export interface LegalProfileData {
+  id: string;
+  companyName: string;
+  nationalId: string;
+  economicCode: string | null;
+  registrationNumber: string | null;
+  representativeId: string | null;
+  verified: boolean;
+  status: "PENDING" | "VERIFIED" | "REJECTED";
+  rejectionReason: string | null;
+}
+
 export interface IdentityData {
   firstName: string | null;
   lastName: string | null;

@@ -1,4 +1,4 @@
-// admin/app/api/admin/legal-profiles/pending/route.ts
+// admin/app/api/admin/audit-log/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const qs = searchParams.toString();
     const res = await axios.get(
-      `${NEST}/admin/legal-profiles/pending${qs ? `?${qs}` : ""}`,
+      `${NEST}/admin/audit-log${qs ? `?${qs}` : ""}`,
       {
         headers: { Authorization: `Bearer ${token}` },
       },

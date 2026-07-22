@@ -96,20 +96,40 @@ model UserIdentity {
   @@map("user_identities")
 }
 
+
 model LegalProfile {
-  companyName        String        @map("company_name")
-  nationalId         String        @unique @map("national_id")
-  economicCode       String?       @map("economic_code")
-  registrationNumber String?       @map("registration_number")
-  verified           Boolean       @default(false)
-  createdAt          DateTime      @default(now()) @map("created_at")
-  id                 String        @id @default(uuid()) @db.Uuid
-  userId             String        @unique @map("user_id") @db.Uuid
-  representativeId   String?       @map("representative_id") @db.Uuid
-  representative     UserIdentity? @relation(fields: [representativeId], references: [id])
-  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName        String              @map("company_name")
+  nationalId         String              @unique @map("national_id")
+  economicCode       String?             @map("economic_code")
+  registrationNumber String?             @map("registration_number")
+  verified           Boolean             @default(false)
+  status             LegalProfileStatus  @default(PENDING)
+  rejectionReason    String?             @map("rejection_reason")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  id                 String              @id @default(uuid()) @db.Uuid
+  userId             String              @unique @map("user_id") @db.Uuid
+  representativeId   String?             @map("representative_id") @db.Uuid
+  representative     UserIdentity?       @relation(fields: [representativeId], references: [id])
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents          LegalProfileDocument[]
 
   @@map("legal_profiles")
+}
+
+model LegalProfileDocument {
+  id             String       @id @default(uuid()) @db.Uuid
+  legalProfileId String       @map("legal_profile_id") @db.Uuid
+  legalProfile   LegalProfile @relation(fields: [legalProfileId], references: [id], onDelete: Cascade)
+  type           String       // INTRODUCTION_LETTER | ARTICLES_OF_ASSOCIATION | OTHER
+  fileName       String       @map("file_name")
+  filePath       String       @map("file_path")
+  fileSize       Int          @map("file_size")
+  mimeType       String       @map("mime_type")
+  uploadedAt     DateTime     @default(now()) @map("uploaded_at")
+
+  @@index([legalProfileId])
+  @@map("legal_profile_documents")
 }
 
 model BankAccount {
@@ -968,4 +988,10 @@ enum NotificationType {
   SMS
   IN_APP
   EMAIL
+}
+
+enum LegalProfileStatus {
+  PENDING
+  VERIFIED
+  REJECTED
 }

@@ -1,29 +1,39 @@
-// admin/app/api/admin/legal-profiles/pending/route.ts
+// admin/app/api/admin/legal-profiles/[userId]/approve/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
 const NEST = "http://localhost:5000";
 
-export async function GET(req: Request) {
+export async function POST(
+  _req: Request,
+  { params }: { params: Promise<{ userId: string }> },
+) {
   try {
+    const { userId } = await params;
     const token = (await cookies()).get("adminAccessToken")?.value;
     if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    const { searchParams } = new URL(req.url);
-    const qs = searchParams.toString();
-    const res = await axios.get(
-      `${NEST}/admin/legal-profiles/pending${qs ? `?${qs}` : ""}`,
+    const res = await axios.post(
+      `${NEST}/admin/legal-profiles/${userId}/approve`,
+      {},
       {
         headers: { Authorization: `Bearer ${token}` },
       },
     );
     return NextResponse.json(res.data);
   } catch (e: unknown) {
-    if (axios.isAxiosError(e))
+    if (axios.isAxiosError(e)) {
+      const data = e.response?.data as
+        | { message?: string | string[] }
+        | undefined;
+      const message = Array.isArray(data?.message)
+        ? data.message[0]
+        : data?.message || "خطا";
       return NextResponse.json(
-        { message: e.response?.data?.message || "خطا" },
+        { message },
         { status: e.response?.status || 500 },
       );
+    }
     return NextResponse.json({ message: "خطای سرور" }, { status: 500 });
   }
 }

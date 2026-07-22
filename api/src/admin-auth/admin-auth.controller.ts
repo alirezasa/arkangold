@@ -21,6 +21,14 @@ class AdminRefreshDto {
   @IsString()
   refreshToken!: string;
 }
+class ChangePasswordDto {
+  @IsString()
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(12)
+  newPassword!: string;
+}
 
 interface AuthenticatedAdminRequest extends Request {
   user: AdminAuthenticatedUser;
@@ -59,5 +67,18 @@ export class AdminAuthController {
   @Get('me')
   async getMe(@Req() req: AuthenticatedAdminRequest) {
     return this.adminAuthService.getMe(req.user.adminUserId);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('change-password')
+  async changePassword(
+    @Req() req: AuthenticatedAdminRequest,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.adminAuthService.changeOwnPassword(
+      req.user.adminUserId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
   }
 }

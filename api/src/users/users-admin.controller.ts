@@ -1,4 +1,3 @@
-// api/src/users/users-admin.controller.ts
 import {
   Controller,
   Get,
@@ -6,19 +5,25 @@ import {
   Body,
   Param,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { IsOptional, IsString } from 'class-validator';
+import { Response } from 'express';
+import { IsOptional, IsString, IsBoolean } from 'class-validator';
 import { UsersService } from './users.service';
+import { LegalDocumentsService } from './legal-documents.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { LegalProfileStatus, Prisma } from '../generated/prisma/client';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
 
 class RejectLegalProfileDto {
-  @IsOptional()
   @IsString()
-  reason?: string;
+  reason!: string;
+
+  @IsBoolean()
+  editable!: boolean; // true = قابل ویرایش | false = رد کامل (حذف اطلاعات)
 }
 
 class ListPendingLegalQueryDto {
@@ -29,11 +34,18 @@ class ListPendingLegalQueryDto {
   limit?: number;
 }
 
+const legalProfileInclude = {
+  user: { select: { id: true, phone: true, status: true } },
+  representative: true,
+  documents: true,
+} satisfies Prisma.LegalProfileInclude;
+
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
 @Controller('admin/legal-profiles')
 export class UsersAdminController {
   constructor(
     private readonly usersService: UsersService,
+    private readonly legalDocumentsService: LegalDocumentsService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -43,18 +55,19 @@ export class UsersAdminController {
     const page = query.page ? Number(query.page) : 1;
     const limit = Math.min(query.limit ? Number(query.limit) : 20, 100);
 
-    const where = {
+    // نمایش هم موارد در انتظار (PENDING) و هم موارد رد شده‌ی قابل ویرایش (REJECTED)
+    const where: Prisma.LegalProfileWhereInput = {
       verified: false,
       companyName: { not: '' },
+      status: {
+        in: [LegalProfileStatus.PENDING, LegalProfileStatus.REJECTED],
+      },
     };
 
     const [items, total] = await Promise.all([
       this.prisma.legalProfile.findMany({
         where,
-        include: {
-          user: { select: { id: true, phone: true, status: true } },
-          representative: true,
-        },
+        include: legalProfileInclude,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -69,6 +82,15 @@ export class UsersAdminController {
         nationalId: lp.nationalId,
         economicCode: lp.economicCode,
         registrationNumber: lp.registrationNumber,
+        status: lp.status,
+        rejectionReason: lp.rejectionReason,
+        documents: lp.documents.map((d) => ({
+          id: d.id,
+          type: d.type,
+          fileName: d.fileName,
+          fileSize: d.fileSize,
+          uploadedAt: d.uploadedAt,
+        })),
         representative: lp.representative
           ? {
               firstName: lp.representative.firstName,
@@ -96,6 +118,26 @@ export class UsersAdminController {
   @RequirePermission('legal_profile.approve')
   @Post(':userId/reject')
   reject(@Param('userId') userId: string, @Body() dto: RejectLegalProfileDto) {
-    return this.usersService.rejectLegalProfile(userId, dto.reason);
+    return this.usersService.rejectLegalProfile(
+      userId,
+      dto.reason,
+      dto.editable,
+    );
+  }
+
+  @RequirePermission('legal_profile.view')
+  @Get(':userId/documents')
+  listDocuments(@Param('userId') userId: string) {
+    return this.legalDocumentsService.listForAdmin(userId);
+  }
+
+  @RequirePermission('legal_profile.view')
+  @Get('documents/:documentId/download')
+  async downloadDocument(
+    @Param('documentId') documentId: string,
+    @Res() res: Response,
+  ) {
+    const doc = await this.legalDocumentsService.getForAdmin(documentId);
+    return res.download(doc.filePath, doc.fileName);
   }
 }

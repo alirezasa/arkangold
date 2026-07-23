@@ -1,8 +1,18 @@
-import { IsUUID, IsInt, Min } from 'class-validator';
+import { IsUUID, IsInt, IsOptional, IsNumber, Min } from "class-validator";
 
 export class AddCartItemDto {
+  @IsOptional()
   @IsUUID()
-  variantId!: string;
+  variantId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  productId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  weightGrams?: number;
 
   @IsInt()
   @Min(1)
@@ -13,4 +23,9 @@ export class UpdateCartItemDto {
   @IsInt()
   @Min(1)
   quantity!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  weightGrams?: number;
 }

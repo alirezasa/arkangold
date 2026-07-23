@@ -7,7 +7,6 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemConfigService } from '../system-config/system-config.service';
-import { Prisma } from '../generated/prisma/client';
 
 @Injectable()
 export class WalletService {
@@ -283,7 +282,7 @@ export class WalletService {
         userId,
         walletId: wallet.id,
         type: 'DEPOSIT',
-        amountRial: new Prisma.Decimal(amount),
+        amountRial: amount,
         status: 'PENDING',
         description: `card_to_card|from:${bankAccount.cardNumber}|to:${destCard}`,
       },
@@ -438,7 +437,7 @@ export class WalletService {
         userId,
         walletId: wallet.id,
         type: 'DEPOSIT',
-        amountRial: new Prisma.Decimal(amount),
+        amountRial: amount,
         status: 'PENDING',
         description: `large_transfer|amount:${amount}`,
       },
@@ -550,9 +549,17 @@ export class WalletService {
       const hold = await tx.walletHold.create({
         data: {
           walletId: wallet.id,
-          amountRial: new Prisma.Decimal(amount),
+          amountRial: amount,
           holdType: 'WITHDRAWAL',
           expiresAt,
+        },
+      });
+      const withdrawal = await tx.withdrawalRequest.create({
+        data: {
+          userId,
+          bankAccountId,
+          amountRial: amount,
+          status: 'PENDING',
         },
       });
 
@@ -561,18 +568,9 @@ export class WalletService {
           userId,
           walletId: wallet.id,
           type: 'WITHDRAWAL',
-          amountRial: new Prisma.Decimal(amount),
+          amountRial: amount,
           status: 'PENDING',
-          description: `withdrawal|to:${bankAccount.cardNumber}|hold:${hold.id}`,
-        },
-      });
-
-      const withdrawal = await tx.withdrawalRequest.create({
-        data: {
-          userId,
-          bankAccountId,
-          amountRial: new Prisma.Decimal(amount),
-          status: 'PENDING',
+          description: `withdrawal:${withdrawal.id}|to:${bankAccount.cardNumber}|hold:${hold.id}`,
         },
       });
 

@@ -336,12 +336,20 @@ model Product {
   status        ProductStatus    @default(ACTIVE)
   seoTitle      String?          @map("seo_title")
   seoDesc       String?          @map("seo_desc")
+  pricingMode      ProductPricingMode @default(FIXED) @map("pricing_mode")
+  minWeightGrams   Decimal?         @map("min_weight_grams") @db.Decimal(18, 4)
+  maxWeightGrams   Decimal?         @map("max_weight_grams") @db.Decimal(18, 4)
+  weightStepGrams  Decimal?         @default(0.1) @map("weight_step_grams") @db.Decimal(18, 4)
+  pricePerGramRial Decimal?         @map("price_per_gram_rial") @db.Decimal(18, 0)
+
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
   id            String           @id @default(uuid()) @db.Uuid
   categoryId    String           @map("category_id") @db.Uuid
   variants      ProductVariant[]
   category      ProductCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+   cartItems        CartItem[]        // ⬅️ جدید
+  shopOrderItems   ShopOrderItem[]   // ⬅️ جدید
 
   @@map("products")
 }
@@ -372,13 +380,16 @@ model Cart {
 }
 
 model CartItem {
-  quantity  Int
-  createdAt DateTime       @default(now()) @map("created_at")
-  id        String         @id @default(uuid()) @db.Uuid
-  cartId    String         @map("cart_id") @db.Uuid
-  variantId String         @map("variant_id") @db.Uuid
-  cart      Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity            Int
+  createdAt           DateTime        @default(now()) @map("created_at")
+  id                  String          @id @default(uuid()) @db.Uuid
+  cartId              String          @map("cart_id") @db.Uuid
+  variantId           String?         @map("variant_id") @db.Uuid
+  productId           String?         @map("product_id") @db.Uuid
+  selectedWeightGrams Decimal?        @map("selected_weight_grams") @db.Decimal(18, 4)
+  cart                Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant             ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  product             Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([cartId, variantId])
   @@map("cart_items")
@@ -404,14 +415,17 @@ model ShopOrder {
 }
 
 model ShopOrderItem {
-  quantity  Int
-  priceRial Decimal        @map("price_rial") @db.Decimal(18, 0)
-  createdAt DateTime       @default(now()) @map("created_at")
-  id        String         @id @default(uuid()) @db.Uuid
-  orderId   String         @map("order_id") @db.Uuid
-  variantId String         @map("variant_id") @db.Uuid
-  order     ShopOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity            Int
+  priceRial           Decimal         @map("price_rial") @db.Decimal(18, 0)
+  selectedWeightGrams  Decimal?        @map("selected_weight_grams") @db.Decimal(18, 4)
+  createdAt           DateTime        @default(now()) @map("created_at")
+  id                  String          @id @default(uuid()) @db.Uuid
+  orderId             String          @map("order_id") @db.Uuid
+  variantId           String?         @map("variant_id") @db.Uuid
+  productId           String?         @map("product_id") @db.Uuid
+  order               ShopOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant             ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  product             Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("shop_order_items")
 }
@@ -994,4 +1008,9 @@ enum LegalProfileStatus {
   PENDING
   VERIFIED
   REJECTED
+}
+
+enum ProductPricingMode {
+  FIXED
+  WEIGHT_RANGE
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -18,6 +18,7 @@ interface PWAState {
 
 function detectIOS(): boolean {
   if (typeof window === "undefined") return false;
+
   return (
     /iphone|ipad|ipod/i.test(navigator.userAgent) &&
     !(window as unknown as { MSStream?: unknown }).MSStream
@@ -26,6 +27,7 @@ function detectIOS(): boolean {
 
 function detectStandalone(): boolean {
   if (typeof window === "undefined") return false;
+
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true
@@ -57,16 +59,11 @@ export function usePWA(): PWAState {
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
 
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setIsInstallable(true);
     };
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
 
     const handleInstalled = () => {
       setIsInstalled(true);
@@ -74,6 +71,9 @@ export function usePWA(): PWAState {
       setDeferredPrompt(null);
     };
 
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
     window.addEventListener("appinstalled", handleInstalled);
 
     let updateInterval: ReturnType<typeof setInterval> | null = null;
@@ -83,7 +83,9 @@ export function usePWA(): PWAState {
         .register("/sw.js", { scope: "/" })
         .then((reg) => {
           setSwRegistered(true);
-          updateInterval = setInterval(() => reg.update(), 60_000);
+          updateInterval = setInterval(() => {
+            reg.update().catch(() => {});
+          }, 60_000);
         })
         .catch((err) => {
           console.error("SW registration failed:", err);

@@ -9,7 +9,9 @@ import {
   Req,
   UseGuards,
   UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+
 import { Request } from 'express';
 import { IsOptional, IsString } from 'class-validator';
 import { WalletAdminService } from './wallet-admin.service';
@@ -40,6 +42,24 @@ class ListWithdrawalsQueryDto {
 interface AdminRequest extends Request {
   user: AdminAuthenticatedUser;
 }
+type WithdrawalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSED';
+
+function parseWithdrawalStatus(status?: string): WithdrawalStatus | undefined {
+  if (!status) {
+    return undefined;
+  }
+
+  switch (status) {
+    case 'PENDING':
+    case 'APPROVED':
+    case 'REJECTED':
+    case 'PROCESSED':
+      return status;
+
+    default:
+      throw new BadRequestException('وضعیت درخواست برداشت نامعتبر است');
+  }
+}
 
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
 @Controller('admin/withdrawals')
@@ -52,7 +72,7 @@ export class WalletAdminController {
     return this.walletAdminService.list({
       page: query.page ? Number(query.page) : undefined,
       limit: query.limit ? Number(query.limit) : undefined,
-      status: query.status as any,
+      status: parseWithdrawalStatus(query.status),
     });
   }
 

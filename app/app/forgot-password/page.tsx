@@ -85,11 +85,11 @@ export default function ForgotPasswordPage() {
   return (
     <div className="w-full min-h-screen flex flex-col lg:flex-row-reverse bg-[#fdfdfd]" dir="rtl">
       {/* سایدبار راست */}
-      <div className="hidden lg:flex lg:w-[45%] bg-[#064e3b] relative overflow-hidden flex-col justify-between p-16">
+      <div className="hidden lg:flex lg:w-[45%] bg-emerald relative overflow-hidden flex-col justify-between p-16">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
         <div className="relative z-10">
           <div className="w-16 h-16 bg-[#c5a059] rounded-2xl flex items-center justify-center mb-8 shadow-2xl">
-            <Sparkles className="text-[#064e3b] w-8 h-8" />
+            <Sparkles className="text-amber-950 w-8 h-8" />
           </div>
           <h1 className="text-5xl font-black text-white leading-snug">بازیابی امن<br /><span className="text-[#c5a059]">حساب کاربری</span></h1>
           <p className="mt-8 text-xl text-emerald-100/80 font-light leading-relaxed max-w-sm">در صورت فراموشی رمز عبور، با تایید هویت خود می‌توانید مجدداً به پنل معاملات دسترسی پیدا کنید.</p>

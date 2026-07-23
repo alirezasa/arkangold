@@ -176,3 +176,8 @@ export enum NotificationType {
   IN_APP = 'IN_APP',
   EMAIL = 'EMAIL',
 }
+
+export enum ProductPricingMode {
+  FIXED = 'FIXED',
+  WEIGHT_RANGE = 'WEIGHT_RANGE',
+}

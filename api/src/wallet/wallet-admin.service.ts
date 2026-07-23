@@ -17,6 +17,15 @@ interface ListWithdrawalsQuery {
 @Injectable()
 export class WalletAdminService {
   constructor(private prisma: PrismaService) {}
+  private toNumber(value: unknown): number {
+    const numberValue = Number(value);
+
+    if (!Number.isFinite(numberValue)) {
+      throw new BadRequestException('مقدار عددی نامعتبر است');
+    }
+
+    return numberValue;
+  }
 
   async list(query: ListWithdrawalsQuery) {
     const page = query.page ?? 1;
@@ -43,7 +52,8 @@ export class WalletAdminService {
     return {
       data: items.map((w) => ({
         id: w.id,
-        amountToman: w.amountRial.dividedBy(10).toString(),
+        amountToman: (Number(w.amountRial) / 10).toString(),
+
         status: w.status,
         adminNotes: w.adminNotes,
         user: w.user,
@@ -99,13 +109,16 @@ export class WalletAdminService {
         },
       });
 
-      if (wallet.rialBalance.lessThan(withdrawal.amountRial)) {
+      const walletRialBalance = this.toNumber(wallet.rialBalance);
+      const withdrawalAmountRial = this.toNumber(withdrawal.amountRial);
+
+      if (walletRialBalance < withdrawalAmountRial) {
         throw new BadRequestException('موجودی کاربر برای این برداشت کافی نیست');
       }
 
       await tx.wallet.update({
         where: { id: wallet.id },
-        data: { rialBalance: { decrement: withdrawal.amountRial } },
+        data: { rialBalance: { decrement: withdrawalAmountRial } },
       });
 
       // آزادسازی hold مرتبط (اگر پیدا شد)

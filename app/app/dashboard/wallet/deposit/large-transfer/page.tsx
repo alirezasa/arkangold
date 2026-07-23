@@ -17,6 +17,35 @@ import {
   Building2,
 } from "lucide-react";
 
+// ── توابع کمکی ──
+
+const toEnglishDigits = (str: string) => {
+  const persian = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+  const arabic = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
+  return str
+    .replace(/[۰-۹]/g, (char) => persian.indexOf(char).toString())
+    .replace(/[٠-٩]/g, (char) => arabic.indexOf(char).toString());
+};
+
+function rT(rial: number): string {
+  return (rial / 10).toLocaleString("fa-IR");
+}
+
+function rTLabel(rial: number): string {
+  const t = rial / 10;
+  if (t >= 1_000_000_000)
+    return `${(t / 1_000_000_000).toLocaleString("fa-IR")} میلیارد`;
+  if (t >= 1_000_000)
+    return `${(t / 1_000_000).toLocaleString("fa-IR")} میلیون`;
+  return t.toLocaleString("fa-IR");
+}
+
+// استخراج عدد خالص از رشته فرمت شده
+function parseTomanAmount(str: string): number {
+  const sanitized = toEnglishDigits(str).replace(/\D/g, "");
+  return sanitized ? Number(sanitized) : 0;
+}
+
 function CopyBtn({ text }: { text: string }) {
   const [ok, setOk] = useState(false);
   return (
@@ -37,23 +66,6 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
-// ریال API → تومان نمایش
-function rT(rial: number): string {
-  return (rial / 10).toLocaleString("fa-IR");
-}
-function rTLabel(rial: number): string {
-  const t = rial / 10;
-  if (t >= 1_000_000_000)
-    return `${(t / 1_000_000_000).toLocaleString("fa-IR")} میلیارد`;
-  if (t >= 1_000_000)
-    return `${(t / 1_000_000).toLocaleString("fa-IR")} میلیون`;
-  return t.toLocaleString("fa-IR");
-}
-// تومان ورودی کاربر → ریال برای API
-function tomanToRial(str: string): number {
-  return Number(str.replace(/,/g, "").replace(/،/g, "")) * 10;
-}
-
 type Step = "enter-amount" | "show-proforma" | "confirmed";
 
 export default function LargeTransferPage() {
@@ -66,7 +78,7 @@ export default function LargeTransferPage() {
   const [proformaData, setProformaData] = useState<{
     transactionId: string;
     proformaData: {
-      amount: number; // ریال
+      amount: number;
       destinationAccount: string;
       destinationSheba: string;
       trackingId: string;
@@ -77,17 +89,19 @@ export default function LargeTransferPage() {
   } | null>(null);
 
   const cfg = config?.largeTransfer;
-  // سقف پایین تومانی
-  const minToman = cfg ? cfg.minAmount / 10 : 400_000_000;
+  const minAmountRial = cfg?.minAmount ?? 4_000_000_000;
+  const minToman = minAmountRial / 10;
 
   const handleSubmit = async () => {
-    const amt = tomanToRial(amountToman);
-    if (!amt || amt < (cfg?.minAmount ?? 4_000_000_000)) {
+    const amtToman = parseTomanAmount(amountToman);
+    const amtRial = amtToman * 10;
+
+    if (!amtToman || amtRial < minAmountRial) {
       return setError(
-        `حداقل مبلغ برای این روش ${rTLabel(cfg?.minAmount ?? 4_000_000_000)} تومان است`,
+        `حداقل مبلغ برای این روش ${rTLabel(minAmountRial)} تومان است`,
       );
     }
-    const result = await initiate(amt);
+    const result = await initiate(amtRial);
     if (result) {
       setProformaData(result);
       setStep("show-proforma");
@@ -133,8 +147,7 @@ export default function LargeTransferPage() {
         <div>
           <h1 className="text-[17px] font-black text-gray-900">مبالغ بالا</h1>
           <p className="text-[11px] text-gray-400">
-            واریز مبالغ بیش از {rTLabel(cfg?.minAmount ?? 4_000_000_000)} تومان
-            | سیکل پایا
+            واریز بیش از {rTLabel(minAmountRial)} تومان | سیکل پایا
           </p>
         </div>
         {goldPrice && (
@@ -166,10 +179,10 @@ export default function LargeTransferPage() {
           >
             <div>
               <h2 className="text-[14px] font-black text-gray-800 mb-1">
-                مبلغ واریز :
+                مبلغ واریز:
               </h2>
               <p className="text-[12px] text-gray-400">
-                حداقل {rTLabel(cfg?.minAmount ?? 4_000_000_000)} تومان
+                حداقل {rTLabel(minAmountRial)} تومان
               </p>
             </div>
 
@@ -177,11 +190,14 @@ export default function LargeTransferPage() {
               <input
                 type="text"
                 inputMode="numeric"
-                dir="ltr"
-                placeholder={`حداقل ${minToman.toLocaleString("fa-IR")} تومان`}
+                dir="rtl"
+                placeholder={`حداقل ${minToman.toLocaleString("fa-IR")}`}
                 value={amountToman}
                 onChange={(e) => {
-                  const raw = e.target.value.replace(/[^0-9]/g, "");
+                  const raw = toEnglishDigits(e.target.value).replace(
+                    /\D/g,
+                    "",
+                  );
                   setAmountToman(
                     raw ? Number(raw).toLocaleString("fa-IR") : "",
                   );
@@ -189,13 +205,13 @@ export default function LargeTransferPage() {
                 }}
                 className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[18px] font-black text-gray-800 bg-gray-50 transition-all"
               />
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-gray-400">
+              <span className="absolute left-4 top-1 -translate-y-1/2 text-[10px] font-bold text-gray-400">
                 تومان
               </span>
             </div>
           </div>
 
-          {/* راهنمای مبالغ بالا */}
+          {/* راهنمای مراحل */}
           <div
             className="rounded-2xl p-5 space-y-4"
             style={{
@@ -209,28 +225,23 @@ export default function LargeTransferPage() {
             {[
               {
                 n: "۱",
-                title: "تعیین مبلغ واریز",
-                desc: "مبلغی که می‌خواهید به کیف پولتان واریز کنید را وارد نمایید.",
+                title: "تعیین مبلغ",
+                desc: "مبلغ مورد نظر خود را وارد کنید.",
               },
               {
                 n: "۲",
                 title: "دریافت پیش‌فاکتور",
-                desc: "فایل پیش‌فاکتور حاوی شناسه واریز و اطلاعات حساب واریز را دانلود کنید.",
+                desc: "فایل حاوی شناسه واریز و اطلاعات حساب را دریافت کنید.",
               },
               {
                 n: "۳",
                 title: "مراجعه به بانک",
-                desc: "با همراه داشتن پیش‌فاکتور، به بانک بروید و مبلغ را به حساب آرکان گلد واریز کنید.",
+                desc: "با فیزیک یا تصویر پیش‌فاکتور به شعبه بانک مراجعه کنید.",
               },
               {
                 n: "۴",
-                title: "بارگذاری رسید بانکی",
-                desc: "تصویر رسید بانکی را بارگذاری کنید تا تراکنش‌تان تأیید شود.",
-              },
-              {
-                n: "۵",
-                title: "شارژ کیف پول",
-                desc: "پس از تأیید، موجودی کیف پول شما در سیکل پایا شارژ می‌شود.",
+                title: "انجام واریز",
+                desc: "مبلغ را به حساب مشخص شده با شناسه واریز انتقال دهید.",
               },
             ].map((item) => (
               <div key={item.n} className="flex items-start gap-3">
@@ -259,21 +270,20 @@ export default function LargeTransferPage() {
             <button
               onClick={handleSubmit}
               disabled={loading || !amountToman}
-              className="flex-1 py-4 rounded-xl font-black text-white! text-[14px] flex items-center justify-center gap-2 disabled:opacity-40"
+              className="flex-2 py-4 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-40 transition-all"
               style={{ backgroundColor: "var(--color-green)" }}
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  <Download className="w-4 h-4" />
-                  دریافت پیش فاکتور
+                  <Download className="w-4 h-4" /> دریافت پیش فاکتور
                 </>
               )}
             </button>
             <button
               onClick={() => setStep("confirmed")}
-              className="flex-1 py-4 rounded-xl font-bold text-[13px] border-2 border-gray-200 text-gray-600 hover:bg-gray-50"
+              className="flex-1 py-4 rounded-xl font-bold text-[13px] border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
             >
               واریز کردم
             </button>
@@ -281,14 +291,13 @@ export default function LargeTransferPage() {
         </div>
       )}
 
-      {/* ══ مرحله ۲: پیش‌فاکتور ══ */}
+      {/* ══ مرحله ۲: نمایش پیش‌فاکتور ══ */}
       {step === "show-proforma" && proformaData && (
         <div className="space-y-4">
           <div
             className="rounded-2xl overflow-hidden"
             style={{ border: "1px solid var(--color-border)" }}
           >
-            {/* هدر */}
             <div
               className="flex items-center gap-3 px-5 py-4"
               style={{ backgroundColor: "var(--color-emerald)" }}
@@ -296,9 +305,10 @@ export default function LargeTransferPage() {
               <Building2 className="w-5 h-5 text-white opacity-80" />
               <div>
                 <p className="text-[14px] font-black text-white">
-                  پیش‌فاکتور واریز
+                  پیش‌فاکتور واریز بانکی
                 </p>
                 <p className="text-[11px] text-white opacity-60">
+                  تاریخ صدور:{" "}
                   {new Date(
                     proformaData.proformaData.generatedAt,
                   ).toLocaleDateString("fa-IR")}
@@ -306,16 +316,15 @@ export default function LargeTransferPage() {
               </div>
             </div>
 
-            {/* ردیف‌های اطلاعات */}
             {[
               {
-                label: "مبلغ",
+                label: "مبلغ نهایی",
                 value: `${rT(proformaData.proformaData.amount)} تومان`,
                 highlight: true,
                 copy: false,
               },
               {
-                label: "نام دریافت‌کننده",
+                label: "دریافت‌کننده",
                 value: proformaData.proformaData.recipientName,
                 highlight: false,
                 copy: false,
@@ -327,7 +336,7 @@ export default function LargeTransferPage() {
                 copy: true,
               },
               {
-                label: "شماره شبا",
+                label: "شماره شبا (IR)",
                 value: proformaData.proformaData.destinationSheba,
                 highlight: false,
                 copy: true,
@@ -339,7 +348,7 @@ export default function LargeTransferPage() {
                 copy: true,
               },
               {
-                label: "نام واریزکننده",
+                label: "نام واریزکننده مجاز",
                 value: proformaData.proformaData.userFullName || "—",
                 highlight: false,
                 copy: false,
@@ -347,16 +356,10 @@ export default function LargeTransferPage() {
             ].map((row, i) => (
               <div
                 key={i}
-                className={`flex items-center justify-between px-5 py-4 border-t border-gray-100 ${
-                  row.highlight
-                    ? "bg-amber-50"
-                    : i % 2 === 0
-                      ? "bg-gray-50"
-                      : "bg-white"
-                }`}
+                className={`flex items-center justify-between px-5 py-4 border-t border-gray-100 ${row.highlight ? "bg-amber-50" : i % 2 === 0 ? "bg-gray-50" : "bg-white"}`}
               >
                 <span
-                  className={`text-[12px] font-medium ${row.highlight ? "text-amber-800 font-black" : "text-gray-500"}`}
+                  className={`text-[12px] ${row.highlight ? "text-amber-800 font-black" : "text-gray-500 font-medium"}`}
                 >
                   {row.label}
                 </span>
@@ -373,17 +376,15 @@ export default function LargeTransferPage() {
             ))}
           </div>
 
-          {/* دکمه دانلود */}
           <button
             onClick={handleDownload}
-            className="w-full py-4 rounded-xl font-black text-[14px] flex items-center justify-center gap-2 border-2 border-dashed transition-colors hover:bg-emerald-50"
+            className="w-full py-4 rounded-xl font-black text-[14px] flex items-center justify-center gap-2 border-2 border-dashed transition-all hover:bg-emerald-50"
             style={{
               borderColor: "var(--color-emerald)",
               color: "var(--color-emerald)",
             }}
           >
-            <Download className="w-5 h-5" />
-            دانلود پیش فاکتور (فایل متنی)
+            <Download className="w-5 h-5" /> دانلود فایل پیش‌فاکتور
           </button>
 
           <button
@@ -391,12 +392,12 @@ export default function LargeTransferPage() {
             className="w-full py-4 rounded-xl font-black text-white text-[14px]"
             style={{ backgroundColor: "var(--color-emerald)" }}
           >
-            واریز را انجام دادم
+            تایید و ادامه
           </button>
         </div>
       )}
 
-      {/* ══ تایید ══ */}
+      {/* ══ مرحله ۳: تایید نهایی ══ */}
       {step === "confirmed" && (
         <div
           className="rounded-2xl p-8 text-center"
@@ -407,19 +408,27 @@ export default function LargeTransferPage() {
         >
           <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-[18px] font-black text-gray-900 mb-2">
-            منتظر واریز شما هستیم
+            درخواست در انتظار واریز
           </h2>
           <p className="text-[13px] text-gray-500 leading-relaxed mb-6">
-            پس از تأیید تراکنش توسط کارشناسان، مبلغ در سیکل پایا به کیف پول
-            افزوده می‌شود.
+            لطفاً پس از واریز مبلغ در شعبه بانک، منتظر تایید کارشناسان و شارژ
+            کیف پول خود در سیکل پایا باشید.
           </p>
-          <Link
-            href="/dashboard/wallet"
-            className="block py-3.5 rounded-xl font-black text-white text-[14px]"
-            style={{ backgroundColor: "var(--color-emerald)" }}
-          >
-            بازگشت به کیف پول
-          </Link>
+          <div className="space-y-3">
+            <Link
+              href="/dashboard/wallet"
+              className="block py-3.5 rounded-xl font-black text-white! text-[14px]"
+              style={{ backgroundColor: "var(--color-emerald)" }}
+            >
+              بازگشت به کیف پول
+            </Link>
+            <Link
+              href="/dashboard/transactions"
+              className="block py-3.5 rounded-xl font-bold text-gray-500 text-[13px] border border-gray-200"
+            >
+              تاریخچه تراکنش‌ها
+            </Link>
+          </div>
         </div>
       )}
     </div>

@@ -7,9 +7,9 @@ import {
   IsInt,
   Length,
   IsIn,
-} from 'class-validator';
-import { Transform } from 'class-transformer';
-import { ProductStatus } from '../enums';
+} from "class-validator";
+import { Transform } from "class-transformer";
+import { ProductStatus, ProductPricingMode } from "../enums";
 
 export class CreateCategoryDto {
   @IsString()
@@ -65,6 +65,30 @@ export class CreateProductDto {
   basePriceRial!: number;
 
   @IsOptional()
+  @IsIn(Object.values(ProductPricingMode))
+  pricingMode?: ProductPricingMode;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  minWeightGrams?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  maxWeightGrams?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.01)
+  weightStepGrams?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  pricePerGramRial?: number;
+
+  @IsOptional()
   @IsString()
   seoTitle?: string;
 
@@ -74,35 +98,20 @@ export class CreateProductDto {
 }
 
 export class UpdateProductDto {
+  @IsOptional() @IsUUID() categoryId?: string;
+  @IsOptional() @IsString() @Length(2, 150) name?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsNumber() @Min(0) basePriceRial?: number;
   @IsOptional()
-  @IsUUID()
-  categoryId?: string;
-
-  @IsOptional()
-  @IsString()
-  @Length(2, 150)
-  name?: string;
-
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  basePriceRial?: number;
-
-  @IsOptional()
-  @IsIn(Object.values(ProductStatus))
-  status?: ProductStatus;
-
-  @IsOptional()
-  @IsString()
-  seoTitle?: string;
-
-  @IsOptional()
-  @IsString()
-  seoDesc?: string;
+  @IsIn(Object.values(ProductPricingMode))
+  pricingMode?: ProductPricingMode;
+  @IsOptional() @IsNumber() @Min(0.01) minWeightGrams?: number;
+  @IsOptional() @IsNumber() @Min(0.01) maxWeightGrams?: number;
+  @IsOptional() @IsNumber() @Min(0.01) weightStepGrams?: number;
+  @IsOptional() @IsNumber() @Min(0) pricePerGramRial?: number;
+  @IsOptional() @IsIn(Object.values(ProductStatus)) status?: ProductStatus;
+  @IsOptional() @IsString() seoTitle?: string;
+  @IsOptional() @IsString() seoDesc?: string;
 }
 
 export class CreateProductVariantDto {
@@ -175,6 +184,6 @@ export class GetProductsQueryDto {
   maxPrice?: number;
 
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value }) => value === "true" || value === true)
   inStock?: boolean;
 }

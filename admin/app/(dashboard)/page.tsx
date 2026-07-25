@@ -13,6 +13,8 @@ import {
   Loader2,
   Clock,
   TrendingUp,
+  Package,
+  FolderTree,
 } from "lucide-react";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -25,7 +27,6 @@ interface AdminMe {
   lastLoginAt: string | null;
 }
 
-// ── کارت‌های آماری: هر کدام فقط اگر ادمین دسترسی مرتبط را داشته باشد نمایش داده می‌شود ──
 function StatCard({
   title,
   href,
@@ -45,7 +46,10 @@ function StatCard({
     <Link
       href={href}
       className="rounded-2xl p-5 flex items-center justify-between transition-all hover:shadow-md"
-      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+      style={{
+        backgroundColor: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+      }}
     >
       <div>
         <p className="text-[12px] font-bold text-gray-500 mb-2">{title}</p>
@@ -82,11 +86,17 @@ function QuickLink({
     <Link
       href={href}
       className="flex items-center gap-3 p-4 rounded-2xl transition-colors hover:bg-gray-50"
-      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+      style={{
+        backgroundColor: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+      }}
     >
       <div
         className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-        style={{ backgroundColor: "var(--color-emerald-light)", color: "var(--color-emerald)" }}
+        style={{
+          backgroundColor: "var(--color-emerald-light)",
+          color: "var(--color-emerald)",
+        }}
       >
         <Icon className="w-5 h-5" />
       </div>
@@ -102,9 +112,12 @@ function QuickLink({
 export default function DashboardHomePage() {
   const { data: me } = useSWR<AdminMe>("/api/admin-auth/me", fetcher);
 
-  const canViewWithdrawals = me?.permissions.includes("withdrawal.view") ?? false;
-  const canViewLegalProfiles = me?.permissions.includes("legal_profile.view") ?? false;
+  const canViewWithdrawals =
+    me?.permissions.includes("withdrawal.view") ?? false;
+  const canViewLegalProfiles =
+    me?.permissions.includes("legal_profile.view") ?? false;
   const canManageAdmins = me?.permissions.includes("admin.manage") ?? false;
+  const canManageShop = me?.permissions.includes("shop.manage") ?? false;
 
   const { data: withdrawals, isLoading: withdrawalsLoading } = useSWR(
     canViewWithdrawals ? "/api/admin/withdrawals?status=PENDING&limit=1" : null,
@@ -116,6 +129,14 @@ export default function DashboardHomePage() {
   );
   const { data: admins, isLoading: adminsLoading } = useSWR(
     canManageAdmins ? "/api/admin/admins" : null,
+    fetcher,
+  );
+  const { data: products, isLoading: productsLoading } = useSWR(
+    canManageShop ? "/api/admin/shop/products?limit=1" : null,
+    fetcher,
+  );
+  const { data: categories, isLoading: categoriesLoading } = useSWR(
+    canManageShop ? "/api/admin/shop/categories" : null,
     fetcher,
   );
 
@@ -131,7 +152,9 @@ export default function DashboardHomePage() {
       {/* ── هدر خوش‌آمدگویی ── */}
       <div
         className="relative overflow-hidden rounded-2xl p-6"
-        style={{ background: "linear-gradient(135deg, var(--color-emerald), #1a0204)" }}
+        style={{
+          background: "linear-gradient(135deg, var(--color-emerald), #1a0204)",
+        }}
       >
         <div
           className="absolute -top-10 -left-10 w-40 h-40 rounded-full opacity-10 blur-2xl pointer-events-none"
@@ -139,14 +162,19 @@ export default function DashboardHomePage() {
         />
         <div className="relative z-10 flex items-center justify-between flex-wrap gap-4">
           <div>
-            <p className="text-[12px] text-white/50 font-medium mb-1">{todayLabel}</p>
+            <p className="text-[12px] text-white/50 font-medium mb-1">
+              {todayLabel}
+            </p>
             <h1 className="text-[20px] font-black text-white">
               خوش آمدید، {me?.fullName ?? "..."}
             </h1>
             {me && (
               <span
                 className="inline-block mt-2 px-3 py-1 rounded-full text-[11px] font-bold"
-                style={{ backgroundColor: "rgba(197,160,89,.15)", color: "var(--color-gold-500)" }}
+                style={{
+                  backgroundColor: "rgba(197,160,89,.15)",
+                  color: "var(--color-gold-500)",
+                }}
               >
                 {me.role.name}
               </span>
@@ -156,7 +184,10 @@ export default function DashboardHomePage() {
             className="w-14 h-14 rounded-2xl flex items-center justify-center"
             style={{ backgroundColor: "var(--color-gold-500)" }}
           >
-            <TrendingUp className="w-7 h-7" style={{ color: "var(--color-emerald)" }} />
+            <TrendingUp
+              className="w-7 h-7"
+              style={{ color: "var(--color-emerald)" }}
+            />
           </div>
         </div>
       </div>
@@ -183,6 +214,26 @@ export default function DashboardHomePage() {
             color="#2563eb"
           />
         )}
+        {canManageShop && (
+          <StatCard
+            title="تعداد کل محصولات فروشگاه"
+            href="/shop/products"
+            icon={Package}
+            value={products?.total ?? 0}
+            loading={productsLoading}
+            color="#7c3aed"
+          />
+        )}
+        {canManageShop && (
+          <StatCard
+            title="تعداد دسته‌بندی‌ها"
+            href="/shop/categories"
+            icon={FolderTree}
+            value={categories?.length ?? 0}
+            loading={categoriesLoading}
+            color="#0891b2"
+          />
+        )}
         {canManageAdmins && (
           <StatCard
             title="تعداد کل ادمین‌ها"
@@ -197,7 +248,9 @@ export default function DashboardHomePage() {
 
       {/* ── دسترسی سریع ── */}
       <div>
-        <h2 className="text-[14px] font-black text-gray-700 mb-3">دسترسی سریع</h2>
+        <h2 className="text-[14px] font-black text-gray-700 mb-3">
+          دسترسی سریع
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {canViewWithdrawals && (
             <QuickLink
@@ -213,6 +266,22 @@ export default function DashboardHomePage() {
               subtitle="بررسی و تایید اطلاعات شرکت‌ها"
               href="/legal-profiles"
               icon={Building2}
+            />
+          )}
+          {canManageShop && (
+            <QuickLink
+              title="مدیریت محصولات فروشگاه"
+              subtitle="ایجاد، ویرایش، تصاویر و موجودی محصولات"
+              href="/shop/products"
+              icon={Package}
+            />
+          )}
+          {canManageShop && (
+            <QuickLink
+              title="دسته‌بندی‌های فروشگاه"
+              subtitle="مدیریت ساختار دسته‌بندی محصولات"
+              href="/shop/categories"
+              icon={FolderTree}
             />
           )}
           {canManageAdmins && (

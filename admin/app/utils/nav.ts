@@ -5,6 +5,7 @@ import {
   Building2,
   Package,
   ShoppingBag,
+  FolderTree,
   Users,
   ShieldAlert,
   Settings2,
@@ -46,10 +47,17 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: "فروشگاه",
+    items: [
+      { label: "محصولات", href: "/shop/products", icon: Package, perm: "shop.manage" },
+      { label: "دسته‌بندی‌ها", href: "/shop/categories", icon: FolderTree, perm: "shop.manage" },
+      { label: "سفارشات فروشگاه", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
+    ],
+  },
+  {
     title: "عملیات",
     items: [
       { label: "تحویل فیزیکی طلا", href: "/physical-deliveries", icon: Package, perm: "physical_delivery.view" },
-      { label: "سفارشات فروشگاه", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
     ],
   },
   {
@@ -70,7 +78,7 @@ export const NAV_SECTIONS: NavSection[] = [
 export const BOTTOM_NAV_ITEMS = [
   { label: "داشبورد", href: "/", icon: LayoutDashboard, perm: null },
   { label: "برداشت‌ها", href: "/withdrawals", icon: Wallet, perm: "withdrawal.view" },
-  { label: "حقوقی", href: "/legal-profiles", icon: Building2, perm: "legal_profile.view" },
-  { label: "فروشگاه", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
+  { label: "محصولات", href: "/shop/products", icon: Package, perm: "shop.manage" },
+  { label: "سفارشات", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
   { label: "پروفایل", href: "/profile", icon: UserCog, perm: null },
 ];

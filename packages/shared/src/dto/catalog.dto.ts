@@ -168,6 +168,10 @@ export class GetProductsQueryDto {
   categoryId?: string;
 
   @IsOptional()
+  @IsIn(Object.values(ProductStatus))
+  status?: ProductStatus;
+
+  @IsOptional()
   @IsString()
   search?: string;
 

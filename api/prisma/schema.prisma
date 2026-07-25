@@ -350,6 +350,7 @@ model Product {
   category      ProductCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
    cartItems        CartItem[]        // ⬅️ جدید
   shopOrderItems   ShopOrderItem[]   // ⬅️ جدید
+  images ProductImage[]   // ⬅️ جدید
 
   @@map("products")
 }
@@ -367,6 +368,22 @@ model ProductVariant {
   shopOrderItems  ShopOrderItem[]
 
   @@map("product_variants")
+}
+
+model ProductImage {
+  id         String   @id @default(uuid()) @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url        String   // مسیر عمومی مثل /uploads/products/xxx.webp
+  altText    String?  @map("alt_text")
+  sortOrder  Int      @default(0) @map("sort_order")
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  fileSize   Int      @map("file_size")
+  mimeType   String   @map("mime_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@map("product_images")
 }
 
 model Cart {

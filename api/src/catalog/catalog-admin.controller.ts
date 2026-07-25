@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   UseGuards,
+  Delete,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CatalogService } from './catalog.service';
@@ -60,5 +61,11 @@ export class CatalogAdminController {
   @ApiOperation({ summary: 'ویرایش تنوع محصول' })
   updateVariant(@Param('id') id: string, @Body() dto: UpdateProductVariantDto) {
     return this.service.updateVariant(id, dto);
+  }
+
+  @Delete('variants/:id')
+  @ApiOperation({ summary: 'حذف تنوع محصول' })
+  deleteVariant(@Param('id') id: string) {
+    return this.service.deleteVariant(id);
   }
 }

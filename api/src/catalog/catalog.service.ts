@@ -117,6 +117,7 @@ export class CatalogService {
         include: {
           variants: true,
           category: true,
+          images: { orderBy: { sortOrder: 'asc' } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.limit,
@@ -140,6 +141,7 @@ export class CatalogService {
       include: {
         variants: true,
         category: true,
+        images: { orderBy: { sortOrder: 'asc' } },
       },
     });
 
@@ -503,7 +505,7 @@ export class CatalogService {
     description: string | null;
     basePriceRial: string | number | { toString(): string };
     status: string;
-    pricingMode: PrismaProductPricingMode;
+    pricingMode: string;
     minWeightGrams: string | number | { toString(): string } | null;
     maxWeightGrams: string | number | { toString(): string } | null;
     weightStepGrams: string | number | { toString(): string } | null;
@@ -515,11 +517,17 @@ export class CatalogService {
       stockQuantity: number;
       sku: string | null;
     }[];
+    images?: {
+      id: string;
+      url: string;
+      altText: string | null;
+      isPrimary: boolean;
+      sortOrder: number;
+    }[];
     category?: unknown;
   }) {
     const baseRial = Number(p.basePriceRial);
-    const pricingMode = this.toSharedPricingMode(p.pricingMode);
-    const isWeightRange = pricingMode === SharedProductPricingMode.WEIGHT_RANGE;
+    const isWeightRange = p.pricingMode === 'WEIGHT_RANGE';
 
     return {
       id: p.id,
@@ -528,8 +536,18 @@ export class CatalogService {
       description: p.description,
       basePriceToman: (baseRial / 10).toString(),
       status: p.status,
-      pricingMode,
+      pricingMode: p.pricingMode,
       category: p.category,
+      images: (p.images ?? []).map((img) => ({
+        id: img.id,
+        url: img.url,
+        altText: img.altText,
+        isPrimary: img.isPrimary,
+      })),
+      primaryImageUrl:
+        (p.images ?? []).find((i) => i.isPrimary)?.url ??
+        p.images?.[0]?.url ??
+        null,
       weightRange: isWeightRange
         ? {
             minWeightGrams: Number(p.minWeightGrams).toString(),
@@ -541,7 +559,6 @@ export class CatalogService {
       variants: p.variants.map((v) => {
         const weight = Number(v.weightGrams);
         const adjustment = Number(v.priceAdjustment);
-
         return {
           id: v.id,
           weightGrams: weight.toString(),
@@ -552,6 +569,56 @@ export class CatalogService {
           sku: v.sku,
         };
       }),
+    };
+  }
+
+  async deleteVariant(id: string) {
+    const variant = await this.prisma.productVariant.findUnique({
+      where: { id },
+      include: { _count: { select: { shopOrderItems: true } } },
+    });
+    if (!variant) throw new NotFoundException('تنوع محصول یافت نشد');
+
+    if (variant._count.shopOrderItems > 0) {
+      throw new BadRequestException(
+        'این تنوع در سفارش‌های قبلی استفاده شده و قابل حذف نیست. به‌جای حذف، موجودی را صفر کنید',
+      );
+    }
+
+    await this.prisma.productVariant.delete({ where: { id } });
+    return { message: 'تنوع محصول حذف شد' };
+  }
+
+  async adminListProducts(query: GetProductsQueryDto) {
+    const where: Prisma.ProductWhereInput = {
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.search
+        ? { name: { contains: query.search, mode: 'insensitive' } }
+        : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        include: {
+          variants: true,
+          category: true,
+          images: { orderBy: { sortOrder: 'asc' } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    return {
+      data: items.map((p) => this.toProductDto(p)),
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / query.limit)),
     };
   }
 }

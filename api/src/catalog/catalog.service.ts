@@ -152,6 +152,23 @@ export class CatalogService {
     return this.toProductDto(product);
   }
 
+  async getProductByIdAdmin(id: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: {
+        variants: true,
+        category: true,
+        images: { orderBy: { sortOrder: 'asc' } },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('محصول یافت نشد');
+    }
+
+    return this.toProductDto(product);
+  }
+
   async createProduct(dto: CreateProductDto) {
     const category = await this.prisma.productCategory.findUnique({
       where: { id: dto.categoryId },

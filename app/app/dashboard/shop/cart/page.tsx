@@ -325,7 +325,7 @@ export default function ShopCartPage() {
             <button
               onClick={handleConfirmAddress}
               disabled={!selectedAddressId}
-              className="flex-2 py-3.5 rounded-xl font-black text-white text-[14px] disabled:opacity-40"
+              className="flex-2 py-3.5 rounded-xl font-black text-white! text-[14px] disabled:opacity-40"
               style={{ backgroundColor: "var(--color-emerald)" }}
             >
               ادامه
@@ -437,7 +437,7 @@ export default function ShopCartPage() {
           <div className="flex flex-col gap-3">
             <Link
               href="/dashboard/shop"
-              className="py-3.5 rounded-xl font-black text-white text-[14px]"
+              className="py-3.5 rounded-xl font-black text-white! text-[14px]"
               style={{ backgroundColor: "var(--color-emerald)" }}
             >
               بازگشت به فروشگاه

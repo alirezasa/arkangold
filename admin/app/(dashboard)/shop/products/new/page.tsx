@@ -13,8 +13,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import Link from "next/link";
-
-const fetcher = (url: string) => axios.get(url).then((r) => r.data);
+import { adminApi } from "@/app/core/api";
 
 function getErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -47,7 +46,7 @@ export default function NewProductPage() {
   const router = useRouter();
   const { data: categories } = useSWR<CategoryItem[]>(
     "/api/admin/shop/categories",
-    fetcher,
+    (url: string) => adminApi.get(url).then((r) => r.data),
   );
 
   const [name, setName] = useState("");
@@ -130,7 +129,7 @@ export default function NewProductPage() {
 
     setLoading(true);
     try {
-      const productRes = await axios.post("/api/admin/shop/products", {
+      const productRes = await adminApi.post("/api/admin/shop/products", {
         name: name.trim(),
         categoryId,
         description: description.trim() || undefined,
@@ -149,7 +148,10 @@ export default function NewProductPage() {
 
       if (productType === "FIXED") {
         for (const v of cleanedVariants) {
-          await axios.post(`/api/admin/shop/products/${productId}/variants`, v);
+          await adminApi.post(
+            `/api/admin/shop/products/${productId}/variants`,
+            v,
+          );
         }
       }
 

@@ -1,6 +1,7 @@
 "use client";
-import { useParams, useRouter } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
+
+import { useParams } from "next/navigation";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import axios from "axios";
@@ -15,16 +16,17 @@ import {
   Save,
   X,
 } from "lucide-react";
-
-const fetcher = (url: string) => axios.get(url).then((r) => r.data);
+import { adminApi } from "@/app/core/api";
 
 function getErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
     const data = err.response?.data as
       | { message?: string | string[] }
       | undefined;
-    if (data?.message)
+
+    if (data?.message) {
       return Array.isArray(data.message) ? data.message[0] : data.message;
+    }
   }
   return fallback;
 }
@@ -64,7 +66,10 @@ interface CategoryItem {
   name: string;
 }
 
-const STATUS_OPTIONS = [
+const STATUS_OPTIONS: Array<{
+  value: ProductDetail["status"];
+  label: string;
+}> = [
   { value: "ACTIVE", label: "فعال" },
   { value: "INACTIVE", label: "غیرفعال" },
   { value: "OUT_OF_STOCK", label: "ناموجود" },
@@ -97,13 +102,15 @@ function VariantRow({
   const save = async () => {
     setLoading(true);
     setError(null);
+
     try {
-      await axios.patch(`/api/admin/shop/variants/${variant.id}`, {
+      await adminApi.patch(`/api/admin/shop/variants/${variant.id}`, {
         weightGrams: Number(weightGrams),
         priceAdjustment: Number(priceAdjustment || 0) * 10,
         stockQuantity: Number(stockQuantity || 0),
         sku: sku.trim() || undefined,
       });
+
       setEditing(false);
       onSaved();
     } catch (err) {
@@ -115,10 +122,12 @@ function VariantRow({
 
   const remove = async () => {
     if (!confirm("این تنوع حذف شود؟")) return;
+
     setLoading(true);
     setError(null);
+
     try {
-      await axios.delete(`/api/admin/shop/variants/${variant.id}`);
+      await adminApi.delete(`/api/admin/shop/variants/${variant.id}`);
       onDeleted();
     } catch (err) {
       setError(getErrorMessage(err, "خطا در حذف تنوع"));
@@ -147,6 +156,7 @@ function VariantRow({
                 className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] text-left"
               />
             </div>
+
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400">
                 اختلاف قیمت (ت)
@@ -159,6 +169,7 @@ function VariantRow({
                 className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] text-left"
               />
             </div>
+
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400">
                 موجودی
@@ -171,6 +182,7 @@ function VariantRow({
                 className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] text-left"
               />
             </div>
+
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400">SKU</label>
               <input
@@ -180,6 +192,7 @@ function VariantRow({
                 className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] text-left"
               />
             </div>
+
             <div className="flex gap-1.5">
               <button
                 type="button"
@@ -194,6 +207,7 @@ function VariantRow({
                   <Save className="w-3.5 h-3.5" />
                 )}
               </button>
+
               <button
                 type="button"
                 onClick={() => setEditing(false)}
@@ -203,6 +217,7 @@ function VariantRow({
               </button>
             </div>
           </div>
+
           {error && (
             <p
               className="px-3 pb-2 text-[11px] text-red-600 font-bold"
@@ -221,9 +236,11 @@ function VariantRow({
       <td dir="ltr" className="text-left">
         {variant.weightGrams}
       </td>
+
       <td className="font-bold">
         {Number(variant.finalPriceToman).toLocaleString("fa-IR")} ت
       </td>
+
       <td>
         <span
           className="badge"
@@ -235,18 +252,23 @@ function VariantRow({
           {variant.stockQuantity.toLocaleString("fa-IR")} عدد
         </span>
       </td>
+
       <td dir="ltr" className="text-left text-gray-400">
         {variant.sku ?? "—"}
       </td>
+
       <td>
         <div className="flex gap-1.5">
           <button
+            type="button"
             onClick={() => setEditing(true)}
             className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
           >
             <Pencil className="w-3.5 h-3.5" />
           </button>
+
           <button
+            type="button"
             onClick={remove}
             disabled={loading}
             className="p-1.5 rounded-lg text-red-500 hover:bg-red-50"
@@ -263,36 +285,49 @@ function VariantRow({
   );
 }
 
-export default function ProductDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const { data, isLoading, mutate } = useSWR<ProductDetail>(
-    id ? `/api/admin/shop/products/${id}` : null,
-    fetcher,
-  );
-  const { data: categories } = useSWR<CategoryItem[]>(
-    "/api/admin/shop/categories",
-    fetcher,
-  );
-
+// ══════════════════════════════════════════
+// کامپوننت فرم مجزا برای جلوگیری از خطای useEffect
+// ══════════════════════════════════════════
+function ProductEditor({
+  id,
+  data,
+  categories,
+  mutate,
+}: {
+  id: string;
+  data: ProductDetail;
+  categories?: CategoryItem[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mutate: () => Promise<any>;
+}) {
   // ── فرم اطلاعات پایه ──
-  const [name, setName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [description, setDescription] = useState("");
-  const [basePriceToman, setBasePriceToman] = useState("");
-  const [status, setStatus] = useState("ACTIVE");
+  const [name, setName] = useState(data.name);
+  const [categoryId, setCategoryId] = useState(data.category?.id ?? "");
+  const [description, setDescription] = useState(data.description ?? "");
+  const [basePriceToman, setBasePriceToman] = useState(data.basePriceToman);
+  const [status, setStatus] = useState<ProductDetail["status"]>(data.status);
   const [savingBase, setSavingBase] = useState(false);
   const [baseError, setBaseError] = useState<string | null>(null);
   const [baseSaved, setBaseSaved] = useState(false);
 
   // ── فرم بازه‌وزنی ──
-  const [minWeight, setMinWeight] = useState("");
-  const [maxWeight, setMaxWeight] = useState("");
-  const [weightStep, setWeightStep] = useState("");
-  const [pricePerGramToman, setPricePerGramToman] = useState("");
+  const [minWeight, setMinWeight] = useState(
+    data.weightRange?.minWeightGrams ?? "",
+  );
+  const [maxWeight, setMaxWeight] = useState(
+    data.weightRange?.maxWeightGrams ?? "",
+  );
+  const [weightStep, setWeightStep] = useState(
+    data.weightRange?.stepGrams ?? "",
+  );
+  const [pricePerGramToman, setPricePerGramToman] = useState(
+    data.weightRange?.pricePerGramToman ?? "",
+  );
   const [savingRange, setSavingRange] = useState(false);
   const [rangeError, setRangeError] = useState<string | null>(null);
-  const [previewWeight, setPreviewWeight] = useState(1);
+  const [previewWeight, setPreviewWeight] = useState(
+    Number(data.weightRange?.minWeightGrams ?? 1),
+  );
 
   // ── فرم افزودن تنوع جدید ──
   const [showAddVariant, setShowAddVariant] = useState(false);
@@ -303,49 +338,48 @@ export default function ProductDetailPage() {
   const [addingVariant, setAddingVariant] = useState(false);
   const [addVariantError, setAddVariantError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!data) return;
-    setName(data.name);
-    setCategoryId(data.category?.id ?? "");
-    setDescription(data.description ?? "");
-    setBasePriceToman(data.basePriceToman);
-    setStatus(data.status);
-    if (data.weightRange) {
-      setMinWeight(data.weightRange.minWeightGrams);
-      setMaxWeight(data.weightRange.maxWeightGrams);
-      setWeightStep(data.weightRange.stepGrams);
-      setPricePerGramToman(data.weightRange.pricePerGramToman);
-      setPreviewWeight(Number(data.weightRange.minWeightGrams));
-    }
-  }, [data]);
-
   const previewPriceToman = useMemo(() => {
-    const p = Number(pricePerGramToman) || 0;
-    return Math.round(p * previewWeight);
+    const pricePerGram = Number(pricePerGramToman) || 0;
+    return Math.round(pricePerGram * previewWeight);
   }, [pricePerGramToman, previewWeight]);
 
   const saveBaseInfo = async (e: React.FormEvent) => {
     e.preventDefault();
+
     setBaseError(null);
     setBaseSaved(false);
-    if (!name.trim()) return setBaseError("نام محصول را وارد کنید");
-    if (!categoryId) return setBaseError("دسته‌بندی را انتخاب کنید");
+
+    if (!name.trim()) {
+      return setBaseError("نام محصول را وارد کنید");
+    }
+
+    if (!categoryId) {
+      return setBaseError("دسته‌بندی را انتخاب کنید");
+    }
+
     const basePriceRial = Number(basePriceToman) * 10;
-    if (!basePriceToman || basePriceRial <= 0)
+
+    if (!basePriceToman || basePriceRial <= 0) {
       return setBaseError("قیمت پایه معتبر وارد کنید");
+    }
 
     setSavingBase(true);
+
     try {
-      await axios.patch(`/api/admin/shop/products/${id}`, {
+      await adminApi.patch(`/api/admin/shop/products/${id}`, {
         name: name.trim(),
         categoryId,
         description: description.trim() || undefined,
         basePriceRial,
         status,
       });
+
       setBaseSaved(true);
       await mutate();
-      setTimeout(() => setBaseSaved(false), 2000);
+
+      setTimeout(() => {
+        setBaseSaved(false);
+      }, 2000);
     } catch (err) {
       setBaseError(getErrorMessage(err, "خطا در ذخیره تغییرات"));
     } finally {
@@ -356,25 +390,35 @@ export default function ProductDetailPage() {
   const saveWeightRange = async (e: React.FormEvent) => {
     e.preventDefault();
     setRangeError(null);
-    const min = Number(minWeight),
-      max = Number(maxWeight),
-      step = Number(weightStep);
+
+    const min = Number(minWeight);
+    const max = Number(maxWeight);
+    const step = Number(weightStep);
     const pricePerGramRial = Number(pricePerGramToman) * 10;
-    if (!min || !max || min >= max) return setRangeError("بازه وزن معتبر نیست");
-    if (!step || step <= 0)
+
+    if (!min || !max || min >= max) {
+      return setRangeError("بازه وزن معتبر نیست");
+    }
+
+    if (!step || step <= 0) {
       return setRangeError("گام وزن باید بزرگتر از صفر باشد");
-    if (!pricePerGramToman || pricePerGramRial <= 0)
+    }
+
+    if (!pricePerGramToman || pricePerGramRial <= 0) {
       return setRangeError("قیمت هر گرم را وارد کنید");
+    }
 
     setSavingRange(true);
+
     try {
-      await axios.patch(`/api/admin/shop/products/${id}`, {
+      await adminApi.patch(`/api/admin/shop/products/${id}`, {
         pricingMode: "WEIGHT_RANGE",
         minWeightGrams: min,
         maxWeightGrams: max,
         weightStepGrams: step,
         pricePerGramRial,
       });
+
       await mutate();
     } catch (err) {
       setRangeError(getErrorMessage(err, "خطا در ذخیره بازه وزن"));
@@ -386,21 +430,27 @@ export default function ProductDetailPage() {
   const addVariant = async (e: React.FormEvent) => {
     e.preventDefault();
     setAddVariantError(null);
-    if (!newWeight || Number(newWeight) <= 0)
+
+    if (!newWeight || Number(newWeight) <= 0) {
       return setAddVariantError("وزن معتبر وارد کنید");
+    }
+
     setAddingVariant(true);
+
     try {
-      await axios.post(`/api/admin/shop/products/${id}/variants`, {
+      await adminApi.post(`/api/admin/shop/products/${id}/variants`, {
         weightGrams: Number(newWeight),
         priceAdjustment: Number(newAdjustment || 0) * 10,
         stockQuantity: Number(newStock || 0),
         sku: newSku.trim() || undefined,
       });
+
       setNewWeight("");
       setNewAdjustment("0");
       setNewStock("0");
       setNewSku("");
       setShowAddVariant(false);
+
       await mutate();
     } catch (err) {
       setAddVariantError(getErrorMessage(err, "خطا در افزودن تنوع"));
@@ -409,21 +459,14 @@ export default function ProductDetailPage() {
     }
   };
 
-  if (isLoading || !data) {
-    return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-2xl">
       <Link
         href="/shop/products"
         className="inline-flex items-center gap-1.5 text-[12px] font-bold text-gray-400 mb-4 hover:text-gray-600"
       >
-        <ArrowRight className="w-3.5 h-3.5" /> بازگشت به محصولات
+        <ArrowRight className="w-3.5 h-3.5" />
+        بازگشت به محصولات
       </Link>
 
       <div className="flex items-center justify-between mb-5">
@@ -450,6 +493,7 @@ export default function ProductDetailPage() {
             {baseError}
           </div>
         )}
+
         {baseSaved && (
           <div className="p-3 rounded-xl bg-green-50 text-green-600 text-[13px] font-bold">
             تغییرات ذخیره شد ✓
@@ -478,23 +522,26 @@ export default function ProductDetailPage() {
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
             >
               <option value="">انتخاب کنید...</option>
-              {categories?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
+              {categories?.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
                 </option>
               ))}
             </select>
           </div>
+
           <div className="space-y-1.5">
             <label className="text-[12px] font-bold text-gray-500">وضعیت</label>
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(e) =>
+                setStatus(e.target.value as ProductDetail["status"])
+              }
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
             >
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
+              {STATUS_OPTIONS.map((statusOption) => (
+                <option key={statusOption.value} value={statusOption.value}>
+                  {statusOption.label}
                 </option>
               ))}
             </select>
@@ -538,10 +585,12 @@ export default function ProductDetailPage() {
         </button>
       </form>
 
-      {/* ── بازه وزنی (فقط اگر پرایسینگ WEIGHT_RANGE باشه) ── */}
+      {/* ── تصاویر محصول ── */}
       <div className="mb-5">
         <ProductImagesManager productId={id} />
       </div>
+
+      {/* ── بازه وزنی، فقط اگر pricingMode برابر WEIGHT_RANGE باشد ── */}
       {data.pricingMode === "WEIGHT_RANGE" && (
         <form
           onSubmit={saveWeightRange}
@@ -576,6 +625,7 @@ export default function ProductDetailPage() {
                 className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] text-left"
               />
             </div>
+
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400">
                 حداکثر وزن (گرم)
@@ -589,6 +639,7 @@ export default function ProductDetailPage() {
                 className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] text-left"
               />
             </div>
+
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-gray-400">
                 گام (Step)
@@ -624,6 +675,7 @@ export default function ProductDetailPage() {
             <p className="text-[11px] font-bold text-gray-500">
               پیش‌نمایش تجربه کاربر نهایی
             </p>
+
             <input
               type="range"
               min={Number(minWeight) || 0}
@@ -631,8 +683,9 @@ export default function ProductDetailPage() {
               step={Number(weightStep) || 0.1}
               value={previewWeight}
               onChange={(e) => setPreviewWeight(Number(e.target.value))}
-              className="w-full accent-[var(--color-emerald)]"
+              className="w-full accent-emerald"
             />
+
             <div className="flex items-center justify-between text-[11px] text-gray-400">
               <span>{minWeight || 0} گرم</span>
               <span className="font-black text-gray-800 text-[14px]">
@@ -640,6 +693,7 @@ export default function ProductDetailPage() {
               </span>
               <span>{maxWeight || 0} گرم</span>
             </div>
+
             <div className="text-center pt-2 border-t border-gray-200">
               <span className="text-[11px] text-gray-400">
                 قیمت محاسبه‌شده:{" "}
@@ -668,7 +722,7 @@ export default function ProductDetailPage() {
         </form>
       )}
 
-      {/* ── تنوع‌ها و انبار (فقط اگر FIXED باشه) ── */}
+      {/* ── تنوع‌ها و انبار، فقط اگر pricingMode برابر FIXED باشد ── */}
       {data.pricingMode === "FIXED" && (
         <div
           className="rounded-2xl p-5"
@@ -681,12 +735,15 @@ export default function ProductDetailPage() {
             <h2 className="text-[13px] font-black text-gray-700">
               تنوع‌ها و انبار
             </h2>
+
             <button
-              onClick={() => setShowAddVariant((s) => !s)}
+              type="button"
+              onClick={() => setShowAddVariant((current) => !current)}
               className="flex items-center gap-1 text-[12px] font-bold"
               style={{ color: "var(--color-emerald)" }}
             >
-              <Plus className="w-3.5 h-3.5" /> افزودن تنوع
+              <Plus className="w-3.5 h-3.5" />
+              افزودن تنوع
             </button>
           </div>
 
@@ -702,6 +759,7 @@ export default function ProductDetailPage() {
                   {addVariantError}
                 </div>
               )}
+
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400">
                   وزن (گرم)
@@ -715,6 +773,7 @@ export default function ProductDetailPage() {
                   className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] text-left"
                 />
               </div>
+
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400">
                   اختلاف قیمت (ت)
@@ -727,6 +786,7 @@ export default function ProductDetailPage() {
                   className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] text-left"
                 />
               </div>
+
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400">
                   موجودی
@@ -739,6 +799,7 @@ export default function ProductDetailPage() {
                   className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] text-left"
                 />
               </div>
+
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-gray-400">
                   SKU
@@ -750,6 +811,7 @@ export default function ProductDetailPage() {
                   className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] text-left"
                 />
               </div>
+
               <button
                 type="submit"
                 disabled={addingVariant}
@@ -780,11 +842,12 @@ export default function ProductDetailPage() {
                   <th>عملیات</th>
                 </tr>
               </thead>
+
               <tbody>
-                {data.variants.map((v) => (
+                {data.variants.map((variant) => (
                   <VariantRow
-                    key={v.id}
-                    variant={v}
+                    key={variant.id}
+                    variant={variant}
                     onSaved={() => mutate()}
                     onDeleted={() => mutate()}
                   />
@@ -795,5 +858,66 @@ export default function ProductDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// کامپوننت اصلی که صرفاً وظیفه Fetch کردن را بر عهده دارد
+// ══════════════════════════════════════════
+export default function ProductDetailPage() {
+  const { id } = useParams<{ id: string }>();
+
+  const {
+    data,
+    error: productError,
+    isLoading,
+    mutate,
+  } = useSWR<ProductDetail>(
+    id ? `/api/admin/shop/products/${id}` : null,
+    (url: string) => adminApi.get(url).then((r) => r.data),
+  );
+
+  const { data: categories } = useSWR<CategoryItem[]>(
+    "/api/admin/shop/categories",
+    (url: string) => adminApi.get(url).then((r) => r.data),
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+      </div>
+    );
+  }
+
+  if (productError) {
+    return (
+      <div className="max-w-2xl">
+        <div className="flex items-start gap-2 p-4 rounded-xl bg-red-50 text-red-600 text-[13px] font-bold">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          خطا در دریافت اطلاعات محصول
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="max-w-2xl">
+        <div className="p-4 rounded-xl bg-gray-50 text-gray-500 text-[13px] font-bold">
+          محصولی یافت نشد.
+        </div>
+      </div>
+    );
+  }
+
+  // اضافه کردن key={data.id} ضروری نیست اما اگر نیاز بود می‌توان اضافه‌اش کرد
+  return (
+    <ProductEditor
+      id={id}
+      data={data}
+      categories={categories}
+      mutate={mutate}
+    />
   );
 }

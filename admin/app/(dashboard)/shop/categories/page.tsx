@@ -2,6 +2,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import axios from "axios";
+import { adminApi } from "@/app/core/api";
 import {
   Loader2,
   FolderTree,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-const fetcher = (url: string) => axios.get(url).then((r) => r.data);
+const fetcher = (url: string) => adminApi.get(url).then((r) => r.data);
 
 function getErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -63,9 +64,12 @@ function CategoryModal({
         parentId: parentId || undefined,
       };
       if (editing) {
-        await axios.patch(`/api/admin/shop/categories/${editing.id}`, payload);
+        await adminApi.patch(
+          `/api/admin/shop/categories/${editing.id}`,
+          payload,
+        );
       } else {
-        await axios.post("/api/admin/shop/categories", payload);
+        await adminApi.post("/api/admin/shop/categories", payload);
       }
       onDone();
       onClose();

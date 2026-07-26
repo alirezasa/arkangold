@@ -3,10 +3,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import useSWR from "swr";
-import axios from "axios";
+
+import { adminApi } from "@/app/core/api";
 import { Loader2, Package, Plus, Search, X } from "lucide-react";
 
-const fetcher = (url: string) => axios.get(url).then((r) => r.data);
+const fetcher = (url: string) => adminApi.get(url).then((r) => r.data);
 
 interface ProductVariant {
   id: string;

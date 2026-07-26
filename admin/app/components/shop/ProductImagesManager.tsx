@@ -2,6 +2,7 @@
 import { useState, useRef } from "react";
 import useSWR from "swr";
 import axios from "axios";
+import { adminApi } from "@/app/core/api";
 import {
   Loader2,
   ImagePlus,
@@ -12,7 +13,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-const fetcher = (url: string) => axios.get(url).then((r) => r.data);
+const fetcher = (url: string) => adminApi.get(url).then((r) => r.data);
 
 function getErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -62,9 +63,12 @@ export default function ProductImagesManager({
     Array.from(files).forEach((file) => formData.append("files", file));
 
     try {
-      await axios.post(
+      await adminApi.post(
         `/api/admin/shop/products/${productId}/images`,
         formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
       );
       await mutate();
     } catch (err) {
@@ -79,7 +83,7 @@ export default function ProductImagesManager({
     setBusyId(imageId);
     setError(null);
     try {
-      await axios.patch(`/api/admin/shop/images/${imageId}/primary`);
+      await adminApi.patch(`/api/admin/shop/images/${imageId}/primary`);
       await mutate();
     } catch (err) {
       setError(getErrorMessage(err, "خطا در تنظیم تصویر اصلی"));
@@ -93,7 +97,7 @@ export default function ProductImagesManager({
     setBusyId(imageId);
     setError(null);
     try {
-      await axios.delete(`/api/admin/shop/images/${imageId}`);
+      await adminApi.delete(`/api/admin/shop/images/${imageId}`);
       await mutate();
     } catch (err) {
       setError(getErrorMessage(err, "خطا در حذف تصویر"));
@@ -115,7 +119,7 @@ export default function ProductImagesManager({
     const orderedIds = reordered.map((img) => img.id);
 
     try {
-      await axios.post(`/api/admin/shop/images/reorder/${productId}`, {
+      await adminApi.post(`/api/admin/shop/images/reorder/${productId}`, {
         orderedIds,
       });
       await mutate();

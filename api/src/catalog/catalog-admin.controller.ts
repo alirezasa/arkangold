@@ -1,7 +1,9 @@
+// api/src/catalog/catalog-admin.controller.ts
 import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Body,
   Param,
@@ -11,9 +13,13 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CatalogService } from './catalog.service';
+import { PricingEngineService } from './pricing-engine.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
-import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
+//import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
+import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
+import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
+import { UseInterceptors } from '@nestjs/common';
 import {
   CreateCategoryDto,
   UpdateCategoryDto,
@@ -22,85 +28,100 @@ import {
   CreateProductVariantDto,
   UpdateProductVariantDto,
   GetProductsQueryDto,
+  SetProductPricingDto,
 } from '@arkan-gold/shared';
 
 @ApiTags('Admin - Shop Catalog')
 @ApiBearerAuth()
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
+//@RequirePermission('shop.manage')
 @Controller('admin/shop')
 export class CatalogAdminController {
-  constructor(private readonly service: CatalogService) {}
+  constructor(
+    private readonly service: CatalogService,
+    private readonly pricingEngine: PricingEngineService,
+  ) {}
 
-  // ── دسته‌بندی‌ها ──
-  @RequirePermission('shop.view')
-  @Get('categories')
-  @ApiOperation({ summary: 'لیست دسته‌بندی‌ها (ادمین)' })
-  listCategories() {
-    return this.service.listCategories();
+  @Get('products')
+  @ApiOperation({ summary: 'لیست محصولات (ادمین)' })
+  list(@Query() query: GetProductsQueryDto) {
+    return this.service.adminListProducts(query);
   }
 
-  @RequirePermission('shop.manage')
+  @Get('products/:id')
+  @ApiOperation({ summary: 'جزئیات محصول برای ویرایش' })
+  getOne(@Param('id') id: string) {
+    return this.service.getProductForAdmin(id);
+  }
+
+  @Post('products/draft')
+  @ApiOperation({ summary: 'ایجاد محصول Draft (ورود به فرم ساخت)' })
+  createDraft() {
+    return this.service.createDraftProduct();
+  }
+
   @Post('categories')
-  @ApiOperation({ summary: 'ایجاد دسته‌بندی' })
   createCategory(@Body() dto: CreateCategoryDto) {
     return this.service.createCategory(dto);
   }
 
-  @RequirePermission('shop.manage')
   @Patch('categories/:id')
-  @ApiOperation({ summary: 'ویرایش دسته‌بندی' })
   updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     return this.service.updateCategory(id, dto);
   }
 
-  // ── محصولات ──
-  @RequirePermission('shop.view')
-  @Get('products')
-  @ApiOperation({ summary: 'لیست محصولات (ادمین، بدون فیلتر status=ACTIVE)' })
-  listProducts(@Query() query: GetProductsQueryDto) {
-    return this.service.adminListProducts(query);
-  }
-
-  @RequirePermission('shop.view')
-  @Get('products/:id')
-  @ApiOperation({ summary: 'جزئیات یک محصول برای ویرایش در ادمین' })
-  getProduct(@Param('id') id: string) {
-    return this.service.getProductByIdAdmin(id);
-  }
-
-  @RequirePermission('shop.manage')
   @Post('products')
-  @ApiOperation({ summary: 'ایجاد محصول' })
+  @AuditLog('shop.product.create')
+  @UseInterceptors(AuditLogInterceptor)
   createProduct(@Body() dto: CreateProductDto) {
     return this.service.createProduct(dto);
   }
 
-  @RequirePermission('shop.manage')
   @Patch('products/:id')
-  @ApiOperation({ summary: 'ویرایش محصول' })
+  @AuditLog('shop.product.update')
+  @UseInterceptors(AuditLogInterceptor)
   updateProduct(@Param('id') id: string, @Body() dto: UpdateProductDto) {
     return this.service.updateProduct(id, dto);
   }
 
-  // ── تنوع‌های محصول ──
-  @RequirePermission('shop.manage')
   @Post('products/:id/variants')
-  @ApiOperation({ summary: 'افزودن تنوع به محصول' })
   addVariant(@Param('id') id: string, @Body() dto: CreateProductVariantDto) {
     return this.service.addVariant(id, dto);
   }
 
-  @RequirePermission('shop.manage')
   @Patch('variants/:id')
-  @ApiOperation({ summary: 'ویرایش تنوع محصول' })
   updateVariant(@Param('id') id: string, @Body() dto: UpdateProductVariantDto) {
     return this.service.updateVariant(id, dto);
   }
 
-  @RequirePermission('shop.manage')
   @Delete('variants/:id')
-  @ApiOperation({ summary: 'حذف تنوع محصول' })
   deleteVariant(@Param('id') id: string) {
     return this.service.deleteVariant(id);
+  }
+
+  // ── فرمول قیمت‌گذاری ──
+  @Get('pricing-components')
+  listComponents() {
+    return this.service.listPricingComponents();
+  }
+
+  @Post('pricing-components')
+  createComponent(@Body() dto: { key: string; label: string }) {
+    return this.service.createPricingComponent(dto);
+  }
+
+  @Put('products/:id/pricing')
+  @AuditLog('shop.product.pricing.update')
+  @UseInterceptors(AuditLogInterceptor)
+  setPricing(@Param('id') id: string, @Body() dto: SetProductPricingDto) {
+    return this.service.setProductPricing(id, dto);
+  }
+
+  @Get('products/:id/pricing-preview')
+  previewPricing(
+    @Param('id') id: string,
+    @Query('weightGrams') weightGrams: string,
+  ) {
+    return this.pricingEngine.calculateForProduct(id, Number(weightGrams || 1));
   }
 }

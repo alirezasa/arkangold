@@ -10,6 +10,7 @@ import {
 } from "class-validator";
 import { Transform } from "class-transformer";
 import { ProductStatus, ProductPricingMode } from "../enums";
+import { GoldPurityKarat } from './product-pricing.dto';
 
 export class CreateCategoryDto {
   @IsString()
@@ -95,6 +96,17 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   seoDesc?: string;
+   @IsOptional()
+  @IsString()
+  shortDescription?: string;
+
+  @IsOptional()
+  @IsString()
+  metaKeywords?: string;
+
+  @IsOptional()
+  @IsIn(Object.values(GoldPurityKarat))
+  purityKarat?: GoldPurityKarat;
 }
 
 export class UpdateProductDto {
@@ -112,6 +124,9 @@ export class UpdateProductDto {
   @IsOptional() @IsIn(Object.values(ProductStatus)) status?: ProductStatus;
   @IsOptional() @IsString() seoTitle?: string;
   @IsOptional() @IsString() seoDesc?: string;
+  @IsOptional() @IsString() shortDescription?: string;
+  @IsOptional() @IsString() metaKeywords?: string;
+  @IsOptional() @IsIn(Object.values(GoldPurityKarat)) purityKarat?: GoldPurityKarat;
 }
 
 export class CreateProductVariantDto {

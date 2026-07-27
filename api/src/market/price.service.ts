@@ -1,35 +1,45 @@
-// api/src/market/price.service.ts
-//
-// نکات معماری (Prisma 7):
-// - یک رکورد ثابت per metal در market_prices (upsert نه create) → جلوگیری از رشد نامحدود جدول
-// - Cron lock (in-memory) برای جلوگیری از overlap اجرای همزمان
-// - Circuit breaker برای talasea (بعد از N شکست، backoff)
-// - EventEmitter به‌جای تزریق مستقیم Gateway (رفع circular dependency)
-// - همه قیمت‌ها به صورت Decimal ذخیره و فقط در لایه presentation به Number تبدیل می‌شن
-
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '../generated/prisma/client';
+import { Cron } from '@nestjs/schedule';
+import axios, { isAxiosError } from 'axios';
+import Decimal from 'decimal.js';
 import Redis from 'ioredis';
-import axios, { AxiosError } from 'axios';
-import { Inject } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 const REDIS_KEY_GOLD = 'market:price:GOLD';
-const REDIS_TTL_SECONDS = 35; // کمی بیشتر از فاصله cron (30s) برای پوشش jitter
+const REDIS_TTL_SECONDS = 35;
+const GOLD_METAL = 'GOLD' as const;
+const TALASEA_SOURCE = 'talasea.ir';
+const TALASEA_API_URL = 'https://api.talasea.ir/api/market/getGoldPrice';
 
-interface TalaseaResponse {
-  success: boolean;
-  price: number; // هزار تومان به ازای هر گرم (طبق مستندات talasea)
+/** قیمت Talasea بر حسب «هزار تومان» است؛ ضرب در ۱۰٬۰۰۰ آن را ریالی می‌کند. */
+const TALASEA_TO_RIAL_FACTOR = 10_000;
+const RIAL_TO_TOMAN_DIVISOR = 10;
+
+const MAX_HISTORY_HOURS = 2160; // 90 روز
+const MAX_HISTORY_ROWS = 1000;
+
+/**
+ * Talasea فیلد `success` برنمی‌گرداند و اعداد را گاهی به‌صورت رشته می‌فرستد.
+ * بنابراین هیچ فیلدی الزامی و هیچ نوعی قطعی فرض نمی‌شود.
+ */
+interface TalaseaRawResponse {
+  price?: string | number | null;
+  change24h?: string | number | null;
+  disableBuy?: boolean | string | number | null;
+  disableSell?: boolean | string | number | null;
+}
+
+interface TalaseaQuote {
+  price: number;
   change24h: number;
-  disableBuy?: boolean;
-  disableSell?: boolean;
+  disableBuy: boolean;
+  disableSell: boolean;
 }
 
 export interface CachedPricePayload {
-  metal: 'GOLD';
-  pricePerGramRial: string; // به صورت string serialize می‌شه (دقت Decimal حفظ بشه)
+  metal: typeof GOLD_METAL;
+  pricePerGramRial: string;
   pricePerGramToman: string;
   change24h: number;
   source: string;
@@ -38,19 +48,113 @@ export interface CachedPricePayload {
   disableSell: boolean;
 }
 
+export interface GoldPriceResponse extends CachedPricePayload {
+  fromCache: boolean;
+}
+
+export interface PriceHistoryItem {
+  time: string;
+  priceRial: string;
+  priceToman: string;
+}
+
 export const PRICE_UPDATED_EVENT = 'market.price.updated';
+
+/** تبدیل ایمن هر مقدار پشتیبانی‌شده به Decimal. */
+function toDecimal(value: unknown): Decimal {
+  if (value instanceof Decimal) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) {
+      const parsed = new Decimal(trimmed);
+      if (parsed.isFinite()) {
+        return parsed;
+      }
+    }
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Decimal(value);
+  }
+
+  if (typeof value === 'bigint') {
+    return new Decimal(value.toString());
+  }
+
+  // Prisma.Decimal و هر object با toString عددی
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { toString?: unknown }).toString === 'function'
+  ) {
+    const asText = String(value).trim();
+    if (asText.length > 0 && asText !== '[object Object]') {
+      const parsed = new Decimal(asText);
+      if (parsed.isFinite()) {
+        return parsed;
+      }
+    }
+  }
+
+  throw new TypeError('مقدار عددی نامعتبر برای تبدیل به Decimal');
+}
+
+/** استخراج عدد از string/number؛ در صورت نامعتبر بودن null. */
+function parseNumeric(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(/,/g, '');
+    if (normalized.length === 0) {
+      return null;
+    }
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+/** استخراج boolean از boolean/string/number. */
+function parseBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'y'].includes(normalized)) {
+      return true;
+    }
+    if (['false', '0', 'no', 'n', ''].includes(normalized)) {
+      return false;
+    }
+  }
+
+  return fallback;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 @Injectable()
 export class PriceService implements OnModuleInit {
   private readonly logger = new Logger(PriceService.name);
 
-  // ── circuit breaker state ──
   private consecutiveFailures = 0;
   private readonly MAX_FAILURES_BEFORE_BACKOFF = 5;
-  private readonly BACKOFF_MS = 5 * 60 * 1000; // 5 دقیقه
+  private readonly BACKOFF_MS = 5 * 60 * 1000;
   private circuitOpenedAt: number | null = null;
-
-  // ── cron overlap guard ──
   private isFetching = false;
 
   constructor(
@@ -62,263 +166,387 @@ export class PriceService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async onModuleInit() {
-    // اولین fetch بلافاصله بعد از بالا آمدن سرویس - بدون منتظر ماندن برای اولین cron tick
+  async onModuleInit(): Promise<void> {
     await this.fetchAndStorePrice();
   }
 
-  // ════════════════════════════════════════════════════════
-  // Cron: هر ۳۰ ثانیه قیمت طلا را از talasea دریافت می‌کند
-  // ════════════════════════════════════════════════════════
-  @Cron('*/30 * * * * *', { name: 'fetch-gold-price' })
+  @Cron('*/30 * * * * *')
   async fetchAndStorePrice(): Promise<void> {
-    // جلوگیری از اجرای همزمان (در صورتی که fetch قبلی هنوز تمام نشده)
     if (this.isFetching) {
-      this.logger.warn('[Price] fetch قبلی هنوز در حال اجراست؛ این tick رد شد');
       return;
     }
 
-    // circuit breaker: اگر اخیراً پشت‌سرهم fail شده، صبر کن
     if (this.isCircuitOpen()) {
+      this.logger.warn(
+        'Circuit breaker باز است؛ دریافت قیمت موقتاً متوقف شده است.',
+      );
       return;
     }
 
     this.isFetching = true;
+
     try {
-      const talasea = await this.fetchFromTalasea();
-      if (!talasea) return;
+      const quote = await this.fetchFromTalasea();
+      if (!quote) {
+        return;
+      }
 
-      // محاسبه با Decimal از همان ابتدا - بدون عبور از float
-      // talasea.price واحدش هزار تومان است → ضرب در 10000 = ریال
-      const priceRial = new Prisma.Decimal(talasea.price).times(10_000);
+      const fetchedAt = new Date();
 
-      // ── یک رکورد ثابت per metal (upsert) - بدون رشد نامحدود جدول ──
+      const priceRial = new Decimal(quote.price)
+        .mul(TALASEA_TO_RIAL_FACTOR)
+        .toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
+
+      // فیلد Decimal(18, 0) در Prisma؛ ارسال به‌صورت string از ناسازگاری نوع جلوگیری می‌کند.
+      const priceRialText = priceRial.toFixed(0);
+
       await this.prisma.marketPrice.upsert({
-        where: { metal: 'GOLD' },
+        where: { metal: GOLD_METAL },
         create: {
-          metal: 'GOLD',
-          pricePerGramRial: priceRial,
-          source: 'talasea.ir',
+          metal: GOLD_METAL,
+          pricePerGramRial: priceRialText,
+          source: TALASEA_SOURCE,
+          fetchedAt,
         },
         update: {
-          pricePerGramRial: priceRial,
-          source: 'talasea.ir',
-          fetchedAt: new Date(),
+          pricePerGramRial: priceRialText,
+          source: TALASEA_SOURCE,
+          fetchedAt,
         },
       });
 
       const payload: CachedPricePayload = {
-        metal: 'GOLD',
-        pricePerGramRial: priceRial.toString(),
-        pricePerGramToman: priceRial.dividedBy(10).toString(),
-        change24h: talasea.change24h ?? 0,
-        source: 'talasea.ir',
-        fetchedAt: new Date().toISOString(),
-        disableBuy: talasea.disableBuy ?? false,
-        disableSell: talasea.disableSell ?? false,
+        metal: GOLD_METAL,
+        pricePerGramRial: priceRialText,
+        pricePerGramToman: priceRial.div(RIAL_TO_TOMAN_DIVISOR).toString(),
+        change24h: quote.change24h,
+        source: TALASEA_SOURCE,
+        fetchedAt: fetchedAt.toISOString(),
+        disableBuy: quote.disableBuy,
+        disableSell: quote.disableSell,
       };
 
-      await this.redis.setex(
-        REDIS_KEY_GOLD,
-        REDIS_TTL_SECONDS,
-        JSON.stringify(payload),
-      );
+      try {
+        await this.redis.set(
+          REDIS_KEY_GOLD,
+          JSON.stringify(payload),
+          'EX',
+          REDIS_TTL_SECONDS,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `ذخیره قیمت در Redis ناموفق بود: ${getErrorMessage(error)}`,
+        );
+      }
 
-      // به‌جای تزریق مستقیم Gateway، event emit می‌کنیم (رفع circular dependency)
       this.eventEmitter.emit(PRICE_UPDATED_EVENT, payload);
-
-      this.consecutiveFailures = 0;
-      this.circuitOpenedAt = null;
-
-      this.logger.debug(
-        `[Price] GOLD به‌روزرسانی شد: ${payload.pricePerGramToman} تومان/گرم`,
-      );
-    } catch (err) {
+    } catch (error) {
       this.logger.error(
-        '[Price] خطا در ذخیره قیمت:',
-        err instanceof Error ? err.message : err,
+        `خطا در ذخیره‌سازی قیمت طلا: ${getErrorMessage(error)}`,
       );
     } finally {
       this.isFetching = false;
     }
   }
 
-  // ════════════════════════════════════════════════════════
-  // Cron: هر ۵ دقیقه snapshot برای نمودار تاریخی
-  // ════════════════════════════════════════════════════════
-  @Cron('*/5 * * * *', { name: 'record-price-history' })
+  @Cron('0 */5 * * * *')
   async recordPriceHistory(): Promise<void> {
     try {
       const current = await this.getCurrentGoldPriceDecimal();
-      if (!current) return;
+      if (!current) {
+        return;
+      }
 
       await this.prisma.priceHistory.create({
         data: {
-          metal: 'GOLD',
-          pricePerGramRial: current,
+          metal: GOLD_METAL,
+          pricePerGramRial: current
+            .toDecimalPlaces(0, Decimal.ROUND_HALF_UP)
+            .toFixed(0),
         },
       });
-    } catch (err) {
+    } catch (error) {
       this.logger.error(
-        '[PriceHistory] خطا:',
-        err instanceof Error ? err.message : err,
+        `ثبت تاریخچه قیمت ناموفق بود: ${getErrorMessage(error)}`,
       );
     }
   }
 
-  // ════════════════════════════════════════════════════════
-  // ════════════════════════════════════════════════════════
-  // Cron: پاکسازی روزانه price_history قدیمی‌تر از 90 روز
-  // (جلوگیری از رشد نامحدود جدول تاریخچه)
-  // ════════════════════════════════════════════════════════
-  @Cron('0 3 * * *', { name: 'cleanup-price-history' }) // هر شب ساعت 3 بامداد
+  @Cron('0 0 3 * * *')
   async cleanupOldPriceHistory(): Promise<void> {
-    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
     try {
+      const cutoff = new Date(Date.now() - MAX_HISTORY_HOURS * 60 * 60 * 1000);
+
       const result = await this.prisma.priceHistory.deleteMany({
-        where: { recordedAt: { lt: cutoff } },
+        where: {
+          recordedAt: {
+            lt: cutoff,
+          },
+        },
       });
+
       if (result.count > 0) {
-        this.logger.log(`[PriceHistory] ${result.count} رکورد قدیمی پاک شد`);
+        this.logger.log(`${result.count} رکورد قدیمی تاریخچه قیمت حذف شد.`);
       }
-    } catch (err) {
+    } catch (error) {
       this.logger.error(
-        '[PriceHistory cleanup] خطا:',
-        err instanceof Error ? err.message : err,
+        `پاک‌سازی تاریخچه قیمت ناموفق بود: ${getErrorMessage(error)}`,
       );
     }
   }
 
-  // ════════════════════════════════════════════════════════
-  // خواندن قیمت فعلی به صورت Decimal (برای محاسبات داخلی - TradingService)
-  // اولویت: Redis → DB (fallback) → null
-  // ════════════════════════════════════════════════════════
-  async getCurrentGoldPriceDecimal(): Promise<Prisma.Decimal | null> {
+  /** قیمت جاری هر گرم به ریال؛ اول Redis، سپس fallback روی دیتابیس. */
+  async getCurrentGoldPriceDecimal(): Promise<Decimal | null> {
     try {
       const cached = await this.redis.get(REDIS_KEY_GOLD);
-      if (cached) {
-        const data = JSON.parse(cached) as CachedPricePayload;
-        return new Prisma.Decimal(data.pricePerGramRial);
+      const payload = parseCachedPayload(cached);
+
+      if (payload) {
+        return toDecimal(payload.pricePerGramRial);
       }
-    } catch (err) {
-      this.logger.warn('[Price] خطا در خواندن Redis، fallback به DB', err);
+    } catch (error) {
+      this.logger.warn(
+        `خواندن قیمت از Redis ناموفق بود: ${getErrorMessage(error)}`,
+      );
     }
 
-    // fallback به DB - این مسیر فقط زمانی اجرا میشه که Redis در دسترس نباشه
-    const latest = await this.prisma.marketPrice.findUnique({
-      where: { metal: 'GOLD' },
+    const record = await this.prisma.marketPrice.findUnique({
+      where: { metal: GOLD_METAL },
     });
-    if (!latest) return null;
 
-    // دوباره cache کن تا درخواست بعدی از Redis بخونه
+    if (!record) {
+      return null;
+    }
+
+    const priceRial = toDecimal(record.pricePerGramRial);
+
+    const fallbackPayload: CachedPricePayload = {
+      metal: GOLD_METAL,
+      pricePerGramRial: priceRial.toFixed(0),
+      pricePerGramToman: priceRial.div(RIAL_TO_TOMAN_DIVISOR).toString(),
+      change24h: 0,
+      source: record.source ?? 'db-fallback',
+      fetchedAt: record.fetchedAt.toISOString(),
+      disableBuy: false,
+      disableSell: false,
+    };
+
     try {
-      const payload: CachedPricePayload = {
-        metal: 'GOLD',
-        pricePerGramRial: latest.pricePerGramRial.toString(),
-        pricePerGramToman: latest.pricePerGramRial.dividedBy(10).toString(),
-        change24h: 0,
-        source: latest.source ?? 'db-fallback',
-        fetchedAt: latest.fetchedAt.toISOString(),
-        disableBuy: false,
-        disableSell: false,
-      };
-      await this.redis.setex(
+      await this.redis.set(
         REDIS_KEY_GOLD,
+        JSON.stringify(fallbackPayload),
+        'EX',
         REDIS_TTL_SECONDS,
-        JSON.stringify(payload),
       );
     } catch {
-      // اگر Redis هم در دسترس نباشه، مشکلی نیست - فقط cache نمی‌شه
+      // cache اختیاری است؛ نبودش مانع پاسخ‌دهی نمی‌شود.
     }
 
-    return latest.pricePerGramRial;
+    return priceRial;
   }
 
-  // ════════════════════════════════════════════════════════
-  // پاسخ API عمومی - برای نمایش در فرانت (string برای حفظ دقت)
-  // ════════════════════════════════════════════════════════
-  async getGoldPriceResponse() {
-    const cached: string | null = await this.redis.get(REDIS_KEY_GOLD);
-    if (cached) {
-      const data = JSON.parse(cached) as CachedPricePayload;
-      return { ...data, fromCache: true };
+  /** پاسخ آماده برای MarketController. */
+  async getGoldPriceResponse(): Promise<GoldPriceResponse | null> {
+    try {
+      const cached = await this.redis.get(REDIS_KEY_GOLD);
+      const payload = parseCachedPayload(cached);
+
+      if (payload) {
+        return { ...payload, fromCache: true };
+      }
+    } catch (error) {
+      this.logger.warn(
+        `خواندن قیمت از Redis ناموفق بود: ${getErrorMessage(error)}`,
+      );
     }
 
-    const latest = await this.prisma.marketPrice.findUnique({
-      where: { metal: 'GOLD' },
+    const record = await this.prisma.marketPrice.findUnique({
+      where: { metal: GOLD_METAL },
     });
-    if (!latest) return null;
+
+    if (!record) {
+      return null;
+    }
+
+    const priceRial = toDecimal(record.pricePerGramRial);
 
     return {
-      metal: 'GOLD' as const,
-      pricePerGramRial: latest.pricePerGramRial.toString(),
-      pricePerGramToman: latest.pricePerGramRial.dividedBy(10).toString(),
+      metal: GOLD_METAL,
+      pricePerGramRial: priceRial.toFixed(0),
+      pricePerGramToman: priceRial.div(RIAL_TO_TOMAN_DIVISOR).toString(),
       change24h: 0,
-      source: latest.source ?? 'db-fallback',
-      fetchedAt: latest.fetchedAt.toISOString(),
+      source: record.source ?? 'db-fallback',
+      fetchedAt: record.fetchedAt.toISOString(),
       disableBuy: false,
       disableSell: false,
       fromCache: false,
     };
   }
 
-  async getPriceHistory(hours = 24) {
-    const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+  async getPriceHistory(hours = 24): Promise<PriceHistoryItem[]> {
+    const normalizedHours = Number.isFinite(hours)
+      ? Math.min(Math.max(Math.trunc(hours), 1), MAX_HISTORY_HOURS)
+      : 24;
+
+    const since = new Date(Date.now() - normalizedHours * 60 * 60 * 1000);
+
     const records = await this.prisma.priceHistory.findMany({
-      where: { metal: 'GOLD', recordedAt: { gte: since } },
+      where: {
+        metal: GOLD_METAL,
+        recordedAt: { gte: since },
+      },
       orderBy: { recordedAt: 'asc' },
-      take: 1000,
-      select: { recordedAt: true, pricePerGramRial: true },
+      take: MAX_HISTORY_ROWS,
     });
-    return records.map((r) => ({
-      time: r.recordedAt.toISOString(),
-      priceRial: r.pricePerGramRial.toString(),
-      priceToman: r.pricePerGramRial.dividedBy(10).toString(),
-    }));
+
+    return records.map((record) => {
+      const priceRial = toDecimal(record.pricePerGramRial);
+
+      return {
+        time: record.recordedAt.toISOString(),
+        priceRial: priceRial.toString(),
+        priceToman: priceRial.div(RIAL_TO_TOMAN_DIVISOR).toString(),
+      };
+    });
   }
 
-  // ════════════════════════════════════════════════════════
-  // circuit breaker helpers
-  // ════════════════════════════════════════════════════════
   private isCircuitOpen(): boolean {
-    if (this.circuitOpenedAt === null) return false;
-    const elapsed = Date.now() - this.circuitOpenedAt;
-    if (elapsed > this.BACKOFF_MS) {
-      // زمان backoff تمام شده، یک تلاش دیگر مجاز است
-      this.circuitOpenedAt = null;
-      this.consecutiveFailures = 0;
+    if (this.circuitOpenedAt === null) {
       return false;
     }
+
+    if (Date.now() - this.circuitOpenedAt >= this.BACKOFF_MS) {
+      this.circuitOpenedAt = null;
+      this.consecutiveFailures = 0;
+      this.logger.log('Circuit breaker بسته شد؛ تلاش مجدد آغاز می‌شود.');
+      return false;
+    }
+
     return true;
   }
 
-  private async fetchFromTalasea(): Promise<TalaseaResponse | null> {
-    try {
-      const res = await axios.get<TalaseaResponse>(
-        'https://api.talasea.ir/api/market/getGoldPrice',
-        { timeout: 8000 },
-      );
-      if (res.data?.price && res.data.price > 0) {
-        this.consecutiveFailures = 0;
-        return res.data;
-      }
-      throw new Error('پاسخ نامعتبر از talasea (قیمت صفر یا خالی)');
-    } catch (err) {
-      this.consecutiveFailures++;
-      const isAxiosErr = err instanceof AxiosError;
-      this.logger.warn(
-        `[Price] تلاش ناموفق (${this.consecutiveFailures}/${this.MAX_FAILURES_BEFORE_BACKOFF}): ${
-          isAxiosErr ? err.message : err
-        }`,
-      );
+  private registerFailure(reason: string): void {
+    this.consecutiveFailures += 1;
+    this.logger.warn(
+      `دریافت قیمت Talasea ناموفق (${this.consecutiveFailures}/${this.MAX_FAILURES_BEFORE_BACKOFF}): ${reason}`,
+    );
 
-      if (this.consecutiveFailures >= this.MAX_FAILURES_BEFORE_BACKOFF) {
-        this.circuitOpenedAt = Date.now();
-        this.logger.error(
-          `[Price] Circuit باز شد - تلاش بعدی بعد از ${this.BACKOFF_MS / 1000} ثانیه`,
-        );
+    if (
+      this.consecutiveFailures >= this.MAX_FAILURES_BEFORE_BACKOFF &&
+      this.circuitOpenedAt === null
+    ) {
+      this.circuitOpenedAt = Date.now();
+      this.logger.error(
+        `Circuit breaker باز شد؛ تلاش بعدی پس از ${this.BACKOFF_MS / 1000} ثانیه.`,
+      );
+    }
+  }
+
+  private async fetchFromTalasea(): Promise<TalaseaQuote | null> {
+    try {
+      const response = await axios.get<unknown>(TALASEA_API_URL, {
+        timeout: 8000,
+        headers: { Accept: 'application/json' },
+      });
+
+      const body: unknown = response.data;
+      if (!isRecord(body)) {
+        this.registerFailure('ساختار پاسخ API معتبر نیست.');
+        return null;
       }
+
+      // برخی پاسخ‌ها داده را داخل data/result قرار می‌دهند.
+      const container: Record<string, unknown> = isRecord(body.data)
+        ? body.data
+        : isRecord(body.result)
+          ? body.result
+          : body;
+
+      const raw = container as TalaseaRawResponse;
+
+      const price = parseNumeric(raw.price);
+      if (price === null || price <= 0) {
+        this.registerFailure(
+          `مقدار price نامعتبر است: ${JSON.stringify(raw.price)}`,
+        );
+        return null;
+      }
+
+      const quote: TalaseaQuote = {
+        price,
+        change24h: parseNumeric(raw.change24h) ?? 0,
+        disableBuy: parseBoolean(raw.disableBuy),
+        disableSell: parseBoolean(raw.disableSell),
+      };
+
+      this.consecutiveFailures = 0;
+      this.circuitOpenedAt = null;
+
+      return quote;
+    } catch (error) {
+      this.registerFailure(
+        isAxiosError(error)
+          ? getAxiosErrorMessage(error)
+          : getErrorMessage(error),
+      );
       return null;
     }
   }
+}
+
+function parseCachedPayload(raw: string | null): CachedPricePayload | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isCachedPricePayload(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isCachedPricePayload(value: unknown): value is CachedPricePayload {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    value.metal === GOLD_METAL &&
+    typeof value.pricePerGramRial === 'string' &&
+    typeof value.pricePerGramToman === 'string' &&
+    typeof value.change24h === 'number' &&
+    typeof value.source === 'string' &&
+    typeof value.fetchedAt === 'string' &&
+    typeof value.disableBuy === 'boolean' &&
+    typeof value.disableSell === 'boolean'
+  );
+}
+
+function getAxiosErrorMessage(error: unknown): string {
+  if (!isAxiosError(error)) {
+    return getErrorMessage(error);
+  }
+
+  const status = error.response?.status;
+  const statusText = error.response?.statusText;
+
+  if (status !== undefined) {
+    return `HTTP ${status}${statusText ? ` ${statusText}` : ''} - ${error.message}`;
+  }
+
+  return error.message;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  return 'خطای ناشناخته';
 }

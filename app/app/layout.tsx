@@ -3,6 +3,7 @@ import localFont from "next/font/local"; // ۱. تغییر ایمپورت به l
 import PWAProvider from "./dashboard/components/PWAProvider"; 
 import "./globals.css";
 
+
 // ۲. تعریف فونت دانا با مسیر جدید (public/fonts)
 const dana = localFont({
   src: [

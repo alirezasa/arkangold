@@ -105,39 +105,44 @@ export class ShopOrdersService {
     );
   }
 
+  // api/src/shop-orders/shop-orders.service.ts
+  // جایگزین متد checkoutInternal موجود کنید (بقیهٔ فایل بدون تغییر می‌ماند):
+
   private async checkoutInternal(userId: string, dto: CreateShopOrderDto) {
     const address = await this.prisma.address.findFirst({
       where: { id: dto.addressId, userId },
     });
-
     if (!address) throw new NotFoundException('آدرس یافت نشد');
 
     const cart = await this.prisma.cart.findUnique({
       where: { userId },
       include: {
         items: {
-          include: {
-            variant: { include: { product: true } },
-            product: true,
-          },
+          include: { variant: { include: { product: true } }, product: true },
         },
       },
     });
-
     if (!cart || cart.items.length === 0) {
       throw new BadRequestException('سبد خرید شما خالی است');
     }
 
+    const now = new Date();
+    const expiredItem = cart.items.find(
+      (item) => !item.priceExpiresAt || item.priceExpiresAt < now,
+    );
+    if (expiredItem) {
+      throw new BadRequestException(
+        'قیمت قفل‌شدهٔ برخی آیتم‌های سبد منقضی شده است. لطفاً سبد را دوباره بررسی کنید',
+      );
+    }
+
     const unavailable = cart.items.find((item) => {
       const product = item.variant?.product ?? item.product;
-
       return !product || product.status !== 'ACTIVE';
     });
-
     if (unavailable) {
       const name =
         unavailable.variant?.product.name ?? unavailable.product?.name;
-
       throw new BadRequestException(`محصول «${name}» دیگر در دسترس نیست`);
     }
 
@@ -145,7 +150,7 @@ export class ShopOrdersService {
       ...new Set(
         cart.items
           .map((item) => item.variantId)
-          .filter((variantId): variantId is string => Boolean(variantId)),
+          .filter((v): v is string => Boolean(v)),
       ),
     ].sort();
 
@@ -155,64 +160,64 @@ export class ShopOrdersService {
           for (const variantId of variantIds) {
             await tx.$executeRaw`SELECT 1 FROM "product_variants" WHERE "id" = ${variantId}::uuid FOR UPDATE`;
           }
-
           const freshVariants = await tx.productVariant.findMany({
             where: { id: { in: variantIds } },
           });
-
-          const variantMap = new Map(
-            freshVariants.map((variant) => [variant.id, variant]),
-          );
+          const variantMap = new Map(freshVariants.map((v) => [v.id, v]));
 
           let totalRial = 0;
-          const orderItemsData: OrderItemCreateData[] = [];
+          const orderItemsData: {
+            variantId?: string;
+            productId?: string;
+            selectedWeightGrams?: number;
+            quantity: number;
+            priceRial: number;
+            priceBreakdown: Prisma.InputJsonValue | typeof Prisma.JsonNull;
+          }[] = [];
 
           for (const item of cart.items) {
+            // ⬅️ نکتهٔ کلیدی: قیمت از lockedUnitPriceRial خوانده می‌شود، نه محاسبهٔ زنده
+            const unitPriceRial = this.toNumber(item.lockedUnitPriceRial);
+            if (unitPriceRial <= 0) {
+              throw new BadRequestException(
+                'قیمت قفل‌شدهٔ یکی از آیتم‌های سبد نامعتبر است، لطفاً دوباره امتحان کنید',
+              );
+            }
+
             if (item.variantId) {
-              const variant = item.variant;
-              const product = variant?.product;
               const fresh = variantMap.get(item.variantId);
-
-              if (!variant || !product || !fresh) {
+              const product = item.variant?.product;
+              if (!fresh || !product)
                 throw new NotFoundException('تنوع محصول یافت نشد');
-              }
-
               if (fresh.stockQuantity < item.quantity) {
                 throw new BadRequestException(
                   `موجودی «${product.name}» کافی نیست (موجودی: ${fresh.stockQuantity})`,
                 );
               }
-
-              const unitPriceRial =
-                this.toNumber(product.basePriceRial) +
-                this.toNumber(variant.priceAdjustment);
-
               totalRial += unitPriceRial * item.quantity;
-
               orderItemsData.push({
                 variantId: item.variantId,
                 quantity: item.quantity,
                 priceRial: unitPriceRial,
+                priceBreakdown:
+                  (item.lockedBreakdown as Prisma.InputJsonValue) ??
+                  Prisma.JsonNull,
               });
-
               continue;
             }
 
             const product = item.product;
-
             if (!product) throw new NotFoundException('محصول یافت نشد');
 
-            const weightGrams = this.toNumber(item.selectedWeightGrams);
-            const pricePerGramRial = this.toNumber(product.pricePerGramRial);
-            const unitPriceRial = pricePerGramRial * weightGrams;
-
             totalRial += unitPriceRial * item.quantity;
-
             orderItemsData.push({
               productId: product.id,
-              selectedWeightGrams: weightGrams,
+              selectedWeightGrams: this.toNumber(item.selectedWeightGrams),
               quantity: item.quantity,
               priceRial: unitPriceRial,
+              priceBreakdown:
+                (item.lockedBreakdown as Prisma.InputJsonValue) ??
+                Prisma.JsonNull,
             });
           }
 
@@ -234,9 +239,9 @@ export class ShopOrdersService {
                 selectedWeightGrams: orderItem.selectedWeightGrams,
                 quantity: orderItem.quantity,
                 priceRial: orderItem.priceRial,
+                priceBreakdown: orderItem.priceBreakdown,
               },
             });
-
             if (orderItem.variantId) {
               await tx.productVariant.update({
                 where: { id: orderItem.variantId },
@@ -246,7 +251,6 @@ export class ShopOrdersService {
           }
 
           await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-
           return newOrder;
         },
         { maxWait: 5000, timeout: 15000 },
@@ -777,11 +781,10 @@ export class ShopOrdersService {
     };
   }
 
+  // اضافه‌کردن helper:
   private toNumber(value: unknown): number {
     if (value === null || value === undefined) return 0;
-
     const numericValue = Number(value);
-
     return Number.isFinite(numericValue) ? numericValue : 0;
   }
 

@@ -441,8 +441,9 @@ model CartItem {
   lockedBreakdown     Json?           @map("locked_breakdown") // اجزای فرمول برای نمایش به کاربر
   priceLockedAt       DateTime?       @map("price_locked_at")
   priceExpiresAt      DateTime?       @map("price_expires_at")
- @@index([priceExpiresAt])
+
   @@unique([cartId, variantId])
+  @@index([priceExpiresAt])
   @@map("cart_items")
 }
 

@@ -48,16 +48,21 @@ export class CatalogAdminController {
     return this.service.adminListProducts(query);
   }
 
+  @Post('products/draft')
+  @ApiOperation({ summary: 'ایجاد محصول Draft (ورود به فرم ساخت)' })
+  createDraft() {
+    return this.service.createDraftProduct();
+  }
   @Get('products/:id')
   @ApiOperation({ summary: 'جزئیات محصول برای ویرایش' })
   getOne(@Param('id') id: string) {
     return this.service.getProductForAdmin(id);
   }
 
-  @Post('products/draft')
-  @ApiOperation({ summary: 'ایجاد محصول Draft (ورود به فرم ساخت)' })
-  createDraft() {
-    return this.service.createDraftProduct();
+  @Get('categories')
+  @ApiOperation({ summary: 'لیست دسته‌بندی‌ها (ادمین)' })
+  listCategories() {
+    return this.service.listCategories();
   }
 
   @Post('categories')

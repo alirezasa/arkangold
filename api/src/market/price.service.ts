@@ -85,12 +85,14 @@ function toDecimal(value: unknown): Decimal {
   }
 
   // Prisma.Decimal و هر object با toString عددی
+  // Prisma.Decimal و هر object با toString عددی
   if (
     typeof value === 'object' &&
     value !== null &&
     typeof (value as { toString?: unknown }).toString === 'function'
   ) {
-    const asText = String(value).trim();
+    const toStringable = value as { toString: () => string };
+    const asText = toStringable.toString().trim();
     if (asText.length > 0 && asText !== '[object Object]') {
       const parsed = new Decimal(asText);
       if (parsed.isFinite()) {

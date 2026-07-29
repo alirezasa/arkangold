@@ -1,4 +1,5 @@
 // api/src/catalog/pricing-engine.service.ts
+
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
 import { PrismaService } from '../prisma/prisma.service';
@@ -6,16 +7,14 @@ import { PriceService } from '../market/price.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 
 /**
- * لایه‌ی دامنه‌ی قیمت‌گذاری آگاهانه به تایپ Decimal کتابخانه‌ی decimal.js وابسته است
- * و نه به Decimal تولیدشده توسط Prisma. تمام مقادیر ورودی از ORM در مرز ورودی
- * (toDecimal / asString) نرمال‌سازی می‌شوند تا هیچ `any` به هسته‌ی محاسبات نفوذ نکند.
+ * ریال واحد صحیح است. علاوه بر این، چون فرانت همیشه ریال را بر ۱۰ تقسیم
+ * می‌کند تا تومان نمایش دهد، برای جلوگیری از اعشار در تومان، رند نهایی
+ * روی «ده‌ریال» (یعنی مضرب ۱۰ ریال) انجام می‌شود.
  */
-
-/** ریال واحد صحیح است؛ کسری در خروجی نگه داشته نمی‌شود. */
 const RIAL_SCALE = 0;
+const TOMAN_STEP_RIAL = new Decimal(10);
 const ROUNDING_MODE = Decimal.ROUND_HALF_UP;
 
-/** هر مقداری که بتوان از آن یک Decimal ساخت. */
 export type DecimalInput = Decimal | string | number | { toString(): string };
 
 export const BASE_TYPE = {
@@ -44,7 +43,6 @@ export interface PricingResult {
   finalPriceRial: string;
 }
 
-/** تبدیل ایمن هر مقدار ناشناخته (از جمله Decimal پرisma) به Decimal دامنه. */
 function toDecimal(value: unknown, fieldName: string): Decimal {
   if (value === null || value === undefined) {
     return new Decimal(0);
@@ -90,7 +88,6 @@ function parseDecimalString(raw: string, fieldName: string): Decimal {
   return parsed;
 }
 
-/** تبدیل ایمن مقادیر متنی/enum آمده از ORM به string. */
 function asString(value: unknown, fieldName: string): string {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
@@ -101,9 +98,16 @@ function asStringOrNull(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
-/** رند کردن نهایی به ریال صحیح. */
+/**
+ * رند نهایی روی «ده‌ریال» — یعنی همیشه یک عدد مضرب ۱۰ برمی‌گردد که وقتی
+ * در فرانت بر ۱۰ تقسیم شود، تومان کاملاً صحیح (بدون اعشار) خواهد بود.
+ */
 function toRial(value: Decimal): string {
-  return value.toDecimalPlaces(RIAL_SCALE, ROUNDING_MODE).toFixed(RIAL_SCALE);
+  return value
+    .dividedBy(TOMAN_STEP_RIAL)
+    .toDecimalPlaces(RIAL_SCALE, ROUNDING_MODE)
+    .times(TOMAN_STEP_RIAL)
+    .toFixed(RIAL_SCALE);
 }
 
 @Injectable()
@@ -169,7 +173,6 @@ export class PricingEngineService {
             ? running
             : new Decimal(0);
 
-      // رند میانی انجام نمی‌شود تا خطای تجمعی ایجاد نشود.
       const amount =
         valueType === VALUE_TYPE.PERCENT
           ? base.times(value).dividedBy(100)
@@ -196,7 +199,7 @@ export class PricingEngineService {
     return {
       purityKarat,
       goldPricePerGramRial: goldPricePerGramRial
-        ? goldPricePerGramRial.toString()
+        ? toRial(goldPricePerGramRial)
         : null,
       goldValueRial: toRial(goldValue),
       lines,
@@ -205,20 +208,30 @@ export class PricingEngineService {
   }
 
   /**
-   * قیمت هر گرم بر اساس عیار. ضریب از تنظیمات سیستم با کلید
-   * `gold.purity.{karat}` خوانده می‌شود و پیش‌فرض آن karat/24 است.
+   * قیمت هر گرم بر اساس عیار.
+   *
+   * ⚠️ نکتهٔ حیاتی: قیمت خام برگشتی از PriceService.getCurrentGoldPriceDecimal()
+   * قیمت طلای «۱۸ عیار» بازار ایران است (منبع talasea.ir همیشه ۱۸ عیار را
+   * گزارش می‌دهد)، نه ۲۴ عیار. بنابراین مبنای محاسبهٔ ضریب باید ۱۸ باشد،
+   * نه ۲۴:
+   *   factor(K18) = 18/18 = 1        → دقیقاً برابر قیمت پایهٔ بازار
+   *   factor(K24) = 24/18 = 1.333..  → طلای خالص‌تر و گران‌تر از پایه
+   *
+   * قبلاً این ضریب اشتباهاً نسبت به ۲۴ محاسبه می‌شد (karat/24) که باعث
+   * می‌شد وقتی ادمین عیار ۱۸ را انتخاب می‌کرد، قیمتی کمتر از نرخ واقعی
+   * بازار به‌عنوان مبنا در نظر گرفته شود.
    */
   private async resolveGoldPricePerGram(purityKarat: string): Promise<Decimal> {
-    const price24 = toDecimal(
+    const price18 = toDecimal(
       await this.priceService.getCurrentGoldPriceDecimal(),
       'قیمت لحظه‌ای طلا',
     );
-    if (price24.lessThanOrEqualTo(0)) {
+    if (price18.lessThanOrEqualTo(0)) {
       throw new BadRequestException('قیمت لحظه‌ای طلا در دسترس نیست');
     }
 
-    if (purityKarat === 'K24') {
-      return price24;
+    if (purityKarat === 'K18') {
+      return price18;
     }
 
     const karatMatch = /^K(\d{1,2})$/.exec(purityKarat);
@@ -230,15 +243,17 @@ export class PricingEngineService {
       throw new BadRequestException(`عیار پشتیبانی نمی‌شود: ${purityKarat}`);
     }
 
-    const defaultFactor = new Decimal(karat).dividedBy(24).toString();
+    // مبنای ضریب پیش‌فرض اکنون ۱۸ است، نه ۲۴
+    const BASE_KARAT = 18;
+    const defaultFactor = new Decimal(karat).dividedBy(BASE_KARAT).toString();
     const factor = toDecimal(
       await this.systemConfig.getDecimal(`gold.purity.${karat}`, defaultFactor),
       'ضریب عیار',
     );
-    if (factor.lessThanOrEqualTo(0) || factor.greaterThan(1)) {
+    if (factor.lessThanOrEqualTo(0)) {
       throw new BadRequestException('ضریب عیار تنظیم‌شده نامعتبر است');
     }
 
-    return price24.times(factor);
+    return price18.times(factor);
   }
 }

@@ -18,6 +18,7 @@ import {
 import { adminApi } from "@/app/core/api";
 import ProductImagesManager from "./ProductImagesManager";
 import PricingFormulaEditor from "./PricingFormulaEditor";
+import ProductVariantsManager from "./ProductVariantsManager";
 
 function getErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -172,13 +173,20 @@ export default function ProductEditor({
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
         <div>
           {tab === "basic" && (
-            <BasicInfoTab
-              id={id}
-              data={data}
-              categories={categories}
-              mutate={mutate}
-              onCreated={() => router.replace(`/shop/products/${id}`)}
-            />
+            <>
+              <BasicInfoTab
+                id={id}
+                data={data}
+                categories={categories}
+                mutate={mutate}
+                onCreated={() => router.replace(`/shop/products/${id}`)}
+              />
+              {!isDraft && data.pricingMode === "FIXED" && (
+                <div className="mt-6">
+                  <ProductVariantsManager productId={id} />
+                </div>
+              )}
+            </>
           )}
           {tab === "seo" && <SeoTab id={id} data={data} mutate={mutate} />}
           {tab === "pricing" && <PricingFormulaEditor productId={id} />}
@@ -514,9 +522,7 @@ function BasicInfoTab({
         </div>
       )}
 
-      {!isDraft && pricingMode === "FIXED" && data.variants.length > 0 && (
-        <VariantsQuickView variants={data.variants} />
-      )}
+      
 
       <button
         type="submit"
@@ -536,38 +542,7 @@ function BasicInfoTab({
   );
 }
 
-function VariantsQuickView({ variants }: { variants: VariantItem[] }) {
-  return (
-    <div className="border-t border-gray-100 pt-4">
-      <p className="text-[11px] font-bold text-gray-400 mb-2">
-        تنوع‌های ثبت‌شده (مدیریت کامل تنوع‌ها به‌زودی در همین تب)
-      </p>
-      <div className="space-y-1.5">
-        {variants.map((v) => (
-          <div
-            key={v.id}
-            className="flex items-center justify-between text-[12px] p-2 rounded-lg"
-            style={{ backgroundColor: "var(--color-bg-page)" }}
-          >
-            <span dir="ltr">{v.weightGrams} گرم</span>
-            <span className="font-bold">
-              {Number(v.finalPriceToman).toLocaleString("fa-IR")} ت
-            </span>
-            <span
-              className="badge"
-              style={{
-                background: v.stockQuantity > 0 ? "#dcfce7" : "#fee2e2",
-                color: v.stockQuantity > 0 ? "#16a34a" : "#dc2626",
-              }}
-            >
-              {v.stockQuantity.toLocaleString("fa-IR")} عدد
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+
 
 // ══════════════════════════════════════════
 // تب ۲: سئو + پیش‌نمایش گوگل زنده

@@ -2,7 +2,24 @@ import { useState, useCallback } from "react";
 import axios from "axios";
 import useSWR from "swr";
 
+// ── آدرس سرور NestJS برای نمایش تصاویر محصولات (فایل‌های استاتیک) ──
+export const NEST_ORIGIN =
+  process.env.NEXT_PUBLIC_NEST_ORIGIN || "http://localhost:5000";
+
+export function productImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("http")) return url;
+  return `${NEST_ORIGIN}${url}`;
+}
+
 // ── Types ──
+export interface ProductImageItem {
+  id: string;
+  url: string;
+  altText: string | null;
+  isPrimary: boolean;
+}
+
 export interface ProductVariantItem {
   id: string;
   weightGrams: string;
@@ -13,6 +30,15 @@ export interface ProductVariantItem {
   sku: string | null;
 }
 
+export interface WeightRangeInfo {
+  minWeightGrams: string;
+  maxWeightGrams: string;
+  stepGrams: string;
+  pricePerGramToman: string;
+}
+
+export type ProductPricingMode = "FIXED" | "WEIGHT_RANGE";
+
 export interface ProductItem {
   id: string;
   name: string;
@@ -20,7 +46,11 @@ export interface ProductItem {
   description: string | null;
   basePriceToman: string;
   status: "ACTIVE" | "INACTIVE" | "OUT_OF_STOCK";
+  pricingMode: ProductPricingMode;
   category?: { id: string; name: string; slug: string } | null;
+  images: ProductImageItem[];
+  primaryImageUrl: string | null;
+  weightRange: WeightRangeInfo | null;
   variants: ProductVariantItem[];
 }
 
@@ -33,17 +63,22 @@ export interface CategoryItem {
   children?: CategoryItem[];
 }
 
+export type CartItemKind = "FIXED" | "WEIGHT_RANGE";
+
 export interface CartItemDto {
   id: string;
   quantity: number;
-  variantId: string;
+  kind: CartItemKind;
+  variantId: string | null;
   productId: string;
   productName: string;
   productSlug: string;
   weightGrams: string;
   unitPriceToman: string;
   lineTotalToman: string;
-  stockQuantity: number;
+  priceBreakdown?: unknown;
+  expiresInSeconds: number;
+  stockQuantity: number | null;
   available: boolean;
 }
 
@@ -93,9 +128,7 @@ export const useCategories = () => {
   const { data, isLoading, error } = useSWR<CategoryItem[]>(
     "/api/shop/categories",
     fetcher,
-    {
-      revalidateOnFocus: false,
-    },
+    { revalidateOnFocus: false },
   );
   return { categories: data ?? [], loading: isLoading, error };
 };
@@ -119,9 +152,7 @@ export const useProducts = (filter: ProductsFilter = {}) => {
   const { data, isLoading, error } = useSWR(
     `/api/shop/products?${qs.toString()}`,
     fetcher,
-    {
-      revalidateOnFocus: false,
-    },
+    { revalidateOnFocus: false },
   );
 
   return {
@@ -147,22 +178,26 @@ export const useCart = () => {
   const { data, isLoading, error, mutate } = useSWR<CartDto>(
     "/api/cart",
     fetcher,
-    {
-      revalidateOnFocus: false,
-    },
+    { revalidateOnFocus: false },
   );
   return { cart: data ?? null, loading: isLoading, error, refresh: mutate };
 };
+
+// payload برای افزودن به سبد: یا variantId (محصول با تنوع ثابت)
+// یا productId + weightGrams (محصول بازه‌وزنی)
+export type AddToCartPayload =
+  | { variantId: string; quantity: number }
+  | { productId: string; weightGrams: number; quantity: number };
 
 export const useAddToCart = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const add = useCallback(async (variantId: string, quantity: number) => {
+  const add = useCallback(async (payload: AddToCartPayload) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.post("/api/cart/items", { variantId, quantity });
+      const res = await axios.post("/api/cart/items", payload);
       return res.data as CartDto;
     } catch (e: unknown) {
       if (axios.isAxiosError(e)) {
@@ -183,17 +218,20 @@ export const useAddToCart = () => {
 export const useUpdateCartItem = () => {
   const [loading, setLoading] = useState(false);
 
-  const update = useCallback(async (itemId: string, quantity: number) => {
-    setLoading(true);
-    try {
-      const res = await axios.patch(`/api/cart/items/${itemId}`, { quantity });
-      return res.data as CartDto;
-    } catch {
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const update = useCallback(
+    async (itemId: string, payload: { quantity?: number; weightGrams?: number }) => {
+      setLoading(true);
+      try {
+        const res = await axios.patch(`/api/cart/items/${itemId}`, payload);
+        return res.data as CartDto;
+      } catch {
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   const remove = useCallback(async (itemId: string) => {
     setLoading(true);

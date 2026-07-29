@@ -72,7 +72,6 @@ export default function PricingFormulaEditor({
     if (!current) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPurity(current.purityKarat ?? "");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRows(
       current.pricingComponents.map((c) => ({
         componentKey: c.componentKey,

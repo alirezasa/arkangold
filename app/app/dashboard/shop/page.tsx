@@ -8,11 +8,59 @@ import {
   Gem,
   ShoppingCart,
   PackageX,
+  Scale,
 } from "lucide-react";
-import { useCategories, useProducts, useCart } from "@/app/hooks/useShop";
+import {
+  useCategories,
+  useProducts,
+  useCart,
+  productImageUrl,
+  ProductItem,
+} from "@/app/hooks/useShop";
 
 function fmtToman(v: string | number) {
   return Math.round(Number(v)).toLocaleString("fa-IR");
+}
+
+// محدوده قیمت هر محصول را بر اساس نوع قیمت‌گذاری محاسبه می‌کند
+function getPriceRange(product: ProductItem): {
+  min: number;
+  max: number;
+  isEstimate: boolean;
+} {
+  if (product.pricingMode === "WEIGHT_RANGE" && product.weightRange) {
+    const pricePerGram = Number(product.weightRange.pricePerGramToman);
+    const min = Number(product.weightRange.minWeightGrams) * pricePerGram;
+    const max = Number(product.weightRange.maxWeightGrams) * pricePerGram;
+    // این مقدار قبل از اعمال فرمول قیمت‌گذاری (اجرت/سود/مالیات) است، پس تخمینی است
+    return { min, max, isEstimate: true };
+  }
+
+  const prices = product.variants.map((v) => Number(v.finalPriceToman));
+  const base = Number(product.basePriceToman);
+  const min = prices.length ? Math.min(...prices) : base;
+  const max = prices.length ? Math.max(...prices) : base;
+  return { min, max, isEstimate: false };
+}
+
+function ProductThumb({ product }: { product: ProductItem }) {
+  const src = productImageUrl(product.primaryImageUrl);
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={product.name}
+        className="w-full h-full object-cover"
+        loading="lazy"
+      />
+    );
+  }
+  return (
+    <div className="w-full h-full flex items-center justify-center text-rose-300">
+      <Gem className="w-12 h-12" strokeWidth={1.2} />
+    </div>
+  );
 }
 
 export default function ShopPage() {
@@ -121,16 +169,11 @@ export default function ShopPage() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {products.map((product) => {
-            const prices = product.variants.map((v) =>
-              Number(v.finalPriceToman),
-            );
-            const minPrice = prices.length
-              ? Math.min(...prices)
-              : Number(product.basePriceToman);
-            const maxPrice = prices.length
-              ? Math.max(...prices)
-              : Number(product.basePriceToman);
-            const inStock = product.variants.some((v) => v.inStock);
+            const { min, max, isEstimate } = getPriceRange(product);
+            const isWeightRange = product.pricingMode === "WEIGHT_RANGE";
+            const inStock = isWeightRange
+              ? true
+              : product.variants.some((v) => v.inStock);
 
             return (
               <Link
@@ -138,8 +181,14 @@ export default function ShopPage() {
                 href={`/dashboard/shop/${product.slug}`}
                 className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm hover:shadow-lg transition-all group"
               >
-                <div className="aspect-square bg-gray-50 rounded-[20px] mb-4 flex items-center justify-center text-rose-300 group-hover:scale-105 transition-transform">
-                  <Gem className="w-12 h-12" strokeWidth={1.2} />
+                <div className="relative aspect-square bg-gray-50 rounded-[20px] mb-4 overflow-hidden group-hover:scale-105 transition-transform">
+                  <ProductThumb product={product} />
+                  {isWeightRange && (
+                    <span className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold bg-white/90 text-gray-600 shadow-sm">
+                      <Scale className="w-3 h-3" />
+                      بازه‌وزنی
+                    </span>
+                  )}
                 </div>
 
                 <h3 className="text-[14px] font-bold text-gray-800 mb-1 line-clamp-1">
@@ -151,9 +200,8 @@ export default function ShopPage() {
 
                 <div className="flex items-center justify-between mt-auto">
                   <div className="text-[13px] font-black text-rose-600">
-                    {minPrice === maxPrice
-                      ? fmtToman(minPrice)
-                      : `از ${fmtToman(minPrice)}`}
+                    {isEstimate && "از "}
+                    {min === max ? fmtToman(min) : `از ${fmtToman(min)}`}
                     <span className="text-[10px] mr-1 font-bold">تومان</span>
                   </div>
                   {!inStock && (

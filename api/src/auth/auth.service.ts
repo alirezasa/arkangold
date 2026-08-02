@@ -404,11 +404,12 @@ export class AuthService {
       referralCode: user.referralCode,
       wallet: user.wallet
         ? {
-            goldBalance: user.wallet.goldBalanceGrams,
-            rialBalance: user.wallet.rialBalance,
+            goldBalance: user.wallet.goldBalanceGrams.toString(),
+            rialBalance: user.wallet.rialBalance.toString(),
             cardNumber: user.wallet.cardNumber,
           }
         : null,
+
       identity: user.identity
         ? {
             firstName: user.identity.firstName,

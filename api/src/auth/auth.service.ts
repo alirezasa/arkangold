@@ -75,32 +75,40 @@ export class AuthService {
   // ═══════════════════════════════════════════
   async verifyOtp(dto: VerifyOtpDto) {
     const phone = this.normalizePhone(dto.phone);
+
+    // ابتدا کد OTP بررسی شود
+    await this.validateOtp(phone, dto.code, OtpPurpose.REGISTER);
+
+    // فقط پس از صحیح بودن OTP، وجود کاربر بررسی شود
     const existingUser = await this.prisma.user.findUnique({
       where: { phone },
     });
+
     if (existingUser) {
       throw new ConflictException(
         'این شماره قبلاً ثبت‌نام کرده است. لطفاً وارد شوید.',
       );
     }
 
-    await this.validateOtp(phone, dto.code, OtpPurpose.REGISTER);
-
     const payload: TempTokenPayload = {
       phone,
       purpose: 'register',
       type: (dto.type as UserType) || UserType.REAL,
     };
+
     if (dto.type === 'LEGAL' && dto.companyNationalId) {
       payload.companyNationalId = dto.companyNationalId;
     }
 
     const tempToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_TEMP_SECRET'),
-      expiresIn: 600, // 10 دقیقه به ثانیه
+      expiresIn: 600,
     });
 
-    return { tempToken, message: 'کد با موفقیت تایید شد' };
+    return {
+      tempToken,
+      message: 'کد با موفقیت تایید شد',
+    };
   }
 
   // ═══════════════════════════════════════════

@@ -317,14 +317,27 @@ export const usePayShopOrder = () => {
 };
 
 // ── تاریخچه سفارش‌ها ──
-export const useShopOrders = (page = 1) => {
+export type ShopOrderStatusFilter =
+  | "ALL"
+  | "PENDING_PAYMENT"
+  | "PAID"
+  | "PROCESSING"
+  | "SHIPPED"
+  | "DELIVERED"
+  | "CANCELLED";
+
+export const useShopOrders = (page = 1, status: ShopOrderStatusFilter = "ALL") => {
+  const qs = new URLSearchParams({ page: String(page), limit: "20" });
+  if (status !== "ALL") qs.set("status", status);
+
   const { data, isLoading, error, mutate } = useSWR(
-    `/api/orders/shop?page=${page}&limit=20`,
+    `/api/orders/shop?${qs.toString()}`,
     fetcher,
     { revalidateOnFocus: false },
   );
   return {
     orders: (data?.data ?? []) as ShopOrderDto[],
+    total: data?.total ?? 0,
     totalPages: data?.totalPages ?? 1,
     loading: isLoading,
     error,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ChevronRight,
@@ -15,6 +15,8 @@ import {
   Home,
   Building2,
   CreditCard,
+  Clock,
+  Scale,
 } from "lucide-react";
 import {
   useCart,
@@ -31,66 +33,150 @@ function fmtToman(v: string | number) {
   return Math.round(Number(v)).toLocaleString("fa-IR");
 }
 
+function formatCountdown(seconds: number) {
+  const m = Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, "0");
+  const s = (seconds % 60).toString().padStart(2, "0");
+  return `${m}:${s}`;
+}
+
 type Step = "cart" | "address" | "confirm" | "done";
 
 function CartRow({
   item,
-  onChange,
+  onQuantityChange,
+  onWeightChange,
   onRemove,
 }: {
   item: CartItemDto;
-  onChange: (id: string, qty: number) => void;
+  onQuantityChange: (id: string, qty: number) => void;
+  onWeightChange: (id: string, weightGrams: number) => void;
   onRemove: (id: string) => void;
 }) {
+  // کانتر محلی برای زمان انقضای قفل قیمت این آیتم
+  const [remaining, setRemaining] = useState(item.expiresInSeconds);
+
+  // ── همگام‌سازی remaining با item.expiresInSeconds حین رندر (نه در افکت) ──
+  // هر بار که سرور مقدار جدیدی برای این آیتم برگرداند (مثلاً بعد از تغییر
+  // وزن/تعداد و قفل مجدد قیمت)، باید کانتر از نو شروع شود.
+  const [trackedKey, setTrackedKey] = useState(
+    `${item.id}:${item.expiresInSeconds}`,
+  );
+  const currentKey = `${item.id}:${item.expiresInSeconds}`;
+  if (currentKey !== trackedKey) {
+    setTrackedKey(currentKey);
+    setRemaining(item.expiresInSeconds);
+  }
+
+  // افکت فقط مسئول تیک‌زدن ثانیه‌شمار است، نه همگام‌سازی با prop
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRemaining((r) => Math.max(0, r - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const isWeightRange = item.kind === "WEIGHT_RANGE";
+  const expiringSoon = remaining > 0 && remaining <= 60;
+  const expired = remaining <= 0;
+
   return (
-    <div className="flex items-center gap-3 py-4 border-b border-gray-100 last:border-0">
-      <div className="w-14 h-14 rounded-xl bg-gray-50 flex items-center justify-center text-rose-300 shrink-0">
-        <ShoppingBag className="w-6 h-6" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-bold text-gray-800 truncate">
-          {item.productName}
-        </p>
-        <p className="text-[11px] text-gray-400 mt-0.5">
-          {item.weightGrams} گرم
-        </p>
-        {!item.available && (
-          <p className="text-[10px] text-red-500 font-bold mt-1">
-            ناموجود / موجودی ناکافی
+    <div className="py-4 border-b border-gray-100 last:border-0">
+      <div className="flex items-center gap-3">
+        <div className="w-14 h-14 rounded-xl bg-gray-50 flex items-center justify-center text-rose-300 shrink-0">
+          {isWeightRange ? (
+            <Scale className="w-6 h-6" />
+          ) : (
+            <ShoppingBag className="w-6 h-6" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-bold text-gray-800 truncate">
+            {item.productName}
           </p>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            {item.weightGrams} گرم
+          </p>
+          {!item.available && (
+            <p className="text-[10px] text-red-500 font-bold mt-1">
+              ناموجود / موجودی ناکافی
+            </p>
+          )}
+        </div>
+
+        {/* ── کنترل تعداد یا وزن ── */}
+        {isWeightRange ? (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <input
+              type="number"
+              dir="ltr"
+              defaultValue={item.weightGrams}
+              onBlur={(e) => {
+                const v = Number(e.target.value);
+                if (v > 0 && v !== Number(item.weightGrams)) {
+                  onWeightChange(item.id, v);
+                }
+              }}
+              className="w-16 h-8 text-center text-[12px] font-bold border border-gray-200 rounded-lg outline-none focus:border-rose-400"
+            />
+            <span className="text-[10px] text-gray-400">گرم</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() =>
+                onQuantityChange(item.id, Math.max(1, item.quantity - 1))
+              }
+              className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+            <span className="w-6 text-center text-[13px] font-bold">
+              {item.quantity.toLocaleString("fa-IR")}
+            </span>
+            <button
+              onClick={() =>
+                onQuantityChange(
+                  item.id,
+                  item.stockQuantity
+                    ? Math.min(item.stockQuantity, item.quantity + 1)
+                    : item.quantity + 1,
+                )
+              }
+              className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
         )}
-      </div>
-      <div className="flex items-center gap-2 shrink-0">
+
+        <div className="text-left shrink-0 w-24">
+          <p className="text-[13px] font-black text-gray-800">
+            {fmtToman(item.lineTotalToman)}
+          </p>
+          <p className="text-[10px] text-gray-400">تومان</p>
+        </div>
         <button
-          onClick={() => onChange(item.id, Math.max(1, item.quantity - 1))}
-          className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50"
+          onClick={() => onRemove(item.id)}
+          className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
         >
-          <Minus className="w-3.5 h-3.5" />
-        </button>
-        <span className="w-6 text-center text-[13px] font-bold">
-          {item.quantity.toLocaleString("fa-IR")}
-        </span>
-        <button
-          onClick={() =>
-            onChange(item.id, Math.min(item.stockQuantity, item.quantity + 1))
-          }
-          className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-50"
-        >
-          <Plus className="w-3.5 h-3.5" />
+          <Trash2 className="w-4 h-4" />
         </button>
       </div>
-      <div className="text-left shrink-0 w-24">
-        <p className="text-[13px] font-black text-gray-800">
-          {fmtToman(item.lineTotalToman)}
-        </p>
-        <p className="text-[10px] text-gray-400">تومان</p>
-      </div>
-      <button
-        onClick={() => onRemove(item.id)}
-        className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
+
+      {(expiringSoon || expired) && (
+        <div
+          className={`flex items-center gap-1.5 mt-2 mr-17 text-[11px] font-bold ${
+            expired ? "text-red-500" : "text-amber-600"
+          }`}
+        >
+          <Clock className="w-3.5 h-3.5" />
+          {expired
+            ? "قیمت این آیتم منقضی شده — صفحه را رفرش کنید"
+            : `قیمت تا ${formatCountdown(remaining)} دیگر معتبر است`}
+        </div>
+      )}
     </div>
   );
 }
@@ -112,8 +198,13 @@ export default function ShopCartPage() {
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [order, setOrder] = useState<ShopOrderDto | null>(null);
 
-  const handleQtyChange = async (itemId: string, qty: number) => {
-    await update(itemId, qty);
+  const handleQuantityChange = async (itemId: string, qty: number) => {
+    await update(itemId, { quantity: qty });
+    refresh();
+  };
+
+  const handleWeightChange = async (itemId: string, weightGrams: number) => {
+    await update(itemId, { weightGrams });
     refresh();
   };
 
@@ -147,6 +238,7 @@ export default function ShopCartPage() {
   };
 
   const error = checkoutError || payError;
+  const hasExpiredItem = cart?.items.some((i) => i.expiresInSeconds <= 0);
 
   if (loading) {
     return (
@@ -211,7 +303,8 @@ export default function ShopCartPage() {
                   <CartRow
                     key={item.id}
                     item={item}
-                    onChange={handleQtyChange}
+                    onQuantityChange={handleQuantityChange}
+                    onWeightChange={handleWeightChange}
                     onRemove={handleRemove}
                   />
                 ))}
@@ -235,9 +328,19 @@ export default function ShopCartPage() {
                 </span>
               </div>
 
+              {hasExpiredItem && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-[12px] font-bold">
+                  <Clock className="w-4 h-4 mt-0.5 shrink-0" />
+                  قیمت برخی از آیتم‌های سبد منقضی شده. برای ادامه، آیتم را
+                  حذف و مجدداً اضافه کنید تا قیمت جدید قفل شود.
+                </div>
+              )}
+
               <button
                 onClick={handleGoToAddress}
-                disabled={cart.items.some((i) => !i.available)}
+                disabled={
+                  cart.items.some((i) => !i.available) || hasExpiredItem
+                }
                 className="w-full py-4 rounded-xl font-black text-white text-[14px] disabled:opacity-40"
                 style={{ backgroundColor: "var(--color-emerald)" }}
               >
@@ -362,7 +465,10 @@ export default function ShopCartPage() {
                 style={{ borderColor: "var(--color-border)" }}
               >
                 <span className="text-[12px] text-gray-600 font-medium">
-                  {item.productName} × {item.quantity.toLocaleString("fa-IR")}
+                  {item.productName} ×{" "}
+                  {item.kind === "WEIGHT_RANGE"
+                    ? `${item.weightGrams} گرم`
+                    : item.quantity.toLocaleString("fa-IR")}
                 </span>
                 <span className="text-[12px] font-bold text-gray-800">
                   {fmtToman(item.lineTotalToman)} ت

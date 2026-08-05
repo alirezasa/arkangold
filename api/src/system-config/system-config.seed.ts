@@ -207,4 +207,48 @@ export const WALLET_CONFIG_DEFAULTS = [
   { key: 'fee.sell_gold', value: '1.0', description: 'کارمزد فروش طلا (درصد)' },
   { key: 'tax.buy', value: '0', description: 'مالیات خرید طلا (درصد)' },
   { key: 'tax.sell', value: '0', description: 'مالیات فروش طلا (درصد)' },
+
+  // ══ درگاه‌های پرداخت ══
+  {
+    key: 'payment.zarinpal.enabled',
+    value: 'false',
+    description: 'فعال بودن زرین‌پال',
+  },
+  {
+    key: 'payment.zarinpal.merchant_id',
+    value: '',
+    description: 'مرچنت‌آیدی زرین‌پال',
+  },
+  {
+    key: 'payment.zarinpal.sandbox',
+    value: 'true',
+    description: 'حالت آزمایشی زرین‌پال',
+  },
+
+  {
+    key: 'payment.behpardakht.enabled',
+    value: 'false',
+    description: 'فعال بودن به‌پرداخت ملت',
+  },
+  {
+    key: 'payment.behpardakht.terminal_id',
+    value: '',
+    description: 'شماره ترمینال',
+  },
+  {
+    key: 'payment.behpardakht.username',
+    value: '',
+    description: 'نام کاربری وب‌سرویس',
+  },
+  {
+    key: 'payment.behpardakht.password',
+    value: '',
+    description: 'رمز عبور وب‌سرویس (رمزنگاری‌شده)',
+  },
+
+  {
+    key: 'payment.gateway.callback_base_url',
+    value: 'http://localhost:3000',
+    description: 'آدرس پایه برای callback درگاه‌ها',
+  },
 ];

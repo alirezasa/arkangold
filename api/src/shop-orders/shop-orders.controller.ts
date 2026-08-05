@@ -51,7 +51,37 @@ export class ShopOrdersController {
   ) {
     return this.service.list(req.user.userId, query);
   }
+  @Public()
+  @Get('payment/callback/:provider')
+  async gatewayCallback(
+    @Param('provider') provider: string,
+    @Query() query: Record<string, string>,
+    @Res() res: Response,
+  ) {
+    const providerKey = provider.toUpperCase() as 'ZARINPAL' | 'BEHPARDAKHT';
+    const providerRef =
+      providerKey === 'ZARINPAL' ? query['Authority'] : query['RefId'];
 
+    try {
+      const result = await this.service.handleGatewayCallback(
+        providerKey,
+        providerRef,
+        query,
+      );
+      const frontendUrl =
+        process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const redirectTo = result.success
+        ? `${frontendUrl}/dashboard/shop/cart?paymentStatus=success&orderId=${result.orderId}`
+        : `${frontendUrl}/dashboard/shop/cart?paymentStatus=failed&orderId=${result.orderId}`;
+      return res.redirect(redirectTo);
+    } catch {
+      const frontendUrl =
+        process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      return res.redirect(
+        `${frontendUrl}/dashboard/shop/cart?paymentStatus=error`,
+      );
+    }
+  }
   @Get(':id')
   @ApiOperation({ summary: 'جزئیات سفارش' })
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {

@@ -1,4 +1,4 @@
-import { IsUUID, IsString, IsOptional, IsIn } from 'class-validator';
+import { IsUUID, IsString, IsOptional, IsIn, IsNumberString, ValidateIf } from 'class-validator';
 import { PaymentMethod } from '../enums';
 
 export class CreateShopOrderDto {
@@ -6,9 +6,25 @@ export class CreateShopOrderDto {
   addressId!: string;
 }
 
+export type PaymentModeType = 'WALLET' | 'GATEWAY' | 'SPLIT';
+
 export class PayShopOrderDto {
-  @IsIn(Object.values(PaymentMethod))
-  method!: PaymentMethod;
+  @IsIn(['WALLET', 'GATEWAY', 'SPLIT'])
+  mode!: PaymentModeType;
+
+  // فقط وقتی GATEWAY یا SPLIT است لازم است
+  @ValidateIf((o) => o.mode !== 'WALLET')
+  @IsIn(['ZARINPAL', 'BEHPARDAKHT'])
+  gatewayProvider?: 'ZARINPAL' | 'BEHPARDAKHT';
+
+  // فقط برای SPLIT
+  @ValidateIf((o) => o.mode === 'SPLIT')
+  @IsNumberString()
+  walletAmountRial?: string;
+
+  @ValidateIf((o) => o.mode === 'SPLIT')
+  @IsNumberString()
+  gatewayAmountRial?: string;
 }
 
 export class ShipShopOrderDto {

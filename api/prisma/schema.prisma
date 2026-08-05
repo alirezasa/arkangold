@@ -484,18 +484,22 @@ model ShopOrderItem {
 }
 
 model Payment {
-  amountRial    Decimal       @map("amount_rial") @db.Decimal(18, 0)
-  method        PaymentMethod
-  status        PaymentStatus @default(PENDING)
-  referenceCode String?       @unique @map("reference_code")
-  paidAt        DateTime?     @map("paid_at")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  id            String        @id @default(uuid()) @db.Uuid
-  userId        String        @map("user_id") @db.Uuid
-  orderId       String?       @map("order_id") @db.Uuid
-  order         ShopOrder?    @relation(fields: [orderId], references: [id])
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountRial          Decimal       @map("amount_rial") @db.Decimal(18, 0)
+  method               PaymentMethod
+  status               PaymentStatus @default(PENDING)
+  referenceCode        String?       @unique @map("reference_code")
+  gatewayProvider      PaymentGatewayProvider? @map("gateway_provider")
+  gatewayProviderRef   String?       @map("gateway_provider_ref")
+  gatewayTrackingCode  String?       @map("gateway_tracking_code")
+  paidAt               DateTime?     @map("paid_at")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  id                   String        @id @default(uuid()) @db.Uuid
+  userId               String        @map("user_id") @db.Uuid
+  orderId              String?       @map("order_id") @db.Uuid
+  order                ShopOrder?    @relation(fields: [orderId], references: [id])
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([gatewayProvider, gatewayProviderRef])
   @@index([userId])
   @@map("payments")
 }
@@ -1081,4 +1085,9 @@ enum PricingComponentValueType {
 enum GoldPurityKarat {
   K18
   K24
+}
+
+enum PaymentGatewayProvider {
+  ZARINPAL
+  BEHPARDAKHT
 }

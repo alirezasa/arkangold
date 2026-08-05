@@ -12,6 +12,7 @@ import {
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingEngineService } from '../catalog/pricing-engine.service';
+import { Decimal } from 'decimal.js';
 
 type CartWithRelations = Prisma.CartGetPayload<{
   include: {
@@ -248,20 +249,33 @@ export class CartService {
       weight = this.toNumber(item.selectedWeightGrams);
     }
 
+    const lockedAt = new Date();
+    const expiresAt = new Date(Date.now() + CART_LOCK_MINUTES * 60 * 1000);
+
     try {
       const result = await this.pricingEngine.calculateForProduct(
         productId,
         weight,
       );
 
-      // برای تنوع ثابت (FIXED)، priceAdjustment باید روی نتیجهٔ فرمول اعمال شود
-      let finalUnitPriceRial = new Prisma.Decimal(result.finalPriceRial);
+      // جلوگیری از خطای Stringification و Unsafe Call با تعریف اینترفیس
+      const rawFinalPrice = result.finalPriceRial as
+        | { toString(): string }
+        | null
+        | undefined;
+      let finalUnitPriceRial = new Decimal(
+        rawFinalPrice != null ? rawFinalPrice.toString() : '0',
+      );
+
       if (item.variantId) {
         const variant = await this.prisma.productVariant.findUnique({
           where: { id: item.variantId },
         });
-        if (variant) {
-          finalUnitPriceRial = finalUnitPriceRial.plus(variant.priceAdjustment);
+        if (variant && variant.priceAdjustment != null) {
+          const rawAdj = variant.priceAdjustment as { toString(): string };
+          finalUnitPriceRial = finalUnitPriceRial.plus(
+            new Decimal(rawAdj.toString()),
+          );
         }
       }
 
@@ -269,31 +283,43 @@ export class CartService {
         where: { id: cartItemId },
         data: {
           lockedUnitPriceRial: finalUnitPriceRial,
-          lockedBreakdown: result.lines as unknown as Prisma.InputJsonValue,
-          priceLockedAt: new Date(),
-          priceExpiresAt: new Date(Date.now() + CART_LOCK_MINUTES * 60 * 1000),
+          lockedBreakdown: result.lines
+            ? (result.lines as unknown as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
+          priceLockedAt: lockedAt,
+          priceExpiresAt: expiresAt,
         },
       });
     } catch {
-      // اگر محصول فرمول قیمتی ندارد (مثلاً تنوع ثابت بدون purity)، از basePriceRial استفاده کن
       const product = await this.prisma.product.findUnique({
         where: { id: productId },
       });
-      let fallbackPrice = new Prisma.Decimal(product?.basePriceRial ?? 0);
+
+      const rawBasePrice = product?.basePriceRial as
+        | { toString(): string }
+        | null
+        | undefined;
+      let fallbackPrice = new Decimal(
+        rawBasePrice != null ? rawBasePrice.toString() : '0',
+      );
+
       if (item.variantId) {
         const variant = await this.prisma.productVariant.findUnique({
           where: { id: item.variantId },
         });
-        if (variant)
-          fallbackPrice = fallbackPrice.plus(variant.priceAdjustment);
+        if (variant && variant.priceAdjustment != null) {
+          const rawAdj = variant.priceAdjustment as { toString(): string };
+          fallbackPrice = fallbackPrice.plus(new Decimal(rawAdj.toString()));
+        }
       }
+
       await this.prisma.cartItem.update({
         where: { id: cartItemId },
         data: {
           lockedUnitPriceRial: fallbackPrice,
           lockedBreakdown: Prisma.JsonNull,
-          priceLockedAt: new Date(),
-          priceExpiresAt: new Date(Date.now() + CART_LOCK_MINUTES * 60 * 1000),
+          priceLockedAt: lockedAt,
+          priceExpiresAt: expiresAt,
         },
       });
     }

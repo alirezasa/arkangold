@@ -9,6 +9,7 @@ import {
   ShoppingCart,
   PackageX,
   Scale,
+  Receipt,
 } from "lucide-react";
 import {
   useCategories,
@@ -98,6 +99,13 @@ export default function ShopPage() {
             محصولات آماده تحویل با کیفیت تضمین‌شده
           </p>
         </div>
+        <Link
+          href="/dashboard/shop/orders"
+          className="w-11 h-11 bg-white border border-gray-200 rounded-xl flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors shadow-sm shrink-0"
+          title="سفارش‌های من"
+        >
+          <Receipt className="w-5 h-5" />
+        </Link>
         <Link
           href="/dashboard/shop/cart"
           className="relative w-11 h-11 bg-white border border-gray-200 rounded-xl flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors shadow-sm shrink-0"

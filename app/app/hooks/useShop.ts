@@ -219,7 +219,10 @@ export const useUpdateCartItem = () => {
   const [loading, setLoading] = useState(false);
 
   const update = useCallback(
-    async (itemId: string, payload: { quantity?: number; weightGrams?: number }) => {
+    async (
+      itemId: string,
+      payload: { quantity?: number; weightGrams?: number },
+    ) => {
       setLoading(true);
       try {
         const res = await axios.patch(`/api/cart/items/${itemId}`, payload);
@@ -287,35 +290,73 @@ export const usePayShopOrder = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const pay = useCallback(async (orderId: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const idempotencyKey =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random()}`;
+  const pay = useCallback(
+    async (
+      orderId: string,
+      payload:
+        | { mode: "WALLET" }
+        | { mode: "GATEWAY"; gatewayProvider: "ZARINPAL" | "BEHPARDAKHT" }
+        | {
+            mode: "SPLIT";
+            gatewayProvider: "ZARINPAL" | "BEHPARDAKHT";
+            walletAmountRial: string;
+            gatewayAmountRial: string;
+          },
+    ) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const idempotencyKey =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()}`;
 
-      const res = await axios.post(
-        `/api/orders/shop/${orderId}/pay`,
-        { method: "WALLET" },
-        { headers: { "idempotency-key": idempotencyKey } },
-      );
-      return res.data;
-    } catch (e: unknown) {
-      if (axios.isAxiosError(e)) {
-        const msg = e.response?.data?.message;
-        setError(Array.isArray(msg) ? msg[0] : msg || "خطا در پرداخت");
-      } else setError("خطای ناشناخته");
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        const res = await axios.post(
+          `/api/orders/shop/${orderId}/pay`,
+          payload,
+          {
+            headers: { "idempotency-key": idempotencyKey },
+          },
+        );
+        return res.data as PayResult;
+      } catch (e: unknown) {
+        if (axios.isAxiosError(e)) {
+          const msg = e.response?.data?.message;
+          setError(Array.isArray(msg) ? msg[0] : msg || "خطا در پرداخت");
+        } else setError("خطای ناشناخته");
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   return { loading, error, setError, pay };
 };
 
+export interface ActiveGateway {
+  key: "ZARINPAL" | "BEHPARDAKHT";
+  label: string;
+}
+
+export const useActiveGateways = () => {
+  const { data } = useSWR<ActiveGateway[]>(
+    "/api/payment-gateways/active",
+    fetcher,
+    {
+      revalidateOnFocus: false,
+    },
+  );
+  return { gateways: data ?? [] };
+};
+export interface PayResult {
+  message: string;
+  status?: string;
+  requiresRedirect: boolean;
+  redirectUrl?: string;
+  alreadyProcessed: boolean;
+}
 // ── تاریخچه سفارش‌ها ──
 export type ShopOrderStatusFilter =
   | "ALL"
@@ -326,7 +367,10 @@ export type ShopOrderStatusFilter =
   | "DELIVERED"
   | "CANCELLED";
 
-export const useShopOrders = (page = 1, status: ShopOrderStatusFilter = "ALL") => {
+export const useShopOrders = (
+  page = 1,
+  status: ShopOrderStatusFilter = "ALL",
+) => {
   const qs = new URLSearchParams({ page: String(page), limit: "20" });
   if (status !== "ALL") qs.set("status", status);
 

@@ -28,6 +28,7 @@ import {
 } from "@/app/hooks/useShop";
 import { useAddresses } from "@/app/hooks/usePhysicalDelivery";
 import { useWallet } from "@/app/hooks/useWallet";
+import { useActiveGateways } from "@/app/hooks/useShop";
 
 function fmtToman(v: string | number) {
   return Math.round(Number(v)).toLocaleString("fa-IR");
@@ -192,6 +193,14 @@ export default function ShopCartPage() {
     setError: setCheckoutError,
     checkout,
   } = useCheckout();
+  const { gateways } = useActiveGateways();
+  const [paymentMode, setPaymentMode] = useState<
+    "WALLET" | "GATEWAY" | "SPLIT"
+  >("WALLET");
+  const [selectedGateway, setSelectedGateway] = useState<
+    "ZARINPAL" | "BEHPARDAKHT" | ""
+  >("");
+  const [walletPortionToman, setWalletPortionToman] = useState("");
   const { loading: payLoading, error: payError, pay } = usePayShopOrder();
 
   const [step, setStep] = useState<Step>("cart");
@@ -227,13 +236,52 @@ export default function ShopCartPage() {
 
   const handlePlaceOrder = async () => {
     const res = await checkout(selectedAddressId);
-    if (res) {
-      setOrder(res);
-      const payRes = await pay(res.id);
-      if (payRes) {
-        setStep("done");
-        refresh();
+    if (!res) return;
+    setOrder(res);
+
+    const totalRial = Number(res.totalToman) * 10;
+
+    let payload:
+      | { mode: "WALLET" }
+      | { mode: "GATEWAY"; gatewayProvider: "ZARINPAL" | "BEHPARDAKHT" }
+      | {
+          mode: "SPLIT";
+          gatewayProvider: "ZARINPAL" | "BEHPARDAKHT";
+          walletAmountRial: string;
+          gatewayAmountRial: string;
+        };
+
+    if (paymentMode === "WALLET") {
+      payload = { mode: "WALLET" };
+    } else if (paymentMode === "GATEWAY") {
+      if (!selectedGateway)
+        return setCheckoutError("یک درگاه پرداخت انتخاب کنید");
+      payload = { mode: "GATEWAY", gatewayProvider: selectedGateway };
+    } else {
+      if (!selectedGateway)
+        return setCheckoutError("یک درگاه پرداخت انتخاب کنید");
+      const walletRial = Number(walletPortionToman.replace(/,/g, "")) * 10;
+      if (!walletRial || walletRial <= 0 || walletRial >= totalRial) {
+        return setCheckoutError(
+          "مبلغ کیف‌پول باید بین صفر تا کل مبلغ فاکتور باشد",
+        );
       }
+      payload = {
+        mode: "SPLIT",
+        gatewayProvider: selectedGateway,
+        walletAmountRial: String(walletRial),
+        gatewayAmountRial: String(totalRial - walletRial),
+      };
+    }
+
+    const payRes = await pay(res.id, payload);
+    if (payRes?.requiresRedirect && payRes.redirectUrl) {
+      window.location.href = payRes.redirectUrl; // ریدایرکت به درگاه
+      return;
+    }
+    if (payRes) {
+      setStep("done");
+      refresh();
     }
   };
 
@@ -331,8 +379,8 @@ export default function ShopCartPage() {
               {hasExpiredItem && (
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-[12px] font-bold">
                   <Clock className="w-4 h-4 mt-0.5 shrink-0" />
-                  قیمت برخی از آیتم‌های سبد منقضی شده. برای ادامه، آیتم را
-                  حذف و مجدداً اضافه کنید تا قیمت جدید قفل شود.
+                  قیمت برخی از آیتم‌های سبد منقضی شده. برای ادامه، آیتم را حذف و
+                  مجدداً اضافه کنید تا قیمت جدید قفل شود.
                 </div>
               )}
 
@@ -509,18 +557,64 @@ export default function ShopCartPage() {
             >
               بازگشت
             </button>
-            <button
-              onClick={handlePlaceOrder}
-              disabled={checkoutLoading || payLoading}
-              className="flex-2 py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ backgroundColor: "var(--color-emerald)" }}
-            >
-              {checkoutLoading || payLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                "پرداخت از کیف پول"
-              )}
-            </button>
+            {gateways.length > 0 && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  {(["WALLET", "GATEWAY", "SPLIT"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setPaymentMode(m)}
+                      className={`py-2.5 rounded-xl text-[12px] font-bold border-2 ${
+                        paymentMode === m
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                          : "border-gray-200 text-gray-500"
+                      }`}
+                    >
+                      {m === "WALLET"
+                        ? "کیف پول"
+                        : m === "GATEWAY"
+                          ? "درگاه پرداخت"
+                          : "ترکیبی"}
+                    </button>
+                  ))}
+                </div>
+
+                {paymentMode !== "WALLET" && (
+                  <select
+                    value={selectedGateway}
+                    onChange={(e) =>
+                      setSelectedGateway(
+                        e.target.value as "ZARINPAL" | "BEHPARDAKHT",
+                      )
+                    }
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                  >
+                    <option value="">انتخاب درگاه...</option>
+                    {gateways.map((g) => (
+                      <option key={g.key} value={g.key}>
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {paymentMode === "SPLIT" && (
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="مبلغ از کیف‌پول (تومان)"
+                    value={walletPortionToman}
+                    onChange={(e) =>
+                      setWalletPortionToman(
+                        e.target.value.replace(/[^0-9]/g, ""),
+                      )
+                    }
+                    dir="ltr"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 text-left text-[15px] font-bold"
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

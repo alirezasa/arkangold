@@ -20,6 +20,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { CartModule } from './cart/cart.module';
 import { ShopOrdersModule } from './shop-orders/shop-orders.module';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
+import { PaymentGatewayModule } from './payment-gateway/payment-gateway.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { AdminAuthModule } from './admin-auth/admin-auth.module';
     CartModule,
     ShopOrdersModule,
     AdminAuthModule,
+    PaymentGatewayModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

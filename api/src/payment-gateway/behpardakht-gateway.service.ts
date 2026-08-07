@@ -1,21 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import { SystemConfigService } from '../system-config/system-config.service';
 import {
   PaymentGatewayProvider,
-  PaymentRequestParams,
   PaymentRequestResult,
   PaymentVerifyParams,
   PaymentVerifyResult,
-  PaymentRefundParams,
   PaymentRefundResult,
 } from './interfaces/payment-gateway-provider.interface';
-
-// نکته: SOAP endpoint واقعی باید طبق مستندات بانک ملت (bpml.shaparak.ir) پیاده شود.
-// این نسخه، ساختار و جریان verify+settle را کامل پیاده می‌کند؛ فقط فراخوانی SOAP
-// باید با کتابخانه مناسب (مثل soap یا strong-soap) جایگزین placeholder شود.
-
-const GATEWAY_URL = 'https://bpm.shaparak.ir/pgwchannel/startpay.mellat';
 
 @Injectable()
 export class BehPardakhtGatewayService implements PaymentGatewayProvider {
@@ -32,32 +23,25 @@ export class BehPardakhtGatewayService implements PaymentGatewayProvider {
     const [terminalId, username, password] = await Promise.all([
       this.systemConfig.get('payment.behpardakht.terminal_id'),
       this.systemConfig.get('payment.behpardakht.username'),
-      this.systemConfig.get('payment.behpardakht.password'), // TODO: decrypt وقتی encrypt پیاده شد
+      this.systemConfig.get('payment.behpardakht.password'),
     ]);
+
     if (!terminalId || !username || !password) {
       throw new Error('تنظیمات به‌پرداخت ملت کامل نیست');
     }
+
     return { terminalId, username, password };
   }
 
   private rialAmount(rial: string): number {
-    return Math.round(Number(rial)); // به‌پرداخت ریال می‌گیرد - بدون تبدیل
+    return Math.round(Number(rial));
   }
 
-  async requestPayment(
-    params: PaymentRequestParams,
-  ): Promise<PaymentRequestResult> {
-    const { terminalId, username, password } = await this.getConfig();
-    const orderId = Date.now(); // به‌پرداخت orderId عددی و یکتا می‌خواهد
+  async requestPayment(): Promise<PaymentRequestResult> {
+    await this.getConfig();
 
     // TODO: جایگزینی با فراخوانی واقعی SOAP bpPayRequest
-    // const client = await soap.createClientAsync(WSDL_URL);
-    // const [result] = await client.bpPayRequestAsync({
-    //   terminalId, userName: username, userPassword: password,
-    //   orderId, amount: this.rialAmount(params.amountRial),
-    //   localDate, localTime, additionalData: params.orderId,
-    //   callBackUrl: params.callbackUrl, payerId: 0,
-    // });
+    // const orderId = Date.now();
     // const [resCode, refId] = result.return.split(',');
     // if (resCode !== '0') throw new Error(`خطای به‌پرداخت: ${resCode}`);
 
@@ -66,37 +50,33 @@ export class BehPardakhtGatewayService implements PaymentGatewayProvider {
     );
   }
 
-  async verifyPayment(
-    params: PaymentVerifyParams,
-  ): Promise<PaymentVerifyResult> {
+  verifyPayment(params: PaymentVerifyParams): Promise<PaymentVerifyResult> {
     const resCode = params.callbackQuery['ResCode'];
     const refId = params.callbackQuery['RefId'];
     const saleReferenceId = params.callbackQuery['SaleReferenceId'];
 
     if (resCode !== '0') {
-      return {
+      return Promise.resolve({
         success: false,
         failureReason: `کد خطای بانک: ${resCode}`,
         rawResponse: params.callbackQuery,
-      };
+      });
     }
 
     // TODO: فراخوانی واقعی bpVerifyRequest سپس bpSettleRequest
-    // اگر settle شکست خورد باید bpReversalRequest صدا زده شود و success=false برگردد
     this.logger.warn(
       '[BehPardakht] verify+settle هنوز پیاده‌سازی نشده - placeholder',
     );
-    return {
+
+    return Promise.resolve({
       success: false,
       failureReason: 'پیاده‌سازی verify/settle به‌پرداخت تکمیل نشده',
       rawResponse: { refId, saleReferenceId },
-    };
+    });
   }
 
-  async refundPayment(
-    params: PaymentRefundParams,
-  ): Promise<PaymentRefundResult> {
+  refundPayment(): Promise<PaymentRefundResult> {
     // TODO: bpReversalRequest
-    return { success: false, rawResponse: null };
+    return Promise.resolve({ success: false, rawResponse: null });
   }
 }

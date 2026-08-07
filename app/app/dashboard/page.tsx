@@ -275,7 +275,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── ۲. کارت‌های آماری کیف پول (دیتای واقعی) ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
           {
             label: "موجودی طلا",
@@ -332,7 +332,7 @@ export default function DashboardPage() {
             </div>
           </div>
         ))}
-      </div>
+      </div> */}
 
       {/* ── ۳. بنرهای خدمات اصلی (باگ کلاس‌های تیلویند رفع شد) ── */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">

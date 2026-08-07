@@ -24,14 +24,6 @@ import { SystemConfigService } from '../system-config/system-config.service';
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 const PENDING_PAYMENT_TTL_MINUTES = 30;
 
-type OrderItemCreateData = {
-  variantId?: string;
-  productId?: string;
-  selectedWeightGrams?: number;
-  quantity: number;
-  priceRial: number;
-};
-
 type ReleaseStockItem = {
   variantId: string | null;
   quantity: number;
@@ -42,7 +34,6 @@ type ShopOrderDtoItem = {
   quantity: number;
   priceRial: unknown;
   selectedWeightGrams: unknown;
-
   variant: {
     weightGrams: unknown;
     product: { name: string; slug: string };
@@ -109,9 +100,6 @@ export class ShopOrdersService {
     );
   }
 
-  // api/src/shop-orders/shop-orders.service.ts
-  // جایگزین متد checkoutInternal موجود کنید (بقیهٔ فایل بدون تغییر می‌ماند):
-
   private async checkoutInternal(userId: string, dto: CreateShopOrderDto) {
     const address = await this.prisma.address.findFirst({
       where: { id: dto.addressId, userId },
@@ -126,6 +114,7 @@ export class ShopOrdersService {
         },
       },
     });
+
     if (!cart || cart.items.length === 0) {
       throw new BadRequestException('سبد خرید شما خالی است');
     }
@@ -134,6 +123,7 @@ export class ShopOrdersService {
     const expiredItem = cart.items.find(
       (item) => !item.priceExpiresAt || item.priceExpiresAt < now,
     );
+
     if (expiredItem) {
       throw new BadRequestException(
         'قیمت قفل‌شدهٔ برخی آیتم‌های سبد منقضی شده است. لطفاً سبد را دوباره بررسی کنید',
@@ -144,6 +134,7 @@ export class ShopOrdersService {
       const product = item.variant?.product ?? item.product;
       return !product || product.status !== 'ACTIVE';
     });
+
     if (unavailable) {
       const name =
         unavailable.variant?.product.name ?? unavailable.product?.name;
@@ -154,7 +145,7 @@ export class ShopOrdersService {
       ...new Set(
         cart.items
           .map((item) => item.variantId)
-          .filter((v): v is string => Boolean(v)),
+          .filter((value): value is string => Boolean(value)),
       ),
     ].sort();
 
@@ -164,10 +155,13 @@ export class ShopOrdersService {
           for (const variantId of variantIds) {
             await tx.$executeRaw`SELECT 1 FROM "product_variants" WHERE "id" = ${variantId}::uuid FOR UPDATE`;
           }
+
           const freshVariants = await tx.productVariant.findMany({
             where: { id: { in: variantIds } },
           });
-          const variantMap = new Map(freshVariants.map((v) => [v.id, v]));
+          const variantMap = new Map(
+            freshVariants.map((variant) => [variant.id, variant]),
+          );
 
           let totalRial = 0;
           const orderItemsData: {
@@ -180,8 +174,8 @@ export class ShopOrdersService {
           }[] = [];
 
           for (const item of cart.items) {
-            // ⬅️ نکتهٔ کلیدی: قیمت از lockedUnitPriceRial خوانده می‌شود، نه محاسبهٔ زنده
             const unitPriceRial = this.toNumber(item.lockedUnitPriceRial);
+
             if (unitPriceRial <= 0) {
               throw new BadRequestException(
                 'قیمت قفل‌شدهٔ یکی از آیتم‌های سبد نامعتبر است، لطفاً دوباره امتحان کنید',
@@ -189,23 +183,25 @@ export class ShopOrdersService {
             }
 
             if (item.variantId) {
-              const fresh = variantMap.get(item.variantId);
+              const freshVariant = variantMap.get(item.variantId);
               const product = item.variant?.product;
-              if (!fresh || !product)
+
+              if (!freshVariant || !product) {
                 throw new NotFoundException('تنوع محصول یافت نشد');
-              if (fresh.stockQuantity < item.quantity) {
+              }
+
+              if (freshVariant.stockQuantity < item.quantity) {
                 throw new BadRequestException(
-                  `موجودی «${product.name}» کافی نیست (موجودی: ${fresh.stockQuantity})`,
+                  `موجودی «${product.name}» کافی نیست (موجودی: ${freshVariant.stockQuantity})`,
                 );
               }
+
               totalRial += unitPriceRial * item.quantity;
               orderItemsData.push({
                 variantId: item.variantId,
                 quantity: item.quantity,
                 priceRial: unitPriceRial,
-                priceBreakdown:
-                  (item.lockedBreakdown as Prisma.InputJsonValue) ??
-                  Prisma.JsonNull,
+                priceBreakdown: item.lockedBreakdown ?? Prisma.JsonNull,
               });
               continue;
             }
@@ -219,9 +215,7 @@ export class ShopOrdersService {
               selectedWeightGrams: this.toNumber(item.selectedWeightGrams),
               quantity: item.quantity,
               priceRial: unitPriceRial,
-              priceBreakdown:
-                (item.lockedBreakdown as Prisma.InputJsonValue) ??
-                Prisma.JsonNull,
+              priceBreakdown: item.lockedBreakdown ?? Prisma.JsonNull,
             });
           }
 
@@ -246,6 +240,7 @@ export class ShopOrdersService {
                 priceBreakdown: orderItem.priceBreakdown,
               },
             });
+
             if (orderItem.variantId) {
               await tx.productVariant.update({
                 where: { id: orderItem.variantId },
@@ -287,7 +282,9 @@ export class ShopOrdersService {
     const order = await this.prisma.shopOrder.findFirst({
       where: { id: orderId, userId },
     });
+
     if (!order) throw new NotFoundException('سفارش یافت نشد');
+
     if (order.status === 'PAID') {
       return {
         message: 'این سفارش قبلاً پرداخت شده است',
@@ -295,6 +292,7 @@ export class ShopOrdersService {
         requiresRedirect: false,
       };
     }
+
     if (order.status !== 'PENDING_PAYMENT') {
       throw new ConflictException('این سفارش قابل پرداخت نیست');
     }
@@ -316,7 +314,7 @@ export class ShopOrdersService {
         userId,
         orderId,
         totalRial,
-        dto.gatewayProvider!,
+        dto.gatewayProvider,
       );
       return {
         message: 'در حال انتقال به درگاه پرداخت',
@@ -326,14 +324,15 @@ export class ShopOrdersService {
       };
     }
 
-    // SPLIT
     const walletAmount = Number(dto.walletAmountRial);
     const gatewayAmount = Number(dto.gatewayAmountRial);
+
     if (walletAmount + gatewayAmount !== totalRial) {
       throw new BadRequestException(
         'جمع مبلغ کیف‌پول و درگاه باید برابر مبلغ فاکتور باشد',
       );
     }
+
     if (walletAmount <= 0 || gatewayAmount <= 0) {
       throw new BadRequestException(
         'برای پرداخت ترکیبی هر دو مبلغ باید بزرگتر از صفر باشند',
@@ -341,22 +340,33 @@ export class ShopOrdersService {
     }
 
     await this.reserveWalletHold(userId, orderId, walletAmount);
-    const redirectUrl = await this.beginGatewayPayment(
-      userId,
-      orderId,
-      gatewayAmount,
-      dto.gatewayProvider!,
-      walletAmount,
-    );
-    return {
-      message: 'در حال انتقال به درگاه پرداخت',
-      requiresRedirect: true,
-      redirectUrl,
-      alreadyProcessed: false,
-    };
+
+    try {
+      const redirectUrl = await this.beginGatewayPayment(
+        userId,
+        orderId,
+        gatewayAmount,
+        dto.gatewayProvider,
+      );
+      return {
+        message: 'در حال انتقال به درگاه پرداخت',
+        requiresRedirect: true,
+        redirectUrl,
+        alreadyProcessed: false,
+      };
+    } catch (err) {
+      await this.prisma
+        .$transaction((tx) => this.releaseOrderWalletHold(tx, orderId))
+        .catch((releaseError: unknown) => {
+          this.logger.error(
+            `[ShopOrder] آزادسازی رزرو کیف‌پول سفارش ${orderId} ناموفق بود`,
+            this.formatUnknownError(releaseError),
+          );
+        });
+      throw err;
+    }
   }
 
-  // ── پرداخت ۱۰۰٪ کیف‌پول: فوری، بدون درگاه ──
   private async captureWalletOnly(
     userId: string,
     orderId: string,
@@ -365,6 +375,7 @@ export class ShopOrdersService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId}::uuid FOR UPDATE`;
+
         const wallet = await tx.wallet.findUnique({ where: { userId } });
         if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
 
@@ -406,6 +417,7 @@ export class ShopOrdersService {
           where: { id: orderId },
           data: { status: 'PAID' },
         });
+
         this.logger.log(
           `[ShopOrder] سفارش ${orderId} با موفقیت پرداخت شد (کیف‌پول)`,
         );
@@ -415,7 +427,6 @@ export class ShopOrdersService {
     }
   }
 
-  // ── رزرو (hold) سهم کیف‌پول برای پرداخت ترکیبی؛ کسر واقعی فقط بعد از موفقیت درگاه ──
   private async reserveWalletHold(
     userId: string,
     orderId: string,
@@ -423,6 +434,7 @@ export class ShopOrdersService {
   ) {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId}::uuid FOR UPDATE`;
+
       const wallet = await tx.wallet.findUnique({ where: { userId } });
       if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
 
@@ -430,7 +442,7 @@ export class ShopOrdersService {
         where: { walletId: wallet.id, expiresAt: { gt: new Date() } },
       });
       const heldRial = activeHolds.reduce(
-        (s, h) => s + this.toNumber(h.amountRial ?? 0),
+        (sum, hold) => sum + this.toNumber(hold.amountRial ?? 0),
         0,
       );
       const availableRial = this.toNumber(wallet.rialBalance) - heldRial;
@@ -441,7 +453,6 @@ export class ShopOrdersService {
         );
       }
 
-      // اگر hold فعالی از قبل برای همین سفارش هست (تلاش مجدد)، حذفش کن تا دوباره ساخته شود
       await tx.walletHold.deleteMany({
         where: { referenceId: orderId, holdType: 'ORDER' },
       });
@@ -452,53 +463,41 @@ export class ShopOrdersService {
           amountRial,
           holdType: 'ORDER',
           referenceId: orderId,
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000), // ۱۵ دقیقه فرصت برای تکمیل درگاه
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000),
         },
       });
 
-      await tx.payment
-        .upsert({
-          where: {
-            id:
-              (
-                await tx.payment.findFirst({
-                  where: { orderId, method: 'WALLET', status: 'PENDING' },
-                })
-              )?.id ?? '00000000-0000-0000-0000-000000000000',
-          },
-          create: {
+      const pendingWalletPayment = await tx.payment.findFirst({
+        where: { orderId, method: 'WALLET', status: 'PENDING' },
+      });
+
+      if (pendingWalletPayment) {
+        await tx.payment.update({
+          where: { id: pendingWalletPayment.id },
+          data: { amountRial },
+        });
+      } else {
+        await tx.payment.create({
+          data: {
             userId,
             orderId,
             amountRial,
             method: 'WALLET',
             status: 'PENDING',
           },
-          update: { amountRial },
-        })
-        .catch(async () => {
-          // اگر رکورد قبلی نبود upsert با id ساختگی fail می‌شود، پس ساده create کن
-          await tx.payment.create({
-            data: {
-              userId,
-              orderId,
-              amountRial,
-              method: 'WALLET',
-              status: 'PENDING',
-            },
-          });
         });
+      }
     });
   }
 
-  // ── شروع پرداخت درگاهی (تنها یا بخشی از SPLIT) ──
   private async beginGatewayPayment(
     userId: string,
     orderId: string,
     amountRial: number,
     providerKey: 'ZARINPAL' | 'BEHPARDAKHT',
-    walletPortionRial?: number,
   ) {
     const provider = this.gatewayFactory.get(providerKey);
+
     if (!(await provider.isEnabled())) {
       throw new BadRequestException('این درگاه پرداخت در حال حاضر فعال نیست');
     }
@@ -532,7 +531,6 @@ export class ShopOrdersService {
     return result.redirectUrl;
   }
 
-  // ── پردازش بازگشت از درگاه ──
   async handleGatewayCallback(
     providerKey: 'ZARINPAL' | 'BEHPARDAKHT',
     providerRef: string,
@@ -542,24 +540,19 @@ export class ShopOrdersService {
       where: { gatewayProvider: providerKey, gatewayProviderRef: providerRef },
       include: { order: true },
     });
+
     if (!payment || !payment.orderId) {
       throw new NotFoundException('تراکنش پرداخت یافت نشد');
     }
 
-    // idempotent: اگر قبلاً نهایی شده، فقط نتیجه را برگردان
+    const orderId = payment.orderId;
+
     if (payment.status === 'SUCCESS') {
-      return {
-        orderId: payment.orderId,
-        success: true,
-        alreadyProcessed: true,
-      };
+      return { orderId, success: true, alreadyProcessed: true };
     }
+
     if (payment.status === 'FAILED') {
-      return {
-        orderId: payment.orderId,
-        success: false,
-        alreadyProcessed: true,
-      };
+      return { orderId, success: false, alreadyProcessed: true };
     }
 
     const provider = this.gatewayFactory.get(providerKey);
@@ -575,21 +568,34 @@ export class ShopOrdersService {
           where: { id: payment.id },
           data: { status: 'FAILED' },
         });
-        // اگر leg کیف‌پولی هم برای همین سفارش وجود داشت، آزادش کن
-        await this.releaseOrderWalletHold(tx, payment.orderId!);
+        await this.releaseOrderWalletHold(tx, orderId);
       });
+
       return {
-        orderId: payment.orderId,
+        orderId,
         success: false,
         alreadyProcessed: false,
         reason: verifyResult.failureReason,
       };
     }
 
-    // موفق: در یک تراکنش، leg درگاه را finalize کن + اگر leg کیف‌پولی هم بود capture کن
     try {
       await this.prisma.$transaction(async (tx) => {
-        await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${payment.orderId}::uuid FOR UPDATE`;
+        await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${orderId}::uuid FOR UPDATE`;
+
+        const currentPayment = await tx.payment.findUnique({
+          where: { id: payment.id },
+        });
+
+        if (!currentPayment) {
+          throw new NotFoundException('تراکنش پرداخت یافت نشد');
+        }
+
+        if (currentPayment.status === 'SUCCESS') return;
+
+        if (currentPayment.status !== 'PENDING') {
+          throw new ConflictException('این تراکنش دیگر قابل نهایی‌سازی نیست');
+        }
 
         await tx.payment.update({
           where: { id: payment.id },
@@ -601,52 +607,68 @@ export class ShopOrdersService {
         });
 
         const walletLeg = await tx.payment.findFirst({
-          where: {
-            orderId: payment.orderId,
-            method: 'WALLET',
-            status: 'PENDING',
-          },
+          where: { orderId, method: 'WALLET', status: 'PENDING' },
         });
+
+        let transactionWalletId: string;
 
         if (walletLeg) {
           const hold = await tx.walletHold.findFirst({
-            where: { referenceId: payment.orderId!, holdType: 'ORDER' },
+            where: { referenceId: orderId, holdType: 'ORDER' },
           });
-          if (!hold)
+
+          if (!hold || hold.expiresAt <= new Date()) {
             throw new ConflictException(
               'رزرو کیف‌پول این سفارش یافت نشد یا منقضی شده است',
             );
+          }
 
           const wallet = await tx.wallet.findUnique({
             where: { id: hold.walletId },
           });
           if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
 
+          const holdAmountRial = this.toNumber(hold.amountRial);
+          if (this.toNumber(wallet.rialBalance) < holdAmountRial) {
+            throw new ConflictException(
+              'موجودی کیف پول برای تکمیل سفارش کافی نیست',
+            );
+          }
+
           await tx.wallet.update({
             where: { id: wallet.id },
-            data: {
-              rialBalance: { decrement: this.toNumber(hold.amountRial ?? 0) },
-            },
+            data: { rialBalance: { decrement: holdAmountRial } },
           });
           await tx.walletHold.delete({ where: { id: hold.id } });
           await tx.payment.update({
             where: { id: walletLeg.id },
             data: { status: 'SUCCESS', paidAt: new Date() },
           });
+
+          transactionWalletId = wallet.id;
+        } else {
+          const wallet = await tx.wallet.findUnique({
+            where: { userId: payment.userId },
+          });
+          if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
+
+          transactionWalletId = wallet.id;
         }
 
         const order = await tx.shopOrder.findUnique({
-          where: { id: payment.orderId! },
+          where: { id: orderId },
         });
         if (!order) throw new NotFoundException('سفارش یافت نشد');
 
-        const wallet = await tx.wallet.findUnique({
-          where: { userId: payment.userId },
-        });
+        if (order.status === 'PAID') return;
+        if (order.status !== 'PENDING_PAYMENT') {
+          throw new ConflictException('وضعیت سفارش برای ثبت پرداخت معتبر نیست');
+        }
+
         await tx.transaction.create({
           data: {
             userId: payment.userId,
-            walletId: wallet!.id,
+            walletId: transactionWalletId,
             type: 'SHOP_PURCHASE',
             amountRial: this.toNumber(order.totalRial),
             status: 'COMPLETED',
@@ -662,13 +684,10 @@ export class ShopOrdersService {
       });
 
       this.logger.log(
-        `[ShopOrder] سفارش ${payment.orderId} از طریق ${providerKey} پرداخت شد`,
+        `[ShopOrder] سفارش ${orderId} از طریق ${providerKey} پرداخت شد`,
       );
-      return {
-        orderId: payment.orderId,
-        success: true,
-        alreadyProcessed: false,
-      };
+
+      return { orderId, success: true, alreadyProcessed: false };
     } catch (err) {
       throw this.translateDbError(err, payment.userId);
     }
@@ -681,7 +700,11 @@ export class ShopOrdersService {
     const hold = await tx.walletHold.findFirst({
       where: { referenceId: orderId, holdType: 'ORDER' },
     });
-    if (hold) await tx.walletHold.delete({ where: { id: hold.id } });
+
+    if (hold) {
+      await tx.walletHold.delete({ where: { id: hold.id } });
+    }
+
     await tx.payment.updateMany({
       where: { orderId, method: 'WALLET', status: 'PENDING' },
       data: { status: 'FAILED' },
@@ -713,7 +736,11 @@ export class ShopOrdersService {
       }
 
       await this.releaseStock(tx, order.items);
-
+      await this.releaseOrderWalletHold(tx, order.id);
+      await tx.payment.updateMany({
+        where: { orderId: order.id, status: 'PENDING' },
+        data: { status: 'FAILED' },
+      });
       await tx.shopOrder.update({
         where: { id: order.id },
         data: { status: 'CANCELLED' },
@@ -774,7 +801,6 @@ export class ShopOrdersService {
     });
 
     if (!order) throw new NotFoundException('سفارش یافت نشد');
-
     return this.toDto(order);
   }
 
@@ -846,6 +872,8 @@ export class ShopOrdersService {
 
   async ship(orderId: string, dto: ShipShopOrderDto) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${orderId}::uuid FOR UPDATE`;
+
       const order = await tx.shopOrder.findUnique({
         where: { id: orderId },
       });
@@ -896,9 +924,7 @@ export class ShopOrdersService {
       const order = await tx.shopOrder.findUnique({
         where: { id: orderId },
         include: {
-          shippings: {
-            orderBy: { createdAt: 'asc' },
-          },
+          shippings: { orderBy: { createdAt: 'asc' } },
         },
       });
 
@@ -925,10 +951,7 @@ export class ShopOrdersService {
       if (latestShipping) {
         await tx.shipping.update({
           where: { id: latestShipping.id },
-          data: {
-            status: 'DELIVERED',
-            deliveredAt: new Date(),
-          },
+          data: { status: 'DELIVERED', deliveredAt: new Date() },
         });
       }
 
@@ -959,6 +982,7 @@ export class ShopOrdersService {
       }
 
       await this.releaseStock(tx, order.items);
+      await this.releaseOrderWalletHold(tx, order.id);
 
       if (order.status === 'PAID' || order.status === 'PROCESSING') {
         await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${order.userId}::uuid FOR UPDATE`;
@@ -967,7 +991,19 @@ export class ShopOrdersService {
           where: { userId: order.userId },
         });
 
-        if (wallet) {
+        if (!wallet) {
+          throw new NotFoundException('کیف پول کاربر برای بازپرداخت یافت نشد');
+        }
+
+        const existingRefund = await tx.transaction.findFirst({
+          where: {
+            shopOrderId: order.id,
+            type: 'REFUND',
+            status: 'COMPLETED',
+          },
+        });
+
+        if (!existingRefund) {
           const refundRial = this.toNumber(order.totalRial);
 
           await tx.wallet.update({
@@ -989,6 +1025,10 @@ export class ShopOrdersService {
         }
       }
 
+      await tx.payment.updateMany({
+        where: { orderId: order.id, status: 'PENDING' },
+        data: { status: 'FAILED' },
+      });
       await tx.shopOrder.update({
         where: { id: orderId },
         data: { status: 'CANCELLED' },
@@ -1017,6 +1057,7 @@ export class ShopOrdersService {
       try {
         await this.prisma.$transaction(async (tx) => {
           await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${order.id}::uuid FOR UPDATE`;
+
           const freshOrder = await tx.shopOrder.findUnique({
             where: { id: order.id },
           });
@@ -1028,14 +1069,16 @@ export class ShopOrdersService {
             where: { orderId: order.id, status: 'PENDING' },
             data: { status: 'FAILED' },
           });
-
           await tx.shopOrder.update({
             where: { id: order.id },
             data: { status: 'CANCELLED' },
           });
         });
       } catch (err) {
-        this.logger.error(`Failed to cancel stale order ${order.id}`, err);
+        this.logger.error(
+          `Failed to cancel stale order ${order.id}`,
+          err instanceof Error ? err.stack : String(err),
+        );
       }
     }
   }
@@ -1089,15 +1132,50 @@ export class ShopOrdersService {
     };
   }
 
-  // اضافه‌کردن helper:
   private toNumber(value: unknown): number {
     if (value === null || value === undefined) return 0;
+
     const numericValue = Number(value);
     return Number.isFinite(numericValue) ? numericValue : 0;
   }
 
   private rialToTomanString(value: unknown): string {
     return (this.toNumber(value) / 10).toString();
+  }
+  private formatUnknownError(error: unknown): string {
+    if (error instanceof Error) {
+      return error.stack ?? error.message;
+    }
+
+    if (typeof error === 'string') {
+      return error;
+    }
+
+    if (typeof error === 'number' || typeof error === 'boolean') {
+      return error.toString();
+    }
+
+    if (typeof error === 'bigint') {
+      return error.toString();
+    }
+
+    if (typeof error === 'symbol') {
+      return error.description ?? 'Symbol';
+    }
+
+    if (error === null) {
+      return 'null';
+    }
+
+    if (error === undefined) {
+      return 'undefined';
+    }
+
+    try {
+      return JSON.stringify(error) ?? 'Unserializable object';
+    } catch {
+      return 'Unserializable object';
+    }
   }
 
   private translateDbError(err: unknown, actorId: string): Error {
@@ -1112,7 +1190,7 @@ export class ShopOrdersService {
 
     this.logger.error(
       `[ShopOrder][UNEXPECTED] خطا برای ${actorId}:`,
-      err instanceof Error ? err.stack : err,
+      this.formatUnknownError(err),
     );
 
     return new BadRequestException(

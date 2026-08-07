@@ -16,6 +16,39 @@ const PROD_BASE = 'https://api.zarinpal.com/pg/v4/payment';
 const SANDBOX_START_PAY = 'https://sandbox.zarinpal.com/pg/StartPay';
 const PROD_START_PAY = 'https://www.zarinpal.com/pg/StartPay';
 
+// ---- تایپ‌های پاسخ API زرین‌پال ----
+interface ZarinpalRequestResponse {
+  data?: {
+    code?: number;
+    message?: string;
+    authority?: string;
+    fee_type?: string;
+    fee?: number;
+  };
+  errors?: unknown;
+}
+
+interface ZarinpalVerifyResponse {
+  data?: {
+    code?: number;
+    message?: string;
+    ref_id?: number;
+    card_pan?: string;
+    card_hash?: string;
+    fee_type?: string;
+    fee?: number;
+  };
+  errors?: unknown;
+}
+
+interface ZarinpalReverseResponse {
+  data?: {
+    code?: number;
+    message?: string;
+  };
+  errors?: unknown;
+}
+
 @Injectable()
 export class ZarinpalGatewayService implements PaymentGatewayProvider {
   readonly key = 'ZARINPAL' as const;
@@ -52,13 +85,16 @@ export class ZarinpalGatewayService implements PaymentGatewayProvider {
   ): Promise<PaymentRequestResult> {
     const { merchantId, baseUrl, startPayUrl } = await this.getConfig();
 
-    const res = await axios.post(`${baseUrl}/request.json`, {
-      merchant_id: merchantId,
-      amount: this.rialToToman(params.amountRial),
-      description: params.description,
-      callback_url: params.callbackUrl,
-      metadata: { order_id: params.orderId },
-    });
+    const res = await axios.post<ZarinpalRequestResponse>(
+      `${baseUrl}/request.json`,
+      {
+        merchant_id: merchantId,
+        amount: this.rialToToman(params.amountRial),
+        description: params.description,
+        callback_url: params.callbackUrl,
+        metadata: { order_id: params.orderId },
+      },
+    );
 
     const data = res.data?.data;
     if (!data?.authority || data?.code !== 100) {
@@ -88,11 +124,14 @@ export class ZarinpalGatewayService implements PaymentGatewayProvider {
       };
     }
 
-    const res = await axios.post(`${baseUrl}/verify.json`, {
-      merchant_id: merchantId,
-      amount: this.rialToToman(params.amountRial),
-      authority: params.providerRef,
-    });
+    const res = await axios.post<ZarinpalVerifyResponse>(
+      `${baseUrl}/verify.json`,
+      {
+        merchant_id: merchantId,
+        amount: this.rialToToman(params.amountRial),
+        authority: params.providerRef,
+      },
+    );
 
     const data = res.data?.data;
     const success = data?.code === 100 || data?.code === 101; // 101 = قبلاً تایید شده (idempotent)
@@ -110,10 +149,13 @@ export class ZarinpalGatewayService implements PaymentGatewayProvider {
   ): Promise<PaymentRefundResult> {
     const { merchantId, baseUrl } = await this.getConfig();
     try {
-      const res = await axios.post(`${baseUrl}/reverse.json`, {
-        merchant_id: merchantId,
-        authority: params.providerRef,
-      });
+      const res = await axios.post<ZarinpalReverseResponse>(
+        `${baseUrl}/reverse.json`,
+        {
+          merchant_id: merchantId,
+          authority: params.providerRef,
+        },
+      );
       return { success: res.data?.data?.code === 100, rawResponse: res.data };
     } catch (err) {
       this.logger.error('[Zarinpal] خطا در استرداد وجه', err);

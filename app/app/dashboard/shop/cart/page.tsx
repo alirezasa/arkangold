@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ChevronRight,
   Trash2,
@@ -23,12 +24,14 @@ import {
   useUpdateCartItem,
   useCheckout,
   usePayShopOrder,
+  useShopOrder,
   CartItemDto,
   ShopOrderDto,
 } from "@/app/hooks/useShop";
 import { useAddresses } from "@/app/hooks/usePhysicalDelivery";
 import { useWallet } from "@/app/hooks/useWallet";
 import { useActiveGateways } from "@/app/hooks/useShop";
+import { Suspense } from "react";
 
 function fmtToman(v: string | number) {
   return Math.round(Number(v)).toLocaleString("fa-IR");
@@ -182,7 +185,7 @@ function CartRow({
   );
 }
 
-export default function ShopCartPage() {
+function ShopCartPageInner() {
   const { cart, loading, refresh } = useCart();
   const { update, remove } = useUpdateCartItem();
   const { addresses, loading: addressesLoading } = useAddresses();
@@ -206,6 +209,30 @@ export default function ShopCartPage() {
   const [step, setStep] = useState<Step>("cart");
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [order, setOrder] = useState<ShopOrderDto | null>(null);
+
+  // ── بازگشت از درگاه پرداخت: خواندن paymentStatus/orderId از query ──
+  const searchParams = useSearchParams();
+  const paymentStatus = searchParams.get("paymentStatus");
+  const returnedOrderId = searchParams.get("orderId");
+  const { order: returnedOrder } = useShopOrder(
+    paymentStatus === "success" && returnedOrderId ? returnedOrderId : null,
+  );
+
+  useEffect(() => {
+    if (paymentStatus === "success" && returnedOrder) {
+      setOrder(returnedOrder);
+      setStep("done");
+    } else if (paymentStatus === "failed") {
+      setCheckoutError(
+        "پرداخت ناموفق بود یا توسط شما لغو شد. می‌توانید دوباره تلاش کنید.",
+      );
+    } else if (paymentStatus === "error") {
+      setCheckoutError(
+        "خطا در تایید پرداخت رخ داد. اگر مبلغی کسر شده، با پشتیبانی تماس بگیرید.",
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentStatus, returnedOrder]);
 
   const handleQuantityChange = async (itemId: string, qty: number) => {
     await update(itemId, { quantity: qty });
@@ -549,14 +576,7 @@ export default function ShopCartPage() {
             </div>
           )}
 
-          <div className="flex gap-3">
-            <button
-              onClick={() => setStep("address")}
-              disabled={checkoutLoading || payLoading}
-              className="flex-1 py-3.5 rounded-xl font-bold text-[13px] border-2 border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-            >
-              بازگشت
-            </button>
+          <div className="space-y-3">
             {gateways.length > 0 && (
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-2">
@@ -615,6 +635,37 @@ export default function ShopCartPage() {
                 )}
               </div>
             )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStep("address")}
+                disabled={checkoutLoading || payLoading}
+                className="flex-1 py-3.5 rounded-xl font-bold text-[13px] border-2 border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                بازگشت
+              </button>
+              <button
+                onClick={handlePlaceOrder}
+                disabled={
+                  checkoutLoading ||
+                  payLoading ||
+                  (gateways.length > 0 &&
+                    paymentMode !== "WALLET" &&
+                    !selectedGateway)
+                }
+                className="flex-2 py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-50"
+                style={{ backgroundColor: "var(--color-emerald)" }}
+              >
+                {checkoutLoading || payLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <CreditCard className="w-4 h-4" />
+                    ثبت سفارش و پرداخت
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -646,5 +697,20 @@ export default function ShopCartPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+export default function ShopCartPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-24">
+          <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
+        </div>
+      }
+    >
+      <ShopCartPageInner />
+    </Suspense>
   );
 }

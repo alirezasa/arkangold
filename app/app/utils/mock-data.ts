@@ -123,6 +123,11 @@ export const SIDEBAR_NAV: NavItem[] = [
     badge: 3,
   },
   {
+    name: "سفارش‌های فروشگاه",
+    icon: "ti-receipt",
+    path: "/dashboard/shop/orders",
+  }, // ← جدید
+  {
     name: "تحویل فیزیکی طلا",
     icon: "ti-package",
     path: "/dashboard/wallet/physical-delivery",

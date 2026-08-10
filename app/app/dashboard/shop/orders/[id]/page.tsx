@@ -126,15 +126,8 @@ export default function ShopOrderDetailPage() {
   const router = useRouter();
   const { order, loading, error, refresh } = useShopOrder(params.id);
   const { wallet, refresh: refreshWallet } = useWallet();
-  const {
-    loading: cancelLoading,
-    cancel,
-  } = useCancelShopOrder();
-  const {
-    loading: payLoading,
-    error: payError,
-    pay,
-  } = usePayShopOrder();
+  const { loading: cancelLoading, cancel } = useCancelShopOrder();
+  const { loading: payLoading, error: payError, pay } = usePayShopOrder();
 
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -182,7 +175,7 @@ export default function ShopOrderDetailPage() {
 
   const handleRepay = async () => {
     setActionError(null);
-    const res = await pay(order.id);
+    const res = await pay(order.id, { mode: "WALLET" });
     if (res) {
       refresh();
       refreshWallet();
@@ -205,9 +198,7 @@ export default function ShopOrderDetailPage() {
           <ChevronRight className="w-5 h-5" />
         </Link>
         <div>
-          <h1 className="text-[17px] font-black text-gray-900">
-            جزئیات سفارش
-          </h1>
+          <h1 className="text-[17px] font-black text-gray-900">جزئیات سفارش</h1>
           <p className="text-[11px] text-gray-400 mt-0.5" dir="ltr">
             {order.id.slice(0, 8)}…
           </p>
@@ -313,15 +304,17 @@ export default function ShopOrderDetailPage() {
               className="w-4 h-4"
               style={{ color: "var(--color-emerald)" }}
             />
-            <h2 className="text-[13px] font-black text-gray-800">
-              آدرس تحویل
-            </h2>
+            <h2 className="text-[13px] font-black text-gray-800">آدرس تحویل</h2>
           </div>
           <p className="text-[12px] font-bold text-gray-700">
             {order.address.title || "آدرس"}
           </p>
           <p className="text-[12px] text-gray-500 leading-relaxed">
-            {[order.address.province, order.address.city, order.address.fullAddress]
+            {[
+              order.address.province,
+              order.address.city,
+              order.address.fullAddress,
+            ]
               .filter(Boolean)
               .join("، ")}
           </p>
@@ -340,9 +333,7 @@ export default function ShopOrderDetailPage() {
           className="px-4 py-3"
           style={{ backgroundColor: "var(--color-bg-page)" }}
         >
-          <h2 className="text-[13px] font-black text-gray-700">
-            اقلام سفارش
-          </h2>
+          <h2 className="text-[13px] font-black text-gray-700">اقلام سفارش</h2>
         </div>
         {order.items.map((item, i) => (
           <div

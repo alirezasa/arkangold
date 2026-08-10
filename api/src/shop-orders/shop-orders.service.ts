@@ -504,9 +504,9 @@ export class ShopOrdersService {
 
     const baseUrl = await this.systemConfig.get(
       'payment.gateway.callback_base_url',
-      'http://localhost:3000',
+      'http://localhost:5000',
     );
-    const callbackUrl = `${baseUrl}/api/orders/shop/payment/callback/${providerKey.toLowerCase()}`;
+    const callbackUrl = `${baseUrl}/orders/shop/payment/callback/${providerKey.toLowerCase()}`;
 
     const result = await provider.requestPayment({
       amountRial: String(amountRial),

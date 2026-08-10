@@ -23,10 +23,14 @@ import {
   SetProductPricingDto,
 } from '@arkan-gold/shared';
 import { PRICING_COMPONENT_DEFAULTS } from './pricing-components.seed';
+import { PricingEngineService } from './pricing-engine.service';
 
 @Injectable()
 export class CatalogService implements OnModuleInit {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pricingEngine: PricingEngineService,
+  ) {}
 
   async onModuleInit() {
     for (const item of PRICING_COMPONENT_DEFAULTS) {
@@ -132,7 +136,9 @@ export class CatalogService implements OnModuleInit {
     ]);
 
     return {
-      data: items.map((item) => this.toProductDto(item)),
+      // ⬅️ توجه: toProductDto حالا async است چون برای محصولات طلادار
+      // قیمت را زنده از PricingEngineService می‌گیرد
+      data: await Promise.all(items.map((item) => this.toProductDto(item))),
       page: query.page,
       limit: query.limit,
       total,
@@ -169,8 +175,10 @@ export class CatalogService implements OnModuleInit {
       },
     });
     if (!product) throw new NotFoundException('محصول یافت نشد');
+
+    const baseDto = await this.toProductDto(product);
     return {
-      ...this.toProductDto(product),
+      ...baseDto,
       shortDescription: product.shortDescription,
       metaKeywords: product.metaKeywords,
       purityKarat: product.purityKarat,
@@ -381,7 +389,7 @@ export class CatalogService implements OnModuleInit {
   }
 
   // ─────────────────────────────────────────
-  // تنوع محصول (بدون تغییر نسبت به قبل)
+  // تنوع محصول
   // ─────────────────────────────────────────
   async addVariant(productId: string, dto: CreateProductVariantDto) {
     const product = await this.prisma.product.findUnique({
@@ -470,7 +478,7 @@ export class CatalogService implements OnModuleInit {
     ]);
 
     return {
-      data: items.map((p) => this.toProductDto(p)),
+      data: await Promise.all(items.map((p) => this.toProductDto(p))),
       page: query.page,
       limit: query.limit,
       total,
@@ -607,7 +615,16 @@ export class CatalogService implements OnModuleInit {
     }
   }
 
-  private toProductDto(p: {
+  // ─────────────────────────────────────────
+  // ساخت DTO خروجی محصول — نکته کلیدی: برای محصولاتی که عیار طلا
+  // (purityKarat) دارند، قیمت نمایشی دیگر از basePriceRial/pricePerGramRial
+  // استاتیک خوانده نمی‌شود؛ بلکه دقیقاً مثل زمان قفل قیمت در سبد خرید
+  // (cart.service.ts → lockPriceForItem) از PricingEngineService با
+  // قیمت لحظه‌ای طلا محاسبه می‌شود تا با قیمت واقعی سبد هم‌خوانی داشته باشد.
+  // اگر قیمت لحظه‌ای طلا موقتاً در دسترس نبود، به مقدار استاتیک fallback
+  // می‌شود تا صفحه خراب نشود (فقط آن لحظه ممکن است قیمت قدیمی نمایش داده شود).
+  // ─────────────────────────────────────────
+  private async toProductDto(p: {
     id: string;
     name: string;
     slug: string;
@@ -615,6 +632,7 @@ export class CatalogService implements OnModuleInit {
     basePriceRial: string | number | { toString(): string };
     status: string;
     pricingMode: string;
+    purityKarat: string | null;
     minWeightGrams: string | number | { toString(): string } | null;
     maxWeightGrams: string | number | { toString(): string } | null;
     weightStepGrams: string | number | { toString(): string } | null;
@@ -637,6 +655,83 @@ export class CatalogService implements OnModuleInit {
   }) {
     const baseRial = Number(p.basePriceRial);
     const isWeightRange = p.pricingMode === 'WEIGHT_RANGE';
+    const hasLiveGoldPricing = Boolean(p.purityKarat);
+
+    // ── قیمت هر تنوع (حالت FIXED) ──
+    const variantsDto = await Promise.all(
+      p.variants.map(async (v) => {
+        const weight = Number(v.weightGrams);
+        const adjustment = Number(v.priceAdjustment);
+        let finalPriceRial = baseRial + adjustment;
+
+        if (hasLiveGoldPricing) {
+          try {
+            const live = await this.pricingEngine.calculateForProduct(
+              p.id,
+              weight,
+            );
+            finalPriceRial = Number(live.finalPriceRial) + adjustment;
+          } catch {
+            // fallback به قیمت استاتیک (مثلاً قیمت لحظه‌ای طلا در دسترس نبود)
+          }
+        }
+
+        return {
+          id: v.id,
+          weightGrams: weight.toString(),
+          priceAdjustmentToman: (adjustment / 10).toString(),
+          finalPriceToman: (finalPriceRial / 10).toString(),
+          stockQuantity: v.stockQuantity,
+          inStock: v.stockQuantity > 0,
+          sku: v.sku,
+        };
+      }),
+    );
+
+    // ── بازه قیمت (حالت WEIGHT_RANGE) ──
+    let weightRangeDto: {
+      minWeightGrams: string;
+      maxWeightGrams: string;
+      stepGrams: string;
+      pricePerGramToman: string;
+      minPriceToman: string;
+      maxPriceToman: string;
+    } | null = null;
+
+    if (isWeightRange) {
+      const minW = Number(p.minWeightGrams);
+      const maxW = Number(p.maxWeightGrams);
+      const staticPricePerGramRial = Number(p.pricePerGramRial ?? 0);
+
+      let minPriceRial = minW * staticPricePerGramRial;
+      let maxPriceRial = maxW * staticPricePerGramRial;
+      let pricePerGramDisplayRial = staticPricePerGramRial;
+
+      if (hasLiveGoldPricing) {
+        try {
+          const [minLive, maxLive] = await Promise.all([
+            this.pricingEngine.calculateForProduct(p.id, minW),
+            this.pricingEngine.calculateForProduct(p.id, maxW),
+          ]);
+          minPriceRial = Number(minLive.finalPriceRial);
+          maxPriceRial = Number(maxLive.finalPriceRial);
+          // میانگین قیمت هر گرم فقط برای نمایش؛ چون فرمول ممکن است شامل
+          // مبالغ ثابت (FIXED_RIAL) هم باشد و رابطه دقیقاً خطی نباشد
+          pricePerGramDisplayRial = minW > 0 ? minPriceRial / minW : 0;
+        } catch {
+          // fallback به قیمت استاتیک
+        }
+      }
+
+      weightRangeDto = {
+        minWeightGrams: minW.toString(),
+        maxWeightGrams: maxW.toString(),
+        stepGrams: Number(p.weightStepGrams ?? 0.1).toString(),
+        pricePerGramToman: (pricePerGramDisplayRial / 10).toString(),
+        minPriceToman: (minPriceRial / 10).toString(),
+        maxPriceToman: (maxPriceRial / 10).toString(),
+      };
+    }
 
     return {
       id: p.id,
@@ -657,27 +752,8 @@ export class CatalogService implements OnModuleInit {
         (p.images ?? []).find((i) => i.isPrimary)?.url ??
         p.images?.[0]?.url ??
         null,
-      weightRange: isWeightRange
-        ? {
-            minWeightGrams: Number(p.minWeightGrams).toString(),
-            maxWeightGrams: Number(p.maxWeightGrams).toString(),
-            stepGrams: Number(p.weightStepGrams ?? 0.1).toString(),
-            pricePerGramToman: (Number(p.pricePerGramRial) / 10).toString(),
-          }
-        : null,
-      variants: p.variants.map((v) => {
-        const weight = Number(v.weightGrams);
-        const adjustment = Number(v.priceAdjustment);
-        return {
-          id: v.id,
-          weightGrams: weight.toString(),
-          priceAdjustmentToman: (adjustment / 10).toString(),
-          finalPriceToman: ((baseRial + adjustment) / 10).toString(),
-          stockQuantity: v.stockQuantity,
-          inStock: v.stockQuantity > 0,
-          sku: v.sku,
-        };
-      }),
+      weightRange: weightRangeDto,
+      variants: variantsDto,
     };
   }
 }

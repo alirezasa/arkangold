@@ -107,6 +107,9 @@ export default function PaymentGatewaySettings() {
         <div className="flex items-center justify-between">
           <h3 className="text-[13px] font-black text-gray-700">
             به‌پرداخت ملت
+            <span className="mr-2 text-[10px] font-bold text-amber-600">
+              (پیاده‌سازی ناقص — فعال نکنید)
+            </span>
           </h3>
           <button
             onClick={() => toggle("payment.behpardakht.enabled")}

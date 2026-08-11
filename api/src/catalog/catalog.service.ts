@@ -127,6 +127,7 @@ export class CatalogService implements OnModuleInit {
           variants: true,
           category: true,
           images: { orderBy: { sortOrder: 'asc' } },
+          _count: { select: { pricingComponents: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.limit,
@@ -153,6 +154,7 @@ export class CatalogService implements OnModuleInit {
         variants: true,
         category: true,
         images: { orderBy: { sortOrder: 'asc' } },
+        _count: { select: { pricingComponents: true } },
       },
     });
     if (!product || product.status !== 'ACTIVE') {

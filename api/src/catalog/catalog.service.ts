@@ -174,6 +174,7 @@ export class CatalogService implements OnModuleInit {
           include: { component: true },
           orderBy: { sortOrder: 'asc' },
         },
+        _count: { select: { pricingComponents: true } },
       },
     });
     if (!product) throw new NotFoundException('محصول یافت نشد');
@@ -471,6 +472,7 @@ export class CatalogService implements OnModuleInit {
           variants: true,
           category: true,
           images: { orderBy: { sortOrder: 'asc' } },
+          _count: { select: { pricingComponents: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.limit,

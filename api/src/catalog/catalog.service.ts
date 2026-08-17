@@ -24,6 +24,7 @@ import {
 } from '@arkan-gold/shared';
 import { PRICING_COMPONENT_DEFAULTS } from './pricing-components.seed';
 import { PricingEngineService } from './pricing-engine.service';
+const GOLD_INGOT_CATEGORY_SLUG = 'gold-ingot';
 
 @Injectable()
 export class CatalogService implements OnModuleInit {
@@ -101,9 +102,40 @@ export class CatalogService implements OnModuleInit {
   }
 
   async listProducts(query: GetProductsQueryDto) {
+    // ── تعیین categoryId مؤثر: یا مستقیم داده شده، یا از روی categorySlug ──
+    let effectiveCategoryId = query.categoryId;
+
+    if (!effectiveCategoryId && query.categorySlug) {
+      const category = await this.prisma.productCategory.findUnique({
+        where: { slug: query.categorySlug },
+        select: { id: true },
+      });
+      if (!category) {
+        return {
+          data: [],
+          page: query.page,
+          limit: query.limit,
+          total: 0,
+          totalPages: 1,
+        };
+      }
+      effectiveCategoryId = category.id;
+    }
+
+    // ── مخفی‌سازی دسته «شمش طلا» فقط وقتی دسته‌ای صراحتاً درخواست نشده ──
+    let excludeCategoryId: string | undefined;
+    if (!effectiveCategoryId) {
+      const hiddenCategory = await this.prisma.productCategory.findUnique({
+        where: { slug: GOLD_INGOT_CATEGORY_SLUG },
+        select: { id: true },
+      });
+      excludeCategoryId = hiddenCategory?.id;
+    }
+
     const where: Prisma.ProductWhereInput = {
       status: 'ACTIVE',
-      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(effectiveCategoryId ? { categoryId: effectiveCategoryId } : {}),
+      ...(excludeCategoryId ? { categoryId: { not: excludeCategoryId } } : {}),
       ...(query.search
         ? { name: { contains: query.search, mode: 'insensitive' } }
         : {}),
@@ -127,7 +159,7 @@ export class CatalogService implements OnModuleInit {
           variants: true,
           category: true,
           images: { orderBy: { sortOrder: 'asc' } },
-          _count: { select: { pricingComponents: true } },
+          _count: { select: { pricingComponents: true } }, // ⬅️ حتماً بماند
         },
         orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.limit,
@@ -137,8 +169,7 @@ export class CatalogService implements OnModuleInit {
     ]);
 
     return {
-      // ⬅️ توجه: toProductDto حالا async است چون برای محصولات طلادار
-      // قیمت را زنده از PricingEngineService می‌گیرد
+      // ⬅️ toProductDto async است؛ بدون Promise.all آرایه‌ای از Promise برمی‌گردد
       data: await Promise.all(items.map((item) => this.toProductDto(item))),
       page: query.page,
       limit: query.limit,
@@ -161,6 +192,36 @@ export class CatalogService implements OnModuleInit {
       throw new NotFoundException('محصول یافت نشد');
     }
     return this.toProductDto(product);
+  }
+  async getPublicPricingPreview(slug: string, weightGrams: number) {
+    const product = await this.prisma.product.findUnique({ where: { slug } });
+    if (!product || product.status !== 'ACTIVE') {
+      throw new NotFoundException('محصول یافت نشد');
+    }
+    if (!product.purityKarat) {
+      throw new BadRequestException('این محصول فرمول قیمت‌گذاری زنده ندارد');
+    }
+
+    const result = await this.pricingEngine.calculateForProduct(
+      product.id,
+      weightGrams,
+    );
+
+    const toToman = (rial: string) => (Number(rial) / 10).toString();
+
+    return {
+      purityKarat: result.purityKarat,
+      goldPricePerGramToman: result.goldPricePerGramRial
+        ? toToman(result.goldPricePerGramRial)
+        : null,
+      goldValueToman: toToman(result.goldValueRial),
+      lines: result.lines.map((line) => ({
+        key: line.key,
+        label: line.label,
+        amountToman: toToman(line.amountRial),
+      })),
+      finalPriceToman: toToman(result.finalPriceRial),
+    };
   }
 
   async getProductForAdmin(id: string) {
@@ -656,10 +717,13 @@ export class CatalogService implements OnModuleInit {
       sortOrder: number;
     }[];
     category?: unknown;
+    _count?: { pricingComponents: number }; // ← این خط رو اضافه کن
   }) {
     const baseRial = Number(p.basePriceRial);
     const isWeightRange = p.pricingMode === 'WEIGHT_RANGE';
     const hasLiveGoldPricing = Boolean(p.purityKarat);
+    const hasPricingFormula =
+      hasLiveGoldPricing && (p._count?.pricingComponents ?? 0) > 0; // ← این خط جدید
 
     // ── قیمت هر تنوع (حالت FIXED) ──
     const variantsDto = await Promise.all(
@@ -745,6 +809,8 @@ export class CatalogService implements OnModuleInit {
       basePriceToman: (baseRial / 10).toString(),
       status: p.status,
       pricingMode: p.pricingMode,
+      hasPricingFormula, // ← جدید
+      purityKarat: p.purityKarat, // ← جدید
       category: p.category,
       images: (p.images ?? []).map((img) => ({
         id: img.id,

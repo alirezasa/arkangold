@@ -25,4 +25,13 @@ export class CatalogController {
   getProduct(@Param('slug') slug: string) {
     return this.service.getProductBySlug(slug);
   }
+
+  @Get('products/:slug/pricing-preview')
+  @ApiOperation({ summary: 'پیش‌نمایش عمومی قیمت بر اساس وزن' })
+  previewPricing(
+    @Param('slug') slug: string,
+    @Query('weightGrams') weightGrams: string,
+  ) {
+    return this.service.getPublicPricingPreview(slug, Number(weightGrams || 1));
+  }
 }

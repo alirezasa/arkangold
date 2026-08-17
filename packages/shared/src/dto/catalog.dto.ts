@@ -181,6 +181,12 @@ export class GetProductsQueryDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
+  
+  // ⬅️ جدید: برای فیلتر بر اساس slug دسته (مثلاً "gold-ingot")
+  // وقتی این پر باشد، categoryId نادیده گرفته می‌شود
+  @IsOptional()
+  @IsString()
+  categorySlug?: string;
 
   @IsOptional()
   @IsIn(Object.values(ProductStatus))

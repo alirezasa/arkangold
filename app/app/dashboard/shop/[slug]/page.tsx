@@ -15,7 +15,12 @@ import {
   Scale,
   Info,
 } from "lucide-react";
-import { useProduct, useAddToCart, productImageUrl } from "@/app/hooks/useShop";
+import {
+  useProduct,
+  useAddToCart,
+  usePricingPreview,
+  productImageUrl,
+} from "@/app/hooks/useShop";
 
 function fmtToman(v: string | number) {
   return Math.round(Number(v)).toLocaleString("fa-IR");
@@ -55,10 +60,16 @@ export default function ProductDetailPage() {
     weightGrams ??
     (product?.weightRange ? Number(product.weightRange.minWeightGrams) : 0);
 
-  const estimatedPriceToman =
-    isWeightRange && product?.weightRange
-      ? effectiveWeight * Number(product.weightRange.pricePerGramToman)
-      : null;
+  // وزن فعال: یا ورودی بازه‌وزنی، یا وزنِ تنوعِ انتخاب‌شده
+  const activeWeight = isWeightRange
+    ? effectiveWeight
+    : Number(selectedVariant?.weightGrams ?? 0);
+
+  // اگر محصول فرمول قیمت‌گذاری زنده دارد، قیمت واقعی را از سرور بگیر
+  const { preview, loading: previewLoading } = usePricingPreview(
+    product?.hasPricingFormula ? product.slug : null,
+    activeWeight,
+  );
 
   if (loading) {
     return (
@@ -219,24 +230,6 @@ export default function ProductDetailPage() {
                 {product.weightRange.maxWeightGrams} گرم — گام:{" "}
                 {product.weightRange.stepGrams} گرم
               </p>
-
-              {estimatedPriceToman !== null && (
-                <div className="bg-gray-50 rounded-2xl p-4 space-y-1">
-                  <p className="text-[11px] text-gray-400 flex items-center gap-1">
-                    <Info className="w-3 h-3" />
-                    قیمت تقریبی (بدون احتساب اجرت/سود/مالیات)
-                  </p>
-                  <p className="text-[20px] font-black text-gray-800">
-                    {fmtToman(estimatedPriceToman)}
-                    <span className="text-[12px] font-bold text-gray-400 mr-1.5">
-                      تومان
-                    </span>
-                  </p>
-                  <p className="text-[10px] text-gray-400">
-                    قیمت نهایی و دقیق هنگام افزودن به سبد محاسبه می‌شود
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
@@ -287,6 +280,65 @@ export default function ProductDetailPage() {
                 </div>
               )}
             </>
+          )}
+
+          {/* ══ جزئیات فرمول قیمت‌گذاری (فقط اگر محصول عیار طلا + فرمول دارد) ══ */}
+          {product.hasPricingFormula && (
+            <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
+              {previewLoading || !preview ? (
+                <div className="flex items-center gap-2 text-gray-400 text-[12px] py-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  در حال محاسبه قیمت لحظه‌ای...
+                </div>
+              ) : (
+                <>
+                  <p className="text-[11px] text-gray-400 flex items-center gap-1 mb-2">
+                    <Info className="w-3 h-3" />
+                    جزئیات محاسبه قیمت (عیار{" "}
+                    {preview.purityKarat === "K18" ? "۱۸" : "۲۴"})
+                  </p>
+
+                  {preview.goldPricePerGramToman && (
+                    <div className="flex justify-between text-[12px] text-gray-500">
+                      <span>قیمت هر گرم طلا</span>
+                      <span dir="ltr">
+                        {fmtToman(preview.goldPricePerGramToman)} ت
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-[12px] text-gray-500">
+                    <span>ارزش پایه طلا</span>
+                    <span dir="ltr">{fmtToman(preview.goldValueToman)} ت</span>
+                  </div>
+
+                  {preview.lines.map((line) => (
+                    <div
+                      key={line.key}
+                      className="flex justify-between text-[12px] text-gray-500"
+                    >
+                      <span>{line.label}</span>
+                      <span dir="ltr">{fmtToman(line.amountToman)} ت</span>
+                    </div>
+                  ))}
+
+                  <div className="flex justify-between pt-2 mt-1 border-t border-gray-200">
+                    <span className="text-[13px] font-bold text-gray-700">
+                      قیمت نهایی
+                    </span>
+                    <span
+                      className="text-[18px] font-black"
+                      style={{ color: "var(--color-emerald)" }}
+                    >
+                      {fmtToman(preview.finalPriceToman)}{" "}
+                      <span className="text-[11px] font-bold text-gray-400">
+                        تومان
+                      </span>
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           <div className="space-y-2">

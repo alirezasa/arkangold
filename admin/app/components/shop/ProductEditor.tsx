@@ -220,7 +220,7 @@ function BasicInfoTab({
   onCreated: () => void;
 }) {
   const isDraft = data.slug.startsWith("draft-") || !data.name;
-
+  const isGoldProduct = Boolean(data.purityKarat);
   const [name, setName] = useState(data.name);
   const [categoryId, setCategoryId] = useState(data.category?.id ?? "");
   const [shortDescription, setShortDescription] = useState(
@@ -411,15 +411,25 @@ function BasicInfoTab({
 
       <div className="space-y-1.5">
         <label className="text-[12px] font-bold text-gray-500">
-          قیمت پایه (تومان) — برای محصولات غیرطلایی، مبنای فرمول قیمت‌گذاری است
+          قیمت پایه (تومان)
+          {isGoldProduct
+            ? " — این فیلد نادیده گرفته می‌شود چون محصول عیار طلا دارد"
+            : " — برای محصولات غیرطلایی، مبنای فرمول قیمت‌گذاری است"}
         </label>
         <input
           type="number"
           dir="ltr"
+          disabled={isGoldProduct}
           value={basePriceToman}
           onChange={(e) => setBasePriceToman(e.target.value)}
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500 text-left"
+          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500 text-left disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
         />
+        {isGoldProduct && (
+          <p className="text-[10px] text-amber-600">
+            قیمت این محصول از عیار طلا و فرمول قیمت‌گذاری (تب «فرمول قیمت»)
+            محاسبه می‌شود.
+          </p>
+        )}
       </div>
 
       {/* ── نوع قیمت‌گذاری ── */}
@@ -522,8 +532,6 @@ function BasicInfoTab({
         </div>
       )}
 
-      
-
       <button
         type="submit"
         disabled={saving}
@@ -541,8 +549,6 @@ function BasicInfoTab({
     </form>
   );
 }
-
-
 
 // ══════════════════════════════════════════
 // تب ۲: سئو + پیش‌نمایش گوگل زنده

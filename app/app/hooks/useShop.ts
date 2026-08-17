@@ -13,6 +13,7 @@ export function productImageUrl(url: string | null | undefined): string | null {
 }
 
 // ── Types ──
+
 export interface ProductImageItem {
   id: string;
   url: string;
@@ -47,6 +48,7 @@ export interface ProductItem {
   basePriceToman: string;
   status: "ACTIVE" | "INACTIVE" | "OUT_OF_STOCK";
   pricingMode: ProductPricingMode;
+  hasPricingFormula: boolean; // ← این خط جدید
   category?: { id: string; name: string; slug: string } | null;
   images: ProductImageItem[];
   primaryImageUrl: string | null;
@@ -121,6 +123,19 @@ export interface ShopOrderDto {
   updatedAt: string;
 }
 
+export interface PricingPreviewLine {
+  key: string;
+  label: string;
+  amountToman: string; // تبدیل‌شده در فرانت از amountRial
+}
+export interface PricingPreview {
+  purityKarat: string | null;
+  goldPricePerGramToman: string | null;
+  goldValueToman: string;
+  lines: PricingPreviewLine[];
+  finalPriceToman: string;
+}
+
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
 // ── دسته‌بندی‌ها ──
@@ -171,6 +186,16 @@ export const useProduct = (slug: string | null) => {
     fetcher,
   );
   return { product: data ?? null, loading: isLoading, error };
+};
+
+export const usePricingPreview = (slug: string | null, weightGrams: number) => {
+  const { data, isLoading, error } = useSWR<PricingPreview>(
+    slug && weightGrams > 0
+      ? `/api/shop/products/${slug}/pricing-preview?weightGrams=${weightGrams}`
+      : null,
+    fetcher,
+  );
+  return { preview: data ?? null, loading: isLoading, error };
 };
 
 // ── سبد خرید ──
@@ -412,3 +437,5 @@ export const useCancelShopOrder = () => {
 
   return { loading, cancel };
 };
+
+

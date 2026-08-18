@@ -16,7 +16,7 @@ import { CatalogService } from './catalog.service';
 import { PricingEngineService } from './pricing-engine.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
-//import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
+import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
 import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
 import { UseInterceptors } from '@nestjs/common';
@@ -34,7 +34,7 @@ import {
 @ApiTags('Admin - Shop Catalog')
 @ApiBearerAuth()
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
-//@RequirePermission('shop.manage')
+@RequirePermission('shop.manage')
 @Controller('admin/shop')
 export class CatalogAdminController {
   constructor(

@@ -151,6 +151,7 @@ export const useCategories = () => {
 // ── لیست محصولات با فیلتر ──
 export interface ProductsFilter {
   categoryId?: string;
+  categorySlug?: string; // ⬅️ جدید: فیلتر با اسلاگ دسته (مثلاً "gold-ingot")
   search?: string;
   inStock?: boolean;
   page?: number;
@@ -159,6 +160,7 @@ export interface ProductsFilter {
 export const useProducts = (filter: ProductsFilter = {}) => {
   const qs = new URLSearchParams();
   if (filter.categoryId) qs.set("categoryId", filter.categoryId);
+  if (filter.categorySlug) qs.set("categorySlug", filter.categorySlug);
   if (filter.search) qs.set("search", filter.search);
   if (filter.inStock) qs.set("inStock", "true");
   qs.set("page", String(filter.page ?? 1));

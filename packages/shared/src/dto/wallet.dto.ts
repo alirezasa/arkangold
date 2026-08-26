@@ -44,3 +44,18 @@ export class DepositOnlineDto {
   @Min(10000)
   amount!: number;
 }
+
+export class InternalTransferDto {
+  @IsString()
+  destinationCardNumber!: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  amountRial?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.0001)
+  amountGrams?: number;
+}

@@ -252,4 +252,40 @@ export const WALLET_CONFIG_DEFAULTS = [
     description:
       'آدرس پایه API (نه فرانت) برای callback درگاه‌ها — کنترلر خودش کاربر را به فرانت ریدایرکت می‌کند',
   },
+
+  // ══ انتقال داخلی کیف پول ══
+  {
+    key: 'transfer.daily_limit_rial',
+    value: '4000000000',
+    description: 'سقف انتقال داخلی روزانه (ریال) — معادل ۴۰۰ میلیون تومان',
+  },
+  {
+    key: 'transfer.monthly_limit_rial',
+    value: '10000000000',
+    description: 'سقف انتقال داخلی ماهانه (ریال) — معادل ۱ میلیارد تومان',
+  },
+  {
+    key: 'transfer.daily_limit_grams',
+    value: '5',
+    description: 'سقف انتقال داخلی روزانه طلا (گرم)',
+  },
+  {
+    key: 'transfer.monthly_limit_grams',
+    value: '20',
+    description: 'سقف انتقال داخلی ماهانه طلا (گرم)',
+  },
+
+  // ══ پاداش معرفی (Referral) ══
+  {
+    key: 'referral.reward_amount_rial',
+    value: '0',
+    description:
+      'مبلغ پاداش معرفی برای معرف پس از احراز هویت کاربر معرفی‌شده (ریال) — صفر یعنی غیرفعال',
+  },
+  {
+    key: 'referral.reward_amount_grams',
+    value: '0',
+    description:
+      'مقدار پاداش معرفی برای معرف پس از احراز هویت کاربر معرفی‌شده (گرم طلا) — صفر یعنی غیرفعال',
+  },
 ];

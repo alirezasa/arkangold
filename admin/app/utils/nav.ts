@@ -58,6 +58,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "عملیات",
     items: [
       { label: "تحویل فیزیکی طلا", href: "/physical-deliveries", icon: Package, perm: "physical_delivery.view" },
+      { label: "پی‌رول (شارژ دستی)", href: "/payroll", icon: Wallet, perm: "payroll.view" },
     ],
   },
   {

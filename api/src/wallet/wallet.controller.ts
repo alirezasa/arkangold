@@ -4,6 +4,7 @@ import { Request } from 'express';
 import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
+import { InternalTransferDto } from '@arkan-gold/shared';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -114,6 +115,21 @@ export class WalletController {
       req.user.userId,
       body.bankAccountId,
       body.amountRial,
+    );
+  }
+
+  // ── انتقال داخلی کیف پول ──
+  @Post('transfer')
+  @ApiOperation({ summary: 'انتقال داخلی ریال/طلا به کیف پول دیگر با شماره کارت' })
+  transfer(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: InternalTransferDto,
+  ) {
+    return this.walletService.internalTransfer(
+      req.user.userId,
+      body.destinationCardNumber,
+      body.amountRial,
+      body.amountGrams,
     );
   }
 }

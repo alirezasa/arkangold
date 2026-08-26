@@ -73,6 +73,28 @@ export const ADMIN_PERMISSIONS = [
     group: 'admin',
     description: 'مشاهده گزارش فعالیت ادمین‌ها',
   },
+
+  {
+    key: 'payroll.view',
+    group: 'payroll',
+    description: 'مشاهده پلن‌های پی‌رول و تاریخچه اجرا',
+  },
+  {
+    key: 'payroll.manage',
+    group: 'payroll',
+    description: 'ایجاد/ویرایش/اجرای پلن‌های پی‌رول',
+  },
+
+  {
+    key: 'referral.view',
+    group: 'referral',
+    description: 'مشاهده معرفی‌ها و پاداش‌های پرداختی',
+  },
+  {
+    key: 'referral.manage',
+    group: 'referral',
+    description: 'مدیریت تنظیمات پاداش معرفی',
+  },
 ] as const;
 
 export type PermissionKey = (typeof ADMIN_PERMISSIONS)[number]['key'];

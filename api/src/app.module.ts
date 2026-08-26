@@ -21,6 +21,7 @@ import { CartModule } from './cart/cart.module';
 import { ShopOrdersModule } from './shop-orders/shop-orders.module';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { PaymentGatewayModule } from './payment-gateway/payment-gateway.module';
+import { PayrollModule } from './payroll/payroll.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { PaymentGatewayModule } from './payment-gateway/payment-gateway.module';
     ShopOrdersModule,
     AdminAuthModule,
     PaymentGatewayModule,
+    PayrollModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

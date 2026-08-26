@@ -57,4 +57,18 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     type: AccountType.INCOME,
     subType: 'TRADE_FEE',
   },
+
+  // ─── هزینه‌ها (EXPENSE) ───
+  {
+    code: '5010',
+    name: 'هزینه حقوق و دستمزد (پی‌رول)',
+    type: AccountType.EXPENSE,
+    subType: 'PAYROLL',
+  },
+  {
+    code: '5020',
+    name: 'هزینه پاداش معرفی (Referral)',
+    type: AccountType.EXPENSE,
+    subType: 'REFERRAL_REWARD',
+  },
 ];

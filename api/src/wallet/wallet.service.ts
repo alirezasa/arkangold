@@ -7,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemConfigService } from '../system-config/system-config.service';
+import { Prisma } from '../generated/prisma/client';
+import { AccountingService } from '../accounting/accounting.service';
+
+const D0 = new Prisma.Decimal(0);
 
 @Injectable()
 export class WalletService {
@@ -15,6 +19,7 @@ export class WalletService {
   constructor(
     private prisma: PrismaService,
     private systemConfig: SystemConfigService,
+    private accountingService: AccountingService,
   ) {}
 
   // ══════════════════════════════════════════
@@ -661,8 +666,229 @@ export class WalletService {
     }
   }
 
-  private async getActiveHoldRial(walletId: string): Promise<number> {
-    const holds = await this.prisma.walletHold.findMany({
+  // ══════════════════════════════════════════
+  // ── انتقال داخلی کیف پول (بدون کارمزد) ──
+  // ══════════════════════════════════════════
+  async internalTransfer(
+    userId: string,
+    destinationCardNumber: string,
+    amountRial?: number,
+    amountGrams?: number,
+  ) {
+    await this.checkUserIdentity(userId);
+
+    const rialAmount = amountRial ? new Prisma.Decimal(amountRial) : D0;
+    const gramsAmount = amountGrams ? new Prisma.Decimal(amountGrams) : D0;
+
+    if (rialAmount.lessThanOrEqualTo(0) && gramsAmount.lessThanOrEqualTo(0)) {
+      throw new BadRequestException(
+        'حداقل یکی از مبلغ ریالی یا مقدار طلا باید مثبت باشد',
+      );
+    }
+
+    const senderWallet = await this.prisma.wallet.findUnique({
+      where: { userId },
+    });
+    if (!senderWallet) throw new NotFoundException('کیف پول یافت نشد');
+
+    if (senderWallet.cardNumber === destinationCardNumber) {
+      throw new BadRequestException(
+        'امکان انتقال به کیف پول خودتان وجود ندارد',
+      );
+    }
+
+    const destinationWallet = await this.prisma.wallet.findUnique({
+      where: { cardNumber: destinationCardNumber },
+    });
+    if (!destinationWallet) {
+      throw new NotFoundException('کیف پول مقصد یافت نشد');
+    }
+
+    // ── بررسی محدودیت‌های داینامیک روزانه/ماهانه ──
+    const [dailyLimitRial, monthlyLimitRial, dailyLimitGrams, monthlyLimitGrams] =
+      await Promise.all([
+        this.systemConfig.getDecimal('transfer.daily_limit_rial', '4000000000'),
+        this.systemConfig.getDecimal(
+          'transfer.monthly_limit_rial',
+          '10000000000',
+        ),
+        this.systemConfig.getDecimal('transfer.daily_limit_grams', '5'),
+        this.systemConfig.getDecimal('transfer.monthly_limit_grams', '20'),
+      ]);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // ترتیب ثابت قفل‌گیری بر اساس id برای جلوگیری از deadlock
+      const walletIds = [senderWallet.id, destinationWallet.id].sort();
+      await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "id" = ${walletIds[0]}::uuid FOR UPDATE`;
+      await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "id" = ${walletIds[1]}::uuid FOR UPDATE`;
+
+      const freshSender = await tx.wallet.findUnique({
+        where: { id: senderWallet.id },
+      });
+      if (!freshSender) throw new NotFoundException('کیف پول یافت نشد');
+
+      // ── بررسی محدودیت‌های داینامیک روزانه/ماهانه (داخل تراکنش، بعد از قفل) ──
+      if (rialAmount.greaterThan(0)) {
+        await this.assertWithinTransferLimit(
+          tx,
+          userId,
+          'amountRial',
+          rialAmount,
+          dailyLimitRial,
+          today,
+          'سقف انتقال روزانه',
+          'ریال',
+        );
+        await this.assertWithinTransferLimit(
+          tx,
+          userId,
+          'amountRial',
+          rialAmount,
+          monthlyLimitRial,
+          firstOfMonth,
+          'سقف انتقال ماهانه',
+          'ریال',
+        );
+      }
+
+      if (gramsAmount.greaterThan(0)) {
+        await this.assertWithinTransferLimit(
+          tx,
+          userId,
+          'amountGrams',
+          gramsAmount,
+          dailyLimitGrams,
+          today,
+          'سقف انتقال روزانه',
+          'گرم',
+        );
+        await this.assertWithinTransferLimit(
+          tx,
+          userId,
+          'amountGrams',
+          gramsAmount,
+          monthlyLimitGrams,
+          firstOfMonth,
+          'سقف انتقال ماهانه',
+          'گرم',
+        );
+      }
+
+      const holdRial = await this.getActiveHoldRial(freshSender.id, tx);
+      const availableRial = new Prisma.Decimal(freshSender.rialBalance).minus(
+        holdRial,
+      );
+      const availableGrams = new Prisma.Decimal(freshSender.goldBalanceGrams);
+
+      if (rialAmount.greaterThan(0) && availableRial.lessThan(rialAmount)) {
+        throw new BadRequestException('موجودی ریالی کافی نیست');
+      }
+      if (gramsAmount.greaterThan(0) && availableGrams.lessThan(gramsAmount)) {
+        throw new BadRequestException('موجودی طلا کافی نیست');
+      }
+
+      await tx.wallet.update({
+        where: { id: senderWallet.id },
+        data: {
+          rialBalance: { decrement: rialAmount },
+          goldBalanceGrams: { decrement: gramsAmount },
+        },
+      });
+      await tx.wallet.update({
+        where: { id: destinationWallet.id },
+        data: {
+          rialBalance: { increment: rialAmount },
+          goldBalanceGrams: { increment: gramsAmount },
+        },
+      });
+
+      const outTransaction = await tx.transaction.create({
+        data: {
+          userId,
+          walletId: senderWallet.id,
+          type: 'TRANSFER_OUT',
+          amountRial: rialAmount.greaterThan(0) ? rialAmount : null,
+          amountGrams: gramsAmount.greaterThan(0) ? gramsAmount : null,
+          status: 'COMPLETED',
+          description: `transfer_out|to:${destinationWallet.cardNumber}`,
+        },
+      });
+
+      const inTransaction = await tx.transaction.create({
+        data: {
+          userId: destinationWallet.userId,
+          walletId: destinationWallet.id,
+          type: 'TRANSFER_IN',
+          amountRial: rialAmount.greaterThan(0) ? rialAmount : null,
+          amountGrams: gramsAmount.greaterThan(0) ? gramsAmount : null,
+          status: 'COMPLETED',
+          description: `transfer_in|from:${senderWallet.cardNumber}`,
+          relatedTransactionId: outTransaction.id,
+        },
+      });
+
+      await tx.transaction.update({
+        where: { id: outTransaction.id },
+        data: { relatedTransactionId: inTransaction.id },
+      });
+
+      return { outTransaction, inTransaction };
+    });
+
+    return {
+      transactionId: result.outTransaction.id,
+      destinationCardNumber: this.maskCard(destinationWallet.cardNumber),
+      amountRial: rialAmount.greaterThan(0) ? Number(rialAmount) : undefined,
+      amountGrams: gramsAmount.greaterThan(0) ? Number(gramsAmount) : undefined,
+      message: 'انتقال با موفقیت انجام شد',
+    };
+  }
+
+  private async assertWithinTransferLimit(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    field: 'amountRial' | 'amountGrams',
+    amount: Prisma.Decimal,
+    limit: Prisma.Decimal,
+    since: Date,
+    limitLabel: string,
+    unit: string,
+  ) {
+    if (limit.lessThanOrEqualTo(0)) return;
+
+    const used = await tx.transaction.aggregate({
+      where: {
+        userId,
+        type: 'TRANSFER_OUT',
+        status: 'COMPLETED',
+        createdAt: { gte: since },
+      },
+      _sum: { [field]: true } as Record<string, boolean>,
+    });
+
+    const usedAmount = new Prisma.Decimal(
+      (used._sum as Record<string, unknown>)[field] as
+        | Prisma.Decimal
+        | number
+        | null
+        | undefined ?? 0,
+    );
+
+    if (usedAmount.plus(amount).greaterThan(limit)) {
+      throw new BadRequestException(
+        `${limitLabel} ${limit.toString()} ${unit} است`,
+      );
+    }
+  }
+  private async getActiveHoldRial(
+    walletId: string,
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+  ): Promise<number> {
+    const holds = await tx.walletHold.findMany({
       where: { walletId, expiresAt: { gt: new Date() } },
     });
     return holds.reduce(

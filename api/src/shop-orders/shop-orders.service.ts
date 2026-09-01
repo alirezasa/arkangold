@@ -20,6 +20,10 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentGatewayFactory } from '../payment-gateway/payment-gateway.factory';
 import { SystemConfigService } from '../system-config/system-config.service';
+import {
+  AccountingService,
+  LedgerLineInput,
+} from '../accounting/accounting.service';
 
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 const PENDING_PAYMENT_TTL_MINUTES = 30;
@@ -63,6 +67,7 @@ export class ShopOrdersService {
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly gatewayFactory: PaymentGatewayFactory,
     private readonly systemConfig: SystemConfigService,
+    private readonly accountingService: AccountingService,
   ) {}
 
   private async withIdempotency<T>(
@@ -412,6 +417,23 @@ export class ShopOrdersService {
             shopOrderId: orderId,
           },
         });
+        await this.accountingService.postJournal(tx, {
+          description: `فروش فروشگاه (کیف‌پول) - سفارش ${orderId}`,
+          totalRial: new Prisma.Decimal(amountRial),
+          totalGrams: new Prisma.Decimal(0),
+          lines: [
+            {
+              accountCode: '2010',
+              side: 'DEBIT',
+              amountRial: new Prisma.Decimal(amountRial),
+            },
+            {
+              accountCode: '4020',
+              side: 'CREDIT',
+              amountRial: new Prisma.Decimal(amountRial),
+            },
+          ],
+        });
 
         await tx.shopOrder.update({
           where: { id: orderId },
@@ -611,6 +633,7 @@ export class ShopOrdersService {
         });
 
         let transactionWalletId: string;
+        let walletPortionRial = 0;
 
         if (walletLeg) {
           const hold = await tx.walletHold.findFirst({
@@ -629,6 +652,8 @@ export class ShopOrdersService {
           if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
 
           const holdAmountRial = this.toNumber(hold.amountRial);
+          walletPortionRial = holdAmountRial;
+
           if (this.toNumber(wallet.rialBalance) < holdAmountRial) {
             throw new ConflictException(
               'موجودی کیف پول برای تکمیل سفارش کافی نیست',
@@ -664,6 +689,37 @@ export class ShopOrdersService {
         if (order.status !== 'PENDING_PAYMENT') {
           throw new ConflictException('وضعیت سفارش برای ثبت پرداخت معتبر نیست');
         }
+
+        const orderTotalRial = this.toNumber(order.totalRial);
+        const gatewayPortionRial = orderTotalRial - walletPortionRial;
+
+        const accountingLines: LedgerLineInput[] = [];
+        if (walletPortionRial > 0) {
+          accountingLines.push({
+            accountCode: '2010',
+            side: 'DEBIT',
+            amountRial: new Prisma.Decimal(walletPortionRial),
+          });
+        }
+        if (gatewayPortionRial > 0) {
+          accountingLines.push({
+            accountCode: '1010',
+            side: 'DEBIT',
+            amountRial: new Prisma.Decimal(gatewayPortionRial),
+          });
+        }
+        accountingLines.push({
+          accountCode: '4020',
+          side: 'CREDIT',
+          amountRial: new Prisma.Decimal(orderTotalRial),
+        });
+
+        await this.accountingService.postJournal(tx, {
+          description: `فروش فروشگاه (درگاه) - سفارش ${order.id}`,
+          totalRial: new Prisma.Decimal(orderTotalRial),
+          totalGrams: new Prisma.Decimal(0),
+          lines: accountingLines,
+        });
 
         await tx.transaction.create({
           data: {

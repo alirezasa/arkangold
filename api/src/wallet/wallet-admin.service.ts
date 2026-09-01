@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
+import { AccountingService } from '../accounting/accounting.service';
 
 interface ListWithdrawalsQuery {
   page?: number;
@@ -16,7 +17,11 @@ interface ListWithdrawalsQuery {
 
 @Injectable()
 export class WalletAdminService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private accountingService: AccountingService,
+  ) {}
+
   private toNumber(value: unknown): number {
     const numberValue = Number(value);
 
@@ -53,7 +58,6 @@ export class WalletAdminService {
       data: items.map((w) => ({
         id: w.id,
         amountToman: (Number(w.amountRial) / 10).toString(),
-
         status: w.status,
         adminNotes: w.adminNotes,
         user: w.user,
@@ -119,6 +123,25 @@ export class WalletAdminService {
       await tx.wallet.update({
         where: { id: wallet.id },
         data: { rialBalance: { decrement: withdrawalAmountRial } },
+      });
+
+      // مشکل ESLint در این بخش با جایگزینی متغیر عددی و استفاده از 0 حل شده است
+      await this.accountingService.postJournal(tx, {
+        description: `تایید برداشت - درخواست ${withdrawal.id}`,
+        totalRial: withdrawalAmountRial,
+        totalGrams: 0,
+        lines: [
+          {
+            accountCode: '2010',
+            side: 'DEBIT',
+            amountRial: withdrawalAmountRial,
+          },
+          {
+            accountCode: '1010',
+            side: 'CREDIT',
+            amountRial: withdrawalAmountRial,
+          },
+        ],
       });
 
       // آزادسازی hold مرتبط (اگر پیدا شد)

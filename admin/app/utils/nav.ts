@@ -10,6 +10,8 @@ import {
   ShieldAlert,
   Settings2,
   UserCog,
+  BookOpen,
+  Scale,
 } from "lucide-react";
 
 export interface NavItem {
@@ -37,6 +39,13 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "درخواست‌های برداشت", href: "/withdrawals", icon: Wallet, perm: "withdrawal.view" },
       { label: "تراکنش‌های کاربران", href: "/transactions", icon: Wallet, perm: "transactions.view" },
+    ],
+  },
+    {
+    title: "حسابداری",
+    items: [
+      { label: "دفتر حساب‌ها", href: "/accounting/chart-of-accounts", icon: BookOpen, perm: "accounting.view" },
+      { label: "تراز آزمایشی", href: "/accounting/trial-balance", icon: Scale, perm: "accounting.view" },
     ],
   },
   {

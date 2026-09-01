@@ -57,6 +57,12 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     type: AccountType.INCOME,
     subType: 'TRADE_FEE',
   },
+  {
+    code: '4020',
+    name: 'درآمد فروش فروشگاه',
+    type: AccountType.INCOME,
+    subType: 'SHOP_SALE',
+  },
 
   // ─── هزینه‌ها (EXPENSE) ───
   {

@@ -95,6 +95,11 @@ export const ADMIN_PERMISSIONS = [
     group: 'referral',
     description: 'مدیریت تنظیمات پاداش معرفی',
   },
+  {
+    key: 'accounting.view',
+    group: 'accounting',
+    description: 'مشاهده دفترکل و گزارش‌های مالی',
+  },
 ] as const;
 
 export type PermissionKey = (typeof ADMIN_PERMISSIONS)[number]['key'];
@@ -120,6 +125,7 @@ export const ADMIN_ROLES = [
       'physical_delivery.view',
       'physical_delivery.approve',
       'users.view',
+      'accounting.view',
     ] as PermissionKey[],
   },
   {

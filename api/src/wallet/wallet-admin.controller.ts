@@ -27,6 +27,17 @@ class RejectWithdrawalDto {
   reason!: string;
 }
 
+class AdjustWalletDto {
+  @IsOptional()
+  amountRial?: number;
+
+  @IsOptional()
+  amountGrams?: number;
+
+  @IsString()
+  description!: string;
+}
+
 class ListWithdrawalsQueryDto {
   @IsOptional()
   page?: number;
@@ -94,5 +105,29 @@ export class WalletAdminController {
     @Body() dto: RejectWithdrawalDto,
   ) {
     return this.walletAdminService.reject(req.user.adminUserId, id, dto.reason);
+  }
+}
+
+@UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
+@Controller('admin/wallets')
+export class WalletAdjustmentController {
+  constructor(private readonly walletAdminService: WalletAdminService) {}
+
+  @RequirePermission('wallet.adjust')
+  @AuditLog('wallet.adjust')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post(':id/adjust')
+  adjust(
+    @Req() req: AdminRequest,
+    @Param('id') userId: string,
+    @Body() dto: AdjustWalletDto,
+  ) {
+    return this.walletAdminService.adjustBalance(
+      req.user.adminUserId,
+      userId,
+      dto.amountRial ? Number(dto.amountRial) : 0,
+      dto.amountGrams ? Number(dto.amountGrams) : 0,
+      dto.description,
+    );
   }
 }

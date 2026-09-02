@@ -11,6 +11,11 @@ export const ADMIN_PERMISSIONS = [
     group: 'wallet',
     description: 'تایید/رد درخواست برداشت',
   },
+  {
+    key: 'wallet.adjust',
+    group: 'wallet',
+    description: 'شارژ یا کسر دستی موجودی کیف پول کاربر',
+  },
 
   {
     key: 'legal_profile.view',

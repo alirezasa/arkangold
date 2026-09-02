@@ -1,6 +1,9 @@
+// api/src/accounting/accounting-admin.service.ts
+
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
+import Decimal from 'decimal.js';
 
 interface ListJournalQuery {
   page?: number;
@@ -13,6 +16,12 @@ interface ListJournalQuery {
 interface AccountLedgerQuery {
   page?: number;
   limit?: number;
+}
+
+/** تبدیل ایمن مقادیر ورودی/دیتابیس به Decimal از decimal.js */
+function toDecimal(value: unknown): Decimal {
+  if (value === null || value === undefined) return new Decimal(0);
+  return new Decimal(value as Decimal.Value);
 }
 
 @Injectable()
@@ -28,22 +37,26 @@ export class AccountingAdminService {
       orderBy: { code: 'asc' },
     });
 
-    return accounts.map((a) => ({
-      id: a.id,
-      code: a.code,
-      name: a.name,
-      type: a.type,
-      subType: a.subType,
-      balanceRial: a.balanceRial.toString(),
-      balanceToman: a.balanceRial.dividedBy(10).toString(),
-      balanceGrams: a.balanceGrams.toString(),
-      isDebitNature: this.isDebitNature(a.code),
-    }));
+    return accounts.map((a) => {
+      const balRial = toDecimal(a.balanceRial);
+      return {
+        id: a.id,
+        code: a.code,
+        name: a.name,
+        type: a.type,
+        subType: a.subType,
+        balanceRial: balRial.toString(),
+        balanceToman: balRial.dividedBy(10).toString(),
+        balanceGrams: toDecimal(a.balanceGrams).toString(),
+        isDebitNature: this.isDebitNature(a.code),
+      };
+    });
   }
 
   async getAccountLedger(accountId: string, query: AccountLedgerQuery) {
-    const page = query.page ?? 1;
-    const limit = Math.min(query.limit ?? 30, 100);
+    // 👈 جلوگیری از اعداد منفی در صفحه‌بندی
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.min(Math.max(1, query.limit ?? 30), 100);
 
     const account = await this.prisma.account.findUnique({
       where: { id: accountId },
@@ -61,23 +74,28 @@ export class AccountingAdminService {
       this.prisma.ledgerEntry.count({ where: { accountId } }),
     ]);
 
+    const accBalRial = toDecimal(account.balanceRial);
+
     return {
       account: {
         code: account.code,
         name: account.name,
-        balanceRial: account.balanceRial.toString(),
-        balanceToman: account.balanceRial.dividedBy(10).toString(),
+        balanceRial: accBalRial.toString(),
+        balanceToman: accBalRial.dividedBy(10).toString(),
       },
-      data: entries.map((e) => ({
-        id: e.id,
-        side: e.side,
-        amountRial: e.amountRial.toString(),
-        amountToman: e.amountRial.dividedBy(10).toString(),
-        amountGrams: e.amountGrams.toString(),
-        description: e.journalEntry.description,
-        journalEntryId: e.journalEntryId,
-        createdAt: e.createdAt.toISOString(),
-      })),
+      data: entries.map((e) => {
+        const amountRial = toDecimal(e.amountRial);
+        return {
+          id: e.id,
+          side: e.side,
+          amountRial: amountRial.toString(),
+          amountToman: amountRial.dividedBy(10).toString(),
+          amountGrams: toDecimal(e.amountGrams).toString(),
+          description: e.journalEntry.description,
+          journalEntryId: e.journalEntryId,
+          createdAt: e.createdAt.toISOString(),
+        };
+      }),
       page,
       limit,
       total,
@@ -86,26 +104,26 @@ export class AccountingAdminService {
   }
 
   async listJournalEntries(query: ListJournalQuery) {
-    const page = query.page ?? 1;
-    const limit = Math.min(query.limit ?? 30, 100);
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.min(Math.max(1, query.limit ?? 30), 100);
 
-    const where: Prisma.JournalEntryWhereInput = {
-      ...(query.search
-        ? { description: { contains: query.search, mode: 'insensitive' } }
-        : {}),
-      ...(query.from || query.to
-        ? {
-            entryDate: {
-              ...(query.from ? { gte: new Date(query.from) } : {}),
-              ...(query.to
-                ? {
-                    lte: new Date(new Date(query.to).setHours(23, 59, 59, 999)),
-                  }
-                : {}),
-            },
-          }
-        : {}),
-    };
+    const where: Prisma.JournalEntryWhereInput = {};
+
+    if (query.search) {
+      where.description = { contains: query.search, mode: 'insensitive' };
+    }
+
+    if (query.from || query.to) {
+      where.entryDate = {};
+      if (query.from) {
+        where.entryDate.gte = new Date(query.from);
+      }
+      if (query.to) {
+        const toDate = new Date(query.to);
+        toDate.setHours(23, 59, 59, 999);
+        where.entryDate.lte = toDate;
+      }
+    }
 
     const [items, total] = await Promise.all([
       this.prisma.journalEntry.findMany({
@@ -121,8 +139,8 @@ export class AccountingAdminService {
       data: items.map((j) => ({
         id: j.id,
         description: j.description,
-        totalToman: j.totalRial.dividedBy(10).toString(),
-        totalGrams: j.totalGrams.toString(),
+        totalToman: toDecimal(j.totalRial).dividedBy(10).toString(),
+        totalGrams: toDecimal(j.totalGrams).toString(),
         entryDate: j.entryDate.toISOString(),
       })),
       page,
@@ -142,15 +160,15 @@ export class AccountingAdminService {
     return {
       id: journal.id,
       description: journal.description,
-      totalToman: journal.totalRial.dividedBy(10).toString(),
-      totalGrams: journal.totalGrams.toString(),
+      totalToman: toDecimal(journal.totalRial).dividedBy(10).toString(),
+      totalGrams: toDecimal(journal.totalGrams).toString(),
       entryDate: journal.entryDate.toISOString(),
       lines: journal.ledgerEntries.map((l) => ({
         accountCode: l.account.code,
         accountName: l.account.name,
         side: l.side,
-        amountToman: l.amountRial.dividedBy(10).toString(),
-        amountGrams: l.amountGrams.toString(),
+        amountToman: toDecimal(l.amountRial).dividedBy(10).toString(),
+        amountGrams: toDecimal(l.amountGrams).toString(),
       })),
     };
   }
@@ -160,24 +178,27 @@ export class AccountingAdminService {
       orderBy: { code: 'asc' },
     });
 
-    let totalDebitRial = new Prisma.Decimal(0);
-    let totalCreditRial = new Prisma.Decimal(0);
+    let totalDebitRial = new Decimal(0);
+    let totalCreditRial = new Decimal(0);
 
     const rows = accounts.map((a) => {
       const isDebit = this.isDebitNature(a.code);
-      // مانده مثبت طبق ماهیت حساب در ستون خودش نمایش داده می‌شود
-      const debitRial =
-        isDebit && a.balanceRial.greaterThan(0)
-          ? a.balanceRial
-          : !isDebit && a.balanceRial.lessThan(0)
-            ? a.balanceRial.abs()
-            : new Prisma.Decimal(0);
-      const creditRial =
-        !isDebit && a.balanceRial.greaterThan(0)
-          ? a.balanceRial
-          : isDebit && a.balanceRial.lessThan(0)
-            ? a.balanceRial.abs()
-            : new Prisma.Decimal(0);
+      const balanceRial = toDecimal(a.balanceRial);
+
+      let debitRial = new Decimal(0);
+      let creditRial = new Decimal(0);
+
+      if (isDebit && balanceRial.greaterThan(0)) {
+        debitRial = balanceRial;
+      } else if (!isDebit && balanceRial.lessThan(0)) {
+        debitRial = balanceRial.abs();
+      }
+
+      if (!isDebit && balanceRial.greaterThan(0)) {
+        creditRial = balanceRial;
+      } else if (isDebit && balanceRial.lessThan(0)) {
+        creditRial = balanceRial.abs();
+      }
 
       totalDebitRial = totalDebitRial.plus(debitRial);
       totalCreditRial = totalCreditRial.plus(creditRial);
@@ -199,60 +220,69 @@ export class AccountingAdminService {
   }
 
   async getSummary() {
-    const [
-      cash,
-      goldInventory,
-      rialLiability,
-      goldLiability,
-      feeIncomeToday,
-      shopIncomeToday,
-    ] = await Promise.all([
-      this.prisma.account.findUnique({ where: { code: '1010' } }),
-      this.prisma.account.findUnique({ where: { code: '1020' } }),
-      this.prisma.account.findUnique({ where: { code: '2010' } }),
-      this.prisma.account.findUnique({ where: { code: '2020' } }),
-      this.getTodayIncome('4010'),
-      this.getTodayIncome('4020'),
+    // 👈 ۱. دریافت یکجای تمام حساب‌های مورد نیاز در یک کوئری به جای ۶ کوئری
+    const targetCodes = ['1010', '1020', '2010', '2020', '4010', '4020'];
+    const accounts = await this.prisma.account.findMany({
+      where: { code: { in: targetCodes } },
+    });
+
+    const accountMap = new Map(accounts.map((a) => [a.code, a]));
+
+    const cash = accountMap.get('1010');
+    const goldInventory = accountMap.get('1020');
+    const rialLiability = accountMap.get('2010');
+    const goldLiability = accountMap.get('2020');
+    const feeIncomeAcc = accountMap.get('4010');
+    const shopIncomeAcc = accountMap.get('4020');
+
+    // 👈 ۲. محاسبه همزمان درآمد امروز برای دو حساب درآمدی
+    const [feeIncomeToday, shopIncomeToday] = await Promise.all([
+      this.getTodayIncomeByAccountId(feeIncomeAcc?.id),
+      this.getTodayIncomeByAccountId(shopIncomeAcc?.id),
     ]);
 
     return {
-      cashToman: (cash?.balanceRial ?? new Prisma.Decimal(0))
+      cashToman: toDecimal(cash?.balanceRial).dividedBy(10).toString(),
+      goldInventoryGrams: toDecimal(goldInventory?.balanceGrams).toString(),
+      rialLiabilityToman: toDecimal(rialLiability?.balanceRial)
         .dividedBy(10)
         .toString(),
-      goldInventoryGrams: (
-        goldInventory?.balanceGrams ?? new Prisma.Decimal(0)
-      ).toString(),
-      rialLiabilityToman: (rialLiability?.balanceRial ?? new Prisma.Decimal(0))
-        .dividedBy(10)
-        .toString(),
-      goldLiabilityGrams: (
-        goldLiability?.balanceGrams ?? new Prisma.Decimal(0)
-      ).toString(),
+      goldLiabilityGrams: toDecimal(goldLiability?.balanceGrams).toString(),
       feeIncomeTodayToman: feeIncomeToday,
       shopIncomeTodayToman: shopIncomeToday,
     };
   }
 
-  private async getTodayIncome(accountCode: string): Promise<string> {
+  private async getTodayIncomeByAccountId(accountId?: string): Promise<string> {
+    if (!accountId) return '0';
+
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const account = await this.prisma.account.findUnique({
-      where: { code: accountCode },
-    });
-    if (!account) return '0';
+    // 👈 محاسبه درآمد خالص امروز (بستانکار منفی بدهکار جهت اعمال اصلاحی‌ها)
+    const [creditResult, debitResult] = await Promise.all([
+      this.prisma.ledgerEntry.aggregate({
+        where: {
+          accountId,
+          side: 'CREDIT',
+          createdAt: { gte: startOfDay },
+        },
+        _sum: { amountRial: true },
+      }),
+      this.prisma.ledgerEntry.aggregate({
+        where: {
+          accountId,
+          side: 'DEBIT',
+          createdAt: { gte: startOfDay },
+        },
+        _sum: { amountRial: true },
+      }),
+    ]);
 
-    const result = await this.prisma.ledgerEntry.aggregate({
-      where: {
-        accountId: account.id,
-        side: 'CREDIT',
-        createdAt: { gte: startOfDay },
-      },
-      _sum: { amountRial: true },
-    });
+    const totalCredit = toDecimal(creditResult._sum.amountRial);
+    const totalDebit = toDecimal(debitResult._sum.amountRial);
+    const netIncomeRial = totalCredit.minus(totalDebit);
 
-    return (result._sum.amountRial ?? new Prisma.Decimal(0))
-      .dividedBy(10)
-      .toString();
+    return netIncomeRial.dividedBy(10).toString();
   }
 }

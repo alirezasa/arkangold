@@ -9,18 +9,43 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, Account } from '../generated/prisma/client';
 import { CHART_OF_ACCOUNTS_DEFAULTS } from './accounts.seed';
+import Decimal from 'decimal.js'; // 👈 اضافه شده
 
 // ─────────────────────────────────────────────
 // ورودی هر سطر سند حسابداری
 // ─────────────────────────────────────────────
+export type DecimalInput = Decimal | number | string; // 👈 اصلاح شده
+
 export interface LedgerLineInput {
   accountCode: string;
   side: 'DEBIT' | 'CREDIT';
-  amountRial?: Prisma.Decimal;
-  amountGrams?: Prisma.Decimal;
+  amountRial?: DecimalInput;
+  amountGrams?: DecimalInput;
 }
 
-const D0 = new Prisma.Decimal(0);
+export interface JournalInput {
+  description: string;
+  totalRial: DecimalInput;
+  totalGrams: DecimalInput;
+  lines: LedgerLineInput[];
+}
+
+/** سطر نرمال‌شده: از این نقطه به بعد همه‌چیز Decimal قطعی است */
+interface NormalizedLine {
+  accountCode: string;
+  side: 'DEBIT' | 'CREDIT';
+  amountRial: Decimal; // 👈 اصلاح شده
+  amountGrams: Decimal; // 👈 اصلاح شده
+}
+
+/** تبدیل ایمن ورودی به Decimal؛ nullish → صفر */
+function toDecimal(value: DecimalInput | null | undefined): Decimal {
+  // 👈 اصلاح شده
+  if (value === null || value === undefined) return new Decimal(0); // 👈 اصلاح شده
+  return value instanceof Decimal ? value : new Decimal(value); // 👈 اصلاح شده
+}
+
+const zero = (): Decimal => new Decimal(0); // 👈 اصلاح شده
 
 @Injectable()
 export class AccountingService implements OnModuleInit {
@@ -29,13 +54,13 @@ export class AccountingService implements OnModuleInit {
   constructor(private prisma: PrismaService) {}
 
   // ═══════════════════════════════════════════
-  // Seed خودکار در استارت اپ (بدون تغییر)
+  // Seed خودکار در استارت اپ
   // ═══════════════════════════════════════════
-  async onModuleInit() {
+  async onModuleInit(): Promise<void> {
     await this.seedChartOfAccounts();
   }
 
-  private async seedChartOfAccounts() {
+  private async seedChartOfAccounts(): Promise<void> {
     try {
       for (const acc of CHART_OF_ACCOUNTS_DEFAULTS) {
         await this.prisma.account.upsert({
@@ -57,7 +82,7 @@ export class AccountingService implements OnModuleInit {
   }
 
   // ═══════════════════════════════════════════
-  // Fail-fast: دریافت حساب‌های الزامی (بدون تغییر)
+  // Fail-fast: دریافت حساب‌های الزامی
   // ═══════════════════════════════════════════
   async getRequiredAccounts<T extends string>(
     tx: Prisma.TransactionClient,
@@ -83,28 +108,33 @@ export class AccountingService implements OnModuleInit {
   }
 
   // ═══════════════════════════════════════════
-  // ⬅️ جدید: تنها نقطه ثبت سند در کل سیستم
+  // تنها نقطه ثبت سند در کل سیستم
   // سند + سطرها + به‌روزرسانی مانده‌ها، اتمیک در یک تراکنش
   // ═══════════════════════════════════════════
   async postJournal(
     tx: Prisma.TransactionClient,
-    params: {
-      description: string;
-      totalRial: Prisma.Decimal; // برای گزارش‌گیری (مبلغ معامله)
-      totalGrams: Prisma.Decimal;
-      lines: LedgerLineInput[];
-    },
-  ) {
-    const { description, totalRial, totalGrams, lines } = params;
+    params: JournalInput,
+  ): Promise<{ id: string }> {
+    const { description } = params;
 
-    // ── ۱. رد سند نامتوازن قبل از هر نوشتنی ──
+    // ── ۱. نرمال‌سازی ورودی‌ها به Decimal (تنها مرز تبدیل) ──
+    const totalRial = toDecimal(params.totalRial);
+    const totalGrams = toDecimal(params.totalGrams);
+    const lines: NormalizedLine[] = params.lines.map((l) => ({
+      accountCode: l.accountCode,
+      side: l.side,
+      amountRial: toDecimal(l.amountRial),
+      amountGrams: toDecimal(l.amountGrams),
+    }));
+
+    // ── ۲. رد سند نامتوازن قبل از هر نوشتنی ──
     this.assertBalanced(lines, description);
 
-    // ── ۲. واکشی حساب‌ها با یک کوئری + fail-fast ──
+    // ── ۳. واکشی حساب‌ها با یک کوئری + fail-fast ──
     const codes = [...new Set(lines.map((l) => l.accountCode))];
     const accounts = await this.getRequiredAccounts(tx, codes);
 
-    // ── ۳. ثبت سند و سطرها ──
+    // ── ۴. ثبت سند و سطرها ──
     const journal = await tx.journalEntry.create({
       data: { description, totalRial, totalGrams },
     });
@@ -114,18 +144,17 @@ export class AccountingService implements OnModuleInit {
         journalEntryId: journal.id,
         accountId: accounts[l.accountCode].id,
         side: l.side,
-        amountRial: l.amountRial ?? D0,
-        amountGrams: l.amountGrams ?? D0,
+        amountRial: l.amountRial,
+        amountGrams: l.amountGrams,
       })),
     });
 
-    // ── ۴. به‌روزرسانی مانده‌ها در همان تراکنش ──
-    // (این همان بخشی است که قبلاً وجود نداشت و مانده‌ها صفر می‌ماند)
+    // ── ۵. به‌روزرسانی مانده‌ها در همان تراکنش ──
     for (const l of lines) {
       const account = accounts[l.accountCode];
       const sign = this.deltaSign(account, l.side);
-      const deltaRial = (l.amountRial ?? D0).times(sign);
-      const deltaGrams = (l.amountGrams ?? D0).times(sign);
+      const deltaRial = l.amountRial.times(sign);
+      const deltaGrams = l.amountGrams.times(sign);
 
       if (deltaRial.isZero() && deltaGrams.isZero()) continue;
 
@@ -154,19 +183,19 @@ export class AccountingService implements OnModuleInit {
   }
 
   /** اصل بنیادین: جمع بدهکار = جمع بستانکار (هم ریال، هم گرم) */
-  private assertBalanced(lines: LedgerLineInput[], description: string) {
-    let debitRial = D0,
-      creditRial = D0,
-      debitGrams = D0,
-      creditGrams = D0;
+  private assertBalanced(lines: NormalizedLine[], description: string): void {
+    let debitRial = zero();
+    let creditRial = zero();
+    let debitGrams = zero();
+    let creditGrams = zero();
 
     for (const l of lines) {
       if (l.side === 'DEBIT') {
-        debitRial = debitRial.plus(l.amountRial ?? D0);
-        debitGrams = debitGrams.plus(l.amountGrams ?? D0);
+        debitRial = debitRial.plus(l.amountRial);
+        debitGrams = debitGrams.plus(l.amountGrams);
       } else {
-        creditRial = creditRial.plus(l.amountRial ?? D0);
-        creditGrams = creditGrams.plus(l.amountGrams ?? D0);
+        creditRial = creditRial.plus(l.amountRial);
+        creditGrams = creditGrams.plus(l.amountGrams);
       }
     }
 

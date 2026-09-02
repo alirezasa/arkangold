@@ -419,19 +419,11 @@ export class ShopOrdersService {
         });
         await this.accountingService.postJournal(tx, {
           description: `فروش فروشگاه (کیف‌پول) - سفارش ${orderId}`,
-          totalRial: new Prisma.Decimal(amountRial),
-          totalGrams: new Prisma.Decimal(0),
+          totalRial: amountRial,
+          totalGrams: 0,
           lines: [
-            {
-              accountCode: '2010',
-              side: 'DEBIT',
-              amountRial: new Prisma.Decimal(amountRial),
-            },
-            {
-              accountCode: '4020',
-              side: 'CREDIT',
-              amountRial: new Prisma.Decimal(amountRial),
-            },
+            { accountCode: '2010', side: 'DEBIT', amountRial },
+            { accountCode: '4020', side: 'CREDIT', amountRial },
           ],
         });
 
@@ -694,30 +686,33 @@ export class ShopOrdersService {
         const gatewayPortionRial = orderTotalRial - walletPortionRial;
 
         const accountingLines: LedgerLineInput[] = [];
+
         if (walletPortionRial > 0) {
           accountingLines.push({
             accountCode: '2010',
             side: 'DEBIT',
-            amountRial: new Prisma.Decimal(walletPortionRial),
+            amountRial: walletPortionRial,
           });
         }
+
         if (gatewayPortionRial > 0) {
           accountingLines.push({
             accountCode: '1010',
             side: 'DEBIT',
-            amountRial: new Prisma.Decimal(gatewayPortionRial),
+            amountRial: gatewayPortionRial,
           });
         }
+
         accountingLines.push({
           accountCode: '4020',
           side: 'CREDIT',
-          amountRial: new Prisma.Decimal(orderTotalRial),
+          amountRial: orderTotalRial,
         });
 
         await this.accountingService.postJournal(tx, {
           description: `فروش فروشگاه (درگاه) - سفارش ${order.id}`,
-          totalRial: new Prisma.Decimal(orderTotalRial),
-          totalGrams: new Prisma.Decimal(0),
+          totalRial: orderTotalRial,
+          totalGrams: 0,
           lines: accountingLines,
         });
 

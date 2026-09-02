@@ -243,4 +243,109 @@ export class WalletAdminService {
       return { message: 'درخواست برداشت رد شد', alreadyProcessed: false };
     });
   }
+
+  // ── شارژ/کسر دستی موجودی کیف پول توسط ادمین ──
+  async adjustBalance(
+    adminUserId: string,
+    userId: string,
+    amountRial: number,
+    amountGrams: number,
+    description: string,
+  ) {
+    if (!amountRial && !amountGrams) {
+      throw new BadRequestException(
+        'حداقل یکی از مقادیر ریالی یا گرمی باید غیر صفر باشد',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.wallet.findUnique({ where: { userId } });
+      if (!wallet) throw new NotFoundException('کیف پول کاربر یافت نشد');
+
+      await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "id" = ${wallet.id}::uuid FOR UPDATE`;
+
+      if (amountRial < 0) {
+        const currentRial = this.toNumber(wallet.rialBalance);
+        if (currentRial + amountRial < 0) {
+          throw new BadRequestException(
+            'موجودی ریالی کاربر برای این کسر کافی نیست',
+          );
+        }
+      }
+      if (amountGrams < 0) {
+        const currentGrams = this.toNumber(wallet.goldBalanceGrams);
+        if (currentGrams + amountGrams < 0) {
+          throw new BadRequestException(
+            'موجودی طلای کاربر برای این کسر کافی نیست',
+          );
+        }
+      }
+
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: {
+          ...(amountRial ? { rialBalance: { increment: amountRial } } : {}),
+          ...(amountGrams
+            ? { goldBalanceGrams: { increment: amountGrams } }
+            : {}),
+        },
+      });
+
+      const transaction = await tx.transaction.create({
+        data: {
+          userId,
+          walletId: wallet.id,
+          type: 'MANUAL_ADJUSTMENT',
+          status: 'COMPLETED',
+          amountRial: amountRial || null,
+          amountGrams: amountGrams || null,
+          description: `تنظیم دستی موجودی توسط ادمین - ${description}`,
+        },
+      });
+
+      if (amountRial) {
+        const absRial = Math.abs(amountRial);
+        await this.accountingService.postJournal(tx, {
+          description: `تنظیم دستی موجودی ریالی - کاربر ${userId} - ${description}`,
+          totalRial: absRial,
+          totalGrams: 0,
+          lines:
+            amountRial > 0
+              ? [
+                  { accountCode: '1010', side: 'DEBIT', amountRial: absRial },
+                  { accountCode: '2010', side: 'CREDIT', amountRial: absRial },
+                ]
+              : [
+                  { accountCode: '2010', side: 'DEBIT', amountRial: absRial },
+                  { accountCode: '1010', side: 'CREDIT', amountRial: absRial },
+                ],
+        });
+      }
+
+      if (amountGrams) {
+        const absGrams = Math.abs(amountGrams);
+        await this.accountingService.postJournal(tx, {
+          description: `تنظیم دستی موجودی طلا - کاربر ${userId} - ${description}`,
+          totalRial: 0,
+          totalGrams: absGrams,
+          lines:
+            amountGrams > 0
+              ? [
+                  { accountCode: '1020', side: 'DEBIT', amountGrams: absGrams },
+                  { accountCode: '2020', side: 'CREDIT', amountGrams: absGrams },
+                ]
+              : [
+                  { accountCode: '2020', side: 'DEBIT', amountGrams: absGrams },
+                  { accountCode: '1020', side: 'CREDIT', amountGrams: absGrams },
+                ],
+        });
+      }
+
+      return {
+        message: 'موجودی کیف پول با موفقیت تنظیم شد',
+        transactionId: transaction.id,
+        adminUserId,
+      };
+    });
+  }
 }

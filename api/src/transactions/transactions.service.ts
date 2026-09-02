@@ -49,6 +49,11 @@ const TYPE_META: Record<
   },
   SHOP_PURCHASE: { title: 'خرید از فروشگاه', category: 'shop', sign: 'minus' },
   REFUND: { title: 'بازگشت وجه', category: 'deposit', sign: 'plus' },
+  MANUAL_ADJUSTMENT: {
+    title: 'تنظیم دستی موجودی توسط ادمین',
+    category: 'other',
+    sign: 'plus',
+  },
 };
 
 interface TxRow {

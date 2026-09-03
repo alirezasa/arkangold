@@ -5,6 +5,8 @@ import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { InternalTransferDto } from '@arkan-gold/shared';
+import { Res } from '@nestjs/common';
+import type { Response } from 'express';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -120,7 +122,9 @@ export class WalletController {
 
   // ── انتقال داخلی کیف پول ──
   @Post('transfer')
-  @ApiOperation({ summary: 'انتقال داخلی ریال/طلا به کیف پول دیگر با شماره کارت' })
+  @ApiOperation({
+    summary: 'انتقال داخلی ریال/طلا به کیف پول دیگر با شماره کارت',
+  })
   transfer(
     @Req() req: AuthenticatedRequest,
     @Body() body: InternalTransferDto,
@@ -131,5 +135,25 @@ export class WalletController {
       body.amountRial,
       body.amountGrams,
     );
+  }
+
+  @Get('deposit/large-transfer/:id/proforma')
+  @ApiOperation({ summary: 'پیش‌نمایش/دانلود PDF پیش‌فاکتور' })
+  async getProformaPdf(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Query('download') download: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, filename } = await this.walletService.generateProformaPdf(
+      req.user.userId,
+      id,
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `${download ? 'attachment' : 'inline'}; filename="${filename}"`,
+    );
+    res.send(buffer);
   }
 }

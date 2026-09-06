@@ -912,7 +912,7 @@ export class WalletService {
         status: 'COMPLETED',
         createdAt: { gte: since },
       },
-      _sum: { [field]: true },
+      _sum: { [field]: true } as Record<string, boolean>,
     });
 
     const usedAmount = new Prisma.Decimal(
@@ -959,15 +959,30 @@ export class WalletService {
     userId: string,
     proformaId: string,
     isAdmin = false,
-  ): Promise<{ buffer: Buffer; filename: string }> {
+  ) {
     const proforma = await this.prisma.depositProforma.findFirst({
       where: isAdmin ? { id: proformaId } : { id: proformaId, userId },
     });
-
     if (!proforma) throw new NotFoundException('پیش‌فاکتور یافت نشد');
 
-    // TODO: اینجا PDF واقعی تولید کن
-    const buffer = Buffer.from(`Proforma: ${proforma.invoiceNumber}`, 'utf-8');
+    const html = buildProformaHtml(
+      {
+        invoiceNumber: proforma.invoiceNumber,
+        issueDateFa: proforma.createdAt.toLocaleDateString('fa-IR'),
+        companyName: proforma.recipientName,
+        companyNationalId: proforma.recipientNationalId,
+        companyEconomicCode: proforma.recipientEconomicCode ?? '',
+        amountRial: Number(proforma.amountRial).toLocaleString('fa-IR'),
+        userFullName: proforma.userFullName ?? '',
+        userNationalCode: proforma.userNationalCode ?? '',
+        destinationSheba: proforma.destinationSheba,
+        destinationOwner: proforma.recipientName,
+        trackingId: proforma.trackingId,
+      },
+      this.fontBase64, // یک‌بار در سازنده لود شود
+    );
+
+    const buffer = await this.pdfService.render(html);
 
     if (!isAdmin) {
       await this.prisma.depositProforma.update({
@@ -976,9 +991,6 @@ export class WalletService {
       });
     }
 
-    return {
-      buffer,
-      filename: `proforma-${proforma.invoiceNumber}.pdf`,
-    };
+    return { buffer, filename: `proforma-${proforma.invoiceNumber}.pdf` };
   }
 }

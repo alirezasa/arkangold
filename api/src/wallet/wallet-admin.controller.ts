@@ -7,12 +7,13 @@ import {
   Param,
   Query,
   Req,
+  Res,
   UseGuards,
   UseInterceptors,
   BadRequestException,
 } from '@nestjs/common';
 
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { IsOptional, IsString } from 'class-validator';
 import { WalletAdminService } from './wallet-admin.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
@@ -21,6 +22,21 @@ import { RequirePermission } from '../admin-auth/decorators/require-permission.d
 import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
 import { AdminAuthenticatedUser } from '../admin-auth/interfaces/admin-jwt-payload.interface';
+
+type ReceiptStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+function parseReceiptStatus(status?: string): ReceiptStatus | undefined {
+  if (!status) return undefined;
+
+  switch (status) {
+    case 'PENDING':
+    case 'APPROVED':
+    case 'REJECTED':
+      return status;
+    default:
+      throw new BadRequestException('وضعیت فیش نامعتبر است');
+  }
+}
 
 class RejectWithdrawalDto {
   @IsString()
@@ -56,9 +72,7 @@ interface AdminRequest extends Request {
 type WithdrawalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSED';
 
 function parseWithdrawalStatus(status?: string): WithdrawalStatus | undefined {
-  if (!status) {
-    return undefined;
-  }
+  if (!status) return undefined;
 
   switch (status) {
     case 'PENDING':
@@ -66,7 +80,6 @@ function parseWithdrawalStatus(status?: string): WithdrawalStatus | undefined {
     case 'REJECTED':
     case 'PROCESSED':
       return status;
-
     default:
       throw new BadRequestException('وضعیت درخواست برداشت نامعتبر است');
   }
@@ -106,6 +119,44 @@ export class WalletAdminController {
   ) {
     return this.walletAdminService.reject(req.user.adminUserId, id, dto.reason);
   }
+
+  // ---- Deposit Receipts (داخل کلاس) ----
+
+  @RequirePermission('withdrawal.view')
+  @Get('deposit-receipts')
+  listReceipts(@Query('status') status?: string) {
+    return this.walletAdminService.listReceipts(parseReceiptStatus(status));
+  }
+
+  @RequirePermission('withdrawal.approve')
+  @AuditLog('deposit_receipt.approve')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post('deposit-receipts/:id/approve')
+  approveReceipt(@Req() req: AdminRequest, @Param('id') id: string) {
+    return this.walletAdminService.approveReceipt(req.user.adminUserId, id);
+  }
+
+  @RequirePermission('withdrawal.approve')
+  @AuditLog('deposit_receipt.reject')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post('deposit-receipts/:id/reject')
+  rejectReceipt(
+    @Req() req: AdminRequest,
+    @Param('id') id: string,
+    @Body() dto: RejectWithdrawalDto,
+  ) {
+    return this.walletAdminService.rejectReceipt(
+      req.user.adminUserId,
+      id,
+      dto.reason,
+    );
+  }
+
+  @RequirePermission('withdrawal.view')
+  @Get('deposit-receipts/:id/image')
+  async getReceiptImage(@Param('id') id: string, @Res() res: Response) {
+    return this.walletAdminService.streamReceiptImage(id, res);
+  }
 }
 
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
@@ -130,36 +181,4 @@ export class WalletAdjustmentController {
       dto.description,
     );
   }
-}
-// wallet-admin.controller.ts — اضافه شود
-@RequirePermission('withdrawal.view') // یا permission جدید مثل deposit.approve اگر می‌خواهید دقیق‌تر شود
-@Get('deposit-receipts')
-listReceipts(@Query('status') status?: string) {
-  return this.walletAdminService.listReceipts(status);
-}
-
-@RequirePermission('withdrawal.approve')
-@AuditLog('deposit_receipt.approve')
-@UseInterceptors(AuditLogInterceptor)
-@Post('deposit-receipts/:id/approve')
-approveReceipt(@Req() req: AdminRequest, @Param('id') id: string) {
-  return this.walletAdminService.approveReceipt(req.user.adminUserId, id);
-}
-
-@RequirePermission('withdrawal.approve')
-@AuditLog('deposit_receipt.reject')
-@UseInterceptors(AuditLogInterceptor)
-@Post('deposit-receipts/:id/reject')
-rejectReceipt(
-  @Req() req: AdminRequest,
-  @Param('id') id: string,
-  @Body() dto: RejectWithdrawalDto, // همان کلاس reason موجود را دوباره استفاده کنید
-) {
-  return this.walletAdminService.rejectReceipt(req.user.adminUserId, id, dto.reason);
-}
-
-@RequirePermission('withdrawal.view')
-@Get('deposit-receipts/:id/image')
-async getReceiptImage(@Param('id') id: string, @Res() res: Response) {
-  return this.walletAdminService.streamReceiptImage(id, res);
 }

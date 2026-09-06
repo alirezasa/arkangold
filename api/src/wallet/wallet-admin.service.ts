@@ -332,11 +332,19 @@ export class WalletAdminService {
             amountGrams > 0
               ? [
                   { accountCode: '1020', side: 'DEBIT', amountGrams: absGrams },
-                  { accountCode: '2020', side: 'CREDIT', amountGrams: absGrams },
+                  {
+                    accountCode: '2020',
+                    side: 'CREDIT',
+                    amountGrams: absGrams,
+                  },
                 ]
               : [
                   { accountCode: '2020', side: 'DEBIT', amountGrams: absGrams },
-                  { accountCode: '1020', side: 'CREDIT', amountGrams: absGrams },
+                  {
+                    accountCode: '1020',
+                    side: 'CREDIT',
+                    amountGrams: absGrams,
+                  },
                 ],
         });
       }

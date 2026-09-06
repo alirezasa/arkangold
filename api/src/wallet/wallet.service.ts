@@ -705,16 +705,20 @@ export class WalletService {
     }
 
     // ── بررسی محدودیت‌های داینامیک روزانه/ماهانه ──
-    const [dailyLimitRial, monthlyLimitRial, dailyLimitGrams, monthlyLimitGrams] =
-      await Promise.all([
-        this.systemConfig.getDecimal('transfer.daily_limit_rial', '4000000000'),
-        this.systemConfig.getDecimal(
-          'transfer.monthly_limit_rial',
-          '10000000000',
-        ),
-        this.systemConfig.getDecimal('transfer.daily_limit_grams', '5'),
-        this.systemConfig.getDecimal('transfer.monthly_limit_grams', '20'),
-      ]);
+    const [
+      dailyLimitRial,
+      monthlyLimitRial,
+      dailyLimitGrams,
+      monthlyLimitGrams,
+    ] = await Promise.all([
+      this.systemConfig.getDecimal('transfer.daily_limit_rial', '4000000000'),
+      this.systemConfig.getDecimal(
+        'transfer.monthly_limit_rial',
+        '10000000000',
+      ),
+      this.systemConfig.getDecimal('transfer.daily_limit_grams', '5'),
+      this.systemConfig.getDecimal('transfer.monthly_limit_grams', '20'),
+    ]);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -867,15 +871,15 @@ export class WalletService {
         status: 'COMPLETED',
         createdAt: { gte: since },
       },
-      _sum: { [field]: true } as Record<string, boolean>,
+      _sum: { [field]: true },
     });
 
     const usedAmount = new Prisma.Decimal(
-      (used._sum as Record<string, unknown>)[field] as
+      ((used._sum as Record<string, unknown>)[field] as
         | Prisma.Decimal
         | number
         | null
-        | undefined ?? 0,
+        | undefined) ?? 0,
     );
 
     if (usedAmount.plus(amount).greaterThan(limit)) {

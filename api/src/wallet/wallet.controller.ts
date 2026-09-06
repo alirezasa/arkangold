@@ -120,7 +120,9 @@ export class WalletController {
 
   // ── انتقال داخلی کیف پول ──
   @Post('transfer')
-  @ApiOperation({ summary: 'انتقال داخلی ریال/طلا به کیف پول دیگر با شماره کارت' })
+  @ApiOperation({
+    summary: 'انتقال داخلی ریال/طلا به کیف پول دیگر با شماره کارت',
+  })
   transfer(
     @Req() req: AuthenticatedRequest,
     @Body() body: InternalTransferDto,

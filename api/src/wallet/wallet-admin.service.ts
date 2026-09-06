@@ -332,19 +332,11 @@ export class WalletAdminService {
             amountGrams > 0
               ? [
                   { accountCode: '1020', side: 'DEBIT', amountGrams: absGrams },
-                  {
-                    accountCode: '2020',
-                    side: 'CREDIT',
-                    amountGrams: absGrams,
-                  },
+                  { accountCode: '2020', side: 'CREDIT', amountGrams: absGrams },
                 ]
               : [
                   { accountCode: '2020', side: 'DEBIT', amountGrams: absGrams },
-                  {
-                    accountCode: '1020',
-                    side: 'CREDIT',
-                    amountGrams: absGrams,
-                  },
+                  { accountCode: '1020', side: 'CREDIT', amountGrams: absGrams },
                 ],
         });
       }
@@ -355,149 +347,5 @@ export class WalletAdminService {
         adminUserId,
       };
     });
-  }
-  async listReceipts(status?: string) {
-    const where = status ? { status: status as any } : {};
-    const items = await this.prisma.depositReceipt.findMany({
-      where,
-      include: {
-        user: { select: { id: true, phone: true } },
-        transaction: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    return items.map((r) => ({
-      id: r.id,
-      status: r.status,
-      description: r.description,
-      fileName: r.fileName,
-      amountToman: r.transaction.amountRial
-        ? (Number(r.transaction.amountRial) / 10).toString()
-        : null,
-      user: r.user,
-      transactionId: r.transactionId,
-      createdAt: r.createdAt.toISOString(),
-    }));
-  }
-
-  async approveReceipt(adminUserId: string, receiptId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT 1 FROM "deposit_receipts" WHERE "id" = ${receiptId}::uuid FOR UPDATE`;
-      const receipt = await tx.depositReceipt.findUnique({
-        where: { id: receiptId },
-      });
-      if (!receipt) throw new NotFoundException('فیش واریزی یافت نشد');
-
-      if (receipt.status === 'APPROVED') {
-        return {
-          message: 'این فیش قبلاً تایید شده است',
-          alreadyProcessed: true,
-        };
-      }
-      if (receipt.status !== 'PENDING') {
-        throw new ConflictException('فقط فیش‌های در انتظار قابل تایید هستند');
-      }
-
-      await tx.$executeRaw`SELECT 1 FROM "transactions" WHERE "id" = ${receipt.transactionId}::uuid FOR UPDATE`;
-      const depositTx = await tx.transaction.findUnique({
-        where: { id: receipt.transactionId },
-      });
-      if (!depositTx) throw new NotFoundException('تراکنش مرتبط یافت نشد');
-
-      if (depositTx.status === 'COMPLETED') {
-        await tx.depositReceipt.update({
-          where: { id: receipt.id },
-          data: {
-            status: 'APPROVED',
-            reviewedById: adminUserId,
-            reviewedAt: new Date(),
-          },
-        });
-        return {
-          message: 'تراکنش قبلاً تکمیل شده بود؛ فیش تایید شد',
-          alreadyProcessed: true,
-        };
-      }
-      if (depositTx.status !== 'PENDING') {
-        throw new ConflictException('این تراکنش دیگر قابل تایید نیست');
-      }
-
-      await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "id" = ${depositTx.walletId}::uuid FOR UPDATE`;
-      const wallet = await tx.wallet.findUnique({
-        where: { id: depositTx.walletId },
-      });
-      if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
-
-      const amount = this.toNumber(depositTx.amountRial);
-
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { rialBalance: { increment: amount } },
-      });
-
-      await tx.transaction.update({
-        where: { id: depositTx.id },
-        data: { status: 'COMPLETED' },
-      });
-
-      await tx.depositReceipt.update({
-        where: { id: receipt.id },
-        data: {
-          status: 'APPROVED',
-          reviewedById: adminUserId,
-          reviewedAt: new Date(),
-        },
-      });
-
-      if (receipt.proformaId) {
-        await tx.depositProforma.update({
-          where: { id: receipt.proformaId },
-          data: { status: 'CONFIRMED' },
-        });
-      }
-
-      return {
-        message: 'فیش تایید و کیف‌پول کاربر شارژ شد',
-        alreadyProcessed: false,
-      };
-    });
-  }
-
-  async rejectReceipt(adminUserId: string, receiptId: string, reason: string) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT 1 FROM "deposit_receipts" WHERE "id" = ${receiptId}::uuid FOR UPDATE`;
-      const receipt = await tx.depositReceipt.findUnique({
-        where: { id: receiptId },
-      });
-      if (!receipt) throw new NotFoundException('فیش واریزی یافت نشد');
-
-      if (receipt.status === 'REJECTED') {
-        return { message: 'این فیش قبلاً رد شده است', alreadyProcessed: true };
-      }
-      if (receipt.status !== 'PENDING') {
-        throw new ConflictException('فقط فیش‌های در انتظار قابل رد هستند');
-      }
-
-      await tx.depositReceipt.update({
-        where: { id: receipt.id },
-        data: {
-          status: 'REJECTED',
-          adminNotes: reason,
-          reviewedById: adminUserId,
-          reviewedAt: new Date(),
-        },
-      });
-
-      // توجه: تراکنش اصلی PENDING باقی می‌ماند تا کاربر بتواند فیش دیگری ارسال کند
-      return { message: 'فیش رد شد', alreadyProcessed: false };
-    });
-  }
-
-  async streamReceiptImage(receiptId: string, res: Response) {
-    const receipt = await this.prisma.depositReceipt.findUnique({
-      where: { id: receiptId },
-    });
-    if (!receipt) throw new NotFoundException('فیش یافت نشد');
-    return res.sendFile(receipt.filePath, { root: process.cwd() });
   }
 }

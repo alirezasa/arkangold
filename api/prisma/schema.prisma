@@ -48,8 +48,6 @@ model User {
   wallet               Wallet?
   processedWithdrawals WithdrawalRequest[]       @relation("ProcessedBy")
   withdrawalRequests   WithdrawalRequest[]
-  depositProformas     DepositProforma[]
-  depositReceipts      DepositReceipt[]
 
   @@map("users")
 }
@@ -205,65 +203,11 @@ model Transaction {
   shopOrder            ShopOrder?               @relation(fields: [shopOrderId], references: [id])
   user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   wallet               Wallet                   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  depositProformas     DepositProforma[]
-  depositReceipts      DepositReceipt[]
 
   @@index([userId])
   @@index([walletId])
   @@index([userId, type, status, createdAt])
   @@map("transactions")
-}
-
-model DepositProforma {
-  id                    String                @id @default(uuid()) @db.Uuid
-  invoiceNumber         String                @unique @map("invoice_number")
-  method                String                @default("large_transfer")
-  amountRial            Decimal               @map("amount_rial") @db.Decimal(18, 0)
-  trackingId            String                @map("tracking_id")
-  destinationAccount    String                @map("destination_account")
-  destinationSheba      String                @map("destination_sheba")
-  recipientName         String                @map("recipient_name")
-  recipientNationalId   String                @map("recipient_national_id")
-  recipientEconomicCode String?               @map("recipient_economic_code")
-  userFullName          String?               @map("user_full_name")
-  userNationalCode      String?               @map("user_national_code")
-  status                DepositProformaStatus @default(ISSUED)
-  downloadedAt          DateTime?             @map("downloaded_at")
-  createdAt             DateTime              @default(now()) @map("created_at")
-  userId                String                @map("user_id") @db.Uuid
-  transactionId         String?               @map("transaction_id") @db.Uuid
-  user                  User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transaction           Transaction?          @relation(fields: [transactionId], references: [id])
-  depositReceipts       DepositReceipt[]
-
-  @@index([userId])
-  @@index([trackingId])
-  @@map("deposit_proformas")
-}
-
-model DepositReceipt {
-  id            String               @id @default(uuid()) @db.Uuid
-  fileName      String               @map("file_name")
-  filePath      String               @map("file_path")
-  fileSize      Int                  @map("file_size")
-  mimeType      String               @map("mime_type")
-  description   String?
-  status        DepositReceiptStatus @default(PENDING)
-  adminNotes    String?              @map("admin_notes")
-  reviewedById  String?              @map("reviewed_by_id") @db.Uuid
-  reviewedAt    DateTime?            @map("reviewed_at")
-  createdAt     DateTime             @default(now()) @map("created_at")
-  userId        String               @map("user_id") @db.Uuid
-  transactionId String               @map("transaction_id") @db.Uuid
-  proformaId    String?              @map("proforma_id") @db.Uuid
-  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transaction   Transaction          @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  proforma      DepositProforma?     @relation(fields: [proformaId], references: [id])
-
-  @@index([userId])
-  @@index([status])
-  @@index([transactionId])
-  @@map("deposit_receipts")
 }
 
 model Account {
@@ -497,9 +441,8 @@ model CartItem {
   lockedBreakdown     Json?           @map("locked_breakdown") // اجزای فرمول برای نمایش به کاربر
   priceLockedAt       DateTime?       @map("price_locked_at")
   priceExpiresAt      DateTime?       @map("price_expires_at")
-
+ @@index([priceExpiresAt])
   @@unique([cartId, variantId])
-  @@index([priceExpiresAt])
   @@map("cart_items")
 }
 
@@ -541,20 +484,20 @@ model ShopOrderItem {
 }
 
 model Payment {
-  amountRial          Decimal                 @map("amount_rial") @db.Decimal(18, 0)
-  method              PaymentMethod
-  status              PaymentStatus           @default(PENDING)
-  referenceCode       String?                 @unique @map("reference_code")
-  gatewayProvider     PaymentGatewayProvider? @map("gateway_provider")
-  gatewayProviderRef  String?                 @map("gateway_provider_ref")
-  gatewayTrackingCode String?                 @map("gateway_tracking_code")
-  paidAt              DateTime?               @map("paid_at")
-  createdAt           DateTime                @default(now()) @map("created_at")
-  id                  String                  @id @default(uuid()) @db.Uuid
-  userId              String                  @map("user_id") @db.Uuid
-  orderId             String?                 @map("order_id") @db.Uuid
-  order               ShopOrder?              @relation(fields: [orderId], references: [id])
-  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountRial          Decimal       @map("amount_rial") @db.Decimal(18, 0)
+  method               PaymentMethod
+  status               PaymentStatus @default(PENDING)
+  referenceCode        String?       @unique @map("reference_code")
+  gatewayProvider      PaymentGatewayProvider? @map("gateway_provider")
+  gatewayProviderRef   String?       @map("gateway_provider_ref")
+  gatewayTrackingCode  String?       @map("gateway_tracking_code")
+  paidAt               DateTime?     @map("paid_at")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  id                   String        @id @default(uuid()) @db.Uuid
+  userId               String        @map("user_id") @db.Uuid
+  orderId              String?       @map("order_id") @db.Uuid
+  order                ShopOrder?    @relation(fields: [orderId], references: [id])
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([gatewayProvider, gatewayProviderRef])
   @@index([userId])
@@ -969,42 +912,29 @@ enum HoldType {
   PHYSICAL_DELIVERY
 }
 
-enum TransactionType {
-  BUY_GOLD
-  SELL_GOLD
-  BUY_SILVER
-  SELL_SILVER
-  TRANSFER_IN
-  TRANSFER_OUT
-  WITHDRAWAL
-  DEPOSIT
-  FEE
-  TAX
-  REFERRAL_REWARD
-  SALARY
-  PHYSICAL_DELIVERY
-  SHOP_PURCHASE
-  REFUND
-  MANUAL_ADJUSTMENT
-}
+  enum TransactionType {
+    BUY_GOLD
+    SELL_GOLD
+    BUY_SILVER
+    SELL_SILVER
+    TRANSFER_IN
+    TRANSFER_OUT
+    WITHDRAWAL
+    DEPOSIT
+    FEE
+    TAX
+    REFERRAL_REWARD
+    SALARY
+    PHYSICAL_DELIVERY
+    SHOP_PURCHASE
+    REFUND
+    MANUAL_ADJUSTMENT
+  }
 
 enum TransactionStatus {
   PENDING
   COMPLETED
   FAILED
-}
-
-enum DepositProformaStatus {
-  ISSUED
-  CONFIRMED
-  EXPIRED
-  CANCELLED
-}
-
-enum DepositReceiptStatus {
-  PENDING
-  APPROVED
-  REJECTED
 }
 
 enum AccountType {

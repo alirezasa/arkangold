@@ -288,32 +288,4 @@ export const WALLET_CONFIG_DEFAULTS = [
     description:
       'مقدار پاداش معرفی برای معرف پس از احراز هویت کاربر معرفی‌شده (گرم طلا) — صفر یعنی غیرفعال',
   },
-  {
-    key: 'company.legal_name',
-    value: 'شرکت گنجینه طلای پروانه زر',
-    description: 'نام شرکت روی فاکتور',
-  },
-  {
-    key: 'company.national_id',
-    value: '14008626340',
-    description: 'شناسه ملی شرکت',
-  },
-  {
-    key: 'company.economic_code',
-    value: '411648978188',
-    description: 'کد اقتصادی شرکت',
-  },
-  {
-    key: 'company.registration_number',
-    value: '51171',
-    description: 'شماره ثبت شرکت',
-  },
-  {
-    key: 'company.address',
-    value:
-      'شیراز، قصرالدشت، خیابان گلخون، کوچه ۴ میرزای شیرازی، پلاک ۳۹۱، ساختمان رایمون، طبقه همکف، واحد ۴',
-    description: '',
-  },
-  { key: 'company.postal_code', value: '7195848457', description: '' },
-  { key: 'company.phone', value: '021 91300000', description: '' },
 ];

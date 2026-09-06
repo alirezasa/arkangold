@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   useDepositConfig,
   useLargeTransferDeposit,
 } from "@/app/hooks/useWallet";
 import { useGoldPrice } from "@/app/hooks/useGoldPrice";
-import { useSubmitDepositReceipt } from "@/app/hooks/useDepositReceipt";
-
 import {
   ChevronLeft,
   Copy,
@@ -17,10 +15,6 @@ import {
   Loader2,
   Download,
   Building2,
-  Upload,
-  X,
-  ImageIcon,
-  FileCheck2,
 } from "lucide-react";
 
 // ── توابع کمکی ──
@@ -114,195 +108,31 @@ export default function LargeTransferPage() {
     }
   };
 
-  const handlePreview = () => {
-    if (!proformaData) return;
-    window.open(
-      `/api/wallet/deposit/large-transfer/${proformaData.proformaId}/proforma`,
-      "_blank",
-    );
-  };
-
   const handleDownload = () => {
     if (!proformaData) return;
+    const d = proformaData.proformaData;
+    const content = [
+      "پیش‌فاکتور واریز - آرکان گلد",
+      "================================",
+      `مبلغ: ${rT(d.amount)} تومان`,
+      `نام دریافت‌کننده: ${d.recipientName}`,
+      `شماره حساب مقصد: ${d.destinationAccount}`,
+      `شماره شبا: ${d.destinationSheba}`,
+      `شناسه واریز: ${d.trackingId}`,
+      `نام واریزکننده: ${d.userFullName || "—"}`,
+      `تاریخ صدور: ${new Date(d.generatedAt).toLocaleDateString("fa-IR")}`,
+      "================================",
+      "لطفاً این پیش‌فاکتور را به بانک ارائه دهید.",
+      "شناسه واریز را حتماً در قسمت شناسه پایا وارد کنید.",
+    ].join("\n");
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = `/api/wallet/deposit/large-transfer/${proformaData.proformaId}/proforma?download=1`;
-    a.download = `proforma-${proformaData.proformaData.invoiceNumber}.pdf`;
-    document.body.appendChild(a);
+    a.href = url;
+    a.download = `proforma-${proformaData.transactionId}.txt`;
     a.click();
-    a.remove();
+    URL.revokeObjectURL(url);
   };
-  function ReceiptUploadModal({
-    open,
-    onClose,
-    transactionId,
-    proformaId,
-    onSuccess,
-  }: {
-    open: boolean;
-    onClose: () => void;
-    transactionId: string;
-    proformaId?: string;
-    onSuccess: () => void;
-  }) {
-    const { loading, error, setError, submit } = useSubmitDepositReceipt();
-    const [file, setFile] = useState<File | null>(null);
-    const [preview, setPreview] = useState<string | null>(null);
-    const [description, setDescription] = useState("");
-    const inputRef = useRef<HTMLInputElement>(null);
-
-    if (!open) return null;
-
-    const handlePick = (f: File) => {
-      if (!["image/jpeg", "image/jpg", "image/png"].includes(f.type)) {
-        setError("فرمت فایل مجاز نیست (فقط JPG، JPEG، PNG)");
-        return;
-      }
-      setFile(f);
-      setPreview(URL.createObjectURL(f));
-      setError(null);
-    };
-
-    const handleSubmit = async () => {
-      if (!file) return setError("لطفاً تصویر فیش واریزی را انتخاب کنید");
-      const res = await submit(
-        file,
-        transactionId,
-        proformaId,
-        description || undefined,
-      );
-      if (res) {
-        onSuccess();
-        onClose();
-      }
-    };
-    const [showReceiptModal, setShowReceiptModal] = useState(false);
-
-    return (
-      <div
-        className="fixed inset-0 z-200 flex items-end sm:items-center justify-center p-4"
-        dir="rtl"
-        onClick={onClose}
-      >
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-        <div
-          className="relative w-full sm:max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
-          style={{ backgroundColor: "var(--color-surface)" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div
-            className="flex items-center justify-between px-5 py-4 border-b shrink-0"
-            style={{ borderColor: "var(--color-border)" }}
-          >
-            <h2 className="text-[15px] font-black text-gray-900">
-              ارسال فیش واریزی
-            </h2>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="overflow-y-auto p-5 space-y-4">
-            {error && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-[12px] font-bold">
-                {error}
-              </div>
-            )}
-
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) handlePick(f);
-                e.target.value = "";
-              }}
-            />
-
-            {!preview ? (
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                className="w-full flex flex-col items-center justify-center gap-2 py-10 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-emerald-400 hover:text-emerald-600 transition-all"
-              >
-                <Upload className="w-8 h-8" />
-                <span className="text-[13px] font-bold">
-                  جهت افزودن تصویر کلیک کنید
-                </span>
-                <span className="text-[11px]">فرمت مجاز: JPG, JPEG, PNG</span>
-              </button>
-            ) : (
-              <div className="relative rounded-xl overflow-hidden border border-gray-200">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={preview}
-                  alt="پیش‌نمایش فیش"
-                  className="w-full max-h-64 object-contain bg-gray-50"
-                />
-                <button
-                  onClick={() => {
-                    setFile(null);
-                    setPreview(null);
-                  }}
-                  className="absolute top-2 left-2 p-1.5 rounded-full bg-white/90 text-red-500 shadow-sm hover:bg-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-                <div className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-white/90 text-[11px] font-bold text-gray-600">
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  {file?.name}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label className="text-[12px] font-bold text-gray-500">
-                توضیحات (اختیاری)
-              </label>
-              <textarea
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="مثلاً ساعت واریز یا شماره پیگیری بانکی"
-                className="w-full px-3 py-2.5 rounded-xl text-[13px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white resize-none"
-              />
-            </div>
-          </div>
-
-          <div
-            className="flex gap-3 p-4 border-t shrink-0"
-            style={{ borderColor: "var(--color-border)" }}
-          >
-            <button
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1 py-3 rounded-xl font-bold text-[13px] border-2 border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-            >
-              انصراف
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={loading || !file}
-              className="flex-2 py-3 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 disabled:opacity-50"
-              style={{ backgroundColor: "var(--color-emerald)" }}
-            >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <FileCheck2 className="w-4 h-4" /> ارسال
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-lg mx-auto pb-24" dir="rtl">
@@ -558,20 +388,12 @@ export default function LargeTransferPage() {
           </button>
 
           <button
-            onClick={() => setShowReceiptModal(true)}
+            onClick={() => setStep("confirmed")}
             className="w-full py-4 rounded-xl font-black text-white text-[14px]"
             style={{ backgroundColor: "var(--color-emerald)" }}
           >
-            واریز کردم — ارسال فیش
+            تایید و ادامه
           </button>
-
-          <ReceiptUploadModal
-            open={showReceiptModal}
-            onClose={() => setShowReceiptModal(false)}
-            transactionId={proformaData?.transactionId ?? ""}
-            proformaId={proformaData?.proformaId}
-            onSuccess={() => setStep("confirmed")}
-          />
         </div>
       )}
 
@@ -589,8 +411,8 @@ export default function LargeTransferPage() {
             درخواست در انتظار واریز
           </h2>
           <p className="text-[13px] text-gray-500 leading-relaxed mb-6">
-            فیش واریزی شما دریافت شد و در انتظار بررسی کارشناسان است. پس از
-            تایید، مبلغ به کیف پول شما افزوده می‌شود.
+            لطفاً پس از واریز مبلغ در شعبه بانک، منتظر تایید کارشناسان و شارژ
+            کیف پول خود در سیکل پایا باشید.
           </p>
           <div className="space-y-3">
             <Link

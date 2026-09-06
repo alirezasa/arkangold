@@ -430,19 +430,12 @@ export class WalletService {
       include: { identity: true },
     });
 
-    const [
-      destAccount,
-      destSheba,
-      companyName,
-      companyNationalId,
-      companyEconomicCode,
-    ] = await Promise.all([
-      this.systemConfig.get('deposit.large_transfer.destination_account'),
-      this.systemConfig.get('deposit.large_transfer.destination_sheba'),
-      this.systemConfig.get('company.legal_name'),
-      this.systemConfig.get('company.national_id'),
-      this.systemConfig.get('company.economic_code'),
-    ]);
+    const destAccount = await this.systemConfig.get(
+      'deposit.large_transfer.destination_account',
+    );
+    const destSheba = await this.systemConfig.get(
+      'deposit.large_transfer.destination_sheba',
+    );
 
     const transaction = await this.prisma.transaction.create({
       data: {
@@ -455,55 +448,21 @@ export class WalletService {
       },
     });
 
-    const invoiceNumber = await this.generateInvoiceNumber();
-
-    const proforma = await this.prisma.depositProforma.create({
-      data: {
-        invoiceNumber,
-        userId,
-        transactionId: transaction.id,
-        amountRial: amount,
-        trackingId: wallet.cardNumber, // همان شناسه واریز فعلی کاربر - برای مچ بانکی
-        destinationAccount: destAccount,
-        destinationSheba: destSheba,
-        recipientName: companyName,
-        recipientNationalId: companyNationalId,
-        recipientEconomicCode: companyEconomicCode,
-        userFullName: user?.identity
-          ? `${user.identity.firstName ?? ''} ${user.identity.lastName ?? ''}`.trim()
-          : null,
-        userNationalCode: user?.identity?.nationalCode ?? null,
-      },
-    });
-
+    // پیش‌فاکتور (در واقع اطلاعاتی که کاربر باید ببره بانک)
     return {
       transactionId: transaction.id,
-      proformaId: proforma.id,
       proformaData: {
-        invoiceNumber,
         amount,
         destinationAccount: destAccount,
         destinationSheba: destSheba,
         trackingId: wallet.cardNumber,
-        recipientName: companyName,
-        userFullName: proforma.userFullName ?? '',
-        generatedAt: proforma.createdAt.toISOString(),
+        recipientName: 'یارا تجارت الکترونیک بنیان',
+        userFullName: user?.identity
+          ? `${user.identity.firstName} ${user.identity.lastName}`
+          : '',
+        generatedAt: new Date().toISOString(),
       },
     };
-  }
-
-  private async generateInvoiceNumber(): Promise<string> {
-    const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-
-    for (let i = 0; i < 10; i++) {
-      const rand = Math.floor(100000 + Math.random() * 900000);
-      const candidate = `PF-${datePart}-${rand}`;
-      const exists = await this.prisma.depositProforma.findUnique({
-        where: { invoiceNumber: candidate },
-      });
-      if (!exists) return candidate;
-    }
-    throw new Error('خطا در تولید شماره پیش‌فاکتور یکتا');
   }
 
   // ══════════════════════════════════════════
@@ -746,20 +705,16 @@ export class WalletService {
     }
 
     // ── بررسی محدودیت‌های داینامیک روزانه/ماهانه ──
-    const [
-      dailyLimitRial,
-      monthlyLimitRial,
-      dailyLimitGrams,
-      monthlyLimitGrams,
-    ] = await Promise.all([
-      this.systemConfig.getDecimal('transfer.daily_limit_rial', '4000000000'),
-      this.systemConfig.getDecimal(
-        'transfer.monthly_limit_rial',
-        '10000000000',
-      ),
-      this.systemConfig.getDecimal('transfer.daily_limit_grams', '5'),
-      this.systemConfig.getDecimal('transfer.monthly_limit_grams', '20'),
-    ]);
+    const [dailyLimitRial, monthlyLimitRial, dailyLimitGrams, monthlyLimitGrams] =
+      await Promise.all([
+        this.systemConfig.getDecimal('transfer.daily_limit_rial', '4000000000'),
+        this.systemConfig.getDecimal(
+          'transfer.monthly_limit_rial',
+          '10000000000',
+        ),
+        this.systemConfig.getDecimal('transfer.daily_limit_grams', '5'),
+        this.systemConfig.getDecimal('transfer.monthly_limit_grams', '20'),
+      ]);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -916,11 +871,11 @@ export class WalletService {
     });
 
     const usedAmount = new Prisma.Decimal(
-      ((used._sum as Record<string, unknown>)[field] as
+      (used._sum as Record<string, unknown>)[field] as
         | Prisma.Decimal
         | number
         | null
-        | undefined) ?? 0,
+        | undefined ?? 0,
     );
 
     if (usedAmount.plus(amount).greaterThan(limit)) {
@@ -953,44 +908,5 @@ export class WalletService {
       ' ' +
       card.slice(-4)
     );
-  }
-  // wallet.service.ts — اضافه شود
-  async generateProformaPdf(
-    userId: string,
-    proformaId: string,
-    isAdmin = false,
-  ) {
-    const proforma = await this.prisma.depositProforma.findFirst({
-      where: isAdmin ? { id: proformaId } : { id: proformaId, userId },
-    });
-    if (!proforma) throw new NotFoundException('پیش‌فاکتور یافت نشد');
-
-    const html = buildProformaHtml(
-      {
-        invoiceNumber: proforma.invoiceNumber,
-        issueDateFa: proforma.createdAt.toLocaleDateString('fa-IR'),
-        companyName: proforma.recipientName,
-        companyNationalId: proforma.recipientNationalId,
-        companyEconomicCode: proforma.recipientEconomicCode ?? '',
-        amountRial: Number(proforma.amountRial).toLocaleString('fa-IR'),
-        userFullName: proforma.userFullName ?? '',
-        userNationalCode: proforma.userNationalCode ?? '',
-        destinationSheba: proforma.destinationSheba,
-        destinationOwner: proforma.recipientName,
-        trackingId: proforma.trackingId,
-      },
-      this.fontBase64, // یک‌بار در سازنده لود شود
-    );
-
-    const buffer = await this.pdfService.render(html);
-
-    if (!isAdmin) {
-      await this.prisma.depositProforma.update({
-        where: { id: proforma.id },
-        data: { downloadedAt: new Date() },
-      });
-    }
-
-    return { buffer, filename: `proforma-${proforma.invoiceNumber}.pdf` };
   }
 }

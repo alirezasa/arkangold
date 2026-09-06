@@ -131,35 +131,3 @@ export class WalletAdjustmentController {
     );
   }
 }
-// wallet-admin.controller.ts — اضافه شود
-@RequirePermission('withdrawal.view') // یا permission جدید مثل deposit.approve اگر می‌خواهید دقیق‌تر شود
-@Get('deposit-receipts')
-listReceipts(@Query('status') status?: string) {
-  return this.walletAdminService.listReceipts(status);
-}
-
-@RequirePermission('withdrawal.approve')
-@AuditLog('deposit_receipt.approve')
-@UseInterceptors(AuditLogInterceptor)
-@Post('deposit-receipts/:id/approve')
-approveReceipt(@Req() req: AdminRequest, @Param('id') id: string) {
-  return this.walletAdminService.approveReceipt(req.user.adminUserId, id);
-}
-
-@RequirePermission('withdrawal.approve')
-@AuditLog('deposit_receipt.reject')
-@UseInterceptors(AuditLogInterceptor)
-@Post('deposit-receipts/:id/reject')
-rejectReceipt(
-  @Req() req: AdminRequest,
-  @Param('id') id: string,
-  @Body() dto: RejectWithdrawalDto, // همان کلاس reason موجود را دوباره استفاده کنید
-) {
-  return this.walletAdminService.rejectReceipt(req.user.adminUserId, id, dto.reason);
-}
-
-@RequirePermission('withdrawal.view')
-@Get('deposit-receipts/:id/image')
-async getReceiptImage(@Param('id') id: string, @Res() res: Response) {
-  return this.walletAdminService.streamReceiptImage(id, res);
-}

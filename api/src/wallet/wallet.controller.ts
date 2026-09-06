@@ -1,22 +1,11 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Req,
-  UseGuards,
-  Param,
-  Query,
-  Res,
-} from '@nestjs/common';
-
+import { Controller, Get, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { InternalTransferDto } from '@arkan-gold/shared';
-
+import { Res } from '@nestjs/common';
 import type { Response } from 'express';
 
 interface AuthenticatedRequest extends Request {
@@ -153,20 +142,17 @@ export class WalletController {
   async getProformaPdf(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
+    @Query('download') download: string,
     @Res() res: Response,
-    @Query('download') download?: '1' | 'true',
   ) {
     const { buffer, filename } = await this.walletService.generateProformaPdf(
       req.user.userId,
       id,
     );
-
-    const shouldDownload = download === '1' || download === 'true';
-
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
-      `${shouldDownload ? 'attachment' : 'inline'}; filename="${filename}"`,
+      `${download ? 'attachment' : 'inline'}; filename="${filename}"`,
     );
     res.send(buffer);
   }

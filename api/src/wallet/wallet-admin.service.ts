@@ -8,7 +8,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
 import { AccountingService } from '../accounting/accounting.service';
-import type { Response } from 'express';
 
 interface ListWithdrawalsQuery {
   page?: number;
@@ -357,9 +356,8 @@ export class WalletAdminService {
       };
     });
   }
-  async listReceipts(status?: 'PENDING' | 'APPROVED' | 'REJECTED') {
-    const where: Prisma.DepositReceiptWhereInput = status ? { status } : {};
-
+  async listReceipts(status?: string) {
+    const where = status ? { status: status as any } : {};
     const items = await this.prisma.depositReceipt.findMany({
       where,
       include: {
@@ -368,7 +366,6 @@ export class WalletAdminService {
       },
       orderBy: { createdAt: 'desc' },
     });
-
     return items.map((r) => ({
       id: r.id,
       status: r.status,

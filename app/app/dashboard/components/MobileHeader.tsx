@@ -29,14 +29,7 @@ export default function MobileHeader({
         </h1>
 
         <div className="flex items-center gap-2.5">
-          {/* دکمه جستجو */}
-          <button
-            className="flex h-9 w-9 items-center justify-center rounded-[12px] text-white/90 transition-colors active:bg-white/20"
-            style={{ background: "rgba(255,255,255,.15)" }}
-            aria-label="جستجو"
-          >
-            <i className="ti ti-search text-[18px]" aria-hidden="true" />
-          </button>
+          
 
           {/* دکمه اعلان‌ها */}
           <button

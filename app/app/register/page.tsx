@@ -1,19 +1,28 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
-  Sparkles,
   ArrowLeft,
   AlertCircle,
   Loader2,
   Eye,
   EyeOff,
+  ShieldCheck,
 } from "lucide-react";
 import { useRegister } from "../hooks/useRegister";
-import { useRouter } from "next/navigation"; // 👈 این خط را به بالای فایل اضافه کنید
+
+// آرایه متون اسلایدر
+const SLIDES = [
+  "خرید و فروش طلای آب شده",
+  "خرید شمش طلا",
+  "خرید مصنوعات طلا",
+];
+
 export default function RegisterPage() {
-  const router = useRouter(); // 👈 این خط را اضافه کنید
+  const router = useRouter();
   const {
     step,
     setStep,
@@ -36,18 +45,50 @@ export default function RegisterPage() {
     referralCode: "",
   });
 
+  // استیت‌های افکت تایپی (Typewriter)
+  const [textIndex, setTextIndex] = useState(0);
+  const [displayedText, setDisplayedText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // هندلر هوشمند برای فیلدهای عددی (جلوگیری از تایپ حروف و محدودیت طول)
+  // منطق افکت تایپی (Typewriter Effect)
+  useEffect(() => {
+    const currentFullText = SLIDES[textIndex];
+    let timeout: NodeJS.Timeout;
+
+    if (!isDeleting && displayedText.length < currentFullText.length) {
+      timeout = setTimeout(() => {
+        setDisplayedText(currentFullText.substring(0, displayedText.length + 1));
+      }, 100);
+    } else if (!isDeleting && displayedText.length === currentFullText.length) {
+      timeout = setTimeout(() => {
+        setIsDeleting(true);
+      }, 2000);
+    } else if (isDeleting && displayedText.length > 0) {
+      timeout = setTimeout(() => {
+        setDisplayedText(currentFullText.substring(0, displayedText.length - 1));
+      }, 50);
+    } else if (isDeleting && displayedText.length === 0) {
+      timeout = setTimeout(() => {
+        setIsDeleting(false);
+        setTextIndex((prev) => (prev + 1) % SLIDES.length);
+      }, 50);
+    }
+
+    return () => clearTimeout(timeout);
+  }, [displayedText, isDeleting, textIndex]);
+
+  // هندلر هوشمند برای فیلدهای عددی
   const handleNumericChange = (
     key: keyof typeof formData,
     value: string,
     maxLength: number,
   ) => {
-    const onlyDigits = value.replace(/\D/g, ""); // حذف هرچیزی غیر از عدد
+    const onlyDigits = value.replace(/\D/g, "");
     if (onlyDigits.length <= maxLength) {
       setFormData({ ...formData, [key]: onlyDigits });
-      if (error) setError(null); // پاک کردن خطا با شروع تایپ مجدد
+      if (error) setError(null);
     }
   };
 
@@ -70,10 +111,13 @@ export default function RegisterPage() {
         formData.companyNationalId,
       );
     } else if (step === 3) {
-      const success = await handleFinalize(formData.password, formData.confirmPassword, formData.referralCode);
+      const success = await handleFinalize(
+        formData.password,
+        formData.confirmPassword,
+        formData.referralCode,
+      );
       if (success) {
-        // تغییر از window.location.href به router.replace
-        router.replace("/dashboard"); 
+        router.replace("/dashboard");
       }
     }
   };
@@ -86,7 +130,6 @@ export default function RegisterPage() {
 
     if (error) setError(null);
 
-    // فوکوس خودکار روی خانه بعدی
     if (value !== "" && index < 5) otpRefs.current[index + 1]?.focus();
   };
 
@@ -98,7 +141,7 @@ export default function RegisterPage() {
       otpRefs.current[index - 1]?.focus();
     }
     if (e.key === "Enter" && index === 5) {
-      handleSubmit(); // ارسال فرم با زدن اینتر در آخرین خانه
+      handleSubmit();
     }
   };
 
@@ -107,34 +150,73 @@ export default function RegisterPage() {
       className="w-full min-h-screen flex flex-col lg:flex-row-reverse bg-[#fdfdfd]"
       dir="rtl"
     >
-      {/* پنل سمت راست (برندینگ) */}
+      {/* پنل سمت راست (برندینگ دسکتاپ) */}
       <div className="hidden lg:flex lg:w-[45%] bg-emerald relative overflow-hidden flex-col justify-between p-16">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
         <div className="relative z-10">
-          <div className="w-16 h-16 bg-gold-500 rounded-2xl flex items-center justify-center mb-8 shadow-2xl">
-            <Sparkles className="text-emerald w-8 h-8" />
+          {/* لوگوی دسکتاپ - شفاف و بدون کادر */}
+          <div className="mb-8">
+            <Image
+              src="/logo.png"
+              alt="آرکان گلد"
+              width={160}
+              height={160}
+              className="object-contain drop-shadow-xl"
+              priority
+            />
           </div>
           <h1 className="text-5xl font-black text-white leading-snug">
             آرکان گلد
             <br />
-            <span className="text-[#c5a059]">طلای آب‌شده</span>
+            {/* متن با افکت تایپی دسکتاپ */}
+            <span className="text-gold-500 inline-flex items-center min-h-14 mt-2">
+              <span>{displayedText}</span>
+              <span className="animate-pulse text-white mr-1 font-normal">|</span>
+            </span>
           </h1>
           <p className="mt-8 text-xl text-emerald-100/80 font-light leading-relaxed max-w-sm">
-            سریع‌ترین و امن‌ترین پلتفرم معاملاتی طلای آب‌شده در کشور.
+            سریع‌ترین و امن‌ترین پلتفرم معاملاتی طلا در کشور.
           </p>
+        </div>
+        <div className="relative z-10 flex items-center gap-3 text-gold-500/90 font-bold">
+          <ShieldCheck className="w-6 h-6" />
+          <span>تضمین امنیت با رمزنگاری پیشرفته</span>
         </div>
       </div>
 
       {/* پنل فرم */}
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-20 py-12">
         <div className="w-full max-w-sm mx-auto">
+
+          {/* لوگو و برندینگ حالت موبایل */}
+          <div className="flex flex-col items-center justify-center mb-8 lg:hidden">
+            <div className="mb-2">
+              <Image
+                src="/logo.png"
+                alt="آرکان گلد"
+                width={110}
+                height={110}
+                className="object-contain"
+                priority
+              />
+            </div>
+            <h1 className="text-3xl font-black text-emerald">
+              آرکان <span className="text-gold-500">گلد</span>
+            </h1>
+            {/* متن با افکت تایپی موبایل */}
+            <p className="text-sm text-gray-500 font-bold mt-2 min-h-6 flex items-center justify-center">
+              <span>{displayedText}</span>
+              <span className="animate-pulse text-emerald mr-0.5">|</span>
+            </p>
+          </div>
+
           <div className="mb-10">
-            <h2 className="text-3xl font-black text-[#064e3b] mb-2">ثبت نام</h2>
+            <h2 className="text-3xl font-black text-emerald mb-2">ثبت نام</h2>
             <div className="flex gap-2 mt-4">
               {[1, 2, 3].map((s) => (
                 <div
                   key={s}
-                  className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${step >= s ? "bg-[#064e3b]" : "bg-gray-200"}`}
+                  className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${step >= s ? "bg-emerald" : "bg-gray-200"}`}
                 />
               ))}
             </div>
@@ -155,14 +237,14 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => setUserType("REAL")}
-                  className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${userType === "REAL" ? "bg-white shadow-sm text-[#064e3b]" : "text-gray-500"}`}
+                  className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${userType === "REAL" ? "bg-white shadow-sm text-emerald" : "text-gray-500"}`}
                 >
                   حقیقی
                 </button>
                 <button
                   type="button"
                   onClick={() => setUserType("LEGAL")}
-                  className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${userType === "LEGAL" ? "bg-white shadow-sm text-[#064e3b]" : "text-gray-500"}`}
+                  className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${userType === "LEGAL" ? "bg-white shadow-sm text-emerald" : "text-gray-500"}`}
                 >
                   حقوقی
                 </button>
@@ -204,7 +286,7 @@ export default function RegisterPage() {
             <div className="py-2 animate-in fade-in duration-300">
               <p className="text-gray-500 text-center mb-6 font-medium text-sm leading-relaxed">
                 کد تایید به شماره{" "}
-                <span className="font-bold text-[#064e3b]" dir="ltr">
+                <span className="font-bold text-emerald" dir="ltr">
                   {userType === "REAL" ? formData.phone : formData.repPhone}
                 </span>{" "}
                 ارسال شد.
@@ -212,7 +294,7 @@ export default function RegisterPage() {
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="text-[#c5a059] underline mt-2 font-bold text-xs hover:text-[#a88646] transition-colors"
+                  className="text-gold-500 underline mt-2 font-bold text-xs hover:text-[#a88646] transition-colors"
                 >
                   ویرایش شماره
                 </button>
@@ -228,7 +310,7 @@ export default function RegisterPage() {
                     value={digit}
                     onChange={(e) => handleOtpChange(i, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    className="w-12 h-14 text-center border-2 border-gray-200 rounded-xl text-xl font-black focus:border-[#064e3b] outline-none transition-all focus:scale-105 bg-white"
+                    className="w-12 h-14 text-center border-2 border-gray-200 rounded-xl text-xl font-black focus:border-emerald outline-none transition-all focus:scale-105 bg-white"
                   />
                 ))}
               </div>
@@ -272,7 +354,7 @@ export default function RegisterPage() {
             type="button"
             disabled={loading}
             onClick={handleSubmit}
-            className="w-full mt-8 py-4 bg-[#064e3b] text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-[#064e3b]/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full mt-8 py-4 bg-emerald text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-emerald/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {loading ? (
               <Loader2 className="w-6 h-6 animate-spin" />
@@ -287,13 +369,25 @@ export default function RegisterPage() {
           <div className="mt-8 text-center">
             <Link
               href="/login"
-              className="text-sm font-bold text-[#064e3b] hover:text-[#085f48] transition-colors"
+              className="text-sm font-bold text-emerald hover:text-[#085f48] transition-colors"
             >
               حساب کاربری دارید؟{" "}
               <span className="underline decoration-2 underline-offset-4">
                 ورود
               </span>
             </Link>
+            <p className="text-xm text-gray-400 font-medium leading-relaxed px-3 mt-4">
+              ورود یا ثبت‌نام در سایت به منزله مطالعه و پذیرش{" "}
+              <a
+                href="https://arkan.gold/rules/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold-500 font-bold underline hover:text-[#a88646] transition-colors"
+              >
+                قوانین و مقررات
+              </a>{" "}
+              آرکان گلد است.
+            </p>
           </div>
         </div>
       </div>
@@ -330,16 +424,15 @@ function InputField({
           type={isPasswordField ? "password" : isNumeric ? "tel" : "text"}
           placeholder={placeholder}
           dir={isNumeric || isPassword ? "ltr" : "rtl"}
-          className={`w-full p-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-[#c5a059] focus:ring-4 focus:ring-[#c5a059]/10 transition-all text-lg font-medium ${isNumeric || isPassword ? "text-left" : "text-right"} ${isPassword ? "pl-12" : ""}`}
+          className={`w-full p-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 focus:ring-4 focus:ring-gold-500/10 transition-all text-lg font-medium ${isNumeric || isPassword ? "text-left" : "text-right"} ${isPassword ? "pl-12" : ""}`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
-        {/* دکمه چشم برای رمز عبور */}
         {isPassword && (
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute left-4 text-gray-400 hover:text-[#064e3b] transition-colors focus:outline-none"
+            className="absolute left-4 text-gray-400 hover:text-emerald transition-colors focus:outline-none"
           >
             {showPassword ? (
               <EyeOff className="w-5 h-5" />

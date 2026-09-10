@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Phone,
   Lock,
@@ -9,7 +10,6 @@ import {
   EyeOff,
   ShieldCheck,
   ArrowLeft,
-  Sparkles,
   UserPlus,
   AlertCircle,
   Loader2,
@@ -19,6 +19,9 @@ import { useLogin } from "../hooks/useLogin";
 
 type LoginMethod = "password" | "otp";
 type OtpStep = "request" | "verify";
+
+// آرایه متون اسلایدر
+const SLIDES = ["خرید و فروش طلای آب شده", "خرید شمش طلا", "خرید مصنوعات طلا"];
 
 export default function LoginPage() {
   const {
@@ -35,6 +38,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [timer, setTimer] = useState(0);
 
+  // استیت‌های افکت تایپی (Typewriter)
+  const [textIndex, setTextIndex] = useState(0);
+  const [displayedText, setDisplayedText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Form States
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -42,7 +50,7 @@ export default function LoginPage() {
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // مدیریت تایمر OTP
+  // مدیریت تایمر معکوس کد OTP
   useEffect(() => {
     if (timer > 0) {
       const interval = setInterval(() => setTimer((prev) => prev - 1), 1000);
@@ -50,7 +58,42 @@ export default function LoginPage() {
     }
   }, [timer]);
 
-  // فرمت زمان تایمر (مثلاً 01:45)
+  // منطق افکت تایپی (Typewriter Effect)
+  useEffect(() => {
+    const currentFullText = SLIDES[textIndex];
+    let timeout: NodeJS.Timeout;
+
+    if (!isDeleting && displayedText.length < currentFullText.length) {
+      // در حال تایپ حروف
+      timeout = setTimeout(() => {
+        setDisplayedText(
+          currentFullText.substring(0, displayedText.length + 1),
+        );
+      }, 100);
+    } else if (!isDeleting && displayedText.length === currentFullText.length) {
+      // مکث پس از تکمیل تایپ
+      timeout = setTimeout(() => {
+        setIsDeleting(true);
+      }, 2000);
+    } else if (isDeleting && displayedText.length > 0) {
+      // در حال پاک کردن حروف
+      timeout = setTimeout(() => {
+        setDisplayedText(
+          currentFullText.substring(0, displayedText.length - 1),
+        );
+      }, 50);
+    } else if (isDeleting && displayedText.length === 0) {
+      // رفتن به متن بعدی (داخل setTimeout قرار گرفت تا ارور ESLint رفع شود)
+      timeout = setTimeout(() => {
+        setIsDeleting(false);
+        setTextIndex((prev) => (prev + 1) % SLIDES.length);
+      }, 50);
+    }
+
+    return () => clearTimeout(timeout);
+  }, [displayedText, isDeleting, textIndex]);
+
+  // فرمت زمان تایمر
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60)
       .toString()
@@ -59,7 +102,7 @@ export default function LoginPage() {
     return `${m}:${s}`;
   };
 
-  // اعتبارسنجی ورودی شماره موبایل (فقط عدد)
+  // اعتبارسنجی ورودی شماره موبایل
   const handlePhoneChange = (val: string) => {
     const onlyDigits = val.replace(/\D/g, "");
     if (onlyDigits.length <= 11) {
@@ -76,26 +119,22 @@ export default function LoginPage() {
     setOtp(newOtp);
     if (error) setError(null);
 
-    // فوکوس به جلو
     if (value !== "" && index < 5) {
       otpRefs.current[index + 1]?.focus();
     }
 
-    // ارسال خودکار با تکمیل رقم آخر (با اضافه کردن await و جلوگیری در صورت loading)
     if (value !== "" && index === 5 && !loading) {
       const fullCode = newOtp.join("");
       await verifyLoginOtpCode(phone, fullCode);
     }
   };
 
-  // بک‌اسپیس برای OTP
   const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace" && otp[index] === "" && index > 0) {
       otpRefs.current[index - 1]?.focus();
     }
   };
 
-  // ارسال فرم
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -112,7 +151,7 @@ export default function LoginPage() {
         const success = await sendLoginOtpCode(phone);
         if (success) {
           setOtpStep("verify");
-          setTimer(120); // شروع تایمر ۲ دقیقه‌ای
+          setTimer(120);
         }
       } else {
         const fullCode = otp.join("");
@@ -135,17 +174,31 @@ export default function LoginPage() {
       className="w-full min-h-screen flex flex-col lg:flex-row-reverse bg-[#fdfdfd]"
       dir="rtl"
     >
-      {/* بخش راست: پنل برندینگ (بدون تغییر) */}
+      {/* بخش راست: پنل برندینگ (دسکتاپ) */}
       <div className="hidden lg:flex lg:w-[45%] bg-emerald relative overflow-hidden flex-col justify-between p-16">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
         <div className="relative z-10">
-          <div className="w-16 h-16 bg-gold-500 rounded-2xl flex items-center justify-center mb-8 shadow-2xl">
-            <Sparkles className="text-emerald w-8 h-8" />
+          {/* لوگوی دسکتاپ - بزرگ و شفاف */}
+          <div className="mb-8">
+            <Image
+              src="/logo.png"
+              alt="آرکان گلد"
+              width={160}
+              height={160}
+              className="object-contain drop-shadow-xl"
+              priority
+            />
           </div>
           <h1 className="text-5xl font-black text-white leading-snug">
             آرکان گلد
             <br />
-            <span className="text-gold-500">طلای آب‌شده</span>
+            {/* متن با افکت تایپی دسکتاپ */}
+            <span className="text-gold-500 inline-flex items-center min-h-14 mt-2">
+              <span>{displayedText}</span>
+              <span className="animate-pulse text-white mr-1 font-normal">
+                |
+              </span>
+            </span>
           </h1>
           <p className="mt-8 text-xl text-emerald-100/80 font-light leading-relaxed max-w-sm">
             امنیت سرمایه شما، اولویت ماست. وارد پنل کاربری خود شوید و معاملات را
@@ -161,16 +214,37 @@ export default function LoginPage() {
       {/* بخش چپ: فرم ورود */}
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-20 py-12">
         <div className="w-full max-w-sm mx-auto">
-          <div className="mb-10">
+          {/* لوگو و نام برند برای حالت موبایل */}
+          <div className="flex flex-col items-center justify-center mb-10 lg:hidden">
+            <div className="mb-2">
+              <Image
+                src="/logo.png"
+                alt="آرکان گلد"
+                width={110}
+                height={110}
+                className="object-contain"
+                priority
+              />
+            </div>
+            <h1 className="text-3xl font-black text-emerald">
+              آرکان <span className="text-gold-500">گلد</span>
+            </h1>
+            {/* متن با افکت تایپی موبایل */}
+            <p className="text-sm text-gray-500 font-bold mt-2 min-h-6 flex items-center justify-center">
+              <span>{displayedText}</span>
+              <span className="animate-pulse text-emerald mr-0.5">|</span>
+            </p>
+          </div>
+
+          <div className="mb-10 text-center lg:text-right">
             <h2 className="text-3xl font-black text-emerald mb-2">
               ورود به حساب
             </h2>
-            <p className="text-gray-500 font-medium">
+            <p className="text-gray-500 font-medium text-sm">
               لطفاً اطلاعات خود را وارد کنید
             </p>
           </div>
 
-          {/* تب‌های انتخاب روش ورود (در زمان وارد کردن کد مخفی می‌شود) */}
           {otpStep === "request" && (
             <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8 border border-gray-200">
               <button
@@ -196,7 +270,6 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* باکسی برای نمایش خطاها */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl flex items-start gap-3 text-sm font-bold animate-in fade-in">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -205,7 +278,6 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* فیلد شماره موبایل */}
             {otpStep === "request" && (
               <div className="space-y-2 animate-in fade-in">
                 <label className="text-xs font-black text-gray-400 mr-1">
@@ -225,7 +297,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* فیلد رمز عبور */}
             {method === "password" && otpStep === "request" && (
               <div className="space-y-2 animate-in fade-in">
                 <label className="text-xs font-black text-gray-400 mr-1">
@@ -269,7 +340,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* فیلد OTP و تایمر */}
             {method === "otp" && otpStep === "verify" && (
               <div className="space-y-6 animate-in slide-in-from-left-4">
                 <div className="text-center">
@@ -325,7 +395,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* دکمه ارسال (Submit) */}
             <button
               type="submit"
               disabled={loading}
@@ -336,7 +405,7 @@ export default function LoginPage() {
               ) : (
                 <>
                   {method === "password"
-                    ? "ورود ایمن به حساب"
+                    ? "ورود به سامانه"
                     : otpStep === "request"
                       ? "ارسال پیامک تایید"
                       : "تایید و ورود"}
@@ -346,7 +415,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-10 text-center">
+          <div className="mt-8 text-center space-y-4">
             <Link
               href="/register"
               className="text-sm font-bold text-emerald hover:text-[#085f48] transition-colors flex items-center justify-center gap-2"
@@ -354,6 +423,19 @@ export default function LoginPage() {
               <UserPlus className="w-4 h-4" /> هنوز حساب کاربری ندارید؟ ثبت‌نام
               کنید
             </Link>
+
+            <p className="text-xm text-gray-400 font-medium leading-relaxed px-3 ">
+              ورود یا ثبت‌نام در سایت به منزله مطالعه و پذیرش{" "}
+              <a
+                href="https://arkan.gold/rules/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold-500 font-bold underline hover:text-[#a88646] transition-colors"
+              >
+                قوانین و مقررات
+              </a>{" "}
+              آرکان گلد است.
+            </p>
           </div>
         </div>
       </div>

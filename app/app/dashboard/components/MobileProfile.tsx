@@ -1,5 +1,5 @@
 "use client";
-import { IdentityStatus } from "@arkan-gold/shared"; // این خط اضافه شود
+import { IdentityStatus } from "@arkan-gold/shared";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -13,6 +13,8 @@ import {
   ChevronLeft,
   User,
   Settings,
+  Package, // آیکون اضافه شده برای تحویل طلا
+  Headset, // آیکون اضافه شده برای پشتیبانی
 } from "lucide-react";
 
 interface MobileProfileProps {
@@ -181,6 +183,16 @@ export default function MobileProfile({
               title: "حساب‌ها و کارت‌های بانکی",
               icon: <CreditCard className="w-5 h-5 text-gray-500" />,
               path: "/dashboard/cards",
+            },
+            {
+              title: "تحویل فیزیکی طلا",
+              icon: <Package className="w-5 h-5 text-gray-500" />,
+              path: "dashboard/wallet/physical-delivery", // مسیر را در صورت نیاز تغییر دهید
+            },
+            {
+              title: "تیکت پشتیبانی",
+              icon: <Headset className="w-5 h-5 text-gray-500" />,
+              path: "/dashboard/tickets", // مسیر را در صورت نیاز تغییر دهید
             },
             {
               title: "امنیت و تغییر رمز عبور",

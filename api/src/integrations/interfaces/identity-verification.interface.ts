@@ -27,5 +27,7 @@ export interface IdentityVerificationResult {
  */
 export interface IdentityVerificationProvider {
   readonly providerCode: string;
-  verifyIdentity(input: IdentityVerificationInput): Promise<IdentityVerificationResult>;
+  verifyIdentity(
+    input: IdentityVerificationInput,
+  ): Promise<IdentityVerificationResult>;
 }

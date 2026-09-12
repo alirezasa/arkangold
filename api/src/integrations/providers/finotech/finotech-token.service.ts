@@ -2,7 +2,11 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
 import axios, { isAxiosError } from 'axios';
 import { ProviderCredentialService } from '../../credentials/provider-credential.service';
-import { FINOTECH_CONFIG, FINOTECH_CREDENTIAL_KEYS, FINOTECH_PROVIDER_CODE } from './finotech-config';
+import {
+  FINOTECH_CONFIG,
+  FINOTECH_CREDENTIAL_KEYS,
+  FINOTECH_PROVIDER_CODE,
+} from './finotech-config';
 import {
   AuthenticationError,
   ConnectionError,
@@ -59,12 +63,16 @@ export class FinotechTokenService {
   }
 
   private async requestNewToken(): Promise<string> {
-    const { CLIENT_ID, CLIENT_SECRET, NID } = await this.credentials.getCredentials(
-      FINOTECH_PROVIDER_CODE,
-      [FINOTECH_CREDENTIAL_KEYS.CLIENT_ID, FINOTECH_CREDENTIAL_KEYS.CLIENT_SECRET, FINOTECH_CREDENTIAL_KEYS.NID],
-    );
+    const { CLIENT_ID, CLIENT_SECRET, NID } =
+      await this.credentials.getCredentials(FINOTECH_PROVIDER_CODE, [
+        FINOTECH_CREDENTIAL_KEYS.CLIENT_ID,
+        FINOTECH_CREDENTIAL_KEYS.CLIENT_SECRET,
+        FINOTECH_CREDENTIAL_KEYS.NID,
+      ]);
 
-    const basicAuth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
+    const basicAuth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString(
+      'base64',
+    );
 
     try {
       const response = await axios.post<FinotechTokenResponse>(
@@ -84,13 +92,18 @@ export class FinotechTokenService {
       );
 
       const token = response.data.result?.value ?? response.data.value;
-      const expiresIn = response.data.result?.expires_in ?? response.data.expires_in;
+      const expiresIn =
+        response.data.result?.expires_in ?? response.data.expires_in;
 
       if (!token) {
         throw new ProviderError('پاسخ توکن فینوتک فاقد فیلد value بود');
       }
 
-      const ttl = Math.max(30, (expiresIn ?? 3600) - FINOTECH_CONFIG.TOKEN_EXPIRY_SAFETY_MARGIN_SECONDS);
+      const ttl = Math.max(
+        30,
+        (expiresIn ?? 3600) -
+          FINOTECH_CONFIG.TOKEN_EXPIRY_SAFETY_MARGIN_SECONDS,
+      );
       await this.redis.setex(FINOTECH_CONFIG.TOKEN_CACHE_KEY, ttl, token);
 
       return token;

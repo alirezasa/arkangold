@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import type { Prisma } from '../../generated/prisma';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProviderCredentialService } from '../credentials/provider-credential.service';
 import { FinotechTokenService } from '../providers/finotech/finotech-token.service';
@@ -7,7 +8,7 @@ interface ProviderServiceUpdateInput {
   isActive?: boolean;
   priority?: number;
   isFallback?: boolean;
-  configuration?: PrismaService.InputJsonObject;
+  configuration?: Prisma.InputJsonObject;
 }
 
 @Injectable()

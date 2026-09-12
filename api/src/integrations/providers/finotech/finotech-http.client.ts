@@ -22,11 +22,14 @@ export class FinotechHttpClient {
     const token = await this.tokenService.getAccessToken();
 
     try {
-      const response = await axios.get<T>(`${FINOTECH_CONFIG.BASE_URL}${path}`, {
-        params,
-        timeout: 15_000,
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await axios.get<T>(
+        `${FINOTECH_CONFIG.BASE_URL}${path}`,
+        {
+          params,
+          timeout: 15_000,
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       return response.data;
     } catch (err) {
       throw this.mapError(err);
@@ -49,11 +52,20 @@ export class FinotechHttpClient {
     const providerCode = body?.error?.code;
 
     if (status === 401) {
-      return new AuthenticationError(providerMessage || 'توکن فینوتک نامعتبر یا منقضی است', providerCode);
+      return new AuthenticationError(
+        providerMessage || 'توکن فینوتک نامعتبر یا منقضی است',
+        providerCode,
+      );
     }
     if (status === 429) {
-      return new RateLimitError(providerMessage || 'محدودیت نرخ درخواست فینوتک', providerCode);
+      return new RateLimitError(
+        providerMessage || 'محدودیت نرخ درخواست فینوتک',
+        providerCode,
+      );
     }
-    return new ProviderError(providerMessage || `خطای فینوتک (HTTP ${status})`, providerCode);
+    return new ProviderError(
+      providerMessage || `خطای فینوتک (HTTP ${status})`,
+      providerCode,
+    );
   }
 }

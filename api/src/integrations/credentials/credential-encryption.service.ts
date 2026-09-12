@@ -26,7 +26,9 @@ export class CredentialEncryptionService implements OnModuleInit {
     }
     const key = Buffer.from(raw, 'base64');
     if (key.length !== 32) {
-      throw new Error('INTEGRATION_ENCRYPTION_KEY باید بعد از decode دقیقاً ۳۲ بایت باشد (AES-256)');
+      throw new Error(
+        'INTEGRATION_ENCRYPTION_KEY باید بعد از decode دقیقاً ۳۲ بایت باشد (AES-256)',
+      );
     }
     this.key = key;
   }
@@ -34,9 +36,16 @@ export class CredentialEncryptionService implements OnModuleInit {
   encrypt(plainText: string): string {
     const iv = randomBytes(IV_LENGTH);
     const cipher = createCipheriv(ALGORITHM, this.key, iv);
-    const encrypted = Buffer.concat([cipher.update(plainText, 'utf8'), cipher.final()]);
+    const encrypted = Buffer.concat([
+      cipher.update(plainText, 'utf8'),
+      cipher.final(),
+    ]);
     const authTag = cipher.getAuthTag();
-    return [iv.toString('base64'), authTag.toString('base64'), encrypted.toString('base64')].join(':');
+    return [
+      iv.toString('base64'),
+      authTag.toString('base64'),
+      encrypted.toString('base64'),
+    ].join(':');
   }
 
   decrypt(payload: string): string {

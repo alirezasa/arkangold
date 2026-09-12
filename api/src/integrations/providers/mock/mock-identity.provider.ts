@@ -16,7 +16,9 @@ export class MockIdentityProvider implements IdentityVerificationProvider {
   readonly providerCode = 'MOCK';
   private readonly logger = new Logger(MockIdentityProvider.name);
 
-  async verifyIdentity(input: IdentityVerificationInput): Promise<IdentityVerificationResult> {
+  async verifyIdentity(
+    input: IdentityVerificationInput,
+  ): Promise<IdentityVerificationResult> {
     this.logger.log(`[MOCK] استعلام هویتی: ${input.nationalCode}`);
 
     if (!this.isValidNationalCode(input.nationalCode)) {

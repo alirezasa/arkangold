@@ -22,13 +22,17 @@ export class ProviderRegistryService {
    * (دقیقاً طبق قانون: «اگر Service غیرفعال باشد نباید هیچ Provideری اجرا شود» و
    * «اگر Service فعال باشد ولی Provider فعال نداشته باشد، خطای Configuration Error»).
    */
-  async resolveActiveProviders(serviceCode: string): Promise<ResolvedProviderEntry[]> {
+  async resolveActiveProviders(
+    serviceCode: string,
+  ): Promise<ResolvedProviderEntry[]> {
     const service = await this.prisma.integrationService.findUnique({
       where: { code: serviceCode },
     });
 
     if (!service) {
-      throw new ConfigurationError(`سرویس Integration با کد ${serviceCode} تعریف نشده است`);
+      throw new ConfigurationError(
+        `سرویس Integration با کد ${serviceCode} تعریف نشده است`,
+      );
     }
     if (!service.isActive) {
       throw new ConfigurationError(`سرویس ${serviceCode} غیرفعال است`);
@@ -45,7 +49,9 @@ export class ProviderRegistryService {
     });
 
     if (links.length === 0) {
-      throw new ConfigurationError(`هیچ Provider فعالی برای سرویس ${serviceCode} تنظیم نشده است`);
+      throw new ConfigurationError(
+        `هیچ Provider فعالی برای سرویس ${serviceCode} تنظیم نشده است`,
+      );
     }
 
     return links.map((l) => ({

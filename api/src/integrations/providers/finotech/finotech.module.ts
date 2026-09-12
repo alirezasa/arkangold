@@ -4,7 +4,11 @@ import { FinotechHttpClient } from './finotech-http.client';
 import { FinotechIdentityProvider } from './finotech-identity.provider';
 
 @Module({
-  providers: [FinotechTokenService, FinotechHttpClient, FinotechIdentityProvider],
+  providers: [
+    FinotechTokenService,
+    FinotechHttpClient,
+    FinotechIdentityProvider,
+  ],
   exports: [FinotechTokenService, FinotechIdentityProvider],
 })
 export class FinotechModule {}

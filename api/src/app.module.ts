@@ -22,6 +22,10 @@ import { ShopOrdersModule } from './shop-orders/shop-orders.module';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { PaymentGatewayModule } from './payment-gateway/payment-gateway.module';
 import { PayrollModule } from './payroll/payroll.module';
+import { StorageModule } from './common/storage/storage.module';
+import { DocumentSequenceModule } from './common/documents/document-sequence.module';
+import { InvoiceModule } from './invoice/invoice.module';
+import { DepositModule } from './deposit/deposit.module';
 
 @Module({
   imports: [
@@ -45,6 +49,10 @@ import { PayrollModule } from './payroll/payroll.module';
     AdminAuthModule,
     PaymentGatewayModule,
     PayrollModule,
+    StorageModule, // Global
+    DocumentSequenceModule, // Global
+    InvoiceModule,
+    DepositModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

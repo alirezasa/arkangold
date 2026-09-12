@@ -34,5 +34,6 @@ export const config = {
     "/dashboard/:path*", // ← همه زیرمسیرهای dashboard از جمله wallet
     "/login",
     "/register",
+    "/((?!api|_next/static|_next/image|favicon.ico|brand).*)",
   ],
 };

@@ -1,5 +1,4 @@
 // api/src/system-config/system-config.seed.ts
-
 export const WALLET_CONFIG_DEFAULTS = [
   // ══ واریز آنلاین ══
   {
@@ -287,5 +286,115 @@ export const WALLET_CONFIG_DEFAULTS = [
     value: '0',
     description:
       'مقدار پاداش معرفی برای معرف پس از احراز هویت کاربر معرفی‌شده (گرم طلا) — صفر یعنی غیرفعال',
+  },
+  {
+    key: 'company.legal_name',
+    value: 'گنجینه طلای پروانه زر',
+    description: 'نام حقوقی شرکت',
+  },
+  { key: 'company.brand_name', value: 'آرکان گلد', description: 'نام تجاری' },
+  {
+    key: 'company.company_type',
+    value: '',
+    description: 'نوع شرکت (سهامی خاص / مسئولیت محدود)',
+  },
+  {
+    key: 'company.national_id',
+    value: '',
+    description: 'شناسه ملی — الزامی برای صدور سند',
+  },
+  {
+    key: 'company.registration_number',
+    value: '',
+    description: 'شماره ثبت — الزامی',
+  },
+  { key: 'company.economic_code', value: '', description: 'کد اقتصادی' },
+  {
+    key: 'company.address',
+    value: '',
+    description: 'نشانی دفتر مرکزی — الزامی',
+  },
+  { key: 'company.postal_code', value: '', description: 'کد پستی' },
+  { key: 'company.phone', value: '', description: 'تلفن' },
+  { key: 'company.website', value: 'arkan.gold', description: 'وب‌سایت' },
+  {
+    key: 'company.logo_path',
+    value: '/logo.png',
+    description: 'مسیر لوگو در public',
+  },
+  {
+    key: 'company.seal_image_path',
+    value: '/brand/seal.png',
+    description: 'مسیر تصویر مهر و امضا در public',
+  },
+
+  // ══ اسناد ══
+  {
+    key: 'document.verify_base_url',
+    value: 'https://arkan.gold/verify',
+    description: 'آدرس پایه استعلام سند (QR)',
+  },
+  {
+    key: 'document.invoice_orientation',
+    value: 'landscape',
+    description: 'جهت چاپ فاکتور فروش: landscape | portrait',
+  },
+  {
+    key: 'document.proforma_orientation',
+    value: 'portrait',
+    description: 'جهت چاپ پیش‌فاکتور: portrait | landscape',
+  },
+
+  // ══ پیش‌فاکتور واریز ══
+  {
+    key: 'proforma.validity_working_days',
+    value: '2',
+    description: 'مهلت اعتبار پیش‌فاکتور بر حسب روز کاری',
+  },
+  {
+    key: 'proforma.tracking_prefix',
+    value: '1023',
+    description: 'پیشوند ۴ رقمی شناسه واریز (کد پذیرنده)',
+  },
+  {
+    key: 'proforma.subject_text',
+    value:
+      'درخواست واریز وجه جهت شارژ کیف پول تومانی و انجام خرید طلا از طریق پلتفرم آرکان گلد',
+    description: 'متن ستون «موضوع» در پیش‌فاکتور',
+  },
+  {
+    key: 'proforma.legal_clauses',
+    value: [
+      'این پیش‌فاکتور صرفاً به منظور ارائه به بانک و در راستای تسهیل فرآیند واریز وجه از حساب شخصی متقاضی به حساب شرکت صادر شده است و به هیچ عنوان به منزله فاکتور قطعی، تعهد به فروش، یا انجام معامله نهایی تلقی نمی‌گردد.',
+      'واریز به حساب مذکور با هدف افزایش موجودی «کیف پول تومانی» حساب کاربری متقاضی در «آرکان گلد» و جهت خرید برخط طلا می‌باشد.',
+      'پس از انجام موفق تراکنش بانکی و تکمیل عملیات واریز وجه به حساب شرکت، مبلغ واریز شده مطابق ضوابط سامانه و در چرخه پایا به «کیف پول تومانی» متقاضی افزوده خواهد شد.',
+      'واریز باید صرفاً از حساب بانکی متعلق به همین شخص انجام شود؛ واریز از حساب شخص ثالث پذیرفته نمی‌شود و مبلغ عیناً مسترد خواهد شد.',
+      'شناسه واریز اختصاصی مندرج در این سند باید حتماً در فیلد «شناسه پایا» درج شود؛ در غیر این صورت تطبیق و شارژ کیف پول با تاخیر مواجه خواهد شد.',
+      'پس از افزایش موجودی تومانی، خرید طلا منوط به انجام کلیه فرآیندهای قانونی، نظارتی و عملیاتی مربوطه در سامانه «آرکان گلد» می‌باشد.',
+      'این معرفی‌نامه و پیش‌فاکتور فاقد هرگونه تعهد مالی یا حقوقی مازاد بر مفاد مندرج بوده و صرفاً با هدف شفاف‌سازی مقصد واریز وجه و ارائه اطلاعات لازم به آن بانک محترم صادر شده است.',
+    ].join('\n'),
+    description: 'بندهای حقوقی پیش‌فاکتور — هر بند در یک خط',
+  },
+
+  // ══ حساب مقصد واریز مبالغ بالا ══
+  // ⚠ تناقض شناسایی‌شده: کلیدهای deposit.* فعلی روی «یارا تجارت الکترونیک بنیان»
+  //   تنظیم شده‌اند. اگر حساب واقعاً به نام «گنجینه طلای پروانه زر» است،
+  //   این مقادیر باید اصلاح شوند وگرنه بانک واریز را رد می‌کند.
+  {
+    key: 'deposit.large_transfer.destination_owner',
+    value: '',
+    description: 'نام صاحب حساب مقصد — باید دقیقاً با نام روی شبا یکی باشد',
+  },
+  {
+    key: 'deposit.large_transfer.destination_bank',
+    value: '',
+    description: 'نام بانک مقصد',
+  },
+
+  // ══ تقویم ══
+  {
+    key: 'calendar.holidays',
+    value: '',
+    description: 'تعطیلات رسمی، جدا شده با کاما — مثال: ۱۴۰۴/۰۱/۰۱,۱۴۰۴/۰۱/۰۲',
   },
 ];

@@ -4,9 +4,10 @@ import { ShopOrdersAdminController } from './shop-orders-admin.controller';
 import { ShopOrdersService } from './shop-orders.service';
 import { PaymentGatewayModule } from '../payment-gateway/payment-gateway.module';
 import { AccountingModule } from '../accounting/accounting.module';
+import { InvoiceModule } from '../invoice/invoice.module';
 
 @Module({
-  imports: [PaymentGatewayModule, AccountingModule],
+  imports: [PaymentGatewayModule, AccountingModule, InvoiceModule],
   controllers: [ShopOrdersController, ShopOrdersAdminController],
   providers: [ShopOrdersService],
   exports: [ShopOrdersService],

@@ -48,6 +48,9 @@ model User {
   wallet               Wallet?
   processedWithdrawals WithdrawalRequest[]       @relation("ProcessedBy")
   withdrawalRequests   WithdrawalRequest[]
+  invoices             Invoice[]
+  depositRequests      DepositRequest[]
+  tickets              Ticket[]
 
   @@map("users")
 }
@@ -149,16 +152,17 @@ model BankAccount {
 }
 
 model Wallet {
-  goldBalanceGrams Decimal       @default(0) @map("gold_balance_grams") @db.Decimal(18, 4)
-  rialBalance      Decimal       @default(0) @map("rial_balance") @db.Decimal(18, 0)
-  cardNumber       String        @unique @map("card_number")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
-  id               String        @id @default(uuid()) @db.Uuid
-  userId           String        @unique @map("user_id") @db.Uuid
+  goldBalanceGrams Decimal          @default(0) @map("gold_balance_grams") @db.Decimal(18, 4)
+  rialBalance      Decimal          @default(0) @map("rial_balance") @db.Decimal(18, 0)
+  cardNumber       String           @unique @map("card_number")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  id               String           @id @default(uuid()) @db.Uuid
+  userId           String           @unique @map("user_id") @db.Uuid
   transactions     Transaction[]
   holds            WalletHold[]
-  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  depositRequests  DepositRequest[]
 
   @@map("wallets")
 }
@@ -203,6 +207,7 @@ model Transaction {
   shopOrder            ShopOrder?               @relation(fields: [shopOrderId], references: [id])
   user                 User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   wallet               Wallet                   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  depositRequest       DepositRequest?
 
   @@index([userId])
   @@index([walletId])
@@ -441,8 +446,9 @@ model CartItem {
   lockedBreakdown     Json?           @map("locked_breakdown") // اجزای فرمول برای نمایش به کاربر
   priceLockedAt       DateTime?       @map("price_locked_at")
   priceExpiresAt      DateTime?       @map("price_expires_at")
- @@index([priceExpiresAt])
+
   @@unique([cartId, variantId])
+  @@index([priceExpiresAt])
   @@map("cart_items")
 }
 
@@ -484,20 +490,20 @@ model ShopOrderItem {
 }
 
 model Payment {
-  amountRial          Decimal       @map("amount_rial") @db.Decimal(18, 0)
-  method               PaymentMethod
-  status               PaymentStatus @default(PENDING)
-  referenceCode        String?       @unique @map("reference_code")
-  gatewayProvider      PaymentGatewayProvider? @map("gateway_provider")
-  gatewayProviderRef   String?       @map("gateway_provider_ref")
-  gatewayTrackingCode  String?       @map("gateway_tracking_code")
-  paidAt               DateTime?     @map("paid_at")
-  createdAt            DateTime      @default(now()) @map("created_at")
-  id                   String        @id @default(uuid()) @db.Uuid
-  userId               String        @map("user_id") @db.Uuid
-  orderId              String?       @map("order_id") @db.Uuid
-  order                ShopOrder?    @relation(fields: [orderId], references: [id])
-  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountRial          Decimal                 @map("amount_rial") @db.Decimal(18, 0)
+  method              PaymentMethod
+  status              PaymentStatus           @default(PENDING)
+  referenceCode       String?                 @unique @map("reference_code")
+  gatewayProvider     PaymentGatewayProvider? @map("gateway_provider")
+  gatewayProviderRef  String?                 @map("gateway_provider_ref")
+  gatewayTrackingCode String?                 @map("gateway_tracking_code")
+  paidAt              DateTime?               @map("paid_at")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  id                  String                  @id @default(uuid()) @db.Uuid
+  userId              String                  @map("user_id") @db.Uuid
+  orderId             String?                 @map("order_id") @db.Uuid
+  order               ShopOrder?              @relation(fields: [orderId], references: [id])
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([gatewayProvider, gatewayProviderRef])
   @@index([userId])
@@ -810,8 +816,9 @@ model AdminUser {
   createdBy     AdminUser?  @relation("AdminCreatedBy", fields: [createdById], references: [id])
   createdAdmins AdminUser[] @relation("AdminCreatedBy")
 
-  sessions  AdminSession[]
-  auditLogs AdminAuditLog[]
+  sessions        AdminSession[]
+  auditLogs       AdminAuditLog[]
+  assignedTickets Ticket[]        @relation("TicketAssignedAdmin")
 
   @@map("admin_users")
 }
@@ -881,6 +888,481 @@ model AdminAuditLog {
   @@map("admin_audit_logs")
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  آرکان گلد — افزوده‌های فاکتور / پیش‌فاکتور / واریز
+//  محتوای زیر را به انتهای api/prisma/schema.prisma اضافه کنید و بلوک
+//  «تغییرات مدل‌های موجود» را در جای خودش اعمال کنید. سپس:
+//    pnpm prisma migrate dev --name invoice_and_deposit
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// شمارنده اسناد — شماره‌گذاری اتمیک. هرگز از count()+1 استفاده نکنید.
+model DocumentSequence {
+  key        String   @id // "INV:1404" | "PRF:1404" | "DEP:1404"
+  lastNumber Int      @default(0) @map("last_number")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("document_sequences")
+}
+
+/// سند مالی — فاکتور فروش یا پیش‌فاکتور واریز.
+/// پس از ISSUED غیرقابل ویرایش؛ اصلاح فقط با ابطال + صدور سند جدید.
+model Invoice {
+  id            String        @id @default(uuid()) @db.Uuid
+  kind          InvoiceKind
+  invoiceNumber String        @unique @map("invoice_number") // AG-1404-INV-000123
+  status        InvoiceStatus @default(ISSUED)
+
+  sourceType InvoiceSource @map("source_type")
+  sourceId   String        @map("source_id") @db.Uuid
+
+  userId String @map("user_id") @db.Uuid
+
+  /// Snapshot اطلاعات شرکت در لحظه صدور (از SystemConfig)
+  companySnapshot  Json  @map("company_snapshot")
+  /// Snapshot اطلاعات مشتری در لحظه صدور
+  customerSnapshot Json  @map("customer_snapshot")
+  /// داده اختصاصی سند — برای PROFORMA: حساب مقصد، شناسه واریز، بندهای حقوقی
+  extraData        Json? @map("extra_data")
+
+  subtotalRial Decimal @map("subtotal_rial") @db.Decimal(18, 0)
+  discountRial Decimal @default(0) @map("discount_rial") @db.Decimal(18, 0)
+  feeRial      Decimal @default(0) @map("fee_rial") @db.Decimal(18, 0)
+  taxRial      Decimal @default(0) @map("tax_rial") @db.Decimal(18, 0)
+  totalRial    Decimal @map("total_rial") @db.Decimal(18, 0)
+  totalInWords String  @map("total_in_words")
+
+  issuedAt     DateTime  @default(now()) @map("issued_at")
+  expiresAt    DateTime? @map("expires_at") // فقط PROFORMA
+  cancelledAt  DateTime? @map("cancelled_at")
+  cancelReason String?   @map("cancel_reason")
+
+  /// sha256 از payload کانونیکال — ضدجعل و پیش‌نیاز امضای دیجیتال
+  contentHash String @map("content_hash")
+
+  // ── فازهای بعدی (nullable، فعلاً بلااستفاده) ──
+  pdfStorageKey    String?   @map("pdf_storage_key")
+  signedAt         DateTime? @map("signed_at")
+  signaturePayload String?   @map("signature_payload")
+  taxAuthorityRef  String?   @map("tax_authority_ref")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  items          InvoiceItem[]
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  depositRequest DepositRequest?
+
+  /// ضدتکرار: حداکثر یک سند از هر نوع به ازای هر منبع
+  @@unique([sourceType, sourceId, kind])
+  @@index([userId, kind, issuedAt])
+  @@index([status, issuedAt])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  invoiceId   String  @map("invoice_id") @db.Uuid
+  rowNo       Int     @map("row_no")
+  productCode String? @map("product_code")
+  title       String
+  unit        String // گرم | عدد
+  purityKarat String? @map("purity_karat") // K18 | K24
+
+  quantity      Decimal  @db.Decimal(18, 4)
+  weightGrams   Decimal? @map("weight_grams") @db.Decimal(18, 4)
+  unitPriceRial Decimal  @map("unit_price_rial") @db.Decimal(18, 0)
+  discountRial  Decimal  @default(0) @map("discount_rial") @db.Decimal(18, 0)
+  makingRial    Decimal  @default(0) @map("making_rial") @db.Decimal(18, 0) // اجرت ساخت
+  feeRial       Decimal  @default(0) @map("fee_rial") @db.Decimal(18, 0) // کارمزد
+  taxRate       Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 2)
+  taxRial       Decimal  @default(0) @map("tax_rial") @db.Decimal(18, 0)
+  totalRial     Decimal  @map("total_rial") @db.Decimal(18, 0)
+
+  /// breakdown خام قفل‌شده محصول — برای رهگیری و ممیزی
+  meta Json?
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, rowNo])
+  @@map("invoice_items")
+}
+
+/// درخواست واریز تومان — جایگزین کدگذاری رشته‌ای در Transaction.description
+model DepositRequest {
+  id            String        @id @default(uuid()) @db.Uuid
+  requestNumber String        @unique @map("request_number") // AG-1404-DEP-000123
+  userId        String        @map("user_id") @db.Uuid
+  walletId      String        @map("wallet_id") @db.Uuid
+  amountRial    Decimal       @map("amount_rial") @db.Decimal(18, 0)
+  method        DepositMethod
+  status        DepositStatus @default(PENDING_PAYMENT)
+
+  /// شناسه واریز اختصاصی — عددی ۱۶ رقمی با رقم کنترل Luhn
+  depositTrackingId String @unique @map("deposit_tracking_id")
+
+  /// Snapshot حساب مقصد در لحظه صدور
+  destinationSnapshot Json @map("destination_snapshot")
+
+  proformaInvoiceId String? @unique @map("proforma_invoice_id") @db.Uuid
+  /// ضدشارژ مضاعف در سطح دیتابیس — آخرین خط دفاع
+  transactionId     String? @unique @map("transaction_id") @db.Uuid
+  idempotencyKey    String? @unique @map("idempotency_key")
+
+  expiresAt       DateTime  @map("expires_at")
+  reviewStartedAt DateTime? @map("review_started_at")
+  reviewedById    String?   @map("reviewed_by_id") @db.Uuid // → admin_users.id (بدون FK عمدی)
+  reviewedAt      DateTime? @map("reviewed_at")
+  rejectionReason String?   @map("rejection_reason")
+  rejectionCount  Int       @default(0) @map("rejection_count")
+  adminNotes      String?   @map("admin_notes")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  receipts        DepositReceipt[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet          Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  proformaInvoice Invoice?         @relation(fields: [proformaInvoiceId], references: [id])
+  transaction     Transaction?     @relation(fields: [transactionId], references: [id])
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@index([expiresAt])
+  @@map("deposit_requests")
+}
+
+/// رسید واریز آپلودشده توسط کاربر — فایل در S3 خصوصی
+model DepositReceipt {
+  id               String   @id @default(uuid()) @db.Uuid
+  depositRequestId String   @map("deposit_request_id") @db.Uuid
+  storageKey       String   @map("storage_key") // کلید S3 — هرگز URL عمومی
+  bucket           String
+  fileName         String   @map("file_name")
+  mimeType         String   @map("mime_type")
+  fileSize         Int      @map("file_size")
+  /// تشخیص رسید تکراری در کل سیستم — سیگنال ضدتقلب
+  checksumSha256   String   @map("checksum_sha256")
+  userNote         String?  @map("user_note")
+  uploadedAt       DateTime @default(now()) @map("uploaded_at")
+
+  depositRequest DepositRequest @relation(fields: [depositRequestId], references: [id], onDelete: Cascade)
+
+  @@index([depositRequestId])
+  @@index([checksumSha256])
+  @@map("deposit_receipts")
+}
+
+model IntegrationProvider {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  code        String   @unique // FINOTECH, MOCK, COMPANY_X ...
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  services    IntegrationProviderService[]
+  credentials IntegrationProviderCredential[]
+  logs        IntegrationLog[]
+
+  @@map("integration_providers")
+}
+
+model IntegrationService {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  code        String   @unique // IDENTITY_VERIFICATION, SMS, GOLD_PRICE ...
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  providers IntegrationProviderService[]
+  logs      IntegrationLog[]
+
+  @@map("integration_services")
+}
+
+model IntegrationProviderService {
+  id            String   @id @default(uuid()) @db.Uuid
+  providerId    String   @map("provider_id") @db.Uuid
+  serviceId     String   @map("service_id") @db.Uuid
+  isActive      Boolean  @default(true) @map("is_active")
+  priority      Int      @default(1) // عدد کوچک‌تر = اولویت بالاتر (Primary)
+  isFallback    Boolean  @default(false) @map("is_fallback")
+  configuration Json? // timeout, retry, endpoint override و ...
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  provider IntegrationProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  service  IntegrationService  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, serviceId])
+  @@index([serviceId, isActive, priority])
+  @@map("integration_provider_services")
+}
+
+model IntegrationProviderCredential {
+  id             String   @id @default(uuid()) @db.Uuid
+  providerId     String   @map("provider_id") @db.Uuid
+  key            String // CLIENT_ID, CLIENT_SECRET, API_KEY, NID ...
+  encryptedValue String   @map("encrypted_value") // فرمت: iv:authTag:cipherText (Base64، هر بخش با : جدا شده)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  provider IntegrationProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, key])
+  @@map("integration_provider_credentials")
+}
+
+model IntegrationLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  requestId         String   @map("request_id")
+  providerId        String?  @map("provider_id") @db.Uuid
+  serviceId         String?  @map("service_id") @db.Uuid
+  status            String // SUCCESS | FAILED
+  httpStatus        Int?     @map("http_status")
+  providerRequestId String?  @map("provider_request_id")
+  errorCode         String?  @map("error_code")
+  durationMs        Int?     @map("duration_ms")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  provider IntegrationProvider? @relation(fields: [providerId], references: [id])
+  service  IntegrationService?  @relation(fields: [serviceId], references: [id])
+
+  @@index([requestId])
+  @@index([providerId, createdAt])
+  @@index([serviceId, createdAt])
+  @@map("integration_logs")
+}
+
+model TicketCategory {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  tickets Ticket[]
+
+  @@index([isActive])
+  @@map("ticket_categories")
+}
+
+model Ticket {
+  id              String         @id @default(cuid())
+  ticketNumber    String         @unique
+  userId          String         @db.Uuid
+  categoryId      String
+  subject         String
+  description     String         @db.Text
+  priority        TicketPriority @default(NORMAL)
+  status          TicketStatus   @default(OPEN)
+  assignedAdminId String?        @db.Uuid
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  lastMessageAt   DateTime  @default(now())
+  closedBy        String?
+  closedReason    String?
+
+  deletedAt DateTime?
+  deletedBy String?
+
+  user          User           @relation(fields: [userId], references: [id])
+  category      TicketCategory @relation(fields: [categoryId], references: [id])
+  assignedAdmin AdminUser?     @relation("TicketAssignedAdmin", fields: [assignedAdminId], references: [id])
+
+  messages     TicketMessage[]
+  attachments  TicketAttachment[]
+  assignments  TicketAssignment[]
+  statusLogs   TicketStatusHistory[]
+  activityLogs TicketActivityLog[]
+  rating       TicketRating?
+
+  @@index([userId])
+  @@index([status])
+  @@index([categoryId])
+  @@index([assignedAdminId])
+  @@index([createdAt])
+  @@index([userId, status])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id         String  @id @default(cuid())
+  ticketId   String
+  userId     String? @db.Uuid
+  adminId    String? @db.Uuid
+  senderType TicketSenderType
+  message    String  @db.Text
+  isInternal Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  ticket      Ticket             @relation(fields: [ticketId], references: [id])
+  attachments TicketAttachment[]
+
+  @@index([ticketId])
+  @@index([ticketId, isInternal])
+  @@map("ticket_messages")
+}
+
+
+model TicketAttachment {
+  id               String   @id @default(cuid())
+  ticketId         String
+  messageId        String?
+  userId           String   @db.Uuid
+  originalFilename String
+  storageKey       String   @unique
+  mimeType         String
+  fileSize         Int
+  extension        String
+  createdAt        DateTime @default(now())
+  deletedAt        DateTime?
+  deletedBy        String?
+
+  ticket  Ticket         @relation(fields: [ticketId], references: [id])
+  message TicketMessage? @relation(fields: [messageId], references: [id])
+
+  @@index([ticketId])
+  @@index([messageId])
+  @@map("ticket_attachments")
+}
+
+
+model TicketAssignment {
+  id               String   @id @default(cuid())
+  ticketId         String
+  assignedAdminId  String   @db.Uuid
+  assignedBy       String
+  assignmentReason String?
+  createdAt        DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
+  @@map("ticket_assignments")
+}
+
+
+model TicketStatusHistory {
+  id            String           @id @default(cuid())
+  ticketId      String
+  oldStatus     TicketStatus?
+  newStatus     TicketStatus
+  changedBy     String
+  changedByType TicketSenderType
+  reason        String?
+  createdAt     DateTime         @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
+  @@map("ticket_status_history")
+}
+
+model TicketActivityLog {
+  id        String   @id @default(cuid())
+  ticketId  String
+  userId    String?
+  adminId   String?
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId])
+  @@index([action])
+  @@map("ticket_activity_logs")
+}
+
+model TicketRating {
+  id        String   @id @default(cuid())
+  ticketId  String   @unique
+  userId    String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id])
+
+  @@map("ticket_ratings")
+}
+
+// ───────────────────────────── Enum های جدید ─────────────────────────────
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_USER
+  RESOLVED
+  CLOSED
+  REOPENED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketSenderType {
+  USER
+  ADMIN
+  SYSTEM
+}
+
+enum InvoiceKind {
+  INVOICE
+  PROFORMA
+}
+
+enum InvoiceStatus {
+  ISSUED
+  PAID
+  CONSUMED
+  EXPIRED
+  CANCELLED
+}
+
+enum InvoiceSource {
+  SHOP_ORDER
+  PHYSICAL_DELIVERY
+  DEPOSIT
+}
+
+enum DepositMethod {
+  ONLINE
+  CARD_TO_CARD
+  BANK_TRANSFER
+  TRACKING_ID
+  LARGE_TRANSFER
+  DIRECT
+}
+
+enum DepositStatus {
+  PENDING_PAYMENT
+  RECEIPT_UPLOADED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
 enum UserType {
   REAL
   LEGAL
@@ -912,24 +1394,24 @@ enum HoldType {
   PHYSICAL_DELIVERY
 }
 
-  enum TransactionType {
-    BUY_GOLD
-    SELL_GOLD
-    BUY_SILVER
-    SELL_SILVER
-    TRANSFER_IN
-    TRANSFER_OUT
-    WITHDRAWAL
-    DEPOSIT
-    FEE
-    TAX
-    REFERRAL_REWARD
-    SALARY
-    PHYSICAL_DELIVERY
-    SHOP_PURCHASE
-    REFUND
-    MANUAL_ADJUSTMENT
-  }
+enum TransactionType {
+  BUY_GOLD
+  SELL_GOLD
+  BUY_SILVER
+  SELL_SILVER
+  TRANSFER_IN
+  TRANSFER_OUT
+  WITHDRAWAL
+  DEPOSIT
+  FEE
+  TAX
+  REFERRAL_REWARD
+  SALARY
+  PHYSICAL_DELIVERY
+  SHOP_PURCHASE
+  REFUND
+  MANUAL_ADJUSTMENT
+}
 
 enum TransactionStatus {
   PENDING
@@ -1003,6 +1485,7 @@ enum ApprovalType {
   WITHDRAWAL
   PHYSICAL_DELIVERY
   MANUAL_TRANSACTION
+  DEPOSIT
 }
 
 enum ApprovalStatus {

@@ -105,6 +105,26 @@ export const ADMIN_PERMISSIONS = [
     group: 'accounting',
     description: 'مشاهده دفترکل و گزارش‌های مالی',
   },
+  {
+    key: 'deposit.view',
+    group: 'wallet',
+    description: 'مشاهده درخواست‌های واریز و رسیدها',
+  },
+  {
+    key: 'deposit.approve',
+    group: 'wallet',
+    description: 'شروع بررسی، تایید یا رد درخواست واریز',
+  },
+  {
+    key: 'invoice.view',
+    group: 'accounting',
+    description: 'مشاهده فاکتورها و پیش‌فاکتورها',
+  },
+  {
+    key: 'invoice.manage',
+    group: 'accounting',
+    description: 'ابطال فاکتور',
+  },
 ] as const;
 
 export type PermissionKey = (typeof ADMIN_PERMISSIONS)[number]['key'];
@@ -131,6 +151,10 @@ export const ADMIN_ROLES = [
       'physical_delivery.approve',
       'users.view',
       'accounting.view',
+      'deposit.view',
+      'deposit.approve',
+      'invoice.view',
+      'invoice.manage',
     ] as PermissionKey[],
   },
   {
@@ -144,6 +168,8 @@ export const ADMIN_ROLES = [
       'legal_profile.view',
       'physical_delivery.view',
       'shop.view',
+      'deposit.view',
+      'invoice.view',
     ] as PermissionKey[],
   },
   {

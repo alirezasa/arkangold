@@ -238,6 +238,11 @@ export default function WalletPage() {
           <div className="rounded-2xl overflow-hidden border border-border bg-surface shadow-2xs">
             {[
               {
+                label: "درخواست های واریز",
+                icon: "ti-history",
+                href: "/dashboard/wallet/deposits",
+              },
+              {
                 label: "تاریخچه تراکنش‌ها",
                 icon: "ti-history",
                 href: "/dashboard/transactions",

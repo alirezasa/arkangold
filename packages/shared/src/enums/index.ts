@@ -181,3 +181,51 @@ export enum ProductPricingMode {
   FIXED = 'FIXED',
   WEIGHT_RANGE = 'WEIGHT_RANGE',
 }
+
+export enum InvoiceKind {
+  INVOICE = 'INVOICE',
+  PROFORMA = 'PROFORMA',
+}
+
+export enum InvoiceStatus {
+  ISSUED = 'ISSUED',
+  PAID = 'PAID',
+  CONSUMED = 'CONSUMED',
+  EXPIRED = 'EXPIRED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum InvoiceSource {
+  SHOP_ORDER = 'SHOP_ORDER',
+  PHYSICAL_DELIVERY = 'PHYSICAL_DELIVERY',
+  DEPOSIT = 'DEPOSIT',
+}
+
+export enum DepositMethod {
+  ONLINE = 'ONLINE',
+  CARD_TO_CARD = 'CARD_TO_CARD',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+  TRACKING_ID = 'TRACKING_ID',
+  LARGE_TRANSFER = 'LARGE_TRANSFER',
+  DIRECT = 'DIRECT',
+}
+
+export enum DepositStatus {
+  PENDING_PAYMENT = 'PENDING_PAYMENT',
+  RECEIPT_UPLOADED = 'RECEIPT_UPLOADED',
+  UNDER_REVIEW = 'UNDER_REVIEW',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  CANCELLED = 'CANCELLED',
+  EXPIRED = 'EXPIRED',
+}
+
+export const DEPOSIT_STATUS_LABEL: Record<DepositStatus, string> = {
+  [DepositStatus.PENDING_PAYMENT]: 'در انتظار پرداخت',
+  [DepositStatus.RECEIPT_UPLOADED]: 'رسید ارسال شد',
+  [DepositStatus.UNDER_REVIEW]: 'در حال بررسی',
+  [DepositStatus.APPROVED]: 'تایید شد',
+  [DepositStatus.REJECTED]: 'رد شد',
+  [DepositStatus.CANCELLED]: 'لغو شد',
+  [DepositStatus.EXPIRED]: 'منقضی شد',
+};

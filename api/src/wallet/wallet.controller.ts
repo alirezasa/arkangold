@@ -118,6 +118,13 @@ export class WalletController {
     );
   }
 
+  // ── کانفیگ و محدودیت‌های انتقال داخلی ──
+  @Get('transfer/config')
+  @ApiOperation({ summary: 'تنظیمات و محدودیت‌های انتقال داخلی کیف پول' })
+  getTransferConfig(@Req() req: AuthenticatedRequest) {
+    return this.walletService.getTransferConfig(req.user.userId);
+  }
+
   // ── انتقال داخلی کیف پول ──
   @Post('transfer')
   @ApiOperation({

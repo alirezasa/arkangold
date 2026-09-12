@@ -18,7 +18,6 @@ model User {
   id                   String                    @id @default(uuid()) @db.Uuid
   referredById         String?                   @map("referred_by_id") @db.Uuid
   addresses            Address[]
-  approvals            Approval[]
   adminAuditLogs       AuditLog[]                @relation("AdminAudit")
   auditLogs            AuditLog[]                @relation("UserAudit")
   bankAccounts         BankAccount[]
@@ -30,7 +29,6 @@ model User {
   payments             Payment[]
   payrollPlanUsers     PayrollPlanUser[]
   createdPayrollPlans  PayrollPlan[]
-  approvedByPhysical   PhysicalDeliveryRequest[] @relation("ApprovedBy")
   physicalDeliveryReqs PhysicalDeliveryRequest[]
   priceLocks           PriceLock[]
   referralRewards      ReferralReward[]
@@ -46,7 +44,6 @@ model User {
   referredBy           User?                     @relation("Referral", fields: [referredById], references: [id])
   referrals            User[]                    @relation("Referral")
   wallet               Wallet?
-  processedWithdrawals WithdrawalRequest[]       @relation("ProcessedBy")
   withdrawalRequests   WithdrawalRequest[]
   invoices             Invoice[]
   depositRequests      DepositRequest[]
@@ -522,7 +519,7 @@ model WithdrawalRequest {
   processedById String?          @map("processed_by_id") @db.Uuid
   approvals     Approval[]
   bankAccount   BankAccount      @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  processedBy   User?            @relation("ProcessedBy", fields: [processedById], references: [id])
+  processedBy   AdminUser?       @relation("ProcessedBy", fields: [processedById], references: [id])
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
@@ -540,7 +537,7 @@ model Approval {
   id                        String                   @id @default(uuid()) @db.Uuid
   requestId                 String                   @map("request_id") @db.Uuid
   approverId                String                   @map("approver_id") @db.Uuid
-  approver                  User                     @relation(fields: [approverId], references: [id], onDelete: Cascade)
+  approver                  AdminUser                @relation(fields: [approverId], references: [id], onDelete: Cascade)
   physicalDeliveryRequest   PhysicalDeliveryRequest? @relation(fields: [physicalDeliveryRequestId], references: [id], onDelete: Cascade)
   withdrawalRequest         WithdrawalRequest?       @relation(fields: [withdrawalRequestId], references: [id], onDelete: Cascade)
 
@@ -652,7 +649,7 @@ model PhysicalDeliveryRequest {
   approvedById String?                @map("approved_by_id") @db.Uuid
   approvals    Approval[]
   address      Address                @relation(fields: [addressId], references: [id], onDelete: Cascade)
-  approvedBy   User?                  @relation("ApprovedBy", fields: [approvedById], references: [id])
+  approvedBy   AdminUser?             @relation("ApprovedBy", fields: [approvedById], references: [id])
   user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   shippings    Shipping[]
   transactions Transaction[]
@@ -816,9 +813,12 @@ model AdminUser {
   createdBy     AdminUser?  @relation("AdminCreatedBy", fields: [createdById], references: [id])
   createdAdmins AdminUser[] @relation("AdminCreatedBy")
 
-  sessions        AdminSession[]
-  auditLogs       AdminAuditLog[]
-  assignedTickets Ticket[]        @relation("TicketAssignedAdmin")
+  sessions             AdminSession[]
+  auditLogs            AdminAuditLog[]
+  assignedTickets      Ticket[]                  @relation("TicketAssignedAdmin")
+  approvals            Approval[]
+  approvedByPhysical   PhysicalDeliveryRequest[] @relation("ApprovedBy")
+  processedWithdrawals WithdrawalRequest[]       @relation("ProcessedBy")
 
   @@map("admin_users")
 }

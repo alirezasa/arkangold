@@ -29,6 +29,10 @@ const fetcher = (url: string) =>
 const TYPE_LABELS: Record<string, string> = {
   BUY_GOLD: "خرید طلا",
   SELL_GOLD: "فروش طلا",
+  BUY_SILVER: "خرید نقره",
+  SELL_SILVER: "فروش نقره",
+  TRANSFER_IN: "انتقال ورودی",
+  TRANSFER_OUT: "انتقال خروجی",
   DEPOSIT: "واریز",
   WITHDRAWAL: "برداشت",
   FEE: "کارمزد",
@@ -37,6 +41,8 @@ const TYPE_LABELS: Record<string, string> = {
   PHYSICAL_DELIVERY: "تحویل فیزیکی",
   REFUND: "بازگشت وجه",
   REFERRAL_REWARD: "پاداش معرفی",
+  SALARY: "واریز حقوق",
+  MANUAL_ADJUSTMENT: "تنظیم دستی ادمین",
 };
 
 export default function AdminTransactionsPage() {

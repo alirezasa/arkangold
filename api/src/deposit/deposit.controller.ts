@@ -1,5 +1,3 @@
-// api/src/deposit/deposit.controller.ts
-
 import {
   BadRequestException,
   Body,
@@ -23,13 +21,14 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { DepositService } from './deposit.service';
 import type { DepositStatusValue } from './deposit.state';
+import { CreateDepositRequestDto } from '@arkan-gold/shared';
 
 interface AuthedRequest extends Request {
-  user: { userId: string; phone: string; sessionId: string };
-}
-
-class CreateDepositDto {
-  amountRial!: number;
+  user: {
+    userId: string;
+    phone: string;
+    sessionId: string;
+  };
 }
 
 @ApiTags('Wallet/Deposits')
@@ -41,21 +40,25 @@ export class DepositController {
 
   @Post()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  @ApiOperation({ summary: 'ایجاد درخواست واریز و صدور پیش‌فاکتور' })
+  @ApiOperation({
+    summary: 'ایجاد درخواست واریز و صدور پیش‌فاکتور',
+  })
   create(
     @Req() req: AuthedRequest,
-    @Body() dto: CreateDepositDto,
+    @Body() dto: CreateDepositRequestDto,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.depositService.create(
       req.user.userId,
-      Number(dto.amountRial),
+      dto.amountRial,
       idempotencyKey,
     );
   }
 
   @Get()
-  @ApiOperation({ summary: 'فهرست درخواست‌های واریز کاربر' })
+  @ApiOperation({
+    summary: 'فهرست درخواست‌های واریز کاربر',
+  })
   list(
     @Req() req: AuthedRequest,
     @Query('status') status?: DepositStatusValue,
@@ -70,7 +73,9 @@ export class DepositController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'جزئیات درخواست واریز' })
+  @ApiOperation({
+    summary: 'جزئیات درخواست واریز',
+  })
   getOne(@Req() req: AuthedRequest, @Param('id') id: string) {
     return this.depositService.getOne(req.user.userId, id);
   }
@@ -79,19 +84,26 @@ export class DepositController {
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @UseInterceptors(
     FileInterceptor('file', {
-      // حافظه، نه دیسک: فایل باید قبل از ذخیره با sharp دوباره انکود شود
       storage: memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+        files: 1,
+      },
     }),
   )
-  @ApiOperation({ summary: 'ارسال فیش واریزی' })
+  @ApiOperation({
+    summary: 'ارسال فیش واریزی',
+  })
   uploadReceipt(
     @Req() req: AuthedRequest,
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
     @Body('description') description?: string,
   ) {
-    if (!file) throw new BadRequestException('تصویر فیش را انتخاب کنید');
+    if (!file) {
+      throw new BadRequestException('تصویر فیش را انتخاب کنید');
+    }
+
     return this.depositService.uploadReceipt(
       req.user.userId,
       id,
@@ -102,7 +114,9 @@ export class DepositController {
 
   @Get(':id/receipts/:receiptId/url')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @ApiOperation({ summary: 'لینک موقت مشاهده رسید توسط خود کاربر' })
+  @ApiOperation({
+    summary: 'لینک موقت مشاهده رسید توسط خود کاربر',
+  })
   receiptUrl(
     @Req() req: AuthedRequest,
     @Param('id') id: string,
@@ -112,7 +126,9 @@ export class DepositController {
   }
 
   @Post(':id/cancel')
-  @ApiOperation({ summary: 'لغو درخواست واریز' })
+  @ApiOperation({
+    summary: 'لغو درخواست واریز',
+  })
   cancel(@Req() req: AuthedRequest, @Param('id') id: string) {
     return this.depositService.cancel(req.user.userId, id);
   }

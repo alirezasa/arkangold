@@ -1,10 +1,22 @@
 // packages/shared/src/dto/deposit.dto.ts
+import { Type } from 'class-transformer';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+  IsDefined,
+  
 
-import { IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
+} from "class-validator";
 
 export class CreateDepositRequestDto {
-  @IsInt({ message: 'مبلغ باید عدد صحیح ریالی باشد' })
-  @Min(1, { message: 'مبلغ معتبر نیست' })
+  @IsDefined({ message: "مبلغ الزامی است" })
+  @Type(() => Number)
+  @IsInt({ message: "مبلغ باید عدد صحیح باشد" })
+  @Min(1, { message: "مبلغ باید بیشتر از صفر باشد" })
   amountRial!: number;
 }
 
@@ -16,13 +28,15 @@ export class UploadDepositReceiptDto {
 }
 
 export class ApproveDepositRequestDto {
-  @IsOptional() @IsString() @MaxLength(500)
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
   note?: string;
 }
 
 export class RejectDepositRequestDto {
   @IsString()
-  @MinLength(10, { message: 'دلیل رد باید حداقل ۱۰ کاراکتر باشد' })
+  @MinLength(10, { message: "دلیل رد باید حداقل ۱۰ کاراکتر باشد" })
   @MaxLength(500)
   reason!: string;
 }

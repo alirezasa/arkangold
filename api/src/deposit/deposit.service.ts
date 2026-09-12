@@ -46,7 +46,7 @@ export class DepositService {
   // ═══════════════════════════════════════════════════════════
 
   async create(userId: string, amountRial: number, idempotencyKey?: string) {
-    if (!Number.isInteger(amountRial) || amountRial <= 0) {
+    if (!Number.isSafeInteger(amountRial) || amountRial <= 0) {
       throw new BadRequestException('مبلغ معتبر نیست');
     }
 

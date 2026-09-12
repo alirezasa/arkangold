@@ -1,2 +1,0 @@
--- AlterEnum
-ALTER TYPE "TransactionType" ADD VALUE 'MANUAL_ADJUSTMENT';

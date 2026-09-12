@@ -1,41 +1,53 @@
 // public/sw.js
 // آرکان گلد - Service Worker برای پشتیبانی آفلاین و PWA
 
-const CACHE_NAME = "arkan-gold-v1";
-const STATIC_CACHE = "arkan-static-v1";
-const API_CACHE = "arkan-api-v1";
+const STATIC_CACHE = "arkan-static-v3";
+const API_CACHE = "arkan-api-v3";
 
 // فایل‌هایی که در اولین بارگذاری کش می‌شوند
-const PRECACHE_URLS = [
-  "/",
-  "/dashboard",
-  "/manifest.json",
-  "/offline.html",
-];
+const PRECACHE_URLS = ["/", "/dashboard", "/manifest.json", "/offline.html"];
 
 // ─── Install ────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(STATIC_CACHE)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
+    (async () => {
+      const cache = await caches.open(STATIC_CACHE);
+
+      // addAll در صورت خطای یک فایل، کل نصب را fail می‌کند
+      // پس هر فایل مستقل کش می‌شود
+      await Promise.all(
+        PRECACHE_URLS.map((url) =>
+          cache.add(new Request(url, { cache: "reload" })).catch(() => null),
+        ),
+      );
+
+      await self.skipWaiting();
+    })(),
   );
 });
 
-// ─── Activate (clean old caches) ────────────────────────────
+// ─── Activate ───────────────────────────────────────────────
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => k !== STATIC_CACHE && k !== API_CACHE)
-            .map((k) => caches.delete(k))
-        )
-      )
-      .then(() => self.clients.claim())
+    (async () => {
+      const cacheNames = await caches.keys();
+
+      // حذف کش‌های قدیمی
+      await Promise.all(
+        cacheNames
+          .filter(
+            (cacheName) =>
+              cacheName !== STATIC_CACHE && cacheName !== API_CACHE,
+          )
+          .map((cacheName) => caches.delete(cacheName)),
+      );
+
+      // حذف احتمالی صفحات فاکتور که قبلاً کش شده‌اند
+      await removeInvoiceEntries();
+
+      // کنترل تمام تب‌های باز توسط نسخه جدید
+      await self.clients.claim();
+    })(),
   );
 });
 
@@ -44,8 +56,19 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // فقط درخواست‌های همین دامنه
-  if (url.origin !== location.origin) return;
+  if (request.method !== "GET") {
+    return;
+  }
+
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // صفحات چاپ فاکتور نباید کش شوند
+  if (url.pathname.startsWith("/invoice/")) {
+    event.respondWith(fetch(request, { cache: "no-store" }));
+    return;
+  }
 
   // API calls → Network first, fallback to cache
   if (url.pathname.startsWith("/api/")) {
@@ -54,9 +77,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Static assets → Cache first, fallback to network
-  if (
-    url.pathname.match(/\.(js|css|png|jpg|jpeg|svg|ico|woff2|webp)$/)
-  ) {
+  if (/\.(?:js|css|png|jpg|jpeg|svg|ico|woff2|webp)$/i.test(url.pathname)) {
     event.respondWith(cacheFirstStrategy(request));
     return;
   }
@@ -65,78 +86,198 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(pageStrategy(request));
 });
 
-// ─── Strategies ──────────────────────────────────────────────
-
+// ─── Network First Strategy ─────────────────────────────────
 async function networkFirstStrategy(request) {
   try {
-    const networkRes = await fetch(request.clone());
-    if (networkRes.ok) {
+    const networkResponse = await fetch(request);
+
+    if (networkResponse.ok) {
       const cache = await caches.open(API_CACHE);
-      cache.put(request, networkRes.clone());
+      await cache.put(request, networkResponse.clone());
     }
-    return networkRes;
+
+    return networkResponse;
   } catch {
-    const cached = await caches.match(request);
-    return cached || new Response(JSON.stringify({ error: "offline" }), {
-      headers: { "Content-Type": "application/json" },
-      status: 503,
+    const cachedResponse = await caches.match(request);
+
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    return new Response(
+      JSON.stringify({
+        error: "offline",
+        message: "اتصال اینترنت برقرار نیست",
+      }),
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        },
+      },
+    );
+  }
+}
+
+// ─── Cache First Strategy ───────────────────────────────────
+async function cacheFirstStrategy(request) {
+  const cachedResponse = await caches.match(request);
+
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  try {
+    const networkResponse = await fetch(request);
+
+    if (networkResponse.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      await cache.put(request, networkResponse.clone());
+    }
+
+    return networkResponse;
+  } catch {
+    return new Response("Not found", {
+      status: 404,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+      },
     });
   }
 }
 
-async function cacheFirstStrategy(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-  try {
-    const networkRes = await fetch(request);
-    const cache = await caches.open(STATIC_CACHE);
-    cache.put(request, networkRes.clone());
-    return networkRes;
-  } catch {
-    return new Response("Not found", { status: 404 });
-  }
-}
-
+// ─── Page Strategy ──────────────────────────────────────────
 async function pageStrategy(request) {
   try {
-    const networkRes = await fetch(request);
-    const cache = await caches.open(STATIC_CACHE);
-    cache.put(request, networkRes.clone());
-    return networkRes;
+    const networkResponse = await fetch(request);
+
+    if (networkResponse.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      await cache.put(request, networkResponse.clone());
+    }
+
+    return networkResponse;
   } catch {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    return caches.match("/offline.html");
+    const cachedResponse = await caches.match(request);
+
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    const offlineResponse = await caches.match("/offline.html");
+
+    if (offlineResponse) {
+      return offlineResponse;
+    }
+
+    return new Response("Offline", {
+      status: 503,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+      },
+    });
   }
 }
 
-// ─── Push notifications ──────────────────────────────────────
+// ─── حذف صفحات فاکتور از کش‌های قبلی ────────────────────────
+async function removeInvoiceEntries() {
+  const cacheNames = await caches.keys();
+
+  await Promise.all(
+    cacheNames.map(async (cacheName) => {
+      const cache = await caches.open(cacheName);
+      const requests = await cache.keys();
+
+      await Promise.all(
+        requests.map((cachedRequest) => {
+          const cachedUrl = new URL(cachedRequest.url);
+
+          if (
+            cachedUrl.origin === self.location.origin &&
+            cachedUrl.pathname.startsWith("/invoice/")
+          ) {
+            return cache.delete(cachedRequest);
+          }
+
+          return Promise.resolve(false);
+        }),
+      );
+    }),
+  );
+}
+
+// ─── Push notifications ─────────────────────────────────────
 self.addEventListener("push", (event) => {
-  const data = event.data?.json() ?? {};
+  let data = {};
+
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+
   const title = data.title || "آرکان گلد";
-  const options = {
+
+  const notificationOptions = {
     body: data.body || "یک اعلان جدید دارید",
     icon: "/icons/icon-192x192.png",
     badge: "/icons/icon-72x72.png",
     dir: "rtl",
     lang: "fa",
     vibrate: [200, 100, 200],
-    data: { url: data.url || "/dashboard" },
-    actions: data.actions || [],
+    data: {
+      url: data.url || "/dashboard",
+    },
+    actions: Array.isArray(data.actions) ? data.actions : [],
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+
+  event.waitUntil(
+    self.registration.showNotification(title, notificationOptions),
+  );
 });
 
+// ─── Notification click ─────────────────────────────────────
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/dashboard";
+
+  const fallbackUrl = new URL("/dashboard", self.location.origin);
+  const notificationUrl = event.notification.data?.url || "/dashboard";
+
+  let targetUrl;
+
+  try {
+    targetUrl = new URL(notificationUrl, self.location.origin);
+
+    // جلوگیری از هدایت به دامنه‌های خارجی
+    if (targetUrl.origin !== self.location.origin) {
+      targetUrl = fallbackUrl;
+    }
+  } catch {
+    targetUrl = fallbackUrl;
+  }
+
   event.waitUntil(
-    clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((windowClients) => {
-        const existing = windowClients.find((c) => c.url.includes(url));
-        if (existing) return existing.focus();
-        return clients.openWindow(url);
+    self.clients
+      .matchAll({
+        type: "window",
+        includeUncontrolled: true,
       })
+      .then((windowClients) => {
+        const existingClient = windowClients.find((client) => {
+          const clientUrl = new URL(client.url);
+
+          return (
+            clientUrl.origin === targetUrl.origin &&
+            clientUrl.pathname === targetUrl.pathname &&
+            clientUrl.search === targetUrl.search
+          );
+        });
+
+        if (existingClient) {
+          return existingClient.focus();
+        }
+
+        return self.clients.openWindow(targetUrl.href);
+      }),
   );
 });

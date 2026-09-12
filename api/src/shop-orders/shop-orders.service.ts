@@ -24,6 +24,7 @@ import {
   AccountingService,
   LedgerLineInput,
 } from '../accounting/accounting.service';
+import { InvoiceService } from '../invoice/invoice.service';
 
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 const PENDING_PAYMENT_TTL_MINUTES = 30;
@@ -68,6 +69,7 @@ export class ShopOrdersService {
     private readonly gatewayFactory: PaymentGatewayFactory,
     private readonly systemConfig: SystemConfigService,
     private readonly accountingService: AccountingService,
+    private readonly invoiceService: InvoiceService,
   ) {}
 
   private async withIdempotency<T>(
@@ -431,7 +433,7 @@ export class ShopOrdersService {
           where: { id: orderId },
           data: { status: 'PAID' },
         });
-
+        await this.invoiceService.issueForShopOrder(tx, orderId);
         this.logger.log(
           `[ShopOrder] سفارش ${orderId} با موفقیت پرداخت شد (کیف‌پول)`,
         );

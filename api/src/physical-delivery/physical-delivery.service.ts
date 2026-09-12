@@ -21,6 +21,7 @@ import {
   ShipPhysicalDeliveryDto,
   GetPhysicalDeliveriesQueryDto,
 } from '@arkan-gold/shared';
+import { InvoiceService } from '../invoice/invoice.service';
 
 const D0 = new Prisma.Decimal(0);
 const HOLD_DURATION_DAYS = 30;
@@ -34,6 +35,7 @@ export class PhysicalDeliveryService {
     private prisma: PrismaService,
     private systemConfig: SystemConfigService,
     private accountingService: AccountingService,
+    private readonly invoiceService: InvoiceService,
     @Inject('REDIS_CLIENT') private redis: Redis,
   ) {}
 
@@ -392,6 +394,28 @@ export class PhysicalDeliveryService {
               ? { decrement: feeRial }
               : undefined,
           },
+        });
+        const feeAmountRial = feeRial.toNumber();
+
+        await this.invoiceService.issue(tx, {
+          kind: 'INVOICE',
+          sourceType: 'PHYSICAL_DELIVERY',
+          sourceId: request.id,
+          userId: request.userId,
+          status: 'PAID',
+          items: [
+            {
+              rowNo: 1,
+              title: 'تحویل فیزیکی طلای آبشده',
+              unit: 'گرم',
+              quantity: Number(request.amountGrams),
+              weightGrams: Number(request.amountGrams),
+              purityKarat: 'K18',
+              unitPriceRial: 0,
+              feeRial: feeAmountRial,
+              totalRial: feeAmountRial,
+            },
+          ],
         });
 
         await tx.walletHold.delete({ where: { id: hold.id } });

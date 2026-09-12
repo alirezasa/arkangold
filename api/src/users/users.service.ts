@@ -8,9 +8,10 @@ import {
 } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import { PrismaService } from '../prisma/prisma.service';
-import { CivilRegistryService } from './civil-registry.service';
+
 import { SubmitIdentityDto } from '@arkan-gold/shared';
 import { UpdateLegalProfileDto } from '@arkan-gold/shared';
+import { IdentityVerificationService } from '../integrations/services/identity-verification.service';
 
 @Injectable()
 export class UsersService {
@@ -18,7 +19,7 @@ export class UsersService {
 
   constructor(
     private prisma: PrismaService,
-    private civilRegistry: CivilRegistryService,
+    private identityVerification: IdentityVerificationService,
   ) {}
 
   // ══════════════════════════════════════════
@@ -83,12 +84,12 @@ export class UsersService {
     // استعلام از وب‌سرویس ثبت احوال
     let civilResult: { matched: boolean; reason?: string };
     try {
-      civilResult = await this.civilRegistry.verify(
-        dto.nationalCode,
-        dto.firstName,
-        dto.lastName,
-        dto.birthDate,
-      );
+      civilResult = await this.identityVerification.verifyIdentity({
+        nationalCode: dto.nationalCode,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        birthDate: dto.birthDate,
+      });
     } catch (err) {
       this.logger.error('خطا در ارتباط با وب‌سرویس ثبت احوال', err);
       await this.upsertIdentity(userId, dto, 'MANUAL_REVIEW');

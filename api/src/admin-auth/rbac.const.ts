@@ -179,4 +179,19 @@ export const ADMIN_ROLES = [
     isSystem: true,
     permissions: ['shop.manage', 'shop.view'] as PermissionKey[],
   },
+  {
+    key: 'integrations.view',
+    group: 'integrations',
+    description: 'مشاهده تنظیمات Integration ها',
+  },
+  {
+    key: 'integrations.manage',
+    group: 'integrations',
+    description: 'فعال/غیرفعال و Priority بندی Provider ها',
+  },
+  {
+    key: 'integrations.credentials.manage',
+    group: 'integrations',
+    description: 'مدیریت Credential های Provider',
+  },
 ] as const;

@@ -7,7 +7,7 @@ interface ProviderServiceUpdateInput {
   isActive?: boolean;
   priority?: number;
   isFallback?: boolean;
-  configuration?: Record<string, unknown>;
+  configuration?: PrismaService.InputJsonObject;
 }
 
 @Injectable()
@@ -31,44 +31,81 @@ export class IntegrationsAdminService {
   }
 
   async listProviders() {
-    return this.prisma.integrationProvider.findMany({ orderBy: { code: 'asc' } });
+    return this.prisma.integrationProvider.findMany({
+      orderBy: { code: 'asc' },
+    });
   }
 
   async updateService(code: string, isActive: boolean) {
-    const service = await this.prisma.integrationService.findUnique({ where: { code } });
+    const service = await this.prisma.integrationService.findUnique({
+      where: { code },
+    });
     if (!service) throw new NotFoundException('سرویس یافت نشد');
-    return this.prisma.integrationService.update({ where: { code }, data: { isActive } });
+    return this.prisma.integrationService.update({
+      where: { code },
+      data: { isActive },
+    });
   }
 
   async updateProvider(code: string, isActive: boolean) {
-    const provider = await this.prisma.integrationProvider.findUnique({ where: { code } });
+    const provider = await this.prisma.integrationProvider.findUnique({
+      where: { code },
+    });
     if (!provider) throw new NotFoundException('Provider یافت نشد');
-    return this.prisma.integrationProvider.update({ where: { code }, data: { isActive } });
+    return this.prisma.integrationProvider.update({
+      where: { code },
+      data: { isActive },
+    });
   }
 
-  async updateProviderService(providerCode: string, serviceCode: string, data: ProviderServiceUpdateInput) {
+  async updateProviderService(
+    providerCode: string,
+    serviceCode: string,
+    data: ProviderServiceUpdateInput,
+  ) {
     const [provider, service] = await Promise.all([
-      this.prisma.integrationProvider.findUnique({ where: { code: providerCode } }),
-      this.prisma.integrationService.findUnique({ where: { code: serviceCode } }),
+      this.prisma.integrationProvider.findUnique({
+        where: { code: providerCode },
+      }),
+      this.prisma.integrationService.findUnique({
+        where: { code: serviceCode },
+      }),
     ]);
     if (!provider) throw new NotFoundException('Provider یافت نشد');
     if (!service) throw new NotFoundException('سرویس یافت نشد');
 
     return this.prisma.integrationProviderService.upsert({
-      where: { providerId_serviceId: { providerId: provider.id, serviceId: service.id } },
+      where: {
+        providerId_serviceId: {
+          providerId: provider.id,
+          serviceId: service.id,
+        },
+      },
+
       create: {
         providerId: provider.id,
         serviceId: service.id,
         isActive: data.isActive ?? true,
         priority: data.priority ?? 1,
         isFallback: data.isFallback ?? false,
-        configuration: data.configuration,
+
+        ...(data.configuration !== undefined
+          ? { configuration: data.configuration }
+          : {}),
       },
+
       update: {
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+
         ...(data.priority !== undefined ? { priority: data.priority } : {}),
-        ...(data.isFallback !== undefined ? { isFallback: data.isFallback } : {}),
-        ...(data.configuration !== undefined ? { configuration: data.configuration } : {}),
+
+        ...(data.isFallback !== undefined
+          ? { isFallback: data.isFallback }
+          : {}),
+
+        ...(data.configuration !== undefined
+          ? { configuration: data.configuration }
+          : {}),
       },
     });
   }
@@ -93,10 +130,14 @@ export class IntegrationsAdminService {
 
     const [provider, service] = await Promise.all([
       params.providerCode
-        ? this.prisma.integrationProvider.findUnique({ where: { code: params.providerCode } })
+        ? this.prisma.integrationProvider.findUnique({
+            where: { code: params.providerCode },
+          })
         : null,
       params.serviceCode
-        ? this.prisma.integrationService.findUnique({ where: { code: params.serviceCode } })
+        ? this.prisma.integrationService.findUnique({
+            where: { code: params.serviceCode },
+          })
         : null,
     ]);
 
@@ -116,7 +157,13 @@ export class IntegrationsAdminService {
       this.prisma.integrationLog.count({ where }),
     ]);
 
-    return { data: items, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+    return {
+      data: items,
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
   }
 
   /**
@@ -128,7 +175,10 @@ export class IntegrationsAdminService {
     try {
       await this.finotechToken.invalidateCache();
       await this.finotechToken.getAccessToken();
-      return { success: true, message: 'اتصال به فینوتک و دریافت توکن موفق بود' };
+      return {
+        success: true,
+        message: 'اتصال به فینوتک و دریافت توکن موفق بود',
+      };
     } catch (err) {
       return { success: false, message: (err as Error).message };
     }

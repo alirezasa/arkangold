@@ -28,7 +28,6 @@ model User {
   orders               Order[]
   payments             Payment[]
   payrollPlanUsers     PayrollPlanUser[]
-  createdPayrollPlans  PayrollPlan[]
   physicalDeliveryReqs PhysicalDeliveryRequest[]
   priceLocks           PriceLock[]
   referralRewards      ReferralReward[]
@@ -686,7 +685,7 @@ model PayrollPlan {
   createdById  String            @map("created_by_id") @db.Uuid
   logs         PayrollLog[]
   users        PayrollPlanUser[]
-  createdBy    User              @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy    AdminUser         @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
   @@map("payroll_plans")
 }
@@ -819,6 +818,7 @@ model AdminUser {
   approvals            Approval[]
   approvedByPhysical   PhysicalDeliveryRequest[] @relation("ApprovedBy")
   processedWithdrawals WithdrawalRequest[]       @relation("ProcessedBy")
+  createdPayrollPlans  PayrollPlan[]
 
   @@map("admin_users")
 }

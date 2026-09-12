@@ -26,6 +26,7 @@ import { StorageModule } from './common/storage/storage.module';
 import { DocumentSequenceModule } from './common/documents/document-sequence.module';
 import { InvoiceModule } from './invoice/invoice.module';
 import { DepositModule } from './deposit/deposit.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { DepositModule } from './deposit/deposit.module';
     DocumentSequenceModule, // Global
     InvoiceModule,
     DepositModule,
+    IntegrationsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

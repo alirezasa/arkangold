@@ -1075,6 +1075,16 @@ export class ShopOrdersService {
               shopOrderId: order.id,
             },
           });
+
+          await this.accountingService.postJournal(tx, {
+            description: `بازگشت وجه سفارش لغوشده - سفارش ${order.id}`,
+            totalRial: refundRial,
+            totalGrams: 0,
+            lines: [
+              { accountCode: '4020', side: 'DEBIT', amountRial: refundRial },
+              { accountCode: '2010', side: 'CREDIT', amountRial: refundRial },
+            ],
+          });
         }
       }
 

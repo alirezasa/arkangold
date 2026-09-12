@@ -76,6 +76,29 @@ export interface WithdrawalConfig {
   remainingThisMonth: number;
 }
 
+export interface TransferConfig {
+  dailyLimitRial: number;
+  monthlyLimitRial: number;
+  dailyLimitGrams: number;
+  monthlyLimitGrams: number;
+  usedTodayRial: number;
+  usedThisMonthRial: number;
+  usedTodayGrams: number;
+  usedThisMonthGrams: number;
+  remainingTodayRial: number;
+  remainingThisMonthRial: number;
+  remainingTodayGrams: number;
+  remainingThisMonthGrams: number;
+}
+
+export interface InternalTransferResult {
+  transactionId: string;
+  destinationCardNumber: string;
+  amountRial?: number;
+  amountGrams?: number;
+  message: string;
+}
+
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
 // ── Hook: اطلاعات کیف پول ──
@@ -111,6 +134,52 @@ export const useWithdrawalConfig = () => {
     { revalidateOnFocus: false },
   );
   return { config: data ?? null, loading: isLoading, error, refresh: mutate };
+};
+
+// ── Hook: تنظیمات و محدودیت‌های انتقال داخلی ──
+export const useTransferConfig = () => {
+  const { data, isLoading, error, mutate } = useSWR<TransferConfig>(
+    '/api/wallet/transfer/config',
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  return { config: data ?? null, loading: isLoading, error, refresh: mutate };
+};
+
+// ── Hook: انتقال داخلی کیف پول به کاربر دیگر ──
+export const useInternalTransfer = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const transfer = useCallback(
+    async (
+      destinationCardNumber: string,
+      amountRial?: number,
+      amountGrams?: number,
+    ): Promise<InternalTransferResult | null> => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await axios.post('/api/wallet/transfer', {
+          destinationCardNumber,
+          amountRial,
+          amountGrams,
+        });
+        return res.data;
+      } catch (e: unknown) {
+        if (axios.isAxiosError(e)) {
+          const msg = e.response?.data?.message;
+          setError(Array.isArray(msg) ? msg[0] : msg || 'خطا در ثبت انتقال');
+        } else setError('خطای ناشناخته');
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  return { loading, error, setError, transfer };
 };
 
 // ── Hook: واریز کارت به کارت ──

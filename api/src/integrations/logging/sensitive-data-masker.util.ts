@@ -4,7 +4,8 @@ export function maskSensitive(
   visibleEnd = 4,
 ): string {
   if (!value) return '';
-  if (value.length <= visibleStart + visibleEnd) return '*'.repeat(value.length);
+  if (value.length <= visibleStart + visibleEnd)
+    return '*'.repeat(value.length);
   return (
     value.slice(0, visibleStart) +
     '*'.repeat(value.length - visibleStart - visibleEnd) +
@@ -12,7 +13,9 @@ export function maskSensitive(
   );
 }
 
-export function maskNationalCode(nationalCode: string | undefined | null): string {
+export function maskNationalCode(
+  nationalCode: string | undefined | null,
+): string {
   return maskSensitive(nationalCode, 0, 3);
 }
 

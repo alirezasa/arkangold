@@ -3,7 +3,8 @@ export const FINOTECH_PROVIDER_CODE = 'FINOTECH';
 export const FINOTECH_CONFIG = {
   BASE_URL: 'https://api.finnotech.ir',
   TOKEN_PATH: '/dev/v2/oauth2/token',
-  IDENTITY_INQUIRY_PATH: (clientId: string) => `/kyc/v2/clients/${clientId}/identificationInquiry`,
+  IDENTITY_INQUIRY_PATH: (clientId: string) =>
+    `/kyc/v2/clients/${clientId}/identificationInquiry`,
   SCOPE: 'kyc:identification-inquiry:get',
   GRANT_TYPE: 'client_credentials',
   TOKEN_CACHE_KEY: 'finotech:access_token',

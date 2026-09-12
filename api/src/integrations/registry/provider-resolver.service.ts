@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { ProviderRegistryService } from './provider-registry.service';
 import { IntegrationLogService } from '../logging/integration-log.service';
-import { IntegrationError, UnknownIntegrationError } from '../errors/integration-error';
+import {
+  IntegrationError,
+  UnknownIntegrationError,
+} from '../errors/integration-error';
 
 export interface ResolvedExecution<TResult> {
   result: TResult;
@@ -61,8 +64,10 @@ export class ProviderResolverService {
         return { result, providerCode: candidate.providerCode, requestId };
       } catch (err) {
         lastError = err;
-        const isRetryable = err instanceof IntegrationError ? err.retryable : false;
-        const errorCode = err instanceof IntegrationError ? err.category : 'UNKNOWN_ERROR';
+        const isRetryable =
+          err instanceof IntegrationError ? err.retryable : false;
+        const errorCode =
+          err instanceof IntegrationError ? err.category : 'UNKNOWN_ERROR';
 
         await this.integrationLog.logFailure({
           requestId,
@@ -83,6 +88,11 @@ export class ProviderResolverService {
       }
     }
 
-    throw lastError ?? new UnknownIntegrationError(`هیچ Provider فعالی برای سرویس ${serviceCode} در دسترس نبود`);
+    throw (
+      lastError ??
+      new UnknownIntegrationError(
+        `هیچ Provider فعالی برای سرویس ${serviceCode} در دسترس نبود`,
+      )
+    );
   }
 }

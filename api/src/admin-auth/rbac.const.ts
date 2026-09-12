@@ -125,6 +125,21 @@ export const ADMIN_PERMISSIONS = [
     group: 'accounting',
     description: 'ابطال فاکتور',
   },
+  {
+    key: 'integrations.view',
+    group: 'integrations',
+    description: 'مشاهده تنظیمات Integration ها',
+  },
+  {
+    key: 'integrations.manage',
+    group: 'integrations',
+    description: 'فعال/غیرفعال و Priority بندی Provider ها',
+  },
+  {
+    key: 'integrations.credentials.manage',
+    group: 'integrations',
+    description: 'مدیریت Credential های Provider',
+  },
 ] as const;
 
 export type PermissionKey = (typeof ADMIN_PERMISSIONS)[number]['key'];
@@ -178,20 +193,5 @@ export const ADMIN_ROLES = [
     description: 'مدیریت محصولات، دسته‌بندی‌ها و سفارشات فروشگاه',
     isSystem: true,
     permissions: ['shop.manage', 'shop.view'] as PermissionKey[],
-  },
-  {
-    key: 'integrations.view',
-    group: 'integrations',
-    description: 'مشاهده تنظیمات Integration ها',
-  },
-  {
-    key: 'integrations.manage',
-    group: 'integrations',
-    description: 'فعال/غیرفعال و Priority بندی Provider ها',
-  },
-  {
-    key: 'integrations.credentials.manage',
-    group: 'integrations',
-    description: 'مدیریت Credential های Provider',
   },
 ] as const;

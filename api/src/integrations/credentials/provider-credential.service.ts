@@ -13,11 +13,13 @@ export class ProviderCredentialService {
     const provider = await this.prisma.integrationProvider.findUnique({
       where: { code: providerCode },
     });
-    if (!provider) throw new NotFoundException(`Provider با کد ${providerCode} یافت نشد`);
+    if (!provider)
+      throw new NotFoundException(`Provider با کد ${providerCode} یافت نشد`);
 
-    const credential = await this.prisma.integrationProviderCredential.findUnique({
-      where: { providerId_key: { providerId: provider.id, key } },
-    });
+    const credential =
+      await this.prisma.integrationProviderCredential.findUnique({
+        where: { providerId_key: { providerId: provider.id, key } },
+      });
     if (!credential) {
       throw new NotFoundException(
         `Credential با کلید ${key} برای Provider ${providerCode} تنظیم نشده است`,
@@ -27,18 +29,28 @@ export class ProviderCredentialService {
     return this.encryption.decrypt(credential.encryptedValue);
   }
 
-  async getCredentials(providerCode: string, keys: string[]): Promise<Record<string, string>> {
+  async getCredentials(
+    providerCode: string,
+    keys: string[],
+  ): Promise<Record<string, string>> {
     const entries = await Promise.all(
-      keys.map(async (k) => [k, await this.getCredential(providerCode, k)] as const),
+      keys.map(
+        async (k) => [k, await this.getCredential(providerCode, k)] as const,
+      ),
     );
     return Object.fromEntries(entries);
   }
 
-  async setCredential(providerCode: string, key: string, value: string): Promise<void> {
+  async setCredential(
+    providerCode: string,
+    key: string,
+    value: string,
+  ): Promise<void> {
     const provider = await this.prisma.integrationProvider.findUnique({
       where: { code: providerCode },
     });
-    if (!provider) throw new NotFoundException(`Provider با کد ${providerCode} یافت نشد`);
+    if (!provider)
+      throw new NotFoundException(`Provider با کد ${providerCode} یافت نشد`);
 
     const encryptedValue = this.encryption.encrypt(value);
 
@@ -56,11 +68,14 @@ export class ProviderCredentialService {
       where: { code: providerCode },
       include: { credentials: true },
     });
-    if (!provider) throw new NotFoundException(`Provider با کد ${providerCode} یافت نشد`);
+    if (!provider)
+      throw new NotFoundException(`Provider با کد ${providerCode} یافت نشد`);
 
     return provider.credentials.map((c) => ({
       key: c.key,
-      maskedValue: this.encryption.maskForDisplay(this.encryption.decrypt(c.encryptedValue)),
+      maskedValue: this.encryption.maskForDisplay(
+        this.encryption.decrypt(c.encryptedValue),
+      ),
       updatedAt: c.updatedAt,
     }));
   }

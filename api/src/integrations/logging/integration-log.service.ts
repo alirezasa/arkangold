@@ -33,8 +33,12 @@ export class IntegrationLogService {
   ) {
     try {
       const [service, provider] = await Promise.all([
-        this.prisma.integrationService.findUnique({ where: { code: params.serviceCode } }),
-        this.prisma.integrationProvider.findUnique({ where: { code: params.providerCode } }),
+        this.prisma.integrationService.findUnique({
+          where: { code: params.serviceCode },
+        }),
+        this.prisma.integrationProvider.findUnique({
+          where: { code: params.providerCode },
+        }),
       ]);
 
       await this.prisma.integrationLog.create({

@@ -6,7 +6,11 @@ import {
   IdentityVerificationProvider,
   IdentityVerificationResult,
 } from '../../interfaces/identity-verification.interface';
-import { InvalidResponseError, ValidationError } from '../../errors/integration-error';
+import {
+  InvalidResponseError,
+  ValidationError,
+} from '../../errors/integration-error';
+import jalaali from 'jalaali-js';
 
 interface FinotechIdentityInquiryResponse {
   responseCode?: string;
@@ -47,7 +51,9 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
 
   constructor(private readonly http: FinotechHttpClient) {}
 
-  async verifyIdentity(input: IdentityVerificationInput): Promise<IdentityVerificationResult> {
+  async verifyIdentity(
+    input: IdentityVerificationInput,
+  ): Promise<IdentityVerificationResult> {
     if (!/^\d{10}$/.test(input.nationalCode)) {
       throw new ValidationError('کد ملی باید ۱۰ رقم باشد');
     }
@@ -73,7 +79,9 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
       // این یک نتیجه Business است نه خطای فنی → matched:false، نه throw
       return {
         matched: false,
-        reason: response.error.message || 'اطلاعات هویتی با سوابق ثبت احوال تطابق ندارد',
+        reason:
+          response.error.message ||
+          'اطلاعات هویتی با سوابق ثبت احوال تطابق ندارد',
         providerRequestId: response.trackId,
       };
     }
@@ -83,7 +91,11 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
     }
 
     if (response.result.deathStatus && response.result.deathStatus !== 'زنده') {
-      return { matched: false, reason: 'وضعیت حیات ثبت‌شده زنده نیست', providerRequestId: response.trackId };
+      return {
+        matched: false,
+        reason: 'وضعیت حیات ثبت‌شده زنده نیست',
+        providerRequestId: response.trackId,
+      };
     }
 
     return {
@@ -99,15 +111,9 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
 
   private toJalaliSlashFormat(isoDate: string): string {
     // TODO: بعد از نصب jalaali-js این پیاده‌سازی را جایگزین کن:
-    //
-    //   import jalaali from 'jalaali-js';
-    //   const [gy, gm, gd] = isoDate.split('-').map(Number);
-    //   const { jy, jm, jd } = jalaali.toJalaali(gy, gm, gd);
-    //   return `${jy}/${String(jm).padStart(2, '0')}/${String(jd).padStart(2, '0')}`;
-    //
-    void isoDate;
-    throw new ValidationError(
-      'تبدیل تاریخ میلادی به شمسی هنوز پیاده‌سازی نشده — پکیج jalaali-js را نصب و این متد را طبق راهنمای بالا تکمیل کن',
-    );
+
+    const [gy, gm, gd] = isoDate.split('-').map(Number);
+    const { jy, jm, jd } = jalaali.toJalaali(gy, gm, gd);
+    return `${jy}/${String(jm).padStart(2, '0')}/${String(jd).padStart(2, '0')}`;
   }
 }

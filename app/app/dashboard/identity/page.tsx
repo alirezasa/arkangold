@@ -14,6 +14,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { useIdentity } from '@/app/hooks/useIdentity';
+import { jalaliToIsoDate } from '@/app/utils/jalali';
 
 export default function IdentityPage() {
   const router = useRouter();
@@ -45,7 +46,6 @@ export default function IdentityPage() {
     if (!form.birthYear || !form.birthMonth || !form.birthDay)
       return setError('تاریخ تولد را کامل وارد کنید');
 
-    // تبدیل تاریخ شمسی به میلادی (ساده)
     const jYear = parseInt(form.birthYear);
     const jMonth = parseInt(form.birthMonth);
     const jDay = parseInt(form.birthDay);
@@ -54,9 +54,8 @@ export default function IdentityPage() {
     if (jMonth < 1 || jMonth > 12) return setError('ماه تولد معتبر نیست');
     if (jDay < 1 || jDay > 31) return setError('روز تولد معتبر نیست');
 
-    // تبدیل ساده شمسی به میلادی
-    const gYear = jYear + 621;
-    const birthDate = `${gYear}-${String(jMonth).padStart(2, '0')}-${String(jDay).padStart(2, '0')}`;
+    // تبدیل دقیق تاریخ شمسی به میلادی (بر اساس الگوریتم تقویم جلالی)
+    const birthDate = jalaliToIsoDate(jYear, jMonth, jDay);
 
     await submitIdentity({
       firstName: form.firstName.trim(),

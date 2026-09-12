@@ -64,6 +64,35 @@ function formatDateTime(iso: string) {
   };
 }
 
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+// ── برچسب روز برای هدر گروه («امروز»، «دیروز» یا تاریخ کامل) ──
+function dayLabel(iso: string) {
+  const d = new Date(iso);
+  const diffDays = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86400000);
+  if (diffDays === 0) return "امروز";
+  if (diffDays === 1) return "دیروز";
+  return d.toLocaleDateString("fa-IR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+// ── گروه‌بندی تراکنش‌ها بر اساس روز، با حفظ ترتیب ──
+function groupByDay(items: TransactionItem[]) {
+  const groups: { label: string; items: TransactionItem[] }[] = [];
+  for (const tx of items) {
+    const label = dayLabel(tx.createdAt);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(tx);
+    else groups.push({ label, items: [tx] });
+  }
+  return groups;
+}
+
 function TxIcon({ category }: { category: string }) {
   const s = CATEGORY_STYLE[category] ?? CATEGORY_STYLE.other;
   const Icon = s.icon;
@@ -349,56 +378,69 @@ export default function TransactionsPage() {
             </p>
           </div>
         ) : (
-          transactions.map((tx, idx) => {
-            const { date, time } = formatDateTime(tx.createdAt);
-            return (
-              <button
-                key={tx.id}
-                onClick={() => setSelectedTx(tx)}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-right transition-colors hover:bg-gray-50 active:bg-gray-100"
-                style={{
-                  borderTop:
-                    idx > 0 ? "1px solid var(--color-border)" : undefined,
-                }}
-              >
-                <TxIcon category={tx.category} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-[13px] font-bold text-gray-800 truncate">
-                      {tx.title}
-                    </p>
-                    {tx.status !== "COMPLETED" && (
-                      <StatusBadge status={tx.status} />
-                    )}
-                  </div>
-                  <p className="text-[11px] text-gray-400">
-                    {date} · {time}
-                  </p>
+          <div className="max-h-[65vh] overflow-y-auto">
+            {groupByDay(transactions).map((group) => (
+              <div key={group.label}>
+                <div
+                  className="sticky top-0 z-10 px-4 py-2 text-[11px] font-bold text-gray-400 backdrop-blur-sm"
+                  style={{
+                    backgroundColor: "color-mix(in srgb, var(--color-surface) 92%, transparent)",
+                    borderBottom: "1px solid var(--color-border)",
+                  }}
+                >
+                  {group.label}
                 </div>
-                <div className="text-left shrink-0">
-                  {tx.amountGrams && (
-                    <p
-                      className="text-[13px] font-black"
+                {group.items.map((tx, idx) => {
+                  const { time } = formatDateTime(tx.createdAt);
+                  return (
+                    <button
+                      key={tx.id}
+                      onClick={() => setSelectedTx(tx)}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-right transition-colors hover:bg-gray-50 active:bg-gray-100"
                       style={{
-                        color:
-                          tx.sign === "plus"
-                            ? "#16a34a"
-                            : "var(--color-red, #dc2626)",
+                        borderTop:
+                          idx > 0 ? "1px solid var(--color-border)" : undefined,
                       }}
                     >
-                      {tx.sign === "plus" ? "+" : "-"}
-                      {tx.amountGrams} گ
-                    </p>
-                  )}
-                  {tx.amountToman && (
-                    <p className="text-[11px] text-gray-400 mt-0.5">
-                      {toToman(tx.amountToman)} ت
-                    </p>
-                  )}
-                </div>
-              </button>
-            );
-          })
+                      <TxIcon category={tx.category} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="text-[13px] font-bold text-gray-800 truncate">
+                            {tx.title}
+                          </p>
+                          {tx.status !== "COMPLETED" && (
+                            <StatusBadge status={tx.status} />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-400">{time}</p>
+                      </div>
+                      <div className="text-left shrink-0">
+                        {tx.amountGrams && (
+                          <p
+                            className="text-[13px] font-black"
+                            style={{
+                              color:
+                                tx.sign === "plus"
+                                  ? "#16a34a"
+                                  : "var(--color-red, #dc2626)",
+                            }}
+                          >
+                            {tx.sign === "plus" ? "+" : "-"}
+                            {tx.amountGrams} گ
+                          </p>
+                        )}
+                        {tx.amountToman && (
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            {toToman(tx.amountToman)} ت
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

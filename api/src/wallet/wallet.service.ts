@@ -667,6 +667,68 @@ export class WalletService {
   }
 
   // ══════════════════════════════════════════
+  // ── کانفیگ و محدودیت‌های انتقال داخلی ──
+  // ══════════════════════════════════════════
+  async getTransferConfig(userId: string) {
+    const [dailyLimitRial, monthlyLimitRial, dailyLimitGrams, monthlyLimitGrams] =
+      await Promise.all([
+        this.systemConfig.getNumber('transfer.daily_limit_rial', 4000000000),
+        this.systemConfig.getNumber('transfer.monthly_limit_rial', 10000000000),
+        this.systemConfig.getNumber('transfer.daily_limit_grams', 5),
+        this.systemConfig.getNumber('transfer.monthly_limit_grams', 20),
+      ]);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const [todayUsed, monthUsed] = await Promise.all([
+      this.prisma.transaction.aggregate({
+        where: {
+          userId,
+          type: 'TRANSFER_OUT',
+          status: 'COMPLETED',
+          createdAt: { gte: today },
+        },
+        _sum: { amountRial: true, amountGrams: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: {
+          userId,
+          type: 'TRANSFER_OUT',
+          status: 'COMPLETED',
+          createdAt: { gte: firstOfMonth },
+        },
+        _sum: { amountRial: true, amountGrams: true },
+      }),
+    ]);
+
+    const usedTodayRial = Number(todayUsed._sum.amountRial ?? 0);
+    const usedThisMonthRial = Number(monthUsed._sum.amountRial ?? 0);
+    const usedTodayGrams = Number(todayUsed._sum.amountGrams ?? 0);
+    const usedThisMonthGrams = Number(monthUsed._sum.amountGrams ?? 0);
+
+    // سقف <= ۰ به معنای «بدون محدودیت» است (مطابق assertWithinTransferLimit)
+    const remaining = (limit: number, used: number) =>
+      limit <= 0 ? Number.MAX_SAFE_INTEGER : Math.max(0, limit - used);
+
+    return {
+      dailyLimitRial,
+      monthlyLimitRial,
+      dailyLimitGrams,
+      monthlyLimitGrams,
+      usedTodayRial,
+      usedThisMonthRial,
+      usedTodayGrams,
+      usedThisMonthGrams,
+      remainingTodayRial: remaining(dailyLimitRial, usedTodayRial),
+      remainingThisMonthRial: remaining(monthlyLimitRial, usedThisMonthRial),
+      remainingTodayGrams: remaining(dailyLimitGrams, usedTodayGrams),
+      remainingThisMonthGrams: remaining(monthlyLimitGrams, usedThisMonthGrams),
+    };
+  }
+
+  // ══════════════════════════════════════════
   // ── انتقال داخلی کیف پول (بدون کارمزد) ──
   // ══════════════════════════════════════════
   async internalTransfer(

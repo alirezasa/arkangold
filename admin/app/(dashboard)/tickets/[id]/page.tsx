@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
 import { useState } from "react";
-import { Loader2, Send, Lock, EyeOff } from "lucide-react";
+import { Loader2, Send, EyeOff } from "lucide-react";
 
 const STATUS_FA: Record<string, string> = {
   OPEN: "باز",
@@ -42,7 +42,7 @@ interface TicketDetail {
   priority: string;
   category: { name: string };
   user: { phone: string };
-  assignedAdmin: { id: string; name: string } | null;
+  assignedAdmin: { id: string; fullName: string } | null;
   messages: Message[];
 }
 
@@ -184,7 +184,7 @@ export default function AdminTicketDetailPage() {
 
         <div className="border border-gray-100 rounded-xl p-4">
           <p className="text-[11px] font-bold text-gray-400 mb-2">کارشناس مسئول</p>
-          <p className="text-[13px] mb-3">{data.assignedAdmin?.name ?? "اختصاص نیافته"}</p>
+          <p className="text-[13px] mb-3">{data.assignedAdmin?.fullName ?? "اختصاص نیافته"}</p>
           <div className="flex gap-2">
             <input
               value={assignAdminId}

@@ -17,7 +17,6 @@ import {
   ListTicketsQueryDto,
   RateTicketDto,
 } from '@arkan-gold/shared';
-// مسیر را با محل واقعی PrismaService در پروژه‌تان هماهنگ کنید
 import { PrismaService } from '../prisma/prisma.service';
 import { STORAGE_SERVICE, IStorageService } from './storage/storage.service';
 import {
@@ -162,7 +161,7 @@ export class TicketsService {
       where: { id: ticketId, userId, deletedAt: null },
       include: {
         category: true,
-        assignedAdmin: { select: { id: true, name: true } },
+        assignedAdmin: { select: { id: true, fullName: true } },
         messages: {
           where: { isInternal: false, deletedAt: null }, // کاربر هرگز Internal Note نمی‌بیند
           orderBy: { createdAt: 'asc' },
@@ -182,7 +181,8 @@ export class TicketsService {
       where: { id: ticketId, userId, deletedAt: null },
     });
     if (!ticket) throw new NotFoundException('تیکت یافت نشد');
-    return ticket;
+    // Enum تولیدشده توسط Prisma و Enum پکیج Shared مقادیر یکسانی دارند
+    return { ...ticket, status: ticket.status as unknown as TicketStatus };
   }
 
   // ---------------------------------------------------------------------
@@ -260,7 +260,9 @@ export class TicketsService {
       if (!msg) throw new ForbiddenException('پیام معتبر نیست');
     }
 
-    const created = [];
+    const created: Array<
+      Awaited<ReturnType<typeof this.prisma.ticketAttachment.create>>
+    > = [];
     for (const file of files) {
       validateUploadedFile(file);
       const { storageKey } = buildTicketStorageKey(
@@ -408,8 +410,7 @@ export class TicketsService {
       reason?: string;
     },
   ) {
-    const allowed =
-      TICKET_STATUS_TRANSITIONS[ticket.status as TicketStatus] ?? [];
+    const allowed = TICKET_STATUS_TRANSITIONS[ticket.status] ?? [];
     if (!allowed.includes(newStatus)) {
       throw new BadRequestException({
         message: `تغییر وضعیت از ${ticket.status} به ${newStatus} مجاز نیست`,

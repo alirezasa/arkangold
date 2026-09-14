@@ -11,7 +11,6 @@ import { TicketsAdminService } from './tickets-admin.service';
 import { TicketsSlaWorkerService } from './sla-worker.service';
 import { STORAGE_SERVICE } from './storage/storage.service';
 import { S3StorageService } from './storage/s3-storage.service';
-// مسیر PrismaModule را با ساختار واقعی پروژه هماهنگ کنید (اگر ماژول جدا دارید)
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
@@ -32,11 +31,11 @@ import { PrismaModule } from '../prisma/prisma.module';
   providers: [
     TicketsService,
     TicketsAdminService,
-    TicketsSlaWorkerService, // نیازمند ScheduleModule.forRoot() فعال در AppModule (اگر از قبل ندارید اضافه کنید)
+    // @Cron در این سرویس توسط ScheduleExplorer در سطح کل اپ کشف می‌شود؛
+    // ScheduleModule.forRoot() همین الان در MarketModule (global) فعال است.
+    TicketsSlaWorkerService,
     { provide: STORAGE_SERVICE, useClass: S3StorageService },
   ],
   exports: [TicketsService],
 })
 export class TicketsModule {}
-
-// یادآوری: این ماژول را به imports آرایه AppModule (api/src/app.module.ts) اضافه کنید.

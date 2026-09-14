@@ -266,6 +266,7 @@ export enum TicketActivityAction {
   TICKET_RESOLVED = 'TICKET_RESOLVED',
   TICKET_CLOSED = 'TICKET_CLOSED',
   TICKET_REOPENED = 'TICKET_REOPENED',
+  SLA_BREACHED = 'SLA_BREACHED',
 }
 
 // نگاشت گذارهای مجاز وضعیت — مرجع واحد هم برای Backend هم اگر لازم شد Frontend

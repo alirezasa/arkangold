@@ -45,7 +45,7 @@ export function sanitizeFilename(originalName: string): string {
 export function getExtension(filename: string): string {
   const parts = filename.split('.');
   if (parts.length < 2) return '';
-  return parts[parts.length - 1]!.toLowerCase();
+  return parts[parts.length - 1].toLowerCase();
 }
 
 export function validateUploadedFile(file: {

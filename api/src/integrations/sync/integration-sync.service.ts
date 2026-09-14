@@ -62,8 +62,8 @@ const PROVIDERS: ProviderDefinition[] = [
   },
 ];
 
-// فقط سرویس‌هایی که همین الان Adapter واقعی دارند این‌جا Link می‌شوند.
-// بقیه سرویس‌ها (IBAN/CARD/COMPANY/GOLD_PRICE/SMS/PAYMENT_GATEWAY) عمداً بدون لینک باقی می‌مانند
+// فقط سرویس‌هایی که همین الان Adapter دارند این‌جا Link می‌شوند (SMS فعلاً فقط Mock/Log دارد).
+// بقیه سرویس‌ها (IBAN/CARD/COMPANY/GOLD_PRICE/PAYMENT_GATEWAY) عمداً بدون لینک باقی می‌مانند
 // تا وقتی Adapter واقعی‌شان نوشته شود؛ صدا زدن آن‌ها فعلاً به‌درستی CONFIGURATION_ERROR می‌دهد.
 const INITIAL_LINKS: InitialLink[] = [
   {
@@ -79,6 +79,13 @@ const INITIAL_LINKS: InitialLink[] = [
     priority: 2,
     isActive: false,
     isFallback: true,
+  },
+  {
+    serviceCode: 'SMS',
+    providerCode: 'MOCK',
+    priority: 1,
+    isActive: true,
+    isFallback: false,
   },
 ];
 

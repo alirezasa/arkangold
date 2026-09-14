@@ -14,12 +14,14 @@ interface CreateAdminDto {
   password: string;
   fullName: string;
   roleKey: string;
+  phone?: string;
 }
 
 interface UpdateAdminDto {
   fullName?: string;
   roleKey?: string;
   isActive?: boolean;
+  phone?: string;
 }
 
 @Injectable()
@@ -35,6 +37,7 @@ export class AdminManagementService {
       id: a.id,
       username: a.username,
       fullName: a.fullName,
+      phone: a.phone,
       isActive: a.isActive,
       totpEnabled: a.totpEnabled,
       role: { key: a.role.key, name: a.role.name },
@@ -72,6 +75,7 @@ export class AdminManagementService {
         username: dto.username,
         passwordHash,
         fullName: dto.fullName,
+        phone: dto.phone,
         roleId: role.id,
         createdById: creatorId,
       },
@@ -82,6 +86,7 @@ export class AdminManagementService {
       id: admin.id,
       username: admin.username,
       fullName: admin.fullName,
+      phone: admin.phone,
       role: { key: admin.role.key, name: admin.role.name },
     };
   }
@@ -128,6 +133,7 @@ export class AdminManagementService {
       where: { id: targetId },
       data: {
         fullName: dto.fullName,
+        phone: dto.phone,
         roleId,
         isActive: dto.isActive,
       },
@@ -145,6 +151,7 @@ export class AdminManagementService {
       id: updated.id,
       username: updated.username,
       fullName: updated.fullName,
+      phone: updated.phone,
       isActive: updated.isActive,
       role: { key: updated.role.key, name: updated.role.name },
     };

@@ -11,7 +11,13 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { IsString, IsOptional, IsBoolean, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  MinLength,
+  IsPhoneNumber,
+} from 'class-validator';
 import { AdminManagementService } from './admin-management.service';
 import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from './guards/admin-permission.guard';
@@ -33,6 +39,11 @@ class CreateAdminDto {
 
   @IsString()
   roleKey!: string;
+
+  // مقصد پیامک اطلاع‌رسانی تیکت‌هایی که به این ادمین Assign می‌شوند
+  @IsOptional()
+  @IsPhoneNumber('IR')
+  phone?: string;
 }
 
 class UpdateAdminDto {
@@ -47,6 +58,10 @@ class UpdateAdminDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsPhoneNumber('IR')
+  phone?: string;
 }
 
 class ResetPasswordDto {

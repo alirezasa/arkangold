@@ -791,6 +791,8 @@ model AdminUser {
   username     String  @unique
   passwordHash String  @map("password_hash")
   fullName     String  @map("full_name")
+  // شماره موبایل شخصی ادمین — مقصد پیامک اطلاع‌رسانی تیکت‌هایی که به او Assign می‌شوند
+  phone        String?
   isActive     Boolean @default(true) @map("is_active")
 
   totpSecret      String?   @map("totp_secret")

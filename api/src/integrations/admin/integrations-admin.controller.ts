@@ -7,13 +7,13 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AdminJwtAuthGuard } from '../../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../../admin-auth/decorators/require-permission.decorator';
-// نکته: مسیر AuditLog decorator را با فایل واقعی پروژه تطبیق بده — الگوی سایر
-// admin controller ها (مثل transactions-admin.controller.ts) را چک کن اگر اسم/مسیر فرق داشت.
 import { AuditLog } from '../../admin-auth/decorators/audit-log.decorator';
+import { AuditLogInterceptor } from '../../admin-auth/interceptors/audit-log.interceptor';
 import { IntegrationsAdminService } from './integrations-admin.service';
 import {
   UpdateProviderDto,
@@ -42,6 +42,7 @@ export class IntegrationsAdminController {
   @Patch('services/:code')
   @RequirePermission('integrations.manage')
   @AuditLog('integrations.service.update')
+  @UseInterceptors(AuditLogInterceptor)
   updateService(@Param('code') code: string, @Body() dto: UpdateServiceDto) {
     return this.service.updateService(code, dto.isActive ?? true);
   }
@@ -49,6 +50,7 @@ export class IntegrationsAdminController {
   @Patch('providers/:code')
   @RequirePermission('integrations.manage')
   @AuditLog('integrations.provider.update')
+  @UseInterceptors(AuditLogInterceptor)
   updateProvider(@Param('code') code: string, @Body() dto: UpdateProviderDto) {
     return this.service.updateProvider(code, dto.isActive ?? true);
   }
@@ -56,6 +58,7 @@ export class IntegrationsAdminController {
   @Patch('providers/:providerCode/services/:serviceCode')
   @RequirePermission('integrations.manage')
   @AuditLog('integrations.provider_service.update')
+  @UseInterceptors(AuditLogInterceptor)
   updateProviderService(
     @Param('providerCode') providerCode: string,
     @Param('serviceCode') serviceCode: string,
@@ -73,6 +76,7 @@ export class IntegrationsAdminController {
   @Post('providers/:code/credentials')
   @RequirePermission('integrations.credentials.manage')
   @AuditLog('integrations.credential.set')
+  @UseInterceptors(AuditLogInterceptor)
   setCredential(@Param('code') code: string, @Body() dto: UpsertCredentialDto) {
     return this.service.setCredential(code, dto.key, dto.value);
   }
@@ -96,6 +100,7 @@ export class IntegrationsAdminController {
   @Post('providers/finotech/test-connection')
   @RequirePermission('integrations.manage')
   @AuditLog('integrations.finotech.test_connection')
+  @UseInterceptors(AuditLogInterceptor)
   testFinotechConnection() {
     return this.service.testFinotechConnection();
   }

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
 import { useRef, useState } from "react";
-import { Loader2, Paperclip, Send, Lock, Unlock, Star } from "lucide-react";
+import { Loader2, Paperclip, Send, Lock, Unlock } from "lucide-react";
 
 const STATUS_FA: Record<string, string> = {
   OPEN: "باز",
@@ -41,7 +41,7 @@ interface TicketDetail {
   status: string;
   priority: string;
   category: { name: string };
-  assignedAdmin: { name: string } | null;
+  assignedAdmin: { fullName: string } | null;
   createdAt: string;
   messages: Message[];
 }
@@ -123,7 +123,7 @@ export default function TicketDetailPage() {
         <div className="flex items-center gap-3 mt-3 text-[11px] text-gray-500">
           <span>وضعیت: {STATUS_FA[data.status] ?? data.status}</span>
           <span>اولویت: {PRIORITY_FA[data.priority] ?? data.priority}</span>
-          <span>کارشناس: {data.assignedAdmin?.name ?? "هنوز اختصاص نیافته"}</span>
+          <span>کارشناس: {data.assignedAdmin?.fullName ?? "هنوز اختصاص نیافته"}</span>
         </div>
       </div>
 

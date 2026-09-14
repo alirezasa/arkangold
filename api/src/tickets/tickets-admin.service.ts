@@ -42,15 +42,13 @@ export class TicketsAdminService {
       ...(actor.canViewAll ? {} : { assignedAdminId: actor.adminId }),
       ...(query.status
         ? {
-            status:
-              query.status as unknown as Prisma.EnumTicketStatusFilter['equals'],
+            status: query.status,
           }
         : {}),
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
       ...(query.priority
         ? {
-            priority:
-              query.priority as unknown as Prisma.EnumTicketPriorityFilter['equals'],
+            priority: query.priority,
           }
         : {}),
       ...(query.assignedAdminId
@@ -72,7 +70,7 @@ export class TicketsAdminService {
         include: {
           category: true,
           user: { select: { id: true, phone: true } },
-          assignedAdmin: { select: { id: true, name: true } },
+          assignedAdmin: { select: { id: true, fullName: true } },
         },
         orderBy: { lastMessageAt: 'desc' },
         skip: (page - 1) * limit,
@@ -94,7 +92,7 @@ export class TicketsAdminService {
       include: {
         category: true,
         user: { select: { id: true, phone: true } },
-        assignedAdmin: { select: { id: true, name: true } },
+        assignedAdmin: { select: { id: true, fullName: true } },
         messages: {
           where: { deletedAt: null },
           orderBy: { createdAt: 'asc' },
@@ -219,8 +217,7 @@ export class TicketsAdminService {
     await this.prisma.ticket.update({
       where: { id: ticketId },
       data: {
-        priority:
-          dto.priority as unknown as Prisma.TicketUpdateInput['priority'],
+        priority: dto.priority,
       },
     });
     await this.ticketsService.logActivity(ticketId, {
@@ -258,8 +255,7 @@ export class TicketsAdminService {
         where: { id: ticketId },
         data: {
           lastMessageAt: new Date(),
-          status:
-            TicketStatus.WAITING_FOR_USER as unknown as Prisma.TicketUpdateInput['status'],
+          status: TicketStatus.WAITING_FOR_USER,
           firstResponseAt: ticket.firstResponseAt ?? new Date(),
         },
       });
@@ -327,43 +323,37 @@ export class TicketsAdminService {
       this.prisma.ticket.count({ where: { deletedAt: null } }),
       this.prisma.ticket.count({
         where: {
-          status:
-            TicketStatus.OPEN as unknown as Prisma.EnumTicketStatusFilter['equals'],
+          status: TicketStatus.OPEN,
           deletedAt: null,
         },
       }),
       this.prisma.ticket.count({
         where: {
-          status:
-            TicketStatus.IN_PROGRESS as unknown as Prisma.EnumTicketStatusFilter['equals'],
+          status: TicketStatus.IN_PROGRESS,
           deletedAt: null,
         },
       }),
       this.prisma.ticket.count({
         where: {
-          status:
-            TicketStatus.WAITING_FOR_USER as unknown as Prisma.EnumTicketStatusFilter['equals'],
+          status: TicketStatus.WAITING_FOR_USER,
           deletedAt: null,
         },
       }),
       this.prisma.ticket.count({
         where: {
-          status:
-            TicketStatus.RESOLVED as unknown as Prisma.EnumTicketStatusFilter['equals'],
+          status: TicketStatus.RESOLVED,
           deletedAt: null,
         },
       }),
       this.prisma.ticket.count({
         where: {
-          status:
-            TicketStatus.CLOSED as unknown as Prisma.EnumTicketStatusFilter['equals'],
+          status: TicketStatus.CLOSED,
           deletedAt: null,
         },
       }),
       this.prisma.ticket.count({
         where: {
-          priority:
-            TicketPriority.URGENT as unknown as Prisma.EnumTicketPriorityFilter['equals'],
+          priority: TicketPriority.URGENT,
           deletedAt: null,
         },
       }),

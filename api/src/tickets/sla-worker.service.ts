@@ -1,11 +1,11 @@
 // api/src/tickets/sla-worker.service.ts
-//
-// این فایل را به providers ماژول TicketsModule هم اضافه کنید.
-// نیازمند @nestjs/schedule (که احتمالاً برای Cron قیمت لحظه‌ای هم‌اکنون در پروژه دارید).
-
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { TicketStatus, TicketPriority } from '@arkan-gold/shared';
+import {
+  TicketStatus,
+  TicketPriority,
+  TicketActivityAction,
+} from '@arkan-gold/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
 // SLA پیش‌فرض بر اساس اولویت — بخش ۱۶ اسپک. بعداً می‌توانید از یک جدول system_config بخوانید.
@@ -70,7 +70,7 @@ export class TicketsSlaWorkerService {
         await this.prisma.ticketActivityLog.create({
           data: {
             ticketId: ticket.id,
-            action: 'SLA_BREACHED',
+            action: TicketActivityAction.SLA_BREACHED,
             metadata: { isResolutionBreached, isFirstResponseBreached },
           },
         });

@@ -21,8 +21,8 @@ import {
   CloseTicketDto,
   RateTicketDto,
 } from '@arkan-gold/shared';
-// مسیر Guard را مطابق پروژه واقعی هماهنگ کنید (همان چیزی که در AuthController استفاده می‌شود)
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { TicketsService } from './tickets.service';
 
 interface AuthenticatedUser {
@@ -34,7 +34,7 @@ interface AuthenticatedRequest extends Request {
   user: AuthenticatedUser;
 }
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ActiveUserGuard)
 @Controller('tickets')
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}

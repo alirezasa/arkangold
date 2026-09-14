@@ -25,7 +25,7 @@ interface TicketRow {
   createdAt: string;
   category: { name: string };
   user: { phone: string };
-  assignedAdmin: { name: string } | null;
+  assignedAdmin: { fullName: string } | null;
 }
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -104,7 +104,7 @@ export default function AdminTicketsListPage() {
                 </td>
                 <td className="py-3">{t.category?.name}</td>
                 <td className="py-3">{STATUS_FA[t.status] ?? t.status}</td>
-                <td className="py-3">{t.assignedAdmin?.name ?? "—"}</td>
+                <td className="py-3">{t.assignedAdmin?.fullName ?? "—"}</td>
               </tr>
             ))}
           </tbody>

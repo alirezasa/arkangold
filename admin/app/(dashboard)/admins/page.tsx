@@ -11,6 +11,7 @@ interface AdminItem {
   id: string;
   username: string;
   fullName: string;
+  phone: string | null;
   isActive: boolean;
   totpEnabled: boolean;
   role: { key: string; name: string };
@@ -36,6 +37,7 @@ function CreateAdminModal({
     username: "",
     password: "",
     fullName: "",
+    phone: "",
     roleKey: roles[0]?.key ?? "",
   });
   const [loading, setLoading] = useState(false);
@@ -48,7 +50,10 @@ function CreateAdminModal({
     setLoading(true);
     setError(null);
     try {
-      await axios.post("/api/admin/admins", form);
+      await axios.post("/api/admin/admins", {
+        ...form,
+        phone: form.phone.trim() || undefined,
+      });
       onCreated();
       onClose();
     } catch (err: unknown) {
@@ -94,6 +99,13 @@ function CreateAdminModal({
           placeholder="نام کامل"
           value={form.fullName}
           onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+        />
+        <input
+          placeholder="شماره موبایل (برای پیامک اطلاع‌رسانی تیکت)"
+          dir="ltr"
+          value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
         />
         <input
@@ -171,6 +183,22 @@ export default function AdminsPage() {
     }
   };
 
+  const editPhone = async (admin: AdminItem) => {
+    const newPhone = prompt(
+      "شماره موبایل برای دریافت پیامک تیکت‌های ارجاع‌شده:",
+      admin.phone ?? "",
+    );
+    if (newPhone === null) return;
+    try {
+      await axios.patch(`/api/admin/admins/${admin.id}`, {
+        phone: newPhone.trim() || undefined,
+      });
+      mutate();
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) alert(err.response?.data?.message || "خطا");
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
@@ -196,6 +224,7 @@ export default function AdminsPage() {
             <tr>
               <th>نام کاربری</th>
               <th>نام کامل</th>
+              <th>شماره موبایل</th>
               <th>نقش</th>
               <th>2FA</th>
               <th>وضعیت</th>
@@ -209,6 +238,15 @@ export default function AdminsPage() {
                   {a.username}
                 </td>
                 <td>{a.fullName}</td>
+                <td dir="ltr" className="text-left">
+                  <button
+                    onClick={() => editPhone(a)}
+                    className="text-gray-600 hover:underline"
+                    title="ویرایش شماره موبایل"
+                  >
+                    {a.phone ?? "—"}
+                  </button>
+                </td>
                 <td>{a.role.name}</td>
                 <td>
                   <span

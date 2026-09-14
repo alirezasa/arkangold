@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
 import { useRef, useState } from "react";
-import { Loader2, Paperclip, Send, Lock, Unlock } from "lucide-react";
+import { Loader2, Paperclip, Send, Lock, Unlock, Star } from "lucide-react";
 
 const STATUS_FA: Record<string, string> = {
   OPEN: "باز",
@@ -34,6 +34,10 @@ interface Message {
   createdAt: string;
   attachments: Attachment[];
 }
+interface Rating {
+  rating: number;
+  comment: string | null;
+}
 interface TicketDetail {
   id: string;
   ticketNumber: string;
@@ -44,6 +48,7 @@ interface TicketDetail {
   assignedAdmin: { fullName: string } | null;
   createdAt: string;
   messages: Message[];
+  rating: Rating | null;
 }
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -60,6 +65,10 @@ export default function TicketDetailPage() {
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [ratingValue, setRatingValue] = useState(0);
+  const [ratingComment, setRatingComment] = useState("");
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   if (isLoading || !data) {
     return (
@@ -99,6 +108,22 @@ export default function TicketDetailPage() {
       await axios.post(`/api/support/tickets/${id}/close`, {});
     }
     await mutate();
+  };
+
+  const canRate = data.status === "RESOLVED" || data.status === "CLOSED";
+
+  const submitRating = async () => {
+    if (ratingValue < 1) return;
+    setSubmittingRating(true);
+    try {
+      await axios.post(`/api/support/tickets/${id}/rating`, {
+        rating: ratingValue,
+        comment: ratingComment.trim() || undefined,
+      });
+      await mutate();
+    } finally {
+      setSubmittingRating(false);
+    }
   };
 
   return (
@@ -155,6 +180,58 @@ export default function TicketDetailPage() {
           </div>
         ))}
       </div>
+
+      {/* Rating */}
+      {canRate && (
+        <div className="border-t border-gray-100 pt-3 pb-1 mb-2">
+          {data.rating ? (
+            <div className="flex flex-col items-center gap-1 text-center">
+              <p className="text-[11px] text-gray-400">امتیاز شما به این تیکت</p>
+              <div className="flex items-center gap-0.5" dir="ltr">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <Star
+                    key={n}
+                    className={`w-4 h-4 ${n <= data.rating!.rating ? "fill-amber-400 text-amber-400" : "text-gray-200"}`}
+                  />
+                ))}
+              </div>
+              {data.rating.comment && (
+                <p className="text-[12px] text-gray-600 mt-1">{data.rating.comment}</p>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-[12px] text-gray-500">این تیکت چقدر خوب حل شد؟</p>
+              <div className="flex items-center gap-1" dir="ltr">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} type="button" onClick={() => setRatingValue(n)}>
+                    <Star
+                      className={`w-6 h-6 ${n <= ratingValue ? "fill-amber-400 text-amber-400" : "text-gray-200"}`}
+                    />
+                  </button>
+                ))}
+              </div>
+              {ratingValue > 0 && (
+                <div className="w-full flex flex-col gap-2 items-center">
+                  <input
+                    value={ratingComment}
+                    onChange={(e) => setRatingComment(e.target.value)}
+                    placeholder="نظر شما (اختیاری)"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[12px] outline-none focus:border-emerald-500"
+                  />
+                  <button
+                    onClick={submitRating}
+                    disabled={submittingRating}
+                    className="px-4 py-1.5 rounded-lg text-[12px] font-bold text-white bg-emerald-600 disabled:opacity-50"
+                  >
+                    {submittingRating ? "در حال ثبت..." : "ثبت امتیاز"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Reply box */}
       {!isClosed ? (

@@ -15,7 +15,12 @@ import {
   TicketStatus,
 } from '@arkan-gold/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { TicketsService } from './tickets.service';
+import {
+  ticketAdminReplySmsText,
+  ticketAssignedAdminSmsText,
+} from './tickets-sms-messages.util';
 
 interface AdminActor {
   adminId: string;
@@ -28,6 +33,7 @@ export class TicketsAdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ticketsService: TicketsService, // reuse: transitionStatus / logActivity
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -126,17 +132,12 @@ export class TicketsAdminService {
   async assign(actor: AdminActor, ticketId: string, dto: AssignTicketDto) {
     const ticket = await this.assertScope(actor, ticketId);
     const isReassign = !!ticket.assignedAdminId;
+    const status = ticket.status as unknown as TicketStatus;
 
     await this.prisma.$transaction([
       this.prisma.ticket.update({
         where: { id: ticketId },
-        data: {
-          assignedAdminId: dto.adminId,
-          status:
-            (ticket.status as unknown as TicketStatus) === TicketStatus.OPEN
-              ? (TicketStatus.IN_PROGRESS as unknown as Prisma.TicketUpdateInput['status'])
-              : ticket.status,
-        },
+        data: { assignedAdminId: dto.adminId },
       }),
       this.prisma.ticketAssignment.create({
         data: {
@@ -148,6 +149,26 @@ export class TicketsAdminService {
       }),
     ]);
 
+    // اولین ارجاع یک تیکت باز، آن را به‌طور خودکار «در حال بررسی» می‌کند — از
+    // همان مسیر transitionStatus عبور می‌کند تا هم در تاریخچه وضعیت ثبت شود
+    // هم پیامک اطلاع‌رسانی به کاربر ارسال شود.
+    if (status === TicketStatus.OPEN) {
+      await this.ticketsService.transitionStatus(
+        {
+          id: ticketId,
+          userId: ticket.userId,
+          ticketNumber: ticket.ticketNumber,
+          status,
+        },
+        TicketStatus.IN_PROGRESS,
+        {
+          adminId: actor.adminId,
+          changedByType: TicketSenderType.ADMIN,
+          reason: 'ارجاع خودکار به کارشناس',
+        },
+      );
+    }
+
     await this.ticketsService.logActivity(ticketId, {
       adminId: actor.adminId,
       action: isReassign
@@ -155,6 +176,17 @@ export class TicketsAdminService {
         : TicketActivityAction.TICKET_ASSIGNED,
       metadata: { assignedAdminId: dto.adminId, reason: dto.reason },
     });
+
+    const assignedAdmin = await this.prisma.adminUser.findUnique({
+      where: { id: dto.adminId },
+      select: { phone: true },
+    });
+    if (assignedAdmin?.phone) {
+      await this.notifications.notifyPhoneSms(
+        assignedAdmin.phone,
+        ticketAssignedAdminSmsText(ticket.ticketNumber, ticket.subject),
+      );
+    }
 
     return { success: true };
   }
@@ -259,6 +291,11 @@ export class TicketsAdminService {
           firstResponseAt: ticket.firstResponseAt ?? new Date(),
         },
       });
+
+      await this.notifications.notifyUserSms(
+        ticket.userId,
+        ticketAdminReplySmsText(ticket.ticketNumber),
+      );
     }
 
     await this.ticketsService.logActivity(ticketId, {

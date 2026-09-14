@@ -18,6 +18,7 @@ import {
   RateTicketDto,
 } from '@arkan-gold/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { STORAGE_SERVICE, IStorageService } from './storage/storage.service';
 import {
   buildTicketStorageKey,
@@ -25,6 +26,11 @@ import {
   getExtension,
   TICKET_MAX_FILES_PER_UPLOAD,
 } from './tickets-file.util';
+import {
+  ticketCreatedSmsText,
+  ticketNewUserMessageAdminSmsText,
+  ticketStatusChangedSmsText,
+} from './tickets-sms-messages.util';
 
 type UploadedFileLike = {
   originalname: string;
@@ -37,6 +43,7 @@ type UploadedFileLike = {
 export class TicketsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
     @Inject(STORAGE_SERVICE) private readonly storage: IStorageService,
   ) {}
 
@@ -78,6 +85,11 @@ export class TicketsService {
       action: TicketActivityAction.TICKET_CREATED,
       metadata: { subject: dto.subject },
     });
+
+    await this.notifications.notifyUserSms(
+      userId,
+      ticketCreatedSmsText(ticket.ticketNumber, ticket.subject),
+    );
 
     return { ticket, similarTicket: recentSimilar ?? null };
   }
@@ -168,6 +180,7 @@ export class TicketsService {
           include: { attachments: true },
         },
         attachments: true,
+        rating: true,
       },
     });
     if (!ticket) {
@@ -227,6 +240,19 @@ export class TicketsService {
       action: TicketActivityAction.MESSAGE_SENT,
       metadata: { messageId: message.id },
     });
+
+    if (ticket.assignedAdminId) {
+      const admin = await this.prisma.adminUser.findUnique({
+        where: { id: ticket.assignedAdminId },
+        select: { phone: true },
+      });
+      if (admin?.phone) {
+        await this.notifications.notifyPhoneSms(
+          admin.phone,
+          ticketNewUserMessageAdminSmsText(ticket.ticketNumber),
+        );
+      }
+    }
 
     return message;
   }
@@ -401,7 +427,12 @@ export class TicketsService {
   // ابزارهای مشترک (توسط سرویس ادمین هم استفاده می‌شوند)
   // ---------------------------------------------------------------------
   async transitionStatus(
-    ticket: { id: string; status: TicketStatus },
+    ticket: {
+      id: string;
+      userId: string;
+      ticketNumber: string;
+      status: TicketStatus;
+    },
     newStatus: TicketStatus,
     actor: {
       userId?: string;
@@ -439,6 +470,11 @@ export class TicketsService {
         },
       }),
     ]);
+
+    await this.notifications.notifyUserSms(
+      ticket.userId,
+      ticketStatusChangedSmsText(ticket.ticketNumber, newStatus),
+    );
   }
 
   async logActivity(

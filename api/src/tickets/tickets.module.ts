@@ -12,11 +12,13 @@ import { TicketsSlaWorkerService } from './sla-worker.service';
 import { STORAGE_SERVICE } from './storage/storage.service';
 import { S3StorageService } from './storage/s3-storage.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     ConfigModule,
     PrismaModule,
+    NotificationsModule,
     // memoryStorage لازم است چون در سرویس از file.buffer برای آپلود مستقیم به S3 استفاده می‌کنیم
     MulterModule.register({
       storage: memoryStorage(),

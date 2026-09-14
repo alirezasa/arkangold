@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
 import { useState } from "react";
-import { Loader2, Send, EyeOff } from "lucide-react";
+import { Loader2, Send, EyeOff, Star } from "lucide-react";
 
 const STATUS_FA: Record<string, string> = {
   OPEN: "باز",
@@ -44,6 +44,7 @@ interface TicketDetail {
   user: { phone: string };
   assignedAdmin: { id: string; fullName: string } | null;
   messages: Message[];
+  rating: { rating: number; comment: string | null } | null;
 }
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -200,6 +201,23 @@ export default function AdminTicketDetailPage() {
             </button>
           </div>
         </div>
+
+        {data.rating && (
+          <div className="border border-gray-100 rounded-xl p-4">
+            <p className="text-[11px] font-bold text-gray-400 mb-2">امتیاز کاربر</p>
+            <div className="flex items-center gap-0.5" dir="ltr">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Star
+                  key={n}
+                  className={`w-4 h-4 ${n <= data.rating!.rating ? "fill-amber-400 text-amber-400" : "text-gray-200"}`}
+                />
+              ))}
+            </div>
+            {data.rating.comment && (
+              <p className="text-[12px] text-gray-600 mt-2">{data.rating.comment}</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as jalaali from 'jalaali-js';
 import { FinotechHttpClient } from './finotech-http.client';
 import { FINOTECH_CONFIG, FINOTECH_PROVIDER_CODE } from './finotech-config';
 import {
@@ -10,7 +11,6 @@ import {
   InvalidResponseError,
   ValidationError,
 } from '../../errors/integration-error';
-import jalaali from 'jalaali-js';
 
 interface FinotechIdentityInquiryResponse {
   responseCode?: string;
@@ -38,11 +38,10 @@ interface FinotechIdentityInquiryResponse {
  *   GET /kyc/v2/clients/{clientId}/identificationInquiry?nationalCode&birthDate&trackId
  * هیچ Endpoint، Header یا فیلد دیگری که در مستندات نبوده حدس زده نشده.
  *
- * نکته مهم: birthDate طبق مستندات فینوتک باید شمسی و به‌فرمت yyyy/mm/dd باشد،
- * درحالی‌که ورودی سیستم ما میلادی (yyyy-mm-dd) است. تبدیل دقیق تقویم را نباید دستی
- * پیاده کرد (منبع خطای رایج) — باید از یک کتابخانه معتبر مثل jalaali-js استفاده شود؛
- * این پکیج در حال حاضر در پروژه نصب نیست، پس این متد فعلاً عمداً خطا می‌دهد تا کسی
- * تاریخ اشتباه به فینوتک نفرستد. راهنمای نصب در docs/INTEGRATION_SETUP.md آمده.
+ * birthDate طبق مستندات فینوتک باید شمسی و به‌فرمت yyyy/mm/dd باشد، درحالی‌که ورودی
+ * سیستم ما میلادی (yyyy-mm-dd) است؛ تبدیل با jalaali-js (که پروژه از قبل جای دیگری
+ * استفاده می‌کند) در toJalaliSlashFormat انجام می‌شود — نیازی به نصب اضافه نیست چون
+ * طبق نکات پروژه از قبل در package.json وجود دارد.
  */
 @Injectable()
 export class FinotechIdentityProvider implements IdentityVerificationProvider {
@@ -109,10 +108,23 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
     };
   }
 
+  /**
+   * ورودی می‌تواند «yyyy-mm-dd» خالص یا یک ISO string کامل («yyyy-mm-ddTHH:mm:ss.sssZ»
+   * — مثلاً حاصل .toISOString() روی Date) باشد؛ در هر دو حالت فقط بخش تاریخ برداشته می‌شود.
+   */
   private toJalaliSlashFormat(isoDate: string): string {
-    // TODO: بعد از نصب jalaali-js این پیاده‌سازی را جایگزین کن:
+    const datePart = isoDate.split('T')[0];
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+    if (!match) {
+      throw new ValidationError(
+        `فرمت تاریخ تولد نامعتبر است: «${isoDate}» — فرمت مورد انتظار yyyy-mm-dd است`,
+      );
+    }
 
-    const [gy, gm, gd] = isoDate.split('-').map(Number);
+    const gy = Number(match[1]);
+    const gm = Number(match[2]);
+    const gd = Number(match[3]);
+
     const { jy, jm, jd } = jalaali.toJalaali(gy, gm, gd);
     return `${jy}/${String(jm).padStart(2, '0')}/${String(jd).padStart(2, '0')}`;
   }

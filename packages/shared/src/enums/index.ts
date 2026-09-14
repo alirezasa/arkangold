@@ -229,3 +229,72 @@ export const DEPOSIT_STATUS_LABEL: Record<DepositStatus, string> = {
   [DepositStatus.CANCELLED]: 'لغو شد',
   [DepositStatus.EXPIRED]: 'منقضی شد',
 };
+
+export enum TicketStatus {
+  OPEN = 'OPEN',
+  IN_PROGRESS = 'IN_PROGRESS',
+  WAITING_FOR_USER = 'WAITING_FOR_USER',
+  RESOLVED = 'RESOLVED',
+  CLOSED = 'CLOSED',
+  REOPENED = 'REOPENED',
+}
+
+export enum TicketPriority {
+  LOW = 'LOW',
+  NORMAL = 'NORMAL',
+  HIGH = 'HIGH',
+  URGENT = 'URGENT',
+}
+
+export enum TicketSenderType {
+  USER = 'USER',
+  ADMIN = 'ADMIN',
+  SYSTEM = 'SYSTEM',
+}
+
+export enum TicketActivityAction {
+  TICKET_CREATED = 'TICKET_CREATED',
+  TICKET_ASSIGNED = 'TICKET_ASSIGNED',
+  TICKET_REASSIGNED = 'TICKET_REASSIGNED',
+  STATUS_CHANGED = 'STATUS_CHANGED',
+  PRIORITY_CHANGED = 'PRIORITY_CHANGED',
+  MESSAGE_SENT = 'MESSAGE_SENT',
+  INTERNAL_NOTE_ADDED = 'INTERNAL_NOTE_ADDED',
+  FILE_UPLOADED = 'FILE_UPLOADED',
+  FILE_DOWNLOADED = 'FILE_DOWNLOADED',
+  FILE_DELETED = 'FILE_DELETED',
+  TICKET_RESOLVED = 'TICKET_RESOLVED',
+  TICKET_CLOSED = 'TICKET_CLOSED',
+  TICKET_REOPENED = 'TICKET_REOPENED',
+}
+
+// نگاشت گذارهای مجاز وضعیت — مرجع واحد هم برای Backend هم اگر لازم شد Frontend
+export const TICKET_STATUS_TRANSITIONS: Record<TicketStatus, TicketStatus[]> = {
+  [TicketStatus.OPEN]: [TicketStatus.IN_PROGRESS, TicketStatus.RESOLVED],
+  [TicketStatus.IN_PROGRESS]: [
+    TicketStatus.WAITING_FOR_USER,
+    TicketStatus.RESOLVED,
+    TicketStatus.OPEN,
+  ],
+  [TicketStatus.WAITING_FOR_USER]: [TicketStatus.IN_PROGRESS, TicketStatus.OPEN],
+  [TicketStatus.RESOLVED]: [TicketStatus.CLOSED, TicketStatus.REOPENED],
+  [TicketStatus.CLOSED]: [TicketStatus.REOPENED],
+  [TicketStatus.REOPENED]: [TicketStatus.IN_PROGRESS, TicketStatus.OPEN],
+};
+
+export const TICKET_STATUS_FA: Record<TicketStatus, string> = {
+  [TicketStatus.OPEN]: 'باز',
+  [TicketStatus.IN_PROGRESS]: 'در حال بررسی',
+  [TicketStatus.WAITING_FOR_USER]: 'در انتظار پاسخ شما',
+  [TicketStatus.RESOLVED]: 'حل شده',
+  [TicketStatus.CLOSED]: 'بسته شده',
+  [TicketStatus.REOPENED]: 'بازگشایی شده',
+};
+
+export const TICKET_PRIORITY_FA: Record<TicketPriority, string> = {
+  [TicketPriority.LOW]: 'کم',
+  [TicketPriority.NORMAL]: 'عادی',
+  [TicketPriority.HIGH]: 'بالا',
+  [TicketPriority.URGENT]: 'فوری',
+};
+

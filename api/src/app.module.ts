@@ -27,6 +27,7 @@ import { DocumentSequenceModule } from './common/documents/document-sequence.mod
 import { InvoiceModule } from './invoice/invoice.module';
 import { DepositModule } from './deposit/deposit.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { TicketsModule } from './tickets/tickets.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
     InvoiceModule,
     DepositModule,
     IntegrationsModule,
+    TicketsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

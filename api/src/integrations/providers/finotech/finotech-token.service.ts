@@ -48,7 +48,7 @@ export class FinotechTokenService {
     const cached = await this.redis.get(FINOTECH_CONFIG.TOKEN_CACHE_KEY);
     if (cached) return cached;
 
-    if (this.pendingRequest) return this.pendingRequest;
+    if (this.pendingRequest !== null) return this.pendingRequest;
 
     this.pendingRequest = this.requestNewToken().finally(() => {
       this.pendingRequest = null;

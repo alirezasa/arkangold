@@ -140,6 +140,41 @@ export const ADMIN_PERMISSIONS = [
     group: 'integrations',
     description: 'مدیریت Credential های Provider',
   },
+  {
+    key: 'tickets.view',
+    group: 'tickets',
+    description: 'مشاهده تیکت‌های اختصاص‌یافته به خود',
+  },
+  {
+    key: 'tickets.view_all',
+    group: 'tickets',
+    description: 'مشاهده تمامی تیکت‌های سیستم',
+  },
+  {
+    key: 'tickets.update',
+    group: 'tickets',
+    description: 'ویرایش تیکت، تغییر وضعیت، تغییر اولویت و ارسال پاسخ',
+  },
+  {
+    key: 'tickets.assign',
+    group: 'tickets',
+    description: 'ارجاع و تخصیص تیکت به کارشناسان',
+  },
+  {
+    key: 'tickets.close',
+    group: 'tickets',
+    description: 'بستن تیکت',
+  },
+  {
+    key: 'tickets.reopen',
+    group: 'tickets',
+    description: 'بازگشایی مجدد تیکت‌های بسته شده',
+  },
+  {
+    key: 'tickets.manage_categories',
+    group: 'tickets',
+    description: 'مدیریت دسته‌بندی‌ها و دپارتمان‌های تیکت',
+  },
 ] as const;
 
 export type PermissionKey = (typeof ADMIN_PERMISSIONS)[number]['key'];
@@ -174,8 +209,9 @@ export const ADMIN_ROLES = [
   },
   {
     key: 'SUPPORT_ADMIN',
-    name: 'پشتیبانی',
-    description: 'مشاهده اطلاعات کاربران و تراکنش‌ها بدون دسترسی به تایید مالی',
+    name: 'کارشناس پشتیبانی',
+    description:
+      'مشاهده اطلاعات کاربران، تراکنش‌ها و پاسخ‌دهی به تیکت‌های اختصاص‌یافته',
     isSystem: true,
     permissions: [
       'users.view',
@@ -185,6 +221,31 @@ export const ADMIN_ROLES = [
       'shop.view',
       'deposit.view',
       'invoice.view',
+      'tickets.view',
+      'tickets.update',
+    ] as PermissionKey[],
+  },
+  {
+    key: 'SUPPORT_MANAGER',
+    name: 'مدیر پشتیبانی',
+    description:
+      'نظارت بر کلیه تیکت‌ها، تخصیص، بستن/بازگشایی و مدیریت دسته‌بندی‌ها',
+    isSystem: true,
+    permissions: [
+      'users.view',
+      'transactions.view',
+      'legal_profile.view',
+      'physical_delivery.view',
+      'shop.view',
+      'deposit.view',
+      'invoice.view',
+      'tickets.view',
+      'tickets.view_all',
+      'tickets.update',
+      'tickets.assign',
+      'tickets.close',
+      'tickets.reopen',
+      'tickets.manage_categories',
     ] as PermissionKey[],
   },
   {

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma';
+import { Prisma } from '../../generated/prisma'; // در صورتی که مسیر خروجی پریزما متفاوت است: '../../generated/prisma'
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProviderCredentialService } from '../credentials/provider-credential.service';
 import { FinotechTokenService } from '../providers/finotech/finotech-token.service';
@@ -8,7 +8,7 @@ interface ProviderServiceUpdateInput {
   isActive?: boolean;
   priority?: number;
   isFallback?: boolean;
-  configuration?: Prisma.InputJsonObject;
+  configuration?: Prisma.InputJsonValue;
 }
 
 @Injectable()
@@ -82,28 +82,20 @@ export class IntegrationsAdminService {
           serviceId: service.id,
         },
       },
-
       create: {
         providerId: provider.id,
         serviceId: service.id,
         isActive: data.isActive ?? true,
         priority: data.priority ?? 1,
         isFallback: data.isFallback ?? false,
-
-        ...(data.configuration !== undefined
-          ? { configuration: data.configuration }
-          : {}),
+        configuration: data.configuration ?? Prisma.DbNull,
       },
-
       update: {
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
-
         ...(data.priority !== undefined ? { priority: data.priority } : {}),
-
         ...(data.isFallback !== undefined
           ? { isFallback: data.isFallback }
           : {}),
-
         ...(data.configuration !== undefined
           ? { configuration: data.configuration }
           : {}),

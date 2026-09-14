@@ -42,7 +42,7 @@ export default function NewTicketPage() {
       const ticketId = res.data?.data?.ticket?.id ?? res.data?.ticket?.id;
       if (ticketId) router.push(`/dashboard/support/${ticketId}`);
       else router.push("/dashboard/support");
-    } catch (e) {
+    } catch {
       setError("خطا در ثبت تیکت، دوباره تلاش کنید");
     } finally {
       setSubmitting(false);

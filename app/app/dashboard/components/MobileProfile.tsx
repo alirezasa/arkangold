@@ -192,7 +192,7 @@ export default function MobileProfile({
             {
               title: "تیکت پشتیبانی",
               icon: <Headset className="w-5 h-5 text-gray-500" />,
-              path: "/dashboard/tickets", // مسیر را در صورت نیاز تغییر دهید
+              path: "/dashboard/support",
             },
             {
               title: "امنیت و تغییر رمز عبور",

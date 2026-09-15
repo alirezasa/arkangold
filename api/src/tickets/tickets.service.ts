@@ -327,14 +327,37 @@ export class TicketsService {
     return created;
   }
 
-  /** تولید Presigned URL کوتاه‌مدت برای دانلود — با بررسی مالکیت */
+  /** تولید Presigned URL کوتاه‌مدت برای دانلود — با بررسی مالکیت کاربر */
   async getAttachmentDownloadUrl(
     userId: string,
     ticketId: string,
     attachmentId: string,
   ) {
     await this.assertOwnership(userId, ticketId);
+    return this.resolveAttachmentDownloadUrl(ticketId, attachmentId, {
+      userId,
+    });
+  }
 
+  /**
+   * همان تولید Presigned URL برای سمت ادمین — بررسی محدوده دسترسی (Scope) قبلاً
+   * در TicketsAdminService.assertScope انجام شده، این‌جا دیگر مالکیت کاربر چک نمی‌شود.
+   */
+  async getAttachmentDownloadUrlForAdmin(
+    ticketId: string,
+    attachmentId: string,
+    adminId: string,
+  ) {
+    return this.resolveAttachmentDownloadUrl(ticketId, attachmentId, {
+      adminId,
+    });
+  }
+
+  private async resolveAttachmentDownloadUrl(
+    ticketId: string,
+    attachmentId: string,
+    actor: { userId?: string; adminId?: string },
+  ) {
     const attachment = await this.prisma.ticketAttachment.findFirst({
       where: { id: attachmentId, ticketId, deletedAt: null },
     });
@@ -346,7 +369,8 @@ export class TicketsService {
     );
 
     await this.logActivity(ticketId, {
-      userId,
+      userId: actor.userId,
+      adminId: actor.adminId,
       action: TicketActivityAction.FILE_DOWNLOADED,
       metadata: { attachmentId },
     });

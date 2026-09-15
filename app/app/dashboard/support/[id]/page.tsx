@@ -48,6 +48,7 @@ interface TicketDetail {
   assignedAdmin: { fullName: string } | null;
   createdAt: string;
   messages: Message[];
+  attachments: Attachment[];
   rating: Rating | null;
 }
 
@@ -110,6 +111,17 @@ export default function TicketDetailPage() {
     await mutate();
   };
 
+  const openAttachment = async (attachmentId: string) => {
+    const res = await axios.get(
+      `/api/support/tickets/${id}/attachments/${attachmentId}/download-url`,
+    );
+    window.open(res.data.url, "_blank", "noopener,noreferrer");
+  };
+
+  const standaloneAttachments = data.attachments.filter(
+    (a) => !data.messages.some((m) => m.attachments.some((ma) => ma.id === a.id)),
+  );
+
   const canRate = data.status === "RESOLVED" || data.status === "CLOSED";
 
   const submitRating = async () => {
@@ -167,10 +179,14 @@ export default function TicketDetailPage() {
             {m.attachments?.length > 0 && (
               <div className="mt-2 flex flex-col gap-1">
                 {m.attachments.map((a) => (
-                  <span key={a.id} className="flex items-center gap-1 text-[11px] opacity-80">
+                  <button
+                    key={a.id}
+                    onClick={() => openAttachment(a.id)}
+                    className="flex items-center gap-1 text-[11px] opacity-80 hover:opacity-100 hover:underline"
+                  >
                     <Paperclip className="w-3 h-3" />
                     {a.originalFilename}
-                  </span>
+                  </button>
                 ))}
               </div>
             )}
@@ -180,6 +196,25 @@ export default function TicketDetailPage() {
           </div>
         ))}
       </div>
+
+      {/* Standalone attachments (not attached to a specific message) */}
+      {standaloneAttachments.length > 0 && (
+        <div className="border-t border-gray-100 pt-3 pb-1">
+          <p className="text-[11px] text-gray-400 mb-1.5">پیوست‌های تیکت</p>
+          <div className="flex flex-col gap-1">
+            {standaloneAttachments.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => openAttachment(a.id)}
+                className="flex items-center gap-1.5 text-[12px] text-gray-600 hover:text-emerald-700 hover:underline"
+              >
+                <Paperclip className="w-3.5 h-3.5" />
+                {a.originalFilename}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Rating */}
       {canRate && (

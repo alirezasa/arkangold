@@ -65,6 +65,12 @@ export class StorageService implements OnModuleInit {
       endpoint,
       forcePathStyle: true,
       credentials: { accessKeyId, secretAccessKey },
+      // نسخه‌های اخیر AWS SDK v3 به‌صورت پیش‌فرض هدر/تریلر Checksum اضافه
+      // (flexible checksums) به هر PutObject اضافه می‌کنند که لیارا (و اکثر
+      // S3-Compatible های غیر AWS) پشتیبانی نمی‌کند و آپلود را رد می‌کند.
+      // WHEN_REQUIRED رفتار قبلی (بدون این هدرهای اضافه) را برمی‌گرداند.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
 
     this.logger.log(`[Storage] لیارا آماده است — bucket: ${this.bucket}`);

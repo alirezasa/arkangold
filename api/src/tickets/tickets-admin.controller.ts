@@ -62,6 +62,20 @@ export class TicketsAdminController {
     return this.adminService.getOne(this.actorOf(req), id);
   }
 
+  @RequirePermission('tickets.view')
+  @Get(':id/attachments/:attachmentId/download-url')
+  getAttachmentDownloadUrl(
+    @Req() req: AdminAuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.adminService.getAttachmentDownloadUrl(
+      this.actorOf(req),
+      id,
+      attachmentId,
+    );
+  }
+
   @RequirePermission('tickets.assign')
   @Post(':id/assign')
   assign(

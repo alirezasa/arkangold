@@ -4,7 +4,7 @@
 import useSWR from "swr";
 import axios from "axios";
 import { useState } from "react";
-import { Loader2, Trash2, Plus } from "lucide-react";
+import { Loader2, Trash2, Plus, Tags } from "lucide-react";
 
 interface Category {
   id: string;
@@ -47,27 +47,34 @@ export default function TicketCategoriesPage() {
   };
 
   return (
-    <div className="p-6 max-w-xl">
-      <h1 className="text-lg font-black text-gray-900 mb-5">دسته‌بندی‌های تیکت</h1>
+    <div className="max-w-xl">
+      <h1 className="text-lg font-black text-gray-900 mb-1">دسته‌بندی‌های تیکت</h1>
+      <p className="text-[12px] text-gray-400 mb-5">
+        {data ? `${data.length.toLocaleString("fa-IR")} دسته‌بندی` : "..."}
+      </p>
 
-      <div className="flex gap-2 mb-5">
+      <div
+        className="flex gap-2 mb-5 p-3 rounded-2xl"
+        style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+      >
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="نام (مثلاً: پشتیبانی فنی)"
-          className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px]"
+          className="flex-1 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-gold-500"
         />
         <input
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
           placeholder="slug (مثلاً: technical)"
-          className="w-40 px-3 py-2 rounded-lg border border-gray-200 text-[13px]"
+          className="w-40 px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-gold-500"
           dir="ltr"
         />
         <button
           onClick={create}
           disabled={creating}
-          className="flex items-center gap-1 px-3 py-2 rounded-lg text-[12px] font-bold text-white bg-emerald-600 disabled:opacity-50"
+          className="flex items-center gap-1 px-3 py-2 rounded-lg text-[12px] font-bold text-white disabled:opacity-50"
+          style={{ backgroundColor: "var(--color-emerald)" }}
         >
           {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
           افزودن
@@ -75,16 +82,24 @@ export default function TicketCategoriesPage() {
       </div>
 
       {isLoading ? (
-        <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+        <div className="flex justify-center py-10">
+          <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
+        </div>
+      ) : !data?.length ? (
+        <div className="flex flex-col items-center gap-2 py-10">
+          <Tags className="w-8 h-8 text-gray-200" />
+          <p className="text-[12px] text-gray-400">دسته‌بندی‌ای ثبت نشده</p>
+        </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {data?.map((c) => (
+          {data.map((c) => (
             <div
               key={c.id}
-              className="flex items-center justify-between px-4 py-2.5 rounded-xl border border-gray-100"
+              className="flex items-center justify-between px-4 py-2.5 rounded-xl"
+              style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
             >
               <div>
-                <p className="text-[13px] font-bold">{c.name}</p>
+                <p className="text-[13px] font-bold text-gray-900">{c.name}</p>
                 <p className="text-[11px] text-gray-400" dir="ltr">
                   {c.slug}
                 </p>
@@ -92,9 +107,12 @@ export default function TicketCategoriesPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => toggleActive(c)}
-                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg ${
-                    c.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
-                  }`}
+                  className="badge"
+                  style={
+                    c.isActive
+                      ? { background: "var(--color-emerald-light)", color: "var(--color-emerald)" }
+                      : { background: "#f3f4f6", color: "#6b7280" }
+                  }
                 >
                   {c.isActive ? "فعال" : "غیرفعال"}
                 </button>

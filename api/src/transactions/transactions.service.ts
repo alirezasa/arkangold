@@ -6,6 +6,7 @@ import {
   TransactionStatus,
 } from '../generated/prisma/client';
 import { GetTransactionsQueryDto } from '@arkan-gold/shared';
+import { InvoiceService } from '../invoice/invoice.service';
 
 // دسته‌بندی بصری تراکنش‌ها - برای انتخاب آیکون/رنگ در فرانت
 type TxCategory =
@@ -67,11 +68,33 @@ interface TxRow {
   taxAmount: Prisma.Decimal | null;
   description: string | null;
   createdAt: Date;
+  shopOrderId: string | null;
+  physicalDeliveryId: string | null;
 }
 
 @Injectable()
 export class TransactionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private invoiceService: InvoiceService,
+  ) {}
+
+  /** sourceType/sourceId مرتبط با تراکنش — برای نگاشت به فاکتور نهایی */
+  private invoiceSource(t: TxRow): {
+    sourceType: 'SHOP_ORDER' | 'PHYSICAL_DELIVERY';
+    sourceId: string;
+  } | null {
+    if (t.shopOrderId) {
+      return { sourceType: 'SHOP_ORDER', sourceId: t.shopOrderId };
+    }
+    if (t.physicalDeliveryId) {
+      return {
+        sourceType: 'PHYSICAL_DELIVERY',
+        sourceId: t.physicalDeliveryId,
+      };
+    }
+    return null;
+  }
 
   // ══════════════════════════════════════════
   // ── تاریخچه تراکنش‌ها با فیلتر و صفحه‌بندی ──
@@ -106,8 +129,10 @@ export class TransactionsService {
       this.prisma.transaction.count({ where }),
     ]);
 
+    const invoiceIds = await this.findInvoiceIdsFor(items);
+
     return {
-      data: items.map((t) => this.toDto(t)),
+      data: items.map((t) => this.toDto(t, false, invoiceIds)),
       page,
       limit,
       total,
@@ -121,7 +146,28 @@ export class TransactionsService {
       where: { id, userId },
     });
     if (!tx) throw new NotFoundException('تراکنش یافت نشد');
-    return this.toDto(tx, true);
+    const invoiceIds = await this.findInvoiceIdsFor([tx]);
+    return this.toDto(tx, true, invoiceIds);
+  }
+
+  /** برای یک صفحه تراکنش، نگاشت sourceId → invoiceId برای فروشگاه و تحویل فیزیکی */
+  private async findInvoiceIdsFor(rows: TxRow[]): Promise<Map<string, string>> {
+    const shopOrderIds = rows
+      .map((t) => t.shopOrderId)
+      .filter((id): id is string => !!id);
+    const deliveryIds = rows
+      .map((t) => t.physicalDeliveryId)
+      .filter((id): id is string => !!id);
+
+    const [shopMap, deliveryMap] = await Promise.all([
+      this.invoiceService.findInvoiceIdsBySource('SHOP_ORDER', shopOrderIds),
+      this.invoiceService.findInvoiceIdsBySource(
+        'PHYSICAL_DELIVERY',
+        deliveryIds,
+      ),
+    ]);
+
+    return new Map([...shopMap, ...deliveryMap]);
   }
 
   // ── خلاصه آماری برای کارت‌های بالای صفحه ──
@@ -189,10 +235,17 @@ export class TransactionsService {
   }
 
   // ── تبدیل مدل دیتابیس به شکل نمایشی امن (Decimal → string) ──
-  private toDto(t: TxRow, detailed = false) {
+  private toDto(
+    t: TxRow,
+    detailed = false,
+    invoiceIds: Map<string, string> = new Map(),
+  ) {
     const meta =
       TYPE_META[t.type] ??
       ({ title: t.type, category: 'other', sign: 'minus' } as const);
+
+    const source = this.invoiceSource(t);
+    const invoiceId = source ? (invoiceIds.get(source.sourceId) ?? null) : null;
 
     return {
       id: t.id,
@@ -210,6 +263,7 @@ export class TransactionsService {
       taxToman: t.taxAmount ? t.taxAmount.dividedBy(10).toString() : null,
       sign: meta.sign,
       createdAt: t.createdAt.toISOString(),
+      invoiceId,
       ...(detailed ? { description: t.description } : {}),
     };
   }

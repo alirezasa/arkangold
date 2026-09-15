@@ -278,8 +278,16 @@ export class PhysicalDeliveryService {
       this.prisma.physicalDeliveryRequest.count({ where }),
     ]);
 
+    const invoiceIds = await this.invoiceService.findInvoiceIdsBySource(
+      'PHYSICAL_DELIVERY',
+      items.map((r) => r.id),
+    );
+
     return {
-      data: items.map((r) => this.toDto(r)),
+      data: items.map((r) => ({
+        ...this.toDto(r),
+        invoiceId: invoiceIds.get(r.id) ?? null,
+      })),
       page: query.page,
       limit: query.limit,
       total,
@@ -293,7 +301,14 @@ export class PhysicalDeliveryService {
       include: { address: true, shippings: true },
     });
     if (!request) throw new NotFoundException('درخواست یافت نشد');
-    return this.toDto(request);
+    const invoiceIds = await this.invoiceService.findInvoiceIdsBySource(
+      'PHYSICAL_DELIVERY',
+      [request.id],
+    );
+    return {
+      ...this.toDto(request),
+      invoiceId: invoiceIds.get(request.id) ?? null,
+    };
   }
 
   // ══════════════════════════════════════════
@@ -318,8 +333,17 @@ export class PhysicalDeliveryService {
       this.prisma.physicalDeliveryRequest.count({ where }),
     ]);
 
+    const invoiceIds = await this.invoiceService.findInvoiceIdsBySource(
+      'PHYSICAL_DELIVERY',
+      items.map((r) => r.id),
+    );
+
     return {
-      data: items.map((r) => ({ ...this.toDto(r), user: r.user })),
+      data: items.map((r) => ({
+        ...this.toDto(r),
+        user: r.user,
+        invoiceId: invoiceIds.get(r.id) ?? null,
+      })),
       page: query.page,
       limit: query.limit,
       total,

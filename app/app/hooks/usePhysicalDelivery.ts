@@ -27,6 +27,7 @@ export interface PhysicalDeliveryRequestItem {
   status: "PENDING" | "APPROVED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
   trackingCode: string | null;
   adminNotes: string | null;
+  invoiceId: string | null;
   address: AddressItem;
   shippings: unknown[];
   createdAt: string;

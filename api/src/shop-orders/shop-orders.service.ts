@@ -828,8 +828,16 @@ export class ShopOrdersService {
       this.prisma.shopOrder.count({ where }),
     ]);
 
+    const invoiceIds = await this.invoiceService.findInvoiceIdsBySource(
+      'SHOP_ORDER',
+      items.map((o) => o.id),
+    );
+
     return {
-      data: items.map((order) => this.toDto(order)),
+      data: items.map((order) => ({
+        ...this.toDto(order),
+        invoiceId: invoiceIds.get(order.id) ?? null,
+      })),
       page: query.page,
       limit: query.limit,
       total,
@@ -854,7 +862,14 @@ export class ShopOrdersService {
     });
 
     if (!order) throw new NotFoundException('سفارش یافت نشد');
-    return this.toDto(order);
+    const invoiceIds = await this.invoiceService.findInvoiceIdsBySource(
+      'SHOP_ORDER',
+      [order.id],
+    );
+    return {
+      ...this.toDto(order),
+      invoiceId: invoiceIds.get(order.id) ?? null,
+    };
   }
 
   async adminList(query: GetShopOrdersQueryDto) {
@@ -882,10 +897,16 @@ export class ShopOrdersService {
       this.prisma.shopOrder.count({ where }),
     ]);
 
+    const invoiceIds = await this.invoiceService.findInvoiceIdsBySource(
+      'SHOP_ORDER',
+      items.map((o) => o.id),
+    );
+
     return {
       data: items.map((order) => ({
         ...this.toDto(order),
         user: order.user,
+        invoiceId: invoiceIds.get(order.id) ?? null,
       })),
       page: query.page,
       limit: query.limit,

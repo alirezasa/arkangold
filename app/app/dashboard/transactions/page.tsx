@@ -22,7 +22,9 @@ import {
   AlertCircle,
   Inbox,
   X,
+  FileText,
 } from "lucide-react";
+import { openInvoicePrint } from "@/app/hooks/useInvoices";
 
 // ── نگاشت دسته‌بندی تراکنش به آیکون و رنگ ──
 const CATEGORY_STYLE: Record<
@@ -203,10 +205,19 @@ function TxDetailModal({
           </p>
         )}
 
-        <div className="p-4 pt-0">
+        <div className="p-4 pt-0 flex gap-2">
+          {tx.invoiceId && (
+            <button
+              onClick={() => openInvoicePrint(tx.invoiceId!)}
+              className="flex-1 py-3.5 rounded-xl font-bold text-[13px] border-2 border-gray-200 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2"
+            >
+              <FileText className="w-4 h-4" />
+              مشاهده فاکتور
+            </button>
+          )}
           <button
             onClick={onClose}
-            className="w-full py-3.5 rounded-xl font-black text-white text-[14px]"
+            className="flex-1 py-3.5 rounded-xl font-black text-white text-[14px]"
             style={{ backgroundColor: "var(--color-emerald)" }}
           >
             بستن

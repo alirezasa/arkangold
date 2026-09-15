@@ -10,6 +10,7 @@ import {
   X,
   Truck,
   MapPin,
+  FileText,
 } from "lucide-react";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -51,6 +52,7 @@ interface ShopOrderItemType {
     | "CANCELLED";
   totalToman: string;
   trackingCode: string | null;
+  invoiceId: string | null;
   address: ShopOrderAddress | null;
   items: ShopOrderItem[];
   user: { id: string; phone: string };
@@ -386,6 +388,17 @@ export default function ShopOrdersPage() {
                 )}
 
                 <div className="flex gap-2 flex-wrap">
+                  {order.invoiceId && (
+                    <a
+                      href={`/invoices/${order.invoiceId}/print`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-gray-200 text-gray-700"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      مشاهده فاکتور
+                    </a>
+                  )}
                   {order.status === "PAID" && (
                     <button
                       onClick={() => handleProcess(order.id)}

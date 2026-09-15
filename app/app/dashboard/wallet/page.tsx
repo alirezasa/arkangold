@@ -253,6 +253,11 @@ export default function WalletPage() {
                 href: "/dashboard/transactions",
               },
               {
+                label: "فاکتورهای من",
+                icon: "ti-file-text",
+                href: "/dashboard/invoices",
+              },
+              {
                 label: "حساب‌ها و کارت‌های بانکی",
                 icon: "ti-credit-card",
                 href: "/dashboard/cards",

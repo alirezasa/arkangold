@@ -6,18 +6,18 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
 import { useState } from "react";
-import { Loader2, Tags, Search, Headset } from "lucide-react";
+import { Loader2, Tags, Search, Headset, AlertTriangle, UserX, type LucideIcon } from "lucide-react";
 import { STATUS_META, PRIORITY_META } from "./ticket-meta";
 
-const STAT_TILES: { key: keyof DashboardSummary; label: string; color: string }[] = [
-  { key: "total", label: "کل", color: "#330509" },
-  { key: "open", label: "باز", color: "#2563eb" },
-  { key: "inProgress", label: "در حال بررسی", color: "#b45309" },
-  { key: "waitingForUser", label: "منتظر کاربر", color: "#7c3aed" },
-  { key: "resolved", label: "حل شده", color: "#16a34a" },
-  { key: "closed", label: "بسته", color: "#6b7280" },
-  { key: "urgent", label: "فوری", color: "#dc2626" },
-  { key: "unassigned", label: "بدون کارشناس", color: "#c5a059" },
+const STAT_TILES: { key: keyof DashboardSummary; label: string; color: string; icon: LucideIcon }[] = [
+  { key: "total", label: "کل", color: "#330509", icon: Headset },
+  { key: "open", label: "باز", color: STATUS_META.OPEN.color, icon: STATUS_META.OPEN.icon },
+  { key: "inProgress", label: "در حال بررسی", color: STATUS_META.IN_PROGRESS.color, icon: STATUS_META.IN_PROGRESS.icon },
+  { key: "waitingForUser", label: "منتظر کاربر", color: STATUS_META.WAITING_FOR_USER.color, icon: STATUS_META.WAITING_FOR_USER.icon },
+  { key: "resolved", label: "حل شده", color: STATUS_META.RESOLVED.color, icon: STATUS_META.RESOLVED.icon },
+  { key: "closed", label: "بسته", color: STATUS_META.CLOSED.color, icon: STATUS_META.CLOSED.icon },
+  { key: "urgent", label: "فوری", color: "#dc2626", icon: AlertTriangle },
+  { key: "unassigned", label: "بدون کارشناس", color: "#c5a059", icon: UserX },
 ];
 
 const PAGE_SIZE = 20;
@@ -102,22 +102,26 @@ export default function AdminTicketsListPage() {
 
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
-          {STAT_TILES.map((t) => (
-            <div
-              key={t.key}
-              className="rounded-xl p-3 text-center"
-              style={{
-                backgroundColor: "var(--color-surface)",
-                border: "1px solid var(--color-border)",
-                borderTop: `3px solid ${t.color}`,
-              }}
-            >
-              <p className="text-lg font-black text-gray-900">
-                {summary[t.key].toLocaleString("fa-IR")}
-              </p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{t.label}</p>
-            </div>
-          ))}
+          {STAT_TILES.map((t) => {
+            const Icon = t.icon;
+            return (
+              <div
+                key={t.key}
+                className="rounded-xl p-3 text-center"
+                style={{
+                  backgroundColor: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderTop: `3px solid ${t.color}`,
+                }}
+              >
+                <Icon className="w-3.5 h-3.5 mx-auto mb-1" style={{ color: t.color }} />
+                <p className="text-lg font-black text-gray-900">
+                  {summary[t.key].toLocaleString("fa-IR")}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-0.5">{t.label}</p>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -220,6 +224,7 @@ export default function AdminTicketsListPage() {
               data.items.map((t) => {
                 const statusMeta = STATUS_META[t.status] ?? STATUS_META.OPEN;
                 const priorityMeta = PRIORITY_META[t.priority] ?? PRIORITY_META.NORMAL;
+                const StatusIcon = statusMeta.icon;
                 return (
                   <tr
                     key={t.id}
@@ -244,6 +249,7 @@ export default function AdminTicketsListPage() {
                         className="badge"
                         style={{ background: statusMeta.bg, color: statusMeta.color }}
                       >
+                        <StatusIcon className="w-3 h-3" />
                         {statusMeta.label}
                       </span>
                     </td>
@@ -271,6 +277,7 @@ export default function AdminTicketsListPage() {
           data.items.map((t) => {
             const statusMeta = STATUS_META[t.status] ?? STATUS_META.OPEN;
             const priorityMeta = PRIORITY_META[t.priority] ?? PRIORITY_META.NORMAL;
+            const StatusIcon = statusMeta.icon;
             return (
               <div
                 key={t.id}
@@ -289,6 +296,7 @@ export default function AdminTicketsListPage() {
                     className="badge"
                     style={{ background: statusMeta.bg, color: statusMeta.color }}
                   >
+                    <StatusIcon className="w-3 h-3" />
                     {statusMeta.label}
                   </span>
                 </div>

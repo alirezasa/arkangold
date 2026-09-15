@@ -6,30 +6,19 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
 import { useState } from "react";
-import { Loader2, Tags } from "lucide-react";
+import { Loader2, Tags, Search, Headset } from "lucide-react";
+import { STATUS_META, PRIORITY_META } from "./ticket-meta";
 
-const STATUS_FA: Record<string, string> = {
-  OPEN: "باز",
-  IN_PROGRESS: "در حال بررسی",
-  WAITING_FOR_USER: "منتظر کاربر",
-  RESOLVED: "حل شده",
-  CLOSED: "بسته",
-  REOPENED: "بازگشایی‌شده",
-};
-
-const PRIORITY_FA: Record<string, string> = {
-  LOW: "کم",
-  NORMAL: "عادی",
-  HIGH: "بالا",
-  URGENT: "فوری",
-};
-
-const PRIORITY_COLOR: Record<string, string> = {
-  LOW: "#6b7280",
-  NORMAL: "#2563eb",
-  HIGH: "#d97706",
-  URGENT: "#dc2626",
-};
+const STAT_TILES: { key: keyof DashboardSummary; label: string; color: string }[] = [
+  { key: "total", label: "کل", color: "#330509" },
+  { key: "open", label: "باز", color: "#2563eb" },
+  { key: "inProgress", label: "در حال بررسی", color: "#b45309" },
+  { key: "waitingForUser", label: "منتظر کاربر", color: "#7c3aed" },
+  { key: "resolved", label: "حل شده", color: "#16a34a" },
+  { key: "closed", label: "بسته", color: "#6b7280" },
+  { key: "urgent", label: "فوری", color: "#dc2626" },
+  { key: "unassigned", label: "بدون کارشناس", color: "#c5a059" },
+];
 
 const PAGE_SIZE = 20;
 
@@ -62,6 +51,7 @@ export default function AdminTicketsListPage() {
   const router = useRouter();
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
@@ -84,148 +74,256 @@ export default function AdminTicketsListPage() {
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
 
-  const resetToFirstPage = (fn: () => void) => {
-    fn();
-    setPage(1);
-  };
+  const STATUS_FILTERS = [
+    { key: "", label: "همه" },
+    ...Object.entries(STATUS_META).map(([key, m]) => ({ key, label: m.label })),
+  ];
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-5">
+    <div>
+      <div className="flex items-center justify-between mb-1">
         <h1 className="text-lg font-black text-gray-900">تیکت‌ها</h1>
         <Link
           href="/tickets/categories"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-bold text-gray-600 border border-gray-200 hover:bg-gray-50"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold"
+          style={{
+            backgroundColor: "var(--color-surface)",
+            color: "#6b7280",
+            border: "1px solid var(--color-border)",
+          }}
         >
-          <Tags className="w-4 h-4" />
+          <Tags className="w-3.5 h-3.5" />
           دسته‌بندی‌ها
         </Link>
       </div>
+      <p className="text-[12px] text-gray-400 mb-4">
+        {data ? `${data.total.toLocaleString("fa-IR")} تیکت` : "..."}
+      </p>
 
       {summary && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-5">
-          {[
-            { label: "کل", value: summary.total },
-            { label: "باز", value: summary.open },
-            { label: "در حال بررسی", value: summary.inProgress },
-            { label: "منتظر کاربر", value: summary.waitingForUser },
-            { label: "حل شده", value: summary.resolved },
-            { label: "بسته", value: summary.closed },
-            { label: "فوری", value: summary.urgent },
-            { label: "بدون کارشناس", value: summary.unassigned },
-          ].map((s) => (
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-4">
+          {STAT_TILES.map((t) => (
             <div
-              key={s.label}
-              className="rounded-xl border border-gray-100 px-3 py-2.5 text-center"
+              key={t.key}
+              className="rounded-xl p-3 text-center"
+              style={{
+                backgroundColor: "var(--color-surface)",
+                border: "1px solid var(--color-border)",
+                borderTop: `3px solid ${t.color}`,
+              }}
             >
-              <p className="text-base font-black text-gray-900">{s.value}</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">{s.label}</p>
+              <p className="text-lg font-black text-gray-900">
+                {summary[t.key].toLocaleString("fa-IR")}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-0.5">{t.label}</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="relative mb-3">
+        <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
-          value={search}
-          onChange={(e) => resetToFirstPage(() => setSearch(e.target.value))}
-          placeholder="جستجو..."
-          className="px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none focus:border-gray-400 w-64"
+          type="text"
+          placeholder="جستجو با شماره تیکت یا موضوع..."
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              setSearch(searchInput);
+              setPage(1);
+            }
+          }}
+          className="w-full bg-white border border-gray-200 rounded-xl py-3 pr-11 pl-4 text-[13px] font-medium outline-none focus:border-gold-500"
         />
-        <select
-          value={status}
-          onChange={(e) => resetToFirstPage(() => setStatus(e.target.value))}
-          className="px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none"
-        >
-          <option value="">همه وضعیت‌ها</option>
-          {Object.entries(STATUS_FA).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => {
+                setStatus(f.key);
+                setPage(1);
+              }}
+              className="shrink-0 px-3.5 py-2 rounded-xl text-[12px] font-bold whitespace-nowrap"
+              style={
+                status === f.key
+                  ? { backgroundColor: "var(--color-emerald)", color: "#fff" }
+                  : {
+                      backgroundColor: "var(--color-surface)",
+                      color: "#6b7280",
+                      border: "1px solid var(--color-border)",
+                    }
+              }
+            >
+              {f.label}
+            </button>
           ))}
-        </select>
+        </div>
         <select
           value={priority}
-          onChange={(e) => resetToFirstPage(() => setPriority(e.target.value))}
-          className="px-3 py-2 rounded-lg border border-gray-200 text-[13px] outline-none"
+          onChange={(e) => {
+            setPriority(e.target.value);
+            setPage(1);
+          }}
+          className="px-3 py-2 rounded-xl border border-gray-200 text-[12px] font-bold outline-none focus:border-gold-500"
+          style={{ backgroundColor: "var(--color-surface)" }}
         >
           <option value="">همه اولویت‌ها</option>
-          {Object.entries(PRIORITY_FA).map(([k, v]) => (
+          {Object.entries(PRIORITY_META).map(([k, m]) => (
             <option key={k} value={k}>
-              {v}
+              {m.label}
             </option>
           ))}
         </select>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-        </div>
-      ) : (
-        <table className="w-full text-[13px]">
+      {/* ── نسخه دسکتاپ: جدول ── */}
+      <div
+        className="hidden sm:block rounded-2xl overflow-hidden"
+        style={{
+          backgroundColor: "var(--color-surface)",
+          border: "1px solid var(--color-border)",
+        }}
+      >
+        <table className="w-full admin-table">
           <thead>
-            <tr className="text-right text-gray-400 text-[11px] border-b border-gray-100">
-              <th className="py-2 font-bold">شماره تیکت</th>
-              <th className="py-2 font-bold">موضوع</th>
-              <th className="py-2 font-bold">کاربر</th>
-              <th className="py-2 font-bold">دسته‌بندی</th>
-              <th className="py-2 font-bold">اولویت</th>
-              <th className="py-2 font-bold">وضعیت</th>
-              <th className="py-2 font-bold">کارشناس</th>
+            <tr>
+              <th>شماره تیکت</th>
+              <th>موضوع</th>
+              <th>کاربر</th>
+              <th>دسته‌بندی</th>
+              <th>اولویت</th>
+              <th>وضعیت</th>
+              <th>کارشناس</th>
             </tr>
           </thead>
           <tbody>
-            {data?.items?.map((t) => (
-              <tr
-                key={t.id}
-                className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
-                onClick={() => router.push(`/tickets/${t.id}`)}
-              >
-                <td className="py-3" dir="ltr">
-                  {t.ticketNumber}
+            {isLoading ? (
+              <tr>
+                <td colSpan={7} className="text-center py-10">
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-300" />
                 </td>
-                <td className="py-3 font-bold">{t.subject}</td>
-                <td className="py-3" dir="ltr">
-                  {t.user?.phone}
-                </td>
-                <td className="py-3">{t.category?.name}</td>
-                <td className="py-3">
-                  <span
-                    className="text-[11px] font-bold"
-                    style={{ color: PRIORITY_COLOR[t.priority] ?? "#6b7280" }}
-                  >
-                    {PRIORITY_FA[t.priority] ?? t.priority}
-                  </span>
-                </td>
-                <td className="py-3">{STATUS_FA[t.status] ?? t.status}</td>
-                <td className="py-3">{t.assignedAdmin?.fullName ?? "—"}</td>
               </tr>
-            ))}
+            ) : !data?.items?.length ? (
+              <tr>
+                <td colSpan={7} className="text-center py-10">
+                  <div className="flex flex-col items-center gap-2">
+                    <Headset className="w-8 h-8 text-gray-200" />
+                    <p className="text-[12px] text-gray-400">تیکتی یافت نشد</p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              data.items.map((t) => {
+                const statusMeta = STATUS_META[t.status] ?? STATUS_META.OPEN;
+                const priorityMeta = PRIORITY_META[t.priority] ?? PRIORITY_META.NORMAL;
+                return (
+                  <tr
+                    key={t.id}
+                    className="cursor-pointer"
+                    onClick={() => router.push(`/tickets/${t.id}`)}
+                  >
+                    <td dir="ltr" className="text-left">
+                      {t.ticketNumber}
+                    </td>
+                    <td className="font-bold">{t.subject}</td>
+                    <td dir="ltr" className="text-left">
+                      {t.user?.phone}
+                    </td>
+                    <td className="text-gray-500">{t.category?.name}</td>
+                    <td>
+                      <span className="text-[12px] font-bold" style={{ color: priorityMeta.color }}>
+                        {priorityMeta.label}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className="badge"
+                        style={{ background: statusMeta.bg, color: statusMeta.color }}
+                      >
+                        {statusMeta.label}
+                      </span>
+                    </td>
+                    <td className="text-gray-500">{t.assignedAdmin?.fullName ?? "—"}</td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
-      )}
+      </div>
 
-      {!isLoading && !data?.items?.length && (
-        <p className="text-center text-gray-400 text-[13px] py-16">تیکتی یافت نشد</p>
-      )}
+      {/* ── نسخه موبایل: کارت‌ها ── */}
+      <div className="sm:hidden space-y-3">
+        {isLoading ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+          </div>
+        ) : !data?.items?.length ? (
+          <div className="flex flex-col items-center gap-2 py-10">
+            <Headset className="w-8 h-8 text-gray-200" />
+            <p className="text-[12px] text-gray-400">تیکتی یافت نشد</p>
+          </div>
+        ) : (
+          data.items.map((t) => {
+            const statusMeta = STATUS_META[t.status] ?? STATUS_META.OPEN;
+            const priorityMeta = PRIORITY_META[t.priority] ?? PRIORITY_META.NORMAL;
+            return (
+              <div
+                key={t.id}
+                onClick={() => router.push(`/tickets/${t.id}`)}
+                className="rounded-2xl p-4"
+                style={{
+                  backgroundColor: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span dir="ltr" className="text-[12px] text-gray-400">
+                    {t.ticketNumber}
+                  </span>
+                  <span
+                    className="badge"
+                    style={{ background: statusMeta.bg, color: statusMeta.color }}
+                  >
+                    {statusMeta.label}
+                  </span>
+                </div>
+                <p className="text-[14px] font-black text-gray-900 mb-1.5">{t.subject}</p>
+                <div className="flex items-center justify-between text-[12px] text-gray-500">
+                  <span dir="ltr">{t.user?.phone}</span>
+                  <span style={{ color: priorityMeta.color }} className="font-bold">
+                    {priorityMeta.label}
+                  </span>
+                </div>
+                <div className="text-[11px] text-gray-400 mt-1.5">
+                  {t.category?.name} · {t.assignedAdmin?.fullName ?? "بدون کارشناس"}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
 
       {!isLoading && data && data.total > PAGE_SIZE && (
-        <div className="flex items-center justify-center gap-3 mt-5">
+        <div className="flex items-center justify-center gap-2 mt-4">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="px-3 py-1.5 rounded-lg text-[12px] font-bold border border-gray-200 disabled:opacity-40"
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-[12px] font-bold disabled:opacity-40"
           >
             قبلی
           </button>
-          <span className="text-[12px] text-gray-500">
-            صفحه {page} از {totalPages}
+          <span className="text-[12px] font-bold text-gray-500">
+            صفحه {page.toLocaleString("fa-IR")} از {totalPages.toLocaleString("fa-IR")}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
-            className="px-3 py-1.5 rounded-lg text-[12px] font-bold border border-gray-200 disabled:opacity-40"
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-[12px] font-bold disabled:opacity-40"
           >
             بعدی
           </button>

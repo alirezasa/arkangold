@@ -22,10 +22,11 @@ import {
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
+import { AdminAuthenticatedUser } from '../admin-auth/interfaces/admin-jwt-payload.interface';
 import { TicketsAdminService } from './tickets-admin.service';
 
 interface AdminAuthenticatedRequest extends Request {
-  admin: { adminId: string; permissions: string[] };
+  user: AdminAuthenticatedUser;
 }
 
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
@@ -36,8 +37,8 @@ export class TicketsAdminController {
   /** فقط ادمین‌هایی که tickets.view_all دارند همه تیکت‌ها را می‌بینند، بقیه فقط تیکت‌های خودشان */
   private actorOf(req: AdminAuthenticatedRequest) {
     return {
-      adminId: req.admin.adminId,
-      canViewAll: req.admin.permissions.includes('tickets.view_all'),
+      adminId: req.user.adminUserId,
+      canViewAll: req.user.permissions.includes('tickets.view_all'),
     };
   }
 

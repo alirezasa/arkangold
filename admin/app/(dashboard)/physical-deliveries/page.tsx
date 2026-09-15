@@ -10,6 +10,7 @@ import {
   X,
   Truck,
   MapPin,
+  FileText,
 } from "lucide-react";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -40,6 +41,7 @@ interface PhysicalDeliveryItem {
   status: "PENDING" | "APPROVED" | "SHIPPED" | "DELIVERED" | "CANCELLED";
   trackingCode: string | null;
   adminNotes: string | null;
+  invoiceId: string | null;
   address: DeliveryAddress | null;
   user: { id: string; phone: string };
   createdAt: string;
@@ -362,6 +364,17 @@ export default function PhysicalDeliveriesPage() {
                 )}
 
                 <div className="flex gap-2 flex-wrap">
+                  {req.invoiceId && (
+                    <a
+                      href={`/invoices/${req.invoiceId}/print`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-gray-200 text-gray-700"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      مشاهده فاکتور
+                    </a>
+                  )}
                   {req.status === "PENDING" && (
                     <button
                       onClick={() => handleApprove(req.id)}

@@ -111,6 +111,7 @@ export interface ShopOrderDto {
     | "CANCELLED";
   totalToman: string;
   trackingCode: string | null;
+  invoiceId: string | null;
   address?: {
     id: string;
     title?: string | null;

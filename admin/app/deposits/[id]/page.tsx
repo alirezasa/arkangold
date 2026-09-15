@@ -132,7 +132,7 @@ export default function AdminDepositDetailPage({
         </div>
         {data.proformaInvoiceId && (
           <a
-            href={`/api/admin/invoices/${data.proformaInvoiceId}/print`}
+            href={`/invoices/${data.proformaInvoiceId}/print`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-bold border border-gray-200 bg-white text-gray-700"

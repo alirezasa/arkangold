@@ -1,0 +1,291 @@
+/* app/app/dashboard/components/documents/document.css
+   قالب چاپی اسناد آرکان گلد.
+   وارد کنید در app/app/invoice/[id]/layout.tsx */
+
+:root {
+  --doc-ink: #330509;      /* قرمز تیره برند */
+  --doc-gold: #c5a059;
+  --doc-gold-soft: #f6efe1;
+  --doc-line: #d8d2c4;
+  --doc-muted: #6b6459;
+  --doc-paper: #ffffff;
+}
+
+.doc-root {
+  background: #eceae3;
+  min-height: 100vh;
+  padding: 24px 12px 64px;
+  color: var(--doc-ink);
+  font-family: var(--font-dana), system-ui, sans-serif;
+}
+
+/* ── ورق ── */
+.doc-sheet {
+  background: var(--doc-paper);
+  margin: 0 auto;
+  box-shadow: 0 12px 40px rgba(51, 5, 9, 0.16);
+  position: relative;
+  overflow: hidden;
+}
+.doc-sheet--portrait  { width: 210mm; min-height: 297mm; padding: 14mm 13mm; }
+.doc-sheet--landscape { width: 297mm; min-height: 210mm; padding: 10mm 12mm; }
+
+/* روی مانیتور کوچک، ورق مقیاس می‌گیرد ولی نسبت A4 حفظ می‌شود */
+@media screen and (max-width: 1300px) {
+  .doc-sheet--landscape { transform: scale(0.72); transform-origin: top center; }
+}
+@media screen and (max-width: 900px) {
+  .doc-sheet--portrait  { transform: scale(0.62); transform-origin: top center; }
+  .doc-sheet--landscape { transform: scale(0.42); transform-origin: top center; }
+}
+
+/* ── نوار ابزار (فقط صفحه) ── */
+.doc-toolbar {
+  max-width: 297mm;
+  margin: 0 auto 18px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.doc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 800;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.doc-btn:focus-visible { outline: 2px solid var(--doc-gold); outline-offset: 2px; }
+.doc-btn--primary { background: var(--doc-ink); color: #fff; }
+.doc-btn--primary:hover { filter: brightness(1.25); }
+.doc-btn--ghost { background: #fff; color: var(--doc-ink); border-color: var(--doc-line); }
+
+/* ── سربرگ ── */
+.doc-head { display: flex; align-items: flex-start; gap: 16px; }
+.doc-head__brand { display: flex; align-items: center; gap: 12px; flex: 1; }
+.doc-head__logo { width: 62px; height: 62px; object-fit: contain; }
+.doc-head__legal { font-size: 15px; font-weight: 900; line-height: 1.5; }
+.doc-head__sub { font-size: 10.5px; color: var(--doc-muted); margin-top: 2px; }
+
+.doc-title {
+  background: var(--doc-ink);
+  color: var(--doc-gold);
+  padding: 9px 26px;
+  border-radius: 4px;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.doc-meta { font-size: 10.5px; line-height: 1.95; min-width: 62mm; }
+.doc-meta__row { display: flex; justify-content: space-between; gap: 14px; }
+.doc-meta__label { color: var(--doc-muted); }
+.doc-meta__value { font-weight: 800; }
+
+.doc-rule {
+  height: 2px;
+  background: linear-gradient(90deg, var(--doc-gold), var(--doc-ink) 55%, transparent);
+  margin: 9px 0 12px;
+}
+
+/* ── بلوک‌های اطلاعات ── */
+.doc-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.doc-party { border: 1px solid var(--doc-line); border-radius: 4px; overflow: hidden; }
+.doc-party__head {
+  background: var(--doc-gold-soft);
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  border-bottom: 1px solid var(--doc-line);
+}
+.doc-party__body { padding: 7px 10px; font-size: 10.5px; line-height: 1.9; }
+.doc-field { display: flex; gap: 6px; }
+.doc-field__k { color: var(--doc-muted); min-width: 62px; }
+.doc-field__v { font-weight: 700; }
+
+/* ── جدول اقلام ── */
+.doc-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10px; }
+.doc-table thead th {
+  background: var(--doc-ink);
+  color: var(--doc-gold);
+  padding: 7px 4px;
+  font-weight: 800;
+  border: 1px solid var(--doc-ink);
+  white-space: nowrap;
+}
+.doc-table tbody td {
+  border: 1px solid var(--doc-line);
+  padding: 7px 4px;
+  text-align: center;
+  vertical-align: middle;
+}
+.doc-table tbody tr:nth-child(even) { background: #faf8f3; }
+.doc-table td.is-title { text-align: right; font-weight: 700; }
+
+/* ── جمع‌بندی ── */
+.doc-summary { display: grid; grid-template-columns: 1fr 78mm; gap: 8px; margin-top: 10px; }
+.doc-notes {
+  border: 1px solid var(--doc-line);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 10px;
+  line-height: 1.95;
+}
+.doc-totals { border: 1px solid var(--doc-line); border-radius: 4px; overflow: hidden; }
+.doc-totals__row {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 11px;
+  font-size: 10.5px;
+  border-bottom: 1px solid var(--doc-line);
+}
+.doc-totals__row--final {
+  background: var(--doc-ink);
+  color: var(--doc-gold);
+  font-size: 13px;
+  font-weight: 900;
+  border-bottom: none;
+  padding: 9px 11px;
+}
+.doc-words {
+  margin-top: 8px;
+  border: 1px solid var(--doc-line);
+  border-radius: 4px;
+  padding: 7px 11px;
+  font-size: 11px;
+  background: var(--doc-gold-soft);
+}
+
+/* ── شناسه واریز: تنها عنصر پررنگ سند ── */
+.doc-tracking {
+  margin-top: 11px;
+  border: 2px solid var(--doc-ink);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.doc-tracking__head {
+  background: var(--doc-ink);
+  color: var(--doc-gold);
+  font-size: 11px;
+  font-weight: 900;
+  padding: 5px 11px;
+}
+.doc-tracking__value {
+  text-align: center;
+  font-size: 25px;
+  font-weight: 900;
+  letter-spacing: 5px;
+  padding: 13px 8px 8px;
+  direction: ltr;
+}
+.doc-tracking__hint {
+  text-align: center;
+  font-size: 10.5px;
+  padding: 0 11px 9px;
+  color: #8a1f26;
+  font-weight: 700;
+}
+
+/* ── بندهای حقوقی ── */
+.doc-clauses { margin-top: 11px; font-size: 9.5px; line-height: 2.05; color: #3d3128; }
+.doc-clauses li { margin-bottom: 4px; padding-right: 4px; }
+.doc-clauses li::marker { color: var(--doc-gold); }
+
+/* ── پانویس ── */
+.doc-foot {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 34mm 1fr 46mm;
+  gap: 10px;
+  align-items: end;
+}
+.doc-seal { text-align: center; font-size: 10px; line-height: 1.8; }
+.doc-seal__img { width: 44mm; max-height: 34mm; object-fit: contain; margin-top: 3px; }
+.doc-sign-box {
+  border: 1px dashed var(--doc-line);
+  border-radius: 4px;
+  height: 26mm;
+  font-size: 10px;
+  color: var(--doc-muted);
+  padding: 5px 8px;
+}
+.doc-qr { text-align: center; }
+.doc-qr__hash { font-size: 7.5px; color: var(--doc-muted); margin-top: 3px; }
+
+.doc-contact {
+  margin-top: 12px;
+  border-top: 1px solid var(--doc-line);
+  padding-top: 7px;
+  font-size: 9px;
+  color: var(--doc-muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── واترمارک و بج وضعیت ── */
+.doc-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-size: 116px;
+  font-weight: 900;
+  color: rgba(51, 5, 9, 0.05);
+  transform: rotate(-32deg);
+  letter-spacing: 12px;
+}
+.doc-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  border: 1.5px solid currentColor;
+}
+.doc-badge--pending  { color: #9a6a00; background: #fff8e6; }
+.doc-badge--review   { color: #14508a; background: #eaf3fc; }
+.doc-badge--approved { color: #0f5c3f; background: #e8f6ef; }
+.doc-badge--rejected { color: #a3161c; background: #fdeced; }
+
+/* ══════════════════════ چاپ ══════════════════════ */
+@page { size: A4 portrait; margin: 8mm; }
+.doc-page--landscape { page: landscapePage; }
+@page landscapePage { size: A4 landscape; margin: 8mm; }
+
+@media print {
+  .no-print { display: none !important; }
+
+  html, body { background: #fff !important; }
+
+  /* بدون این، هدر قرمز و نوار طلایی در چاپ سفید می‌شوند */
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+  .doc-root { background: #fff; padding: 0; }
+  .doc-sheet {
+    box-shadow: none;
+    margin: 0;
+    width: auto;
+    min-height: auto;
+    padding: 0;
+    transform: none !important;
+  }
+
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, .doc-tracking, .doc-party, .doc-totals { page-break-inside: avoid; }
+  .doc-clauses li { page-break-inside: avoid; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .doc-btn { transition: none; }
+}

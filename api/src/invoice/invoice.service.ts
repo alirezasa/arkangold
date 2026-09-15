@@ -516,6 +516,24 @@ export class InvoiceService {
     };
   }
 
+  /**
+   * نگاشت sourceId → invoiceId برای یک دسته منبع — برای نمایش دکمه
+   * «مشاهده فاکتور» در صفحات سفارش/تحویل/تراکنش بدون N+1 کوئری.
+   */
+  async findInvoiceIdsBySource(
+    sourceType: 'SHOP_ORDER' | 'PHYSICAL_DELIVERY',
+    sourceIds: string[],
+  ): Promise<Map<string, string>> {
+    if (!sourceIds.length) return new Map();
+
+    const rows = await this.prisma.invoice.findMany({
+      where: { sourceType, sourceId: { in: sourceIds }, kind: 'INVOICE' },
+      select: { id: true, sourceId: true },
+    });
+
+    return new Map(rows.map((r) => [r.sourceId, r.id]));
+  }
+
   async listForUser(
     userId: string,
     query: { kind?: 'INVOICE' | 'PROFORMA'; page?: number; limit?: number },

@@ -5,7 +5,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
-import { Loader2 } from "lucide-react";
+import { ChevronRight, Loader2, AlertCircle, Send } from "lucide-react";
+import { PRIORITY_META } from "../ticket-meta";
 
 interface Category {
   id: string;
@@ -50,16 +51,33 @@ export default function NewTicketPage() {
   };
 
   return (
-    <div dir="rtl" className="max-w-xl mx-auto px-4 py-6">
-      <h1 className="text-lg font-black text-gray-900 mb-5">ثبت تیکت جدید</h1>
+    <div className="max-w-xl mx-auto pb-24" dir="rtl">
+      {/* هدر */}
+      <div className="flex items-center gap-3 mb-5">
+        <button
+          onClick={() => router.push("/dashboard/support")}
+          className="w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-colors"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-[17px] font-black text-gray-900">ثبت تیکت جدید</h1>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            پس از ثبت می‌توانید فایل هم ضمیمه کنید
+          </p>
+        </div>
+      </div>
 
-      <div className="flex flex-col gap-4">
+      <div
+        className="rounded-2xl p-4 flex flex-col gap-4"
+        style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+      >
         <div>
           <label className="text-[12px] font-bold text-gray-500 mb-1.5 block">دسته‌بندی</label>
           <select
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-emerald-500"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-gold-500"
           >
             <option value="">انتخاب کنید...</option>
             {categories?.map((c) => (
@@ -76,7 +94,7 @@ export default function NewTicketPage() {
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             maxLength={200}
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-emerald-500"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-gold-500"
             placeholder="مثلاً: مشکل در ثبت سفارش"
           />
         </div>
@@ -88,40 +106,49 @@ export default function NewTicketPage() {
             onChange={(e) => setDescription(e.target.value)}
             rows={6}
             maxLength={10000}
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-emerald-500 resize-none"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-gold-500 resize-none"
             placeholder="مشکل خود را با جزئیات شرح دهید..."
           />
         </div>
 
         <div>
           <label className="text-[12px] font-bold text-gray-500 mb-1.5 block">اولویت</label>
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-emerald-500"
-          >
-            <option value="LOW">کم</option>
-            <option value="NORMAL">عادی</option>
-            <option value="HIGH">بالا</option>
-            <option value="URGENT">فوری</option>
-          </select>
+          <div className="flex gap-2">
+            {Object.entries(PRIORITY_META).map(([key, m]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setPriority(key)}
+                className="flex-1 py-2 rounded-xl text-[12px] font-bold border transition-colors"
+                style={
+                  priority === key
+                    ? { backgroundColor: `${m.color}15`, borderColor: m.color, color: m.color }
+                    : { borderColor: "var(--color-border)", color: "#6b7280" }
+                }
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {error && <p className="text-[12px] text-red-500 font-bold">{error}</p>}
+        {error && (
+          <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-[12px] font-bold">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+            {error}
+          </div>
+        )}
 
         <button
           onClick={submit}
           disabled={submitting}
-          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-[13px] font-bold text-white bg-emerald-600 disabled:opacity-60"
+          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-[13px] font-bold text-white disabled:opacity-60"
+          style={{ backgroundColor: "var(--color-emerald)" }}
         >
-          {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+          {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           ثبت تیکت
         </button>
       </div>
-
-      <p className="text-[11px] text-gray-400 mt-3">
-        پس از ثبت تیکت، در همان صفحه می‌توانید فایل ضمیمه کنید.
-      </p>
     </div>
   );
 }

@@ -59,10 +59,26 @@ export class StorageService implements OnModuleInit {
       return;
     }
 
+    // S3_ENDPOINT باید یک URL کامل با scheme باشد (مثلاً https://storage.iran.liara.space).
+    // اگر فقط دامنه وارد شده باشد، new URL(...) در SDK با خطای مبهم «Invalid URL» شکست
+    // می‌خورد — این‌جا هم به‌صورت مهربان تصحیح می‌کنیم هم در صورت نامعتبر بودن واقعی خطای
+    // روشن در لاگ می‌دهیم به‌جای شکست دیرهنگام و گنگ هنگام آپلود.
+    const normalizedEndpoint = /^https?:\/\//i.test(endpoint)
+      ? endpoint
+      : `https://${endpoint}`;
+    try {
+      new URL(normalizedEndpoint);
+    } catch {
+      this.logger.error(
+        `[Storage] مقدار S3_ENDPOINT معتبر نیست: "${endpoint}" — باید یک آدرس کامل باشد (مثلاً https://storage.iran.liara.space)`,
+      );
+      return;
+    }
+
     // لیارا: forcePathStyle اجباری است و region مقدار ساختگی می‌گیرد
     this.client = new S3Client({
       region: this.config.get<string>('S3_REGION') ?? 'us-east-1',
-      endpoint,
+      endpoint: normalizedEndpoint,
       forcePathStyle: true,
       credentials: { accessKeyId, secretAccessKey },
       // نسخه‌های اخیر AWS SDK v3 به‌صورت پیش‌فرض هدر/تریلر Checksum اضافه

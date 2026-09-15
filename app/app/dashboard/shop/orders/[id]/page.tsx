@@ -16,6 +16,7 @@ import {
   MapPin,
   Copy,
   ShoppingBag,
+  FileText,
 } from "lucide-react";
 import {
   useShopOrder,
@@ -23,6 +24,7 @@ import {
   usePayShopOrder,
 } from "@/app/hooks/useShop";
 import { useWallet } from "@/app/hooks/useWallet";
+import { openInvoicePrint } from "@/app/hooks/useInvoices";
 
 function fmtToman(v: string | number) {
   return Math.round(Number(v)).toLocaleString("fa-IR");
@@ -197,12 +199,21 @@ export default function ShopOrderDetailPage() {
         >
           <ChevronRight className="w-5 h-5" />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-[17px] font-black text-gray-900">جزئیات سفارش</h1>
           <p className="text-[11px] text-gray-400 mt-0.5" dir="ltr">
             {order.id.slice(0, 8)}…
           </p>
         </div>
+        {order.invoiceId && (
+          <button
+            onClick={() => openInvoicePrint(order.invoiceId!)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-bold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <FileText className="w-4 h-4" />
+            مشاهده فاکتور
+          </button>
+        )}
       </div>
 
       {(actionError || payError) && (

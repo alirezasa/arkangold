@@ -19,6 +19,7 @@ import {
   Info,
   Home,
   Building2,
+  FileText,
 } from "lucide-react";
 import axios from "axios";
 import {
@@ -31,6 +32,7 @@ import {
   PhysicalDeliveryRequestItem,
 } from "@/app/hooks/usePhysicalDelivery";
 import { useWallet } from "@/app/hooks/useWallet";
+import { openInvoicePrint } from "@/app/hooks/useInvoices";
 
 // ── نگاشت وضعیت‌ها ──
 const STATUS_META: Record<
@@ -716,10 +718,10 @@ function DetailModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="flex items-center justify-between px-5 py-4 border-b shrink-0"
+          className="flex items-center justify-between gap-2 px-5 py-4 border-b shrink-0"
           style={{ borderColor: "var(--color-border)" }}
         >
-          <div>
+          <div className="flex-1">
             <h3 className="text-[14px] font-black text-gray-900">
               جزئیات درخواست
             </h3>
@@ -727,6 +729,15 @@ function DetailModal({
               {request.id.slice(0, 8)}…
             </p>
           </div>
+          {request.invoiceId && (
+            <button
+              onClick={() => openInvoicePrint(request.invoiceId!)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              فاکتور
+            </button>
+          )}
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"

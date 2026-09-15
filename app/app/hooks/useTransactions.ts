@@ -26,6 +26,7 @@ export interface TransactionItem {
   taxToman: string | null;
   sign: "plus" | "minus";
   createdAt: string;
+  invoiceId: string | null;
   description?: string;
 }
 

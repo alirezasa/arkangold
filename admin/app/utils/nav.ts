@@ -12,6 +12,8 @@ import {
   UserCog,
   BookOpen,
   Scale,
+  Headset,
+  Tags,
 } from "lucide-react";
 
 export interface NavItem {
@@ -69,6 +71,13 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "تحویل فیزیکی طلا", href: "/physical-deliveries", icon: Package, perm: "physical_delivery.view" },
       { label: "پی‌رول (شارژ دستی)", href: "/payroll", icon: Wallet, perm: "payroll.view" },
+    ],
+  },
+  {
+    title: "پشتیبانی",
+    items: [
+      { label: "تیکت‌ها", href: "/tickets", icon: Headset, perm: "tickets.view" },
+      { label: "دسته‌بندی تیکت‌ها", href: "/tickets/categories", icon: Tags, perm: "tickets.manage_categories" },
     ],
   },
   {

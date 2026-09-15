@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
 import { useState } from "react";
-import { Loader2, Send, EyeOff, Star } from "lucide-react";
+import { Loader2, Send, EyeOff, Star, Paperclip } from "lucide-react";
 
 const STATUS_FA: Record<string, string> = {
   OPEN: "باز",
@@ -14,6 +14,13 @@ const STATUS_FA: Record<string, string> = {
   RESOLVED: "حل شده",
   CLOSED: "بسته",
   REOPENED: "بازگشایی‌شده",
+};
+
+const PRIORITY_FA: Record<string, string> = {
+  LOW: "کم",
+  NORMAL: "عادی",
+  HIGH: "بالا",
+  URGENT: "فوری",
 };
 
 // گذارهای مجاز — باید با TICKET_STATUS_TRANSITIONS در packages/shared هماهنگ بماند
@@ -26,12 +33,17 @@ const NEXT_STATUS_OPTIONS: Record<string, string[]> = {
   REOPENED: ["IN_PROGRESS", "OPEN"],
 };
 
+interface Attachment {
+  id: string;
+  originalFilename: string;
+}
 interface Message {
   id: string;
   message: string;
   senderType: "USER" | "ADMIN" | "SYSTEM";
   isInternal: boolean;
   createdAt: string;
+  attachments: Attachment[];
 }
 interface TicketDetail {
   id: string;
@@ -44,7 +56,15 @@ interface TicketDetail {
   user: { phone: string };
   assignedAdmin: { id: string; fullName: string } | null;
   messages: Message[];
+  attachments: Attachment[];
   rating: { rating: number; comment: string | null } | null;
+}
+
+interface AdminItem {
+  id: string;
+  fullName: string;
+  username: string;
+  isActive: boolean;
 }
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -56,6 +76,7 @@ export default function AdminTicketDetailPage() {
     fetcher,
     { refreshInterval: 15000 },
   );
+  const { data: admins } = useSWR<AdminItem[]>("/api/admin/admins", fetcher);
 
   const [reply, setReply] = useState("");
   const [isInternal, setIsInternal] = useState(false);
@@ -90,12 +111,29 @@ export default function AdminTicketDetailPage() {
     await mutate();
   };
 
+  const changePriority = async (newPriority: string) => {
+    await axios.patch(`/api/admin/tickets/${id}/priority`, { priority: newPriority });
+    await mutate();
+  };
+
   const assign = async () => {
-    if (!assignAdminId.trim()) return;
-    await axios.post(`/api/admin/tickets/${id}/assign`, { adminId: assignAdminId.trim() });
+    if (!assignAdminId) return;
+    await axios.post(`/api/admin/tickets/${id}/assign`, { adminId: assignAdminId });
     setAssignAdminId("");
     await mutate();
   };
+
+  const openAttachment = async (attachmentId: string) => {
+    const res = await axios.get(
+      `/api/admin/tickets/${id}/attachments/${attachmentId}/download-url`,
+    );
+    window.open(res.data.url, "_blank", "noopener,noreferrer");
+  };
+
+  const activeAdmins = admins?.filter((a) => a.isActive) ?? [];
+  const standaloneAttachments = data.attachments.filter(
+    (a) => !data.messages.some((m) => m.attachments.some((ma) => ma.id === a.id)),
+  );
 
   return (
     <div className="p-6 max-w-4xl mx-auto grid grid-cols-3 gap-6">
@@ -129,12 +167,44 @@ export default function AdminTicketDetailPage() {
                 </span>
               )}
               <p className="whitespace-pre-wrap">{m.message}</p>
+              {m.attachments?.length > 0 && (
+                <div className="mt-2 flex flex-col gap-1">
+                  {m.attachments.map((a) => (
+                    <button
+                      key={a.id}
+                      onClick={() => openAttachment(a.id)}
+                      className="flex items-center gap-1 text-[11px] opacity-80 hover:opacity-100 hover:underline"
+                    >
+                      <Paperclip className="w-3 h-3" />
+                      {a.originalFilename}
+                    </button>
+                  ))}
+                </div>
+              )}
               <p className="text-[10px] opacity-60 mt-1">
                 {new Date(m.createdAt).toLocaleString("fa-IR")}
               </p>
             </div>
           ))}
         </div>
+
+        {standaloneAttachments.length > 0 && (
+          <div className="mb-4 border-t border-gray-100 pt-3">
+            <p className="text-[11px] font-bold text-gray-400 mb-2">پیوست‌های تیکت</p>
+            <div className="flex flex-col gap-1">
+              {standaloneAttachments.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => openAttachment(a.id)}
+                  className="flex items-center gap-1.5 text-[12px] text-gray-600 hover:text-emerald-700 hover:underline"
+                >
+                  <Paperclip className="w-3.5 h-3.5" />
+                  {a.originalFilename}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="border-t border-gray-100 pt-3">
           <textarea
@@ -184,18 +254,43 @@ export default function AdminTicketDetailPage() {
         </div>
 
         <div className="border border-gray-100 rounded-xl p-4">
+          <p className="text-[11px] font-bold text-gray-400 mb-2">اولویت</p>
+          <p className="text-[13px] font-bold mb-3">{PRIORITY_FA[data.priority] ?? data.priority}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(PRIORITY_FA)
+              .filter(([k]) => k !== data.priority)
+              .map(([k, v]) => (
+                <button
+                  key={k}
+                  onClick={() => changePriority(k)}
+                  className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50"
+                >
+                  {v}
+                </button>
+              ))}
+          </div>
+        </div>
+
+        <div className="border border-gray-100 rounded-xl p-4">
           <p className="text-[11px] font-bold text-gray-400 mb-2">کارشناس مسئول</p>
           <p className="text-[13px] mb-3">{data.assignedAdmin?.fullName ?? "اختصاص نیافته"}</p>
           <div className="flex gap-2">
-            <input
+            <select
               value={assignAdminId}
               onChange={(e) => setAssignAdminId(e.target.value)}
-              placeholder="شناسه ادمین"
               className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-[12px]"
-            />
+            >
+              <option value="">انتخاب کارشناس...</option>
+              {activeAdmins.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.fullName}
+                </option>
+              ))}
+            </select>
             <button
               onClick={assign}
-              className="px-3 py-1.5 rounded-lg text-[12px] font-bold text-white bg-gray-900"
+              disabled={!assignAdminId}
+              className="px-3 py-1.5 rounded-lg text-[12px] font-bold text-white bg-gray-900 disabled:opacity-40"
             >
               ارجاع
             </button>

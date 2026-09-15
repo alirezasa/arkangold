@@ -238,19 +238,29 @@ export default function AdminTicketDetailPage() {
       {/* سایدبار: وضعیت / ارجاع */}
       <div className="flex flex-col gap-4">
         <SidebarCard title="وضعیت فعلی">
-          <p className="text-[13px] font-bold mb-3" style={{ color: statusMeta.color }}>
-            {statusMeta.label}
-          </p>
+          <div
+            className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg"
+            style={{ background: statusMeta.bg }}
+          >
+            <statusMeta.icon className="w-4 h-4" style={{ color: statusMeta.color }} />
+            <p className="text-[13px] font-bold" style={{ color: statusMeta.color }}>
+              {statusMeta.label}
+            </p>
+          </div>
           <div className="flex flex-col gap-1.5">
             {(NEXT_STATUS_OPTIONS[data.status] ?? []).map((s) => {
               const meta = STATUS_META[s];
+              if (!meta) return null;
+              const Icon = meta.icon;
               return (
                 <button
                   key={s}
                   onClick={() => changeStatus(s)}
-                  className="text-[12px] text-right px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
+                  className="flex items-center gap-2 text-[12px] font-bold text-right px-3 py-2 rounded-lg border transition-colors"
+                  style={{ borderColor: "var(--color-border)", color: meta.color }}
                 >
-                  تغییر به: {meta?.label ?? s}
+                  <Icon className="w-3.5 h-3.5" />
+                  تغییر به: {meta.label}
                 </button>
               );
             })}

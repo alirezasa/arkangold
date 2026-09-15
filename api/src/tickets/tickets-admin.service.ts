@@ -126,6 +126,19 @@ export class TicketsAdminService {
     return ticket;
   }
 
+  async getAttachmentDownloadUrl(
+    actor: AdminActor,
+    ticketId: string,
+    attachmentId: string,
+  ) {
+    await this.assertScope(actor, ticketId);
+    return this.ticketsService.getAttachmentDownloadUrlForAdmin(
+      ticketId,
+      attachmentId,
+      actor.adminId,
+    );
+  }
+
   // ---------------------------------------------------------------------
   // ارجاع تیکت (Assign / Reassign)
   // ---------------------------------------------------------------------

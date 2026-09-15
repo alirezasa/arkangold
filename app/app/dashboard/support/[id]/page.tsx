@@ -1,27 +1,12 @@
 // app/app/dashboard/support/[id]/page.tsx
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
 import { useRef, useState } from "react";
-import { Loader2, Paperclip, Send, Lock, Unlock, Star } from "lucide-react";
-
-const STATUS_FA: Record<string, string> = {
-  OPEN: "باز",
-  IN_PROGRESS: "در حال بررسی",
-  WAITING_FOR_USER: "در انتظار پاسخ شما",
-  RESOLVED: "حل شده",
-  CLOSED: "بسته شده",
-  REOPENED: "بازگشایی شده",
-};
-
-const PRIORITY_FA: Record<string, string> = {
-  LOW: "کم",
-  NORMAL: "عادی",
-  HIGH: "بالا",
-  URGENT: "فوری",
-};
+import { ChevronRight, Loader2, Paperclip, Send, Lock, Unlock, Star } from "lucide-react";
+import { STATUS_META, PRIORITY_META } from "../ticket-meta";
 
 interface Attachment {
   id: string;
@@ -56,6 +41,7 @@ const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { data, mutate, isLoading } = useSWR<TicketDetail>(
     id ? `/api/support/tickets/${id}` : null,
     fetcher,
@@ -74,12 +60,14 @@ export default function TicketDetailPage() {
   if (isLoading || !data) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--color-gold-500)" }} />
       </div>
     );
   }
 
   const isClosed = data.status === "CLOSED";
+  const statusMeta = STATUS_META[data.status] ?? STATUS_META.OPEN;
+  const priorityMeta = PRIORITY_META[data.priority] ?? PRIORITY_META.NORMAL;
 
   const sendReply = async () => {
     if (!reply.trim() && !file) return;
@@ -139,28 +127,43 @@ export default function TicketDetailPage() {
   };
 
   return (
-    <div dir="rtl" className="max-w-2xl mx-auto px-4 py-6 flex flex-col h-[calc(100vh-2rem)]">
+    <div dir="rtl" className="max-w-2xl mx-auto flex flex-col h-[calc(100vh-2rem)]">
       {/* Header */}
-      <div className="mb-4 pb-4 border-b border-gray-100">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-base font-black text-gray-900">{data.subject}</h1>
-            <p className="text-[11px] text-gray-400 mt-1" dir="ltr">
+      <div className="mb-4 pb-4 border-b" style={{ borderColor: "var(--color-border)" }}>
+        <div className="flex items-center gap-3 mb-3">
+          <button
+            onClick={() => router.push("/dashboard/support")}
+            className="w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-colors shrink-0"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-[15px] font-black text-gray-900 truncate">{data.subject}</h1>
+            <p className="text-[11px] text-gray-400 mt-0.5" dir="ltr">
               {data.ticketNumber} · {data.category?.name}
             </p>
           </div>
           <button
             onClick={toggleClose}
-            className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600"
+            className="flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border shrink-0"
+            style={{ borderColor: "var(--color-border)", color: "#6b7280" }}
           >
             {isClosed ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-            {isClosed ? "بازگشایی تیکت" : "بستن تیکت"}
+            {isClosed ? "بازگشایی" : "بستن"}
           </button>
         </div>
-        <div className="flex items-center gap-3 mt-3 text-[11px] text-gray-500">
-          <span>وضعیت: {STATUS_FA[data.status] ?? data.status}</span>
-          <span>اولویت: {PRIORITY_FA[data.priority] ?? data.priority}</span>
-          <span>کارشناس: {data.assignedAdmin?.fullName ?? "هنوز اختصاص نیافته"}</span>
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusMeta.badgeClass}`}
+          >
+            {statusMeta.label}
+          </span>
+          <span className="text-[11px] font-bold" style={{ color: priorityMeta.color }}>
+            {priorityMeta.label}
+          </span>
+          <span className="text-[11px] text-gray-400">
+            {data.assignedAdmin?.fullName ?? "هنوز اختصاص نیافته"}
+          </span>
         </div>
       </div>
 
@@ -170,10 +173,13 @@ export default function TicketDetailPage() {
           <div
             key={m.id}
             className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-[13px] ${
-              m.senderType === "USER"
-                ? "self-end bg-emerald-600 text-white rounded-bl-md"
-                : "self-start bg-gray-100 text-gray-900 rounded-br-md"
+              m.senderType === "USER" ? "self-end text-white rounded-bl-md" : "self-start rounded-br-md"
             }`}
+            style={
+              m.senderType === "USER"
+                ? { backgroundColor: "var(--color-emerald)" }
+                : { backgroundColor: "var(--color-bg-page)", color: "#111827" }
+            }
           >
             <p className="whitespace-pre-wrap">{m.message}</p>
             {m.attachments?.length > 0 && (
@@ -199,14 +205,15 @@ export default function TicketDetailPage() {
 
       {/* Standalone attachments (not attached to a specific message) */}
       {standaloneAttachments.length > 0 && (
-        <div className="border-t border-gray-100 pt-3 pb-1">
+        <div className="border-t pt-3 pb-1" style={{ borderColor: "var(--color-border)" }}>
           <p className="text-[11px] text-gray-400 mb-1.5">پیوست‌های تیکت</p>
           <div className="flex flex-col gap-1">
             {standaloneAttachments.map((a) => (
               <button
                 key={a.id}
                 onClick={() => openAttachment(a.id)}
-                className="flex items-center gap-1.5 text-[12px] text-gray-600 hover:text-emerald-700 hover:underline"
+                className="flex items-center gap-1.5 text-[12px] text-gray-600 hover:underline"
+                style={{ color: "var(--color-emerald)" }}
               >
                 <Paperclip className="w-3.5 h-3.5" />
                 {a.originalFilename}
@@ -218,7 +225,7 @@ export default function TicketDetailPage() {
 
       {/* Rating */}
       {canRate && (
-        <div className="border-t border-gray-100 pt-3 pb-1 mb-2">
+        <div className="border-t pt-3 pb-1 mb-2" style={{ borderColor: "var(--color-border)" }}>
           {data.rating ? (
             <div className="flex flex-col items-center gap-1 text-center">
               <p className="text-[11px] text-gray-400">امتیاز شما به این تیکت</p>
@@ -226,7 +233,12 @@ export default function TicketDetailPage() {
                 {[1, 2, 3, 4, 5].map((n) => (
                   <Star
                     key={n}
-                    className={`w-4 h-4 ${n <= data.rating!.rating ? "fill-amber-400 text-amber-400" : "text-gray-200"}`}
+                    className="w-4 h-4"
+                    style={
+                      n <= data.rating!.rating
+                        ? { fill: "var(--color-gold-500)", color: "var(--color-gold-500)" }
+                        : { color: "#e5e7eb" }
+                    }
                   />
                 ))}
               </div>
@@ -241,7 +253,12 @@ export default function TicketDetailPage() {
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button key={n} type="button" onClick={() => setRatingValue(n)}>
                     <Star
-                      className={`w-6 h-6 ${n <= ratingValue ? "fill-amber-400 text-amber-400" : "text-gray-200"}`}
+                      className="w-6 h-6"
+                      style={
+                        n <= ratingValue
+                          ? { fill: "var(--color-gold-500)", color: "var(--color-gold-500)" }
+                          : { color: "#e5e7eb" }
+                      }
                     />
                   </button>
                 ))}
@@ -252,12 +269,13 @@ export default function TicketDetailPage() {
                     value={ratingComment}
                     onChange={(e) => setRatingComment(e.target.value)}
                     placeholder="نظر شما (اختیاری)"
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[12px] outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-[12px] outline-none focus:border-gold-500"
                   />
                   <button
                     onClick={submitRating}
                     disabled={submittingRating}
-                    className="px-4 py-1.5 rounded-lg text-[12px] font-bold text-white bg-emerald-600 disabled:opacity-50"
+                    className="px-4 py-1.5 rounded-lg text-[12px] font-bold text-white disabled:opacity-50"
+                    style={{ backgroundColor: "var(--color-emerald)" }}
                   >
                     {submittingRating ? "در حال ثبت..." : "ثبت امتیاز"}
                   </button>
@@ -270,13 +288,13 @@ export default function TicketDetailPage() {
 
       {/* Reply box */}
       {!isClosed ? (
-        <div className="border-t border-gray-100 pt-3">
+        <div className="border-t pt-3" style={{ borderColor: "var(--color-border)" }}>
           <textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
             rows={3}
             placeholder="پاسخ خود را بنویسید..."
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-emerald-500 resize-none"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-gold-500 resize-none"
           />
           <div className="flex items-center justify-between mt-2">
             <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer">
@@ -292,7 +310,8 @@ export default function TicketDetailPage() {
             <button
               onClick={sendReply}
               disabled={sending || (!reply.trim() && !file)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold text-white bg-emerald-600 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold text-white disabled:opacity-50"
+              style={{ backgroundColor: "var(--color-emerald)" }}
             >
               {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
               ارسال
@@ -300,7 +319,7 @@ export default function TicketDetailPage() {
           </div>
         </div>
       ) : (
-        <div className="border-t border-gray-100 pt-3 text-center text-[12px] text-gray-400">
+        <div className="border-t pt-3 text-center text-[12px] text-gray-400" style={{ borderColor: "var(--color-border)" }}>
           این تیکت بسته شده است. برای پاسخ جدید، آن را بازگشایی کنید.
         </div>
       )}

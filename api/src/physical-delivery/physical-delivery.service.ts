@@ -473,7 +473,7 @@ export class PhysicalDeliveryService {
           requestId: request.id,
           alreadyProcessed: false,
         };
-      });
+      }, { maxWait: 5000, timeout: 15000 });
     } catch (err) {
       throw this.translateDbError(err, adminId);
     }
@@ -536,7 +536,7 @@ export class PhysicalDeliveryService {
           trackingCode: dto.trackingCode,
           alreadyProcessed: false,
         };
-      });
+      }, { maxWait: 5000, timeout: 10000 });
     } catch (err) {
       throw this.translateDbError(err, adminId);
     }
@@ -587,7 +587,7 @@ export class PhysicalDeliveryService {
         ]);
 
         return { message: 'تحویل با موفقیت ثبت شد', alreadyProcessed: false };
-      });
+      }, { maxWait: 5000, timeout: 10000 });
     } catch (err) {
       throw this.translateDbError(err, adminId);
     }
@@ -704,7 +704,7 @@ export class PhysicalDeliveryService {
           requestId: request.id,
           alreadyProcessed: false,
         };
-      });
+      }, { maxWait: 5000, timeout: 15000 });
     } catch (err) {
       throw this.translateDbError(err, adminId);
     }
@@ -723,6 +723,8 @@ export class PhysicalDeliveryService {
       if (!hold.referenceId) continue;
       try {
         await this.prisma.$transaction(async (tx) => {
+          // جلوگیری از رقابت با approve/ship/deliver/adminCancel هم‌زمان
+          await tx.$executeRaw`SELECT 1 FROM "physical_delivery_requests" WHERE "id" = ${hold.referenceId}::uuid FOR UPDATE`;
           const request = await tx.physicalDeliveryRequest.findUnique({
             where: { id: hold.referenceId },
           });
@@ -735,8 +737,8 @@ export class PhysicalDeliveryService {
             where: { physicalDeliveryId: request.id, status: 'PENDING' },
             data: { status: 'FAILED' },
           });
-          await tx.physicalDeliveryRequest.update({
-            where: { id: request.id },
+          await tx.physicalDeliveryRequest.updateMany({
+            where: { id: request.id, status: 'PENDING' },
             data: {
               status: 'CANCELLED',
               adminNotes: 'لغو خودکار - عدم بررسی در مهلت مقرر',

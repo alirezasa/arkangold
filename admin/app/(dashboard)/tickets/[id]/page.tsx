@@ -6,32 +6,7 @@ import useSWR from "swr";
 import axios from "axios";
 import { useState } from "react";
 import { Loader2, Send, EyeOff, Star, Paperclip } from "lucide-react";
-
-const STATUS_FA: Record<string, string> = {
-  OPEN: "باز",
-  IN_PROGRESS: "در حال بررسی",
-  WAITING_FOR_USER: "منتظر کاربر",
-  RESOLVED: "حل شده",
-  CLOSED: "بسته",
-  REOPENED: "بازگشایی‌شده",
-};
-
-const PRIORITY_FA: Record<string, string> = {
-  LOW: "کم",
-  NORMAL: "عادی",
-  HIGH: "بالا",
-  URGENT: "فوری",
-};
-
-// گذارهای مجاز — باید با TICKET_STATUS_TRANSITIONS در packages/shared هماهنگ بماند
-const NEXT_STATUS_OPTIONS: Record<string, string[]> = {
-  OPEN: ["IN_PROGRESS", "RESOLVED"],
-  IN_PROGRESS: ["WAITING_FOR_USER", "RESOLVED", "OPEN"],
-  WAITING_FOR_USER: ["IN_PROGRESS", "OPEN"],
-  RESOLVED: ["CLOSED", "REOPENED"],
-  CLOSED: ["REOPENED"],
-  REOPENED: ["IN_PROGRESS", "OPEN"],
-};
+import { STATUS_META, PRIORITY_META, NEXT_STATUS_OPTIONS } from "../ticket-meta";
 
 interface Attachment {
   id: string;
@@ -69,6 +44,18 @@ interface AdminItem {
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
+function SidebarCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div
+      className="rounded-2xl p-4"
+      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+    >
+      <p className="text-[11px] font-bold text-gray-400 mb-2">{title}</p>
+      {children}
+    </div>
+  );
+}
+
 export default function AdminTicketDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data, mutate, isLoading } = useSWR<TicketDetail>(
@@ -86,7 +73,7 @@ export default function AdminTicketDetailPage() {
   if (isLoading || !data) {
     return (
       <div className="flex justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--color-gold-500)" }} />
       </div>
     );
   }
@@ -134,17 +121,27 @@ export default function AdminTicketDetailPage() {
   const standaloneAttachments = data.attachments.filter(
     (a) => !data.messages.some((m) => m.attachments.some((ma) => ma.id === a.id)),
   );
+  const statusMeta = STATUS_META[data.status] ?? STATUS_META.OPEN;
+  const priorityMeta = PRIORITY_META[data.priority] ?? PRIORITY_META.NORMAL;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto grid grid-cols-3 gap-6">
+    <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* ستون اصلی: گفتگو */}
-      <div className="col-span-2">
+      <div className="lg:col-span-2">
         <div className="mb-4">
-          <h1 className="text-lg font-black text-gray-900">{data.subject}</h1>
-          <p className="text-[11px] text-gray-400 mt-1" dir="ltr">
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-lg font-black text-gray-900">{data.subject}</h1>
+            <span className="badge" style={{ background: statusMeta.bg, color: statusMeta.color }}>
+              {statusMeta.label}
+            </span>
+          </div>
+          <p className="text-[11px] text-gray-400" dir="ltr">
             {data.ticketNumber} · {data.user?.phone}
           </p>
-          <p className="text-[13px] text-gray-600 mt-3 bg-gray-50 rounded-xl p-3">
+          <p
+            className="text-[13px] text-gray-600 mt-3 rounded-xl p-3"
+            style={{ backgroundColor: "var(--color-bg-page)" }}
+          >
             {data.description}
           </p>
         </div>
@@ -153,13 +150,14 @@ export default function AdminTicketDetailPage() {
           {data.messages.map((m) => (
             <div
               key={m.id}
-              className={`px-4 py-2.5 rounded-xl text-[13px] ${
+              className="px-4 py-2.5 rounded-xl text-[13px]"
+              style={
                 m.isInternal
-                  ? "bg-amber-50 border border-amber-200 text-amber-900"
+                  ? { background: "#fef3c7", border: "1px solid #fde68a", color: "#92400e" }
                   : m.senderType === "ADMIN"
-                    ? "bg-emerald-50 text-emerald-900"
-                    : "bg-gray-100 text-gray-900"
-              }`}
+                    ? { background: "var(--color-emerald-light)", color: "var(--color-emerald)" }
+                    : { background: "var(--color-bg-page)", color: "#111827" }
+              }
             >
               {m.isInternal && (
                 <span className="flex items-center gap-1 text-[10px] font-bold mb-1">
@@ -189,14 +187,15 @@ export default function AdminTicketDetailPage() {
         </div>
 
         {standaloneAttachments.length > 0 && (
-          <div className="mb-4 border-t border-gray-100 pt-3">
+          <div className="mb-4 border-t pt-3" style={{ borderColor: "var(--color-border)" }}>
             <p className="text-[11px] font-bold text-gray-400 mb-2">پیوست‌های تیکت</p>
             <div className="flex flex-col gap-1">
               {standaloneAttachments.map((a) => (
                 <button
                   key={a.id}
                   onClick={() => openAttachment(a.id)}
-                  className="flex items-center gap-1.5 text-[12px] text-gray-600 hover:text-emerald-700 hover:underline"
+                  className="flex items-center gap-1.5 text-[12px] text-gray-600 hover:underline"
+                  style={{ color: "var(--color-emerald)" }}
                 >
                   <Paperclip className="w-3.5 h-3.5" />
                   {a.originalFilename}
@@ -206,13 +205,13 @@ export default function AdminTicketDetailPage() {
           </div>
         )}
 
-        <div className="border-t border-gray-100 pt-3">
+        <div className="border-t pt-3" style={{ borderColor: "var(--color-border)" }}>
           <textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
             rows={3}
             placeholder="پاسخ یا یادداشت داخلی..."
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none resize-none"
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-gold-500 resize-none"
           />
           <div className="flex items-center justify-between mt-2">
             <label className="flex items-center gap-1.5 text-[12px] text-gray-600">
@@ -226,7 +225,8 @@ export default function AdminTicketDetailPage() {
             <button
               onClick={send}
               disabled={sending || !reply.trim()}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold text-white bg-gray-900 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold text-white disabled:opacity-50"
+              style={{ backgroundColor: "var(--color-emerald)" }}
             >
               {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
               ارسال
@@ -237,48 +237,55 @@ export default function AdminTicketDetailPage() {
 
       {/* سایدبار: وضعیت / ارجاع */}
       <div className="flex flex-col gap-4">
-        <div className="border border-gray-100 rounded-xl p-4">
-          <p className="text-[11px] font-bold text-gray-400 mb-2">وضعیت فعلی</p>
-          <p className="text-[13px] font-bold mb-3">{STATUS_FA[data.status] ?? data.status}</p>
+        <SidebarCard title="وضعیت فعلی">
+          <p className="text-[13px] font-bold mb-3" style={{ color: statusMeta.color }}>
+            {statusMeta.label}
+          </p>
           <div className="flex flex-col gap-1.5">
-            {(NEXT_STATUS_OPTIONS[data.status] ?? []).map((s) => (
-              <button
-                key={s}
-                onClick={() => changeStatus(s)}
-                className="text-[12px] text-right px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
-              >
-                تغییر به: {STATUS_FA[s]}
-              </button>
-            ))}
+            {(NEXT_STATUS_OPTIONS[data.status] ?? []).map((s) => {
+              const meta = STATUS_META[s];
+              return (
+                <button
+                  key={s}
+                  onClick={() => changeStatus(s)}
+                  className="text-[12px] text-right px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
+                >
+                  تغییر به: {meta?.label ?? s}
+                </button>
+              );
+            })}
           </div>
-        </div>
+        </SidebarCard>
 
-        <div className="border border-gray-100 rounded-xl p-4">
-          <p className="text-[11px] font-bold text-gray-400 mb-2">اولویت</p>
-          <p className="text-[13px] font-bold mb-3">{PRIORITY_FA[data.priority] ?? data.priority}</p>
+        <SidebarCard title="اولویت">
+          <p className="text-[13px] font-bold mb-3" style={{ color: priorityMeta.color }}>
+            {priorityMeta.label}
+          </p>
           <div className="flex flex-wrap gap-1.5">
-            {Object.entries(PRIORITY_FA)
+            {Object.entries(PRIORITY_META)
               .filter(([k]) => k !== data.priority)
               .map(([k, v]) => (
                 <button
                   key={k}
                   onClick={() => changePriority(k)}
                   className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50"
+                  style={{ color: v.color }}
                 >
-                  {v}
+                  {v.label}
                 </button>
               ))}
           </div>
-        </div>
+        </SidebarCard>
 
-        <div className="border border-gray-100 rounded-xl p-4">
-          <p className="text-[11px] font-bold text-gray-400 mb-2">کارشناس مسئول</p>
-          <p className="text-[13px] mb-3">{data.assignedAdmin?.fullName ?? "اختصاص نیافته"}</p>
+        <SidebarCard title="کارشناس مسئول">
+          <p className="text-[13px] mb-3 text-gray-900 font-bold">
+            {data.assignedAdmin?.fullName ?? "اختصاص نیافته"}
+          </p>
           <div className="flex gap-2">
             <select
               value={assignAdminId}
               onChange={(e) => setAssignAdminId(e.target.value)}
-              className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-[12px]"
+              className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-[12px] outline-none focus:border-gold-500"
             >
               <option value="">انتخاب کارشناس...</option>
               {activeAdmins.map((a) => (
@@ -290,28 +297,33 @@ export default function AdminTicketDetailPage() {
             <button
               onClick={assign}
               disabled={!assignAdminId}
-              className="px-3 py-1.5 rounded-lg text-[12px] font-bold text-white bg-gray-900 disabled:opacity-40"
+              className="px-3 py-1.5 rounded-lg text-[12px] font-bold text-white disabled:opacity-40"
+              style={{ backgroundColor: "var(--color-emerald)" }}
             >
               ارجاع
             </button>
           </div>
-        </div>
+        </SidebarCard>
 
         {data.rating && (
-          <div className="border border-gray-100 rounded-xl p-4">
-            <p className="text-[11px] font-bold text-gray-400 mb-2">امتیاز کاربر</p>
+          <SidebarCard title="امتیاز کاربر">
             <div className="flex items-center gap-0.5" dir="ltr">
               {[1, 2, 3, 4, 5].map((n) => (
                 <Star
                   key={n}
-                  className={`w-4 h-4 ${n <= data.rating!.rating ? "fill-amber-400 text-amber-400" : "text-gray-200"}`}
+                  className="w-4 h-4"
+                  style={
+                    n <= data.rating!.rating
+                      ? { fill: "var(--color-gold-500)", color: "var(--color-gold-500)" }
+                      : { color: "#e5e7eb" }
+                  }
                 />
               ))}
             </div>
             {data.rating.comment && (
               <p className="text-[12px] text-gray-600 mt-2">{data.rating.comment}</p>
             )}
-          </div>
+          </SidebarCard>
         )}
       </div>
     </div>

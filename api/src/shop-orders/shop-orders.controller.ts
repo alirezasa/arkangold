@@ -56,10 +56,48 @@ export class ShopOrdersController {
 
   @Public()
   @Get('payment/callback/:provider')
-  async gatewayCallback(
+  async gatewayCallbackGet(
     @Param('provider') provider: string,
     @Query() query: Record<string, string>,
     @Res() res: Response,
+  ) {
+    await this.handleGatewayCallback(provider, query, res);
+  }
+
+  // درگاه به‌پرداخت ملت callback را با POST (application/x-www-form-urlencoded)
+  // ارسال می‌کند، نه GET — زرین‌پال با GET کار می‌کند، پس هر دو متد را پشتیبانی می‌کنیم.
+  @Public()
+  @Post('payment/callback/:provider')
+  async gatewayCallbackPost(
+    @Param('provider') provider: string,
+    @Body() body: Record<string, string>,
+    @Res() res: Response,
+  ) {
+    await this.handleGatewayCallback(provider, body, res);
+  }
+
+  // صفحه واسط: درگاه ملت GET را قبول نمی‌کند و فقط با POST فرمی حاوی RefId کار می‌کند؛
+  // چون فرانت با یک ریدایرکت ساده (window.location.href) به redirectUrl عمل می‌کند،
+  // این صفحه فرم لازم را می‌سازد و خودش را خودکار submit می‌کند.
+  @Public()
+  @Get('payment/redirect/behpardakht/:refId')
+  redirectToBehpardakht(@Param('refId') refId: string, @Res() res: Response) {
+    const safeRefId = refId.replace(/[^a-zA-Z0-9]/g, '');
+    res.type('html').send(`<!DOCTYPE html>
+<html lang="fa" dir="rtl"><head><meta charset="utf-8" /><title>انتقال به درگاه پرداخت</title></head>
+<body onload="document.forms[0].submit()">
+  <form action="https://bpm.shaparak.ir/pgwchannel/startpay.mellat" method="POST">
+    <input type="hidden" name="RefId" value="${safeRefId}" />
+    <noscript><button type="submit">ادامه به درگاه پرداخت</button></noscript>
+  </form>
+  <p>در حال انتقال به درگاه پرداخت ملت...</p>
+</body></html>`);
+  }
+
+  private async handleGatewayCallback(
+    provider: string,
+    query: Record<string, string>,
+    res: Response,
   ) {
     const providerKey = provider.toUpperCase() as 'ZARINPAL' | 'BEHPARDAKHT';
     const providerRef =

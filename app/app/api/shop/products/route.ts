@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
-const NEST = "http://localhost:5000";
+const NEST = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 export async function GET(req: Request) {
   try {

@@ -15,12 +15,14 @@ import { Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PRICE_UPDATED_EVENT, CachedPricePayload } from './price.service';
 
+const DEFAULT_CORS_ORIGINS =
+  process.env.NODE_ENV === 'production'
+    ? ['https://arkan.gold', 'https://admin.arkan.gold']
+    : ['http://localhost:3000', 'http://localhost:3001'];
+
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGINS?.split(',') ?? [
-      'http://localhost:3000',
-      'http://localhost:3001',
-    ],
+    origin: process.env.CORS_ORIGINS?.split(',') ?? DEFAULT_CORS_ORIGINS,
   },
   namespace: 'market',
 })

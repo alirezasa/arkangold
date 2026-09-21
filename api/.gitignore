@@ -4,3 +4,7 @@ node_modules
 
 
 /src/generated/prisma
+
+# مدارک هویتی/حقوقی آپلودشده توسط کاربران — حاوی اطلاعات شخصی حساس‌اند و هرگز نباید کامیت شوند
+uploads/legal-documents/*
+!uploads/legal-documents/.gitkeep

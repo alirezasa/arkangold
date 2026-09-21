@@ -35,7 +35,10 @@ interface ProductImage {
 }
 
 const NEST_ORIGIN =
-  process.env.NEXT_PUBLIC_NEST_ORIGIN || "http://localhost:5000";
+  process.env.NEXT_PUBLIC_NEST_ORIGIN ||
+  (process.env.NODE_ENV === "production"
+    ? "https://api.arkan.gold"
+    : "http://localhost:5000");
 
 export default function ProductImagesManager({
   productId,

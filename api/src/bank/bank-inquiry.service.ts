@@ -1,51 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-
-export interface BankInquiryResult {
-  success: boolean;
-  ownerName?: string;
-  ownerNationalCode?: string;
-  bankName?: string;
-  reason?: string;
-}
+import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class BankInquiryService {
-  private readonly logger = new Logger(BankInquiryService.name);
-
-  async inquiryByCard(
-    cardNumber: string,
-    nationalCode: string,
-  ): Promise<BankInquiryResult> {
-    this.logger.log(`[BankInquiry] استعلام کارت: ${this.maskCard(cardNumber)}`);
-
-    // TODO: اتصال به وب‌سرویس بانک مرکزی / شاپرک
-    // const client = await soap.createClientAsync(process.env.BANK_INQUIRY_WSDL);
-    // const result = await client.CardInquiryAsync({ cardNumber, nationalCode });
-
-    // شبیه‌سازی تاخیر شبکه
-    await this.delay(400);
-
-    // Mock: فعلاً موفق برمی‌گردونه
-    return {
-      success: true,
-      ownerName: 'در انتظار استعلام',
-      ownerNationalCode: nationalCode,
-      bankName: this.detectBankByCard(cardNumber),
-    };
-  }
-
-  async inquiryBySheba(sheba: string): Promise<BankInquiryResult> {
-    this.logger.log(`[BankInquiry] استعلام شبا: ${this.maskSheba(sheba)}`);
-
-    await this.delay(400);
-
-    return {
-      success: true,
-      ownerName: 'در انتظار استعلام',
-      bankName: this.detectBankBySheba(sheba),
-    };
-  }
-
   // تشخیص بانک از روی ۶ رقم اول کارت (BIN)
   detectBankByCard(cardNumber: string): string {
     const bin = cardNumber.substring(0, 6);
@@ -140,9 +96,5 @@ export class BankInquiryService {
 
   maskSheba(sheba: string): string {
     return sheba.substring(0, 6) + '****' + sheba.substring(sheba.length - 4);
-  }
-
-  private delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

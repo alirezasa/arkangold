@@ -14,8 +14,14 @@ async function bootstrap() {
   });
 
   // تنظیمات CORS
+  // در محیط هاست، دامنه‌های واقعی را از طریق env var «CORS_ORIGINS» (جدا شده با کاما) ست کنید.
+  const defaultCorsOrigins =
+    process.env.NODE_ENV === 'production'
+      ? ['https://arkan.gold', 'https://admin.arkan.gold']
+      : ['http://localhost:3000', 'http://localhost:3001'];
+
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: process.env.CORS_ORIGINS?.split(',') ?? defaultCorsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [

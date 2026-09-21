@@ -66,7 +66,10 @@ export class ShopOrdersController {
       providerKey === 'ZARINPAL' ? query['Authority'] : query['RefId'];
 
     const frontendUrl =
-      process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.NODE_ENV === 'production'
+        ? 'https://arkan.gold'
+        : 'http://localhost:3000');
 
     try {
       const result = await this.service.handleGatewayCallback(

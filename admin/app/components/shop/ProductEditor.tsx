@@ -18,6 +18,12 @@ import {
 import { adminApi } from "@/app/core/api";
 import ProductImagesManager from "./ProductImagesManager";
 import PricingFormulaEditor from "./PricingFormulaEditor";
+
+const APP_ORIGIN =
+  process.env.NEXT_PUBLIC_APP_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://arkan.gold"
+    : "http://localhost:3000");
 import ProductVariantsManager from "./ProductVariantsManager";
 
 function getErrorMessage(err: unknown, fallback: string): string {
@@ -129,7 +135,7 @@ export default function ProductEditor({
         </div>
         {!isDraft && (
           <a // <--- این تگ در کد شما پاک شده بود
-            href={`http://localhost:3000/shop/${data.slug}`}
+            href={`${APP_ORIGIN}/shop/${data.slug}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-[12px] font-bold text-gray-400 hover:text-gray-600"

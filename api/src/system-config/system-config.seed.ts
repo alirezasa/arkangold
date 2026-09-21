@@ -247,7 +247,10 @@ export const WALLET_CONFIG_DEFAULTS = [
 
   {
     key: 'payment.gateway.callback_base_url',
-    value: 'http://localhost:5000',
+    value:
+      process.env.NODE_ENV === 'production'
+        ? 'https://api.arkan.gold'
+        : 'http://localhost:5000',
     description:
       'آدرس پایه API (نه فرانت) برای callback درگاه‌ها — کنترلر خودش کاربر را به فرانت ریدایرکت می‌کند',
   },

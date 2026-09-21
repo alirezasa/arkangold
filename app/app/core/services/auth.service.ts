@@ -2,7 +2,10 @@ import axios from "axios";
 
 // آدرس فرانت برای روت‌های معمولی NestJS
 const NEST_API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/auth";
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://api.arkan.gold/auth"
+    : "http://localhost:5000/auth");
 
 export const AuthService = {
   // ==========================================

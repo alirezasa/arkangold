@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import axios from 'axios';
 
-const NEST_API_URL = 'http://localhost:5000';
+const NEST_API_URL = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 function getToken() {
   return cookies().then((c) => c.get('accessToken')?.value);

@@ -520,7 +520,9 @@ export class ShopOrdersService {
 
     const baseUrl = await this.systemConfig.get(
       'payment.gateway.callback_base_url',
-      'http://localhost:5000',
+      process.env.NODE_ENV === 'production'
+        ? 'https://api.arkan.gold'
+        : 'http://localhost:5000',
     );
     const callbackUrl = `${baseUrl}/orders/shop/payment/callback/${providerKey.toLowerCase()}`;
 

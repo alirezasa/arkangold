@@ -15,6 +15,7 @@ import {
   GetShopOrdersQueryDto,
   PayShopOrderDto,
   ShipShopOrderDto,
+  ShopOrderItemRecipientType,
 } from '@arkan-gold/shared';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -170,6 +171,10 @@ export class ShopOrdersService {
             freshVariants.map((variant) => [variant.id, variant]),
           );
 
+          const recipientByCartItemId = new Map(
+            (dto.recipients ?? []).map((r) => [r.cartItemId, r]),
+          );
+
           let totalRial = 0;
           const orderItemsData: {
             variantId?: string;
@@ -178,10 +183,19 @@ export class ShopOrdersService {
             quantity: number;
             priceRial: number;
             priceBreakdown: Prisma.InputJsonValue | typeof Prisma.JsonNull;
+            recipientType: ShopOrderItemRecipientType;
+            recipientPhoneNumber?: string;
           }[] = [];
 
           for (const item of cart.items) {
             const unitPriceRial = this.toNumber(item.lockedUnitPriceRial);
+            const recipient = recipientByCartItemId.get(item.id);
+            const recipientType: ShopOrderItemRecipientType =
+              recipient?.recipientType ?? ShopOrderItemRecipientType.SELF;
+            const recipientPhoneNumber =
+              recipientType === ShopOrderItemRecipientType.OTHER
+                ? recipient?.recipientPhoneNumber
+                : undefined;
 
             if (unitPriceRial <= 0) {
               throw new BadRequestException(
@@ -209,6 +223,8 @@ export class ShopOrdersService {
                 quantity: item.quantity,
                 priceRial: unitPriceRial,
                 priceBreakdown: item.lockedBreakdown ?? Prisma.JsonNull,
+                recipientType,
+                recipientPhoneNumber,
               });
               continue;
             }
@@ -223,6 +239,8 @@ export class ShopOrdersService {
               quantity: item.quantity,
               priceRial: unitPriceRial,
               priceBreakdown: item.lockedBreakdown ?? Prisma.JsonNull,
+              recipientType,
+              recipientPhoneNumber,
             });
           }
 
@@ -245,6 +263,8 @@ export class ShopOrdersService {
                 quantity: orderItem.quantity,
                 priceRial: orderItem.priceRial,
                 priceBreakdown: orderItem.priceBreakdown,
+                recipientType: orderItem.recipientType,
+                recipientPhoneNumber: orderItem.recipientPhoneNumber,
               },
             });
 

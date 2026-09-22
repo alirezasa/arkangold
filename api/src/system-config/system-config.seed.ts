@@ -394,4 +394,33 @@ export const WALLET_CONFIG_DEFAULTS = [
     value: '',
     description: 'تعطیلات رسمی، جدا شده با کاما — مثال: ۱۴۰۴/۰۱/۰۱,۱۴۰۴/۰۱/۰۲',
   },
+
+  // ══ اصالت‌سنجی هولوگرام — امنیت استعلام عمومی ══
+  {
+    key: 'hologram.inquiry.rate_limit_per_minute',
+    value: '5',
+    description: 'حداکثر تعداد استعلام مجاز به ازای هر IP در هر دقیقه',
+  },
+  {
+    key: 'hologram.inquiry.invalid_attempts_threshold',
+    value: '5',
+    description:
+      'حداکثر تعداد استعلام نامعتبر مجاز به ازای هر IP پیش از مسدودسازی',
+  },
+  {
+    key: 'hologram.inquiry.invalid_attempts_window_minutes',
+    value: '60',
+    description: 'بازه زمانی شمارش استعلام‌های نامعتبر برای مسدودسازی (دقیقه)',
+  },
+  {
+    key: 'hologram.inquiry.block_duration_minutes',
+    value: '1440',
+    description:
+      'مدت زمان مسدودسازی IP پس از عبور از آستانه استعلام نامعتبر (دقیقه)',
+  },
+  {
+    key: 'hologram.transfer.expiry_hours',
+    value: '72',
+    description: 'مهلت تأیید گیرنده برای درخواست انتقال مالکیت شمش (ساعت)',
+  },
 ];

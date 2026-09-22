@@ -14,6 +14,7 @@ import {
   Scale,
   Headset,
   Tags,
+  ScanLine,
 } from "lucide-react";
 
 export interface NavItem {
@@ -70,6 +71,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "عملیات",
     items: [
       { label: "تحویل فیزیکی طلا", href: "/physical-deliveries", icon: Package, perm: "physical_delivery.view" },
+      { label: "اصالت‌سنجی هولوگرام", href: "/holograms", icon: ScanLine, perm: "hologram.code.view" },
       { label: "پی‌رول (شارژ دستی)", href: "/payroll", icon: Wallet, perm: "payroll.view" },
     ],
   },

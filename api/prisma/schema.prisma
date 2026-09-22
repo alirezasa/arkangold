@@ -8,45 +8,49 @@ datasource db {
 }
 
 model User {
-  phone                String                    @unique
-  passwordHash         String?                   @map("password_hash")
-  type                 UserType                  @default(REAL)
-  status               UserStatus                @default(ACTIVE)
-  referralCode         String                    @unique @map("referral_code")
-  createdAt            DateTime                  @default(now()) @map("created_at")
-  updatedAt            DateTime                  @updatedAt @map("updated_at")
-  id                   String                    @id @default(uuid()) @db.Uuid
-  referredById         String?                   @map("referred_by_id") @db.Uuid
-  addresses            Address[]
-  adminAuditLogs       AuditLog[]                @relation("AdminAudit")
-  auditLogs            AuditLog[]                @relation("UserAudit")
-  bankAccounts         BankAccount[]
-  cart                 Cart?
-  feeConfigs           FeeConfig[]
-  legalProfile         LegalProfile?
-  notifications        Notification[]
-  orders               Order[]
-  payments             Payment[]
-  payrollPlanUsers     PayrollPlanUser[]
-  physicalDeliveryReqs PhysicalDeliveryRequest[]
-  priceLocks           PriceLock[]
-  referralRewards      ReferralReward[]
-  receivedReferrals    Referral?                 @relation("Referred")
-  sentReferrals        Referral[]                @relation("Referrer")
-  settlementLogs       SettlementLog[]
-  shopOrders           ShopOrder[]
-  taxConfigs           TaxConfig[]
-  transactions         Transaction[]
-  identity             UserIdentity?
-  limits               UserLimit?
-  sessions             UserSession[]
-  referredBy           User?                     @relation("Referral", fields: [referredById], references: [id])
-  referrals            User[]                    @relation("Referral")
-  wallet               Wallet?
-  withdrawalRequests   WithdrawalRequest[]
-  invoices             Invoice[]
-  depositRequests      DepositRequest[]
-  tickets              Ticket[]
+  phone                      String                     @unique
+  passwordHash               String?                    @map("password_hash")
+  type                       UserType                   @default(REAL)
+  status                     UserStatus                 @default(ACTIVE)
+  referralCode               String                     @unique @map("referral_code")
+  createdAt                  DateTime                   @default(now()) @map("created_at")
+  updatedAt                  DateTime                   @updatedAt @map("updated_at")
+  id                         String                     @id @default(uuid()) @db.Uuid
+  referredById               String?                    @map("referred_by_id") @db.Uuid
+  addresses                  Address[]
+  adminAuditLogs             AuditLog[]                 @relation("AdminAudit")
+  auditLogs                  AuditLog[]                 @relation("UserAudit")
+  bankAccounts               BankAccount[]
+  cart                       Cart?
+  feeConfigs                 FeeConfig[]
+  legalProfile               LegalProfile?
+  notifications              Notification[]
+  orders                     Order[]
+  payments                   Payment[]
+  payrollPlanUsers           PayrollPlanUser[]
+  physicalDeliveryReqs       PhysicalDeliveryRequest[]
+  priceLocks                 PriceLock[]
+  referralRewards            ReferralReward[]
+  receivedReferrals          Referral?                  @relation("Referred")
+  sentReferrals              Referral[]                 @relation("Referrer")
+  settlementLogs             SettlementLog[]
+  shopOrders                 ShopOrder[]
+  taxConfigs                 TaxConfig[]
+  transactions               Transaction[]
+  identity                   UserIdentity?
+  limits                     UserLimit?
+  sessions                   UserSession[]
+  referredBy                 User?                      @relation("Referral", fields: [referredById], references: [id])
+  referrals                  User[]                     @relation("Referral")
+  wallet                     Wallet?
+  withdrawalRequests         WithdrawalRequest[]
+  invoices                   Invoice[]
+  depositRequests            DepositRequest[]
+  tickets                    Ticket[]
+  hologramOwnerships         HologramOwnership[]
+  hologramInquiryLogs        HologramInquiryLog[]
+  initiatedHologramTransfers OwnershipTransferRequest[] @relation("TransferInitiatedBy")
+  receivedHologramTransfers  OwnershipTransferRequest[] @relation("TransferRecipient")
 
   @@map("users")
 }
@@ -397,6 +401,7 @@ model Product {
   shortDescription  String?                   @map("short_description")
   metaKeywords      String?                   @map("meta_keywords")
   pricingComponents ProductPricingComponent[]
+  hologramCodes     HologramCode[]
 
   @@map("products")
 }
@@ -412,6 +417,7 @@ model ProductVariant {
   cartItems       CartItem[]
   product         Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
   shopOrderItems  ShopOrderItem[]
+  hologramCodes   HologramCode[]
 
   @@map("product_variants")
 }
@@ -464,38 +470,46 @@ model CartItem {
 }
 
 model ShopOrder {
-  status       ShopOrderStatus @default(PENDING_PAYMENT)
-  totalRial    Decimal         @map("total_rial") @db.Decimal(18, 0)
-  trackingCode String?         @map("tracking_code")
-  createdAt    DateTime        @default(now()) @map("created_at")
-  updatedAt    DateTime        @updatedAt @map("updated_at")
-  id           String          @id @default(uuid()) @db.Uuid
-  userId       String          @map("user_id") @db.Uuid
-  addressId    String          @map("address_id") @db.Uuid
-  payments     Payment[]
-  items        ShopOrderItem[]
-  address      Address         @relation(fields: [addressId], references: [id], onDelete: Cascade)
-  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-  shippings    Shipping[]
+  status             ShopOrderStatus     @default(PENDING_PAYMENT)
+  totalRial          Decimal             @map("total_rial") @db.Decimal(18, 0)
+  trackingCode       String?             @map("tracking_code")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  id                 String              @id @default(uuid()) @db.Uuid
+  userId             String              @map("user_id") @db.Uuid
+  addressId          String              @map("address_id") @db.Uuid
+  payments           Payment[]
+  items              ShopOrderItem[]
+  address            Address             @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions       Transaction[]
+  shippings          Shipping[]
+  hologramOwnerships HologramOwnership[]
 
   @@index([userId])
   @@map("shop_orders")
 }
 
 model ShopOrderItem {
-  quantity            Int
-  priceRial           Decimal         @map("price_rial") @db.Decimal(18, 0)
-  selectedWeightGrams Decimal?        @map("selected_weight_grams") @db.Decimal(18, 4)
-  createdAt           DateTime        @default(now()) @map("created_at")
-  id                  String          @id @default(uuid()) @db.Uuid
-  orderId             String          @map("order_id") @db.Uuid
-  variantId           String?         @map("variant_id") @db.Uuid
-  productId           String?         @map("product_id") @db.Uuid
-  order               ShopOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  variant             ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  product             Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  priceBreakdown      Json?           @map("price_breakdown")
+  quantity             Int
+  priceRial            Decimal                    @map("price_rial") @db.Decimal(18, 0)
+  selectedWeightGrams  Decimal?                   @map("selected_weight_grams") @db.Decimal(18, 4)
+  createdAt            DateTime                   @default(now()) @map("created_at")
+  id                   String                     @id @default(uuid()) @db.Uuid
+  orderId              String                     @map("order_id") @db.Uuid
+  variantId            String?                    @map("variant_id") @db.Uuid
+  productId            String?                    @map("product_id") @db.Uuid
+  order                ShopOrder                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant              ProductVariant?            @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  product              Product?                   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceBreakdown       Json?                      @map("price_breakdown")
+  // گیرنده تحویل شمش — «برای خودم» یا «برای فرد دیگر» (نیازمندی ۳.۳). این انتخاب در
+  // سطح هر آیتم سفارش ذخیره می‌شود (پیش‌فرض سند معماری، چون هر آیتم به یک کد هولوگرام
+  // مستقل ختم می‌شود)؛ اگر quantity > 1 باشد، انتخاب گیرنده برای همه واحدهای آن آیتم یکسان است.
+  recipientType        ShopOrderItemRecipientType @default(SELF) @map("recipient_type")
+  recipientPhoneNumber String?                    @map("recipient_phone_number")
+  hologramCode         HologramCode?              @relation("ShopOrderItemHologramCode")
+  transferRequests     OwnershipTransferRequest[]
 
   @@map("shop_order_items")
 }
@@ -829,13 +843,18 @@ model AdminUser {
   createdBy     AdminUser?  @relation("AdminCreatedBy", fields: [createdById], references: [id])
   createdAdmins AdminUser[] @relation("AdminCreatedBy")
 
-  sessions             AdminSession[]
-  auditLogs            AdminAuditLog[]
-  assignedTickets      Ticket[]                  @relation("TicketAssignedAdmin")
-  approvals            Approval[]
-  approvedByPhysical   PhysicalDeliveryRequest[] @relation("ApprovedBy")
-  processedWithdrawals WithdrawalRequest[]       @relation("ProcessedBy")
-  createdPayrollPlans  PayrollPlan[]
+  sessions                   AdminSession[]
+  auditLogs                  AdminAuditLog[]
+  assignedTickets            Ticket[]                   @relation("TicketAssignedAdmin")
+  approvals                  Approval[]
+  approvedByPhysical         PhysicalDeliveryRequest[]  @relation("ApprovedBy")
+  processedWithdrawals       WithdrawalRequest[]        @relation("ProcessedBy")
+  createdPayrollPlans        PayrollPlan[]
+  hologramBatchesCreated     HologramBatch[]            @relation("HologramBatchCreatedBy")
+  hologramCodesAssigned      HologramCode[]             @relation("HologramCodeAssignedBy")
+  hologramCodesRevoked       HologramCode[]             @relation("HologramCodeRevokedBy")
+  initiatedHologramTransfers OwnershipTransferRequest[] @relation("TransferInitiatedByAdmin")
+  unblockedRateLimitBlocks   HologramRateLimitBlock[]
 
   @@map("admin_users")
 }
@@ -1215,15 +1234,15 @@ model Ticket {
 }
 
 model TicketMessage {
-  id         String  @id @default(cuid())
+  id         String           @id @default(cuid())
   ticketId   String
-  userId     String? @db.Uuid
-  adminId    String? @db.Uuid
+  userId     String?          @db.Uuid
+  adminId    String?          @db.Uuid
   senderType TicketSenderType
-  message    String  @db.Text
-  isInternal Boolean @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  message    String           @db.Text
+  isInternal Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
   deletedAt  DateTime?
 
   ticket      Ticket             @relation(fields: [ticketId], references: [id])
@@ -1234,18 +1253,17 @@ model TicketMessage {
   @@map("ticket_messages")
 }
 
-
 model TicketAttachment {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   ticketId         String
   messageId        String?
-  userId           String   @db.Uuid
+  userId           String    @db.Uuid
   originalFilename String
-  storageKey       String   @unique
+  storageKey       String    @unique
   mimeType         String
   fileSize         Int
   extension        String
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
   deletedAt        DateTime?
   deletedBy        String?
 
@@ -1256,7 +1274,6 @@ model TicketAttachment {
   @@index([messageId])
   @@map("ticket_attachments")
 }
-
 
 model TicketAssignment {
   id               String   @id @default(cuid())
@@ -1271,7 +1288,6 @@ model TicketAssignment {
   @@index([ticketId])
   @@map("ticket_assignments")
 }
-
 
 model TicketStatusHistory {
   id            String           @id @default(cuid())
@@ -1316,6 +1332,172 @@ model TicketRating {
   ticket Ticket @relation(fields: [ticketId], references: [id])
 
   @@map("ticket_ratings")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  آرکان گلد — اصالت‌سنجی و انتقال مالکیت شمش طلا (هولوگرام)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// دسته تولید/چاپ کدهای هولوگرام
+model HologramBatch {
+  id               String         @id @default(uuid()) @db.Uuid
+  batchNumber      String         @unique @map("batch_number")
+  quantity         Int
+  notes            String?
+  createdByAdminId String         @map("created_by_admin_id") @db.Uuid
+  createdByAdmin   AdminUser      @relation("HologramBatchCreatedBy", fields: [createdByAdminId], references: [id])
+  createdAt        DateTime       @default(now()) @map("created_at")
+  codes            HologramCode[]
+
+  @@map("hologram_batches")
+}
+
+/// کد یکتای ۸ رقمی چاپ‌شده روی هولوگرام هر شمش
+model HologramCode {
+  id      String             @id @default(uuid()) @db.Uuid
+  /// دقیقاً ۸ رقم، شامل یک رقم checksum ضدحدس (ر.ک. HologramCodeGenerator)
+  code    String             @unique
+  status  HologramCodeStatus @default(UNASSIGNED)
+  batchId String             @map("batch_id") @db.Uuid
+  batch   HologramBatch      @relation(fields: [batchId], references: [id])
+
+  // مشخصات محصول/شمش — در لحظه تخصیص snapshot می‌شود
+  productId           String?          @map("product_id") @db.Uuid
+  product             Product?         @relation(fields: [productId], references: [id])
+  variantId           String?          @map("variant_id") @db.Uuid
+  variant             ProductVariant?  @relation(fields: [variantId], references: [id])
+  weightGrams         Decimal?         @map("weight_grams") @db.Decimal(18, 4)
+  purityKarat         GoldPurityKarat? @map("purity_karat")
+  factorySerialNumber String?          @map("factory_serial_number")
+  mintedAt            DateTime?        @map("minted_at")
+
+  shopOrderItemId String?        @unique @map("shop_order_item_id") @db.Uuid
+  shopOrderItem   ShopOrderItem? @relation("ShopOrderItemHologramCode", fields: [shopOrderItemId], references: [id])
+
+  assignedByAdminId String?    @map("assigned_by_admin_id") @db.Uuid
+  assignedByAdmin   AdminUser? @relation("HologramCodeAssignedBy", fields: [assignedByAdminId], references: [id])
+  assignedAt        DateTime?  @map("assigned_at")
+
+  revokedByAdminId String?    @map("revoked_by_admin_id") @db.Uuid
+  revokedByAdmin   AdminUser? @relation("HologramCodeRevokedBy", fields: [revokedByAdminId], references: [id])
+  revokedAt        DateTime?  @map("revoked_at")
+  revokeReason     String?    @map("revoke_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ownerships       HologramOwnership[]
+  transferRequests OwnershipTransferRequest[]
+  inquiryLogs      HologramInquiryLog[]
+
+  @@index([batchId])
+  @@index([status])
+  @@map("hologram_codes")
+}
+
+/// تاریخچه کامل مالکیت هر کد هولوگرام — فقط یک رکورد ACTIVE در هر لحظه مجاز است
+/// (تضمین‌شده با یک partial unique index در سطح دیتابیس، ر.ک. migration.sql)
+model HologramOwnership {
+  id             String       @id @default(uuid()) @db.Uuid
+  hologramCodeId String       @map("hologram_code_id") @db.Uuid
+  hologramCode   HologramCode @relation(fields: [hologramCodeId], references: [id])
+  ownerUserId    String       @map("owner_user_id") @db.Uuid
+  ownerUser      User         @relation(fields: [ownerUserId], references: [id])
+  shopOrderId    String?      @map("shop_order_id") @db.Uuid
+  shopOrder      ShopOrder?   @relation(fields: [shopOrderId], references: [id])
+
+  // snapshot در لحظه ثبت مالکیت — عمداً از join زنده به User/UserIdentity مستقل است
+  fullName     String @map("full_name")
+  nationalCode String @map("national_code")
+
+  ownershipStartAt DateTime                @default(now()) @map("ownership_start_at")
+  ownershipEndAt   DateTime?               @map("ownership_end_at")
+  status           HologramOwnershipStatus @default(ACTIVE)
+  transferType     HologramTransferType    @map("transfer_type")
+  createdAt        DateTime                @default(now()) @map("created_at")
+
+  @@index([hologramCodeId])
+  @@index([ownerUserId])
+  @@map("hologram_ownerships")
+}
+
+/// درخواست انتقال مالکیت — هم برای تخصیص اولیه «خرید برای فرد دیگر» توسط ادمین و هم
+/// برای انتقال بعدی (فروش/هدیه) توسط خود مالک
+model OwnershipTransferRequest {
+  id             String       @id @default(uuid()) @db.Uuid
+  hologramCodeId String       @map("hologram_code_id") @db.Uuid
+  hologramCode   HologramCode @relation(fields: [hologramCodeId], references: [id])
+
+  // دقیقاً یکی از این دو پر است: کاربر (انتقال بعدی) یا ادمین (تخصیص اولیه هنگام خرید)
+  initiatedByUserId  String?    @map("initiated_by_user_id") @db.Uuid
+  initiatedByUser    User?      @relation("TransferInitiatedBy", fields: [initiatedByUserId], references: [id])
+  initiatedByAdminId String?    @map("initiated_by_admin_id") @db.Uuid
+  initiatedByAdmin   AdminUser? @relation("TransferInitiatedByAdmin", fields: [initiatedByAdminId], references: [id])
+
+  shopOrderItemId String?        @map("shop_order_item_id") @db.Uuid
+  shopOrderItem   ShopOrderItem? @relation(fields: [shopOrderItemId], references: [id])
+
+  recipientPhoneNumber String  @map("recipient_phone_number")
+  recipientUserId      String? @map("recipient_user_id") @db.Uuid
+  recipientUser        User?   @relation("TransferRecipient", fields: [recipientUserId], references: [id])
+
+  status       HologramTransferRequestStatus @default(PENDING)
+  transferType HologramTransferType          @map("transfer_type")
+
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  confirmedAt DateTime? @map("confirmed_at")
+  expiresAt   DateTime  @map("expires_at")
+
+  requiresIdentityVerification Boolean @default(true) @map("requires_identity_verification")
+  /// ارجاع به رکورد لاگ سرویس احراز هویت (Finotech) که تأیید را انجام داده
+  identityVerificationRef      String? @map("identity_verification_ref")
+  rejectionReason              String? @map("rejection_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([hologramCodeId])
+  @@index([recipientPhoneNumber, status])
+  @@index([status, expiresAt])
+  @@map("ownership_transfer_requests")
+}
+
+/// لاگ append-only هر استعلام اصالت (موفق یا ناموفق) — هیچ UPDATE/DELETE‌ای مجاز نیست
+model HologramInquiryLog {
+  id             String                 @id @default(uuid()) @db.Uuid
+  /// کد واردشده، حتی اگر نامعتبر بود
+  code           String
+  hologramCodeId String?                @map("hologram_code_id") @db.Uuid
+  hologramCode   HologramCode?          @relation(fields: [hologramCodeId], references: [id])
+  ipAddress      String                 @map("ip_address")
+  userAgent      String?                @map("user_agent")
+  channel        HologramInquiryChannel
+  result         HologramInquiryResult
+  userId         String?                @map("user_id") @db.Uuid
+  user           User?                  @relation(fields: [userId], references: [id])
+  createdAt      DateTime               @default(now()) @map("created_at")
+
+  @@index([ipAddress, createdAt])
+  @@index([code])
+  @@map("hologram_inquiry_logs")
+}
+
+/// مسدودسازی IP در برابر brute-force استعلام کد هولوگرام
+model HologramRateLimitBlock {
+  id                  String     @id @default(uuid()) @db.Uuid
+  ipAddress           String     @unique @map("ip_address")
+  blockedAt           DateTime   @default(now()) @map("blocked_at")
+  blockedUntil        DateTime   @map("blocked_until")
+  reason              String?
+  failedAttemptsCount Int        @default(0) @map("failed_attempts_count")
+  unblockedAt         DateTime?  @map("unblocked_at")
+  unblockedByAdminId  String?    @map("unblocked_by_admin_id") @db.Uuid
+  unblockedByAdmin    AdminUser? @relation(fields: [unblockedByAdminId], references: [id])
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  @@index([blockedUntil])
+  @@map("hologram_rate_limit_blocks")
 }
 
 // ───────────────────────────── Enum های جدید ─────────────────────────────
@@ -1591,4 +1773,48 @@ enum GoldPurityKarat {
 enum PaymentGatewayProvider {
   ZARINPAL
   BEHPARDAKHT
+}
+
+enum ShopOrderItemRecipientType {
+  SELF
+  OTHER
+}
+
+enum HologramCodeStatus {
+  UNASSIGNED
+  ASSIGNED
+  TRANSFER_PENDING
+  REVOKED
+}
+
+enum HologramOwnershipStatus {
+  ACTIVE
+  TRANSFERRED
+  PENDING_RECIPIENT_CONFIRMATION
+}
+
+enum HologramTransferType {
+  INITIAL_PURCHASE
+  GIFT_TRANSFER
+  SALE_TRANSFER
+}
+
+enum HologramTransferRequestStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum HologramInquiryChannel {
+  PUBLIC_WEB
+  APP_PANEL
+  API_DIRECT
+}
+
+enum HologramInquiryResult {
+  VALID_ASSIGNED
+  VALID_UNASSIGNED
+  INVALID_CODE
 }

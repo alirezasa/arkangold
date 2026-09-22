@@ -7,6 +7,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as fs from 'fs/promises';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { SubmitIdentityDto } from '@arkan-gold/shared';
@@ -80,6 +81,18 @@ export class UsersService {
     // اگر قبلاً تایید شده، نمی‌توان دوباره ارسال کرد
     if (user.identity?.status === 'VERIFIED') {
       throw new ConflictException('هویت شما قبلاً تایید شده است');
+    }
+
+    // کد ملی به‌صورت Unique روی این جدول است — اگر قبلاً برای حساب کاربری دیگری
+    // ثبت شده باشد، ادامه‌دادن باعث خطای دیتابیس (P2002) می‌شود؛ همین‌جا با پیام
+    // روشن جلویش را می‌گیریم (و از یک فراخوانی بی‌فایده به Provider هم صرفه‌جویی می‌شود)
+    const duplicateNationalCode = await this.prisma.userIdentity.findUnique({
+      where: { nationalCode: dto.nationalCode },
+    });
+    if (duplicateNationalCode && duplicateNationalCode.userId !== userId) {
+      throw new BadRequestException(
+        'این کد ملی قبلاً برای حساب کاربری دیگری ثبت شده است',
+      );
     }
 
     // استعلام از وب‌سرویس ثبت احوال
@@ -157,11 +170,25 @@ export class UsersService {
       verifiedByProvider: civilResult?.verifiedByProvider ?? null,
     };
 
-    return this.prisma.userIdentity.upsert({
-      where: { userId },
-      create: { userId, ...data },
-      update: data,
-    });
+    try {
+      return await this.prisma.userIdentity.upsert({
+        where: { userId },
+        create: { userId, ...data },
+        update: data,
+      });
+    } catch (err) {
+      // Race Condition: بین چک اولیه در submitIdentity و همین Upsert، حساب دیگری
+      // با همین کد ملی ثبت شده — همان پیام روشن به‌جای خطای دیتابیس نمایش داده شود
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new BadRequestException(
+          'این کد ملی قبلاً برای حساب کاربری دیگری ثبت شده است',
+        );
+      }
+      throw err;
+    }
   }
 
   // ══════════════════════════════════════════

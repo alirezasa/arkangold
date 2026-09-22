@@ -6,9 +6,9 @@ import {
   CallHandler,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
-import { PrismaService } from '../../prisma/prisma.service';
+import { Observable, throwError } from 'rxjs';
+import { catchError, tap } from 'rxjs/operators';
+import { AuditService } from '../../common/audit/audit.service';
 import { AUDIT_ACTION_KEY } from '../decorators/audit-log.decorator';
 import { AdminAuthenticatedUser } from '../interfaces/admin-jwt-payload.interface';
 
@@ -16,7 +16,7 @@ import { AdminAuthenticatedUser } from '../interfaces/admin-jwt-payload.interfac
 export class AuditLogInterceptor implements NestInterceptor {
   constructor(
     private reflector: Reflector,
-    private prisma: PrismaService,
+    private auditService: AuditService,
   ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
@@ -28,26 +28,39 @@ export class AuditLogInterceptor implements NestInterceptor {
 
     const req = context.switchToHttp().getRequest();
     const admin: AdminAuthenticatedUser | undefined = req.user;
-    const entityId: string | undefined = req.params?.id;
+    // شناسه‌ی موجودیت هدف؛ کنترلرهای مختلف نام‌های متفاوتی برای پارامتر مسیر استفاده می‌کنند (id, userId, ...)
+    const entityId: string | undefined =
+      req.params?.id ?? Object.values(req.params ?? {})[0];
+    // پاسخ به «کجا»: نام کنترلر/مؤلفه‌ای که رویداد را تولید کرده
+    const source = context.getClass().name;
+
+    if (!admin) return next.handle();
 
     return next.handle().pipe(
       tap((result) => {
-        if (!admin) return;
-        this.prisma.adminAuditLog
-          .create({
-            data: {
-              adminUserId: admin.adminUserId,
-              action,
-              entityType: action.split('.')[0],
-              entityId: entityId ?? null,
-              newValue: result ? JSON.parse(JSON.stringify(result)) : undefined,
-              ip: req.ip,
-              userAgent: req.headers?.['user-agent'],
-            },
-          })
-          .catch(() => {
-            // ثبت audit log هرگز نباید عملیات اصلی را fail کند
-          });
+        void this.auditService.logAdmin({
+          adminUserId: admin.adminUserId,
+          action,
+          entityId: entityId ?? null,
+          newValue: result,
+          ip: req.ip,
+          userAgent: req.headers?.['user-agent'],
+          source,
+          success: true,
+        });
+      }),
+      catchError((err) => {
+        void this.auditService.logAdmin({
+          adminUserId: admin.adminUserId,
+          action,
+          entityId: entityId ?? null,
+          newValue: { error: err instanceof Error ? err.message : String(err) },
+          ip: req.ip,
+          userAgent: req.headers?.['user-agent'],
+          source,
+          success: false,
+        });
+        return throwError(() => err);
       }),
     );
   }

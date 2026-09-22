@@ -10,6 +10,8 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../common/audit/audit.service';
+import { maskPhone } from '../common/audit/mask.util';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
@@ -24,6 +26,8 @@ import {
   RefreshTokenDto,
 } from '@arkan-gold/shared';
 import { OtpPurpose, UserType } from '../generated/prisma/client';
+
+const AUDIT_SOURCE = 'AuthService';
 
 // ── رابط‌های payload توکن‌ها ──
 interface TempTokenPayload {
@@ -47,6 +51,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private auditService: AuditService,
     @Inject('REDIS_CLIENT') private redis: Redis,
   ) {}
 
@@ -209,6 +214,15 @@ export class AuthService {
     });
 
     const tokens = await this.createSession(user.id, user.phone, ip, userAgent);
+    await this.auditService.logUser({
+      userId: user.id,
+      actorLabel: maskPhone(user.phone),
+      action: 'auth.register',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
     return {
       ...tokens,
       user: {
@@ -225,23 +239,72 @@ export class AuthService {
   async login(dto: LoginDto, ip?: string, userAgent?: string) {
     const phone = this.normalizePhone(dto.phone);
     const user = await this.prisma.user.findUnique({ where: { phone } });
+    const maskedPhone = maskPhone(phone);
 
     if (!user || !user.passwordHash) {
+      await this.auditService.logUser({
+        userId: null,
+        actorLabel: maskedPhone,
+        action: 'auth.login',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+      });
       throw new UnauthorizedException('شماره همراه یا رمز عبور نادرست است');
     }
     if (user.status === 'BANNED') {
+      await this.auditService.logUser({
+        userId: user.id,
+        actorLabel: maskedPhone,
+        action: 'auth.login',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'banned' },
+      });
       throw new UnauthorizedException('حساب کاربری شما مسدود شده است');
     }
     if (user.status !== 'ACTIVE') {
+      await this.auditService.logUser({
+        userId: user.id,
+        actorLabel: maskedPhone,
+        action: 'auth.login',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'not_active' },
+      });
       throw new UnauthorizedException('حساب کاربری شما فعال نیست');
     }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
+      await this.auditService.logUser({
+        userId: user.id,
+        actorLabel: maskedPhone,
+        action: 'auth.login',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'invalid_password' },
+      });
       throw new UnauthorizedException('شماره همراه یا رمز عبور نادرست است');
     }
 
     const tokens = await this.createSession(user.id, user.phone, ip, userAgent);
+    await this.auditService.logUser({
+      userId: user.id,
+      actorLabel: maskedPhone,
+      action: 'auth.login',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
     return {
       ...tokens,
       user: {
@@ -261,14 +324,48 @@ export class AuthService {
 
   async verifyLoginOtp(dto: VerifyOtpDto, ip?: string, userAgent?: string) {
     const phone = this.normalizePhone(dto.phone);
+    const maskedPhone = maskPhone(phone);
     const user = await this.prisma.user.findUnique({ where: { phone } });
-    if (!user)
+    if (!user) {
+      await this.auditService.logUser({
+        userId: null,
+        actorLabel: maskedPhone,
+        action: 'auth.login_otp',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+      });
       throw new NotFoundException(
         'کاربری با این شماره یافت نشد. لطفاً ثبت‌نام کنید.',
       );
+    }
 
-    await this.validateOtp(phone, dto.code, OtpPurpose.LOGIN);
+    try {
+      await this.validateOtp(phone, dto.code, OtpPurpose.LOGIN);
+    } catch (err) {
+      await this.auditService.logUser({
+        userId: user.id,
+        actorLabel: maskedPhone,
+        action: 'auth.login_otp',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+      });
+      throw err;
+    }
+
     const tokens = await this.createSession(user.id, user.phone, ip, userAgent);
+    await this.auditService.logUser({
+      userId: user.id,
+      actorLabel: maskedPhone,
+      action: 'auth.login_otp',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
     return {
       ...tokens,
       user: {
@@ -332,7 +429,7 @@ export class AuthService {
     return { resetToken, message: 'کد با موفقیت تایید شد' };
   }
 
-  async resetPassword(dto: ResetPasswordDto) {
+  async resetPassword(dto: ResetPasswordDto, ip?: string, userAgent?: string) {
     let payload: ResetTokenPayload;
     try {
       payload = this.jwtService.verify<ResetTokenPayload>(dto.resetToken, {
@@ -352,6 +449,16 @@ export class AuthService {
     });
     await this.prisma.userSession.deleteMany({
       where: { userId: payload.userId },
+    });
+
+    await this.auditService.logUser({
+      userId: payload.userId,
+      actorLabel: maskPhone(payload.phone),
+      action: 'auth.reset_password',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
     });
 
     return { message: 'رمز عبور با موفقیت تغییر کرد. لطفاً دوباره وارد شوید.' };
@@ -380,15 +487,36 @@ export class AuthService {
     return tokens;
   }
 
-  async logout(sessionId: string) {
+  async logout(
+    userId: string,
+    sessionId: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
     await this.prisma.userSession
       .delete({ where: { id: sessionId } })
       .catch(() => {});
+    await this.auditService.logUser({
+      userId,
+      action: 'auth.logout',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
     return { message: 'با موفقیت خارج شدید' };
   }
 
-  async logoutAll(userId: string) {
+  async logoutAll(userId: string, ip?: string, userAgent?: string) {
     await this.prisma.userSession.deleteMany({ where: { userId } });
+    await this.auditService.logUser({
+      userId,
+      action: 'auth.logout_all',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
     return { message: 'از تمام دستگاه‌ها خارج شدید' };
   }
 

@@ -92,8 +92,8 @@ export class AuthController {
 
   @Public()
   @Post('reset-password')
-  async resetPassword(@Body() dto: ResetPasswordDto) {
-    return this.authService.resetPassword(dto);
+  async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
+    return this.authService.resetPassword(dto, req.ip, req.headers['user-agent']);
   }
 
   @Public()
@@ -105,13 +105,22 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   async logout(@Req() req: AuthenticatedRequest) {
-    return this.authService.logout(req.user.sessionId);
+    return this.authService.logout(
+      req.user.userId,
+      req.user.sessionId,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('logout-all')
   async logoutAll(@Req() req: AuthenticatedRequest) {
-    return this.authService.logoutAll(req.user.userId);
+    return this.authService.logoutAll(
+      req.user.userId,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   @UseGuards(JwtAuthGuard)

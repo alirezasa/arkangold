@@ -754,6 +754,12 @@ model AuditLog {
   newValue   Json?    @map("new_value")
   ip         String?
   userAgent  String?  @map("user_agent")
+  // منبع رویداد: نام مؤلفه/سرویسی که رویداد را تولید کرده (پاسخ به «کجا»)
+  source     String?
+  // نتیجه‌ی عملیات (موفق/ناموفق) — برای رویدادهای احراز هویت اهمیت زیادی دارد
+  success    Boolean  @default(true)
+  // شناسه‌ی ادعاشده‌ی کاربر وقتی هنوز userId معتبر شناخته نشده (مثلاً تلاش ناموفق ورود با شماره‌ی نامعتبر)
+  actorLabel String?  @map("actor_label")
   createdAt  DateTime @default(now()) @map("created_at")
   id         String   @id @default(uuid()) @db.Uuid
   userId     String?  @map("user_id") @db.Uuid
@@ -907,17 +913,24 @@ model AdminSession {
 }
 
 model AdminAuditLog {
-  id          String    @id @default(uuid()) @db.Uuid
-  adminUserId String    @map("admin_user_id") @db.Uuid
-  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+  id          String     @id @default(uuid()) @db.Uuid
+  // در تلاش‌های ناموفق ورود (مثلاً نام کاربری نامعتبر) هنوز شناسه‌ی ادمین معتبر شناخته نشده است
+  adminUserId String?    @map("admin_user_id") @db.Uuid
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id])
   action      String
-  entityType  String?   @map("entity_type")
-  entityId    String?   @map("entity_id")
-  oldValue    Json?     @map("old_value")
-  newValue    Json?     @map("new_value")
+  entityType  String?    @map("entity_type")
+  entityId    String?    @map("entity_id")
+  oldValue    Json?      @map("old_value")
+  newValue    Json?      @map("new_value")
   ip          String?
-  userAgent   String?   @map("user_agent")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  userAgent   String?    @map("user_agent")
+  // منبع رویداد: نام مؤلفه/سرویسی که رویداد را تولید کرده (پاسخ به «کجا»)
+  source      String?
+  // نتیجه‌ی عملیات (موفق/ناموفق) — برای رویدادهای احراز هویت اهمیت زیادی دارد
+  success     Boolean    @default(true)
+  // نام کاربری ادعاشده وقتی adminUserId هنوز معتبر شناخته نشده (تلاش ناموفق ورود)
+  actorLabel  String?    @map("actor_label")
+  createdAt   DateTime   @default(now()) @map("created_at")
 
   @@index([adminUserId])
   @@index([entityType, entityId])

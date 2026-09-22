@@ -238,7 +238,7 @@ export default function WalletPage() {
           <div className="rounded-2xl overflow-hidden border border-border bg-surface shadow-2xs">
             {[
               {
-                label: "انتقال به کاربر دیگر",
+                label: "انتقال طلا به کاربر دیگر",
                 icon: "ti-transfer",
                 href: "/dashboard/wallet/transfer",
               },

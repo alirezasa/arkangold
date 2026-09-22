@@ -125,10 +125,10 @@ export class WalletController {
     return this.walletService.getTransferConfig(req.user.userId);
   }
 
-  // ── انتقال داخلی کیف پول ──
+  // ── انتقال داخلی طلا ──
   @Post('transfer')
   @ApiOperation({
-    summary: 'انتقال داخلی ریال/طلا به کیف پول دیگر با شماره کارت',
+    summary: 'انتقال داخلی طلا به کیف پول کاربر دیگر با شماره کارت',
   })
   transfer(
     @Req() req: AuthenticatedRequest,
@@ -137,7 +137,6 @@ export class WalletController {
     return this.walletService.internalTransfer(
       req.user.userId,
       body.destinationCardNumber,
-      body.amountRial,
       body.amountGrams,
     );
   }

@@ -37,7 +37,7 @@ const GROUP_ORDER = [
 ];
 
 const GROUP_TITLES: Record<string, string> = {
-  transfer: "انتقال کیف پول بین کاربران",
+  transfer: "انتقال طلا بین کاربران",
   withdrawal: "برداشت وجه",
   deposit: "واریز وجه",
   trade: "معاملات طلا",

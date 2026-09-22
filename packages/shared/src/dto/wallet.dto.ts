@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, Min, IsIn } from 'class-validator';
+import { IsString, IsNumber, Min, IsIn } from 'class-validator';
 
 export class DepositCardToCardDto {
   @IsNumber()
@@ -45,17 +45,12 @@ export class DepositOnlineDto {
   amount!: number;
 }
 
+// انتقال داخلی کیف پول فقط برای طلا مجاز است؛ انتقال ریالی/تومانی پشتیبانی نمی‌شود
 export class InternalTransferDto {
   @IsString()
   destinationCardNumber!: string;
 
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  amountRial?: number;
-
-  @IsOptional()
   @IsNumber()
   @Min(0.0001)
-  amountGrams?: number;
+  amountGrams!: number;
 }

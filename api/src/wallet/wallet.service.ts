@@ -10,8 +10,6 @@ import { SystemConfigService } from '../system-config/system-config.service';
 import { Prisma } from '../generated/prisma/client';
 import { AccountingService } from '../accounting/accounting.service';
 
-const D0 = new Prisma.Decimal(0);
-
 @Injectable()
 export class WalletService {
   private readonly logger = new Logger(WalletService.name);
@@ -667,16 +665,13 @@ export class WalletService {
   }
 
   // ══════════════════════════════════════════
-  // ── کانفیگ و محدودیت‌های انتقال داخلی ──
+  // ── کانفیگ و محدودیت‌های انتقال داخلی (فقط طلا) ──
   // ══════════════════════════════════════════
   async getTransferConfig(userId: string) {
-    const [dailyLimitRial, monthlyLimitRial, dailyLimitGrams, monthlyLimitGrams] =
-      await Promise.all([
-        this.systemConfig.getNumber('transfer.daily_limit_rial', 4000000000),
-        this.systemConfig.getNumber('transfer.monthly_limit_rial', 10000000000),
-        this.systemConfig.getNumber('transfer.daily_limit_grams', 5),
-        this.systemConfig.getNumber('transfer.monthly_limit_grams', 20),
-      ]);
+    const [dailyLimitGrams, monthlyLimitGrams] = await Promise.all([
+      this.systemConfig.getNumber('transfer.daily_limit_grams', 5),
+      this.systemConfig.getNumber('transfer.monthly_limit_grams', 20),
+    ]);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -690,7 +685,7 @@ export class WalletService {
           status: 'COMPLETED',
           createdAt: { gte: today },
         },
-        _sum: { amountRial: true, amountGrams: true },
+        _sum: { amountGrams: true },
       }),
       this.prisma.transaction.aggregate({
         where: {
@@ -699,12 +694,10 @@ export class WalletService {
           status: 'COMPLETED',
           createdAt: { gte: firstOfMonth },
         },
-        _sum: { amountRial: true, amountGrams: true },
+        _sum: { amountGrams: true },
       }),
     ]);
 
-    const usedTodayRial = Number(todayUsed._sum.amountRial ?? 0);
-    const usedThisMonthRial = Number(monthUsed._sum.amountRial ?? 0);
     const usedTodayGrams = Number(todayUsed._sum.amountGrams ?? 0);
     const usedThisMonthGrams = Number(monthUsed._sum.amountGrams ?? 0);
 
@@ -713,39 +706,29 @@ export class WalletService {
       limit <= 0 ? Number.MAX_SAFE_INTEGER : Math.max(0, limit - used);
 
     return {
-      dailyLimitRial,
-      monthlyLimitRial,
       dailyLimitGrams,
       monthlyLimitGrams,
-      usedTodayRial,
-      usedThisMonthRial,
       usedTodayGrams,
       usedThisMonthGrams,
-      remainingTodayRial: remaining(dailyLimitRial, usedTodayRial),
-      remainingThisMonthRial: remaining(monthlyLimitRial, usedThisMonthRial),
       remainingTodayGrams: remaining(dailyLimitGrams, usedTodayGrams),
       remainingThisMonthGrams: remaining(monthlyLimitGrams, usedThisMonthGrams),
     };
   }
 
   // ══════════════════════════════════════════
-  // ── انتقال داخلی کیف پول (بدون کارمزد) ──
+  // ── انتقال داخلی کیف پول (فقط طلا، بدون کارمزد) ──
   // ══════════════════════════════════════════
   async internalTransfer(
     userId: string,
     destinationCardNumber: string,
-    amountRial?: number,
-    amountGrams?: number,
+    amountGrams: number,
   ) {
     await this.checkUserIdentity(userId);
 
-    const rialAmount = amountRial ? new Prisma.Decimal(amountRial) : D0;
-    const gramsAmount = amountGrams ? new Prisma.Decimal(amountGrams) : D0;
+    const gramsAmount = new Prisma.Decimal(amountGrams ?? 0);
 
-    if (rialAmount.lessThanOrEqualTo(0) && gramsAmount.lessThanOrEqualTo(0)) {
-      throw new BadRequestException(
-        'حداقل یکی از مبلغ ریالی یا مقدار طلا باید مثبت باشد',
-      );
+    if (gramsAmount.lessThanOrEqualTo(0)) {
+      throw new BadRequestException('مقدار طلا برای انتقال باید مثبت باشد');
     }
 
     const senderWallet = await this.prisma.wallet.findUnique({
@@ -767,17 +750,7 @@ export class WalletService {
     }
 
     // ── بررسی محدودیت‌های داینامیک روزانه/ماهانه ──
-    const [
-      dailyLimitRial,
-      monthlyLimitRial,
-      dailyLimitGrams,
-      monthlyLimitGrams,
-    ] = await Promise.all([
-      this.systemConfig.getDecimal('transfer.daily_limit_rial', '4000000000'),
-      this.systemConfig.getDecimal(
-        'transfer.monthly_limit_rial',
-        '10000000000',
-      ),
+    const [dailyLimitGrams, monthlyLimitGrams] = await Promise.all([
       this.systemConfig.getDecimal('transfer.daily_limit_grams', '5'),
       this.systemConfig.getDecimal('transfer.monthly_limit_grams', '20'),
     ]);
@@ -798,78 +771,37 @@ export class WalletService {
       if (!freshSender) throw new NotFoundException('کیف پول یافت نشد');
 
       // ── بررسی محدودیت‌های داینامیک روزانه/ماهانه (داخل تراکنش، بعد از قفل) ──
-      if (rialAmount.greaterThan(0)) {
-        await this.assertWithinTransferLimit(
-          tx,
-          userId,
-          'amountRial',
-          rialAmount,
-          dailyLimitRial,
-          today,
-          'سقف انتقال روزانه',
-          'ریال',
-        );
-        await this.assertWithinTransferLimit(
-          tx,
-          userId,
-          'amountRial',
-          rialAmount,
-          monthlyLimitRial,
-          firstOfMonth,
-          'سقف انتقال ماهانه',
-          'ریال',
-        );
-      }
-
-      if (gramsAmount.greaterThan(0)) {
-        await this.assertWithinTransferLimit(
-          tx,
-          userId,
-          'amountGrams',
-          gramsAmount,
-          dailyLimitGrams,
-          today,
-          'سقف انتقال روزانه',
-          'گرم',
-        );
-        await this.assertWithinTransferLimit(
-          tx,
-          userId,
-          'amountGrams',
-          gramsAmount,
-          monthlyLimitGrams,
-          firstOfMonth,
-          'سقف انتقال ماهانه',
-          'گرم',
-        );
-      }
-
-      const holdRial = await this.getActiveHoldRial(freshSender.id, tx);
-      const availableRial = new Prisma.Decimal(freshSender.rialBalance).minus(
-        holdRial,
+      await this.assertWithinTransferLimit(
+        tx,
+        userId,
+        gramsAmount,
+        dailyLimitGrams,
+        today,
+        'سقف انتقال روزانه',
+        'گرم',
       );
-      const availableGrams = new Prisma.Decimal(freshSender.goldBalanceGrams);
+      await this.assertWithinTransferLimit(
+        tx,
+        userId,
+        gramsAmount,
+        monthlyLimitGrams,
+        firstOfMonth,
+        'سقف انتقال ماهانه',
+        'گرم',
+      );
 
-      if (rialAmount.greaterThan(0) && availableRial.lessThan(rialAmount)) {
-        throw new BadRequestException('موجودی ریالی کافی نیست');
-      }
-      if (gramsAmount.greaterThan(0) && availableGrams.lessThan(gramsAmount)) {
+      const availableGrams = new Prisma.Decimal(freshSender.goldBalanceGrams);
+      if (availableGrams.lessThan(gramsAmount)) {
         throw new BadRequestException('موجودی طلا کافی نیست');
       }
 
       await tx.wallet.update({
         where: { id: senderWallet.id },
-        data: {
-          rialBalance: { decrement: rialAmount },
-          goldBalanceGrams: { decrement: gramsAmount },
-        },
+        data: { goldBalanceGrams: { decrement: gramsAmount } },
       });
       await tx.wallet.update({
         where: { id: destinationWallet.id },
-        data: {
-          rialBalance: { increment: rialAmount },
-          goldBalanceGrams: { increment: gramsAmount },
-        },
+        data: { goldBalanceGrams: { increment: gramsAmount } },
       });
 
       const outTransaction = await tx.transaction.create({
@@ -877,8 +809,7 @@ export class WalletService {
           userId,
           walletId: senderWallet.id,
           type: 'TRANSFER_OUT',
-          amountRial: rialAmount.greaterThan(0) ? rialAmount : null,
-          amountGrams: gramsAmount.greaterThan(0) ? gramsAmount : null,
+          amountGrams: gramsAmount,
           status: 'COMPLETED',
           description: `transfer_out|to:${destinationWallet.cardNumber}`,
         },
@@ -889,8 +820,7 @@ export class WalletService {
           userId: destinationWallet.userId,
           walletId: destinationWallet.id,
           type: 'TRANSFER_IN',
-          amountRial: rialAmount.greaterThan(0) ? rialAmount : null,
-          amountGrams: gramsAmount.greaterThan(0) ? gramsAmount : null,
+          amountGrams: gramsAmount,
           status: 'COMPLETED',
           description: `transfer_in|from:${senderWallet.cardNumber}`,
           relatedTransactionId: outTransaction.id,
@@ -908,8 +838,7 @@ export class WalletService {
     return {
       transactionId: result.outTransaction.id,
       destinationCardNumber: this.maskCard(destinationWallet.cardNumber),
-      amountRial: rialAmount.greaterThan(0) ? Number(rialAmount) : undefined,
-      amountGrams: gramsAmount.greaterThan(0) ? Number(gramsAmount) : undefined,
+      amountGrams: Number(gramsAmount),
       message: 'انتقال با موفقیت انجام شد',
     };
   }
@@ -917,7 +846,6 @@ export class WalletService {
   private async assertWithinTransferLimit(
     tx: Prisma.TransactionClient,
     userId: string,
-    field: 'amountRial' | 'amountGrams',
     amount: Prisma.Decimal,
     limit: Prisma.Decimal,
     since: Date,
@@ -933,16 +861,10 @@ export class WalletService {
         status: 'COMPLETED',
         createdAt: { gte: since },
       },
-      _sum: { [field]: true },
+      _sum: { amountGrams: true },
     });
 
-    const usedAmount = new Prisma.Decimal(
-      ((used._sum as Record<string, unknown>)[field] as
-        | Prisma.Decimal
-        | number
-        | null
-        | undefined) ?? 0,
-    );
+    const usedAmount = new Prisma.Decimal(used._sum.amountGrams ?? 0);
 
     if (usedAmount.plus(amount).greaterThan(limit)) {
       throw new BadRequestException(

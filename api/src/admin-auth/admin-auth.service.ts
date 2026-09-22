@@ -10,9 +10,13 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../common/audit/audit.service';
+import { maskUsername } from '../common/audit/mask.util';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+
+const AUDIT_SOURCE = 'AdminAuthService';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000; // ۱۵ دقیقه
@@ -30,6 +34,7 @@ export class AdminAuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private auditService: AuditService,
   ) {}
 
   async login(dto: LoginDto, ip?: string, userAgent?: string) {
@@ -42,6 +47,15 @@ export class AdminAuthService {
     const invalidCredsMsg = 'نام کاربری یا رمز عبور نادرست است';
 
     if (!admin) {
+      await this.auditService.logAdmin({
+        adminUserId: null,
+        actorLabel: maskUsername(dto.username),
+        action: 'admin_auth.login',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+      });
       throw new UnauthorizedException(invalidCredsMsg);
     }
 
@@ -49,12 +63,30 @@ export class AdminAuthService {
       const minutesLeft = Math.ceil(
         (admin.lockedUntil.getTime() - Date.now()) / 60000,
       );
+      await this.auditService.logAdmin({
+        adminUserId: admin.id,
+        action: 'admin_auth.login',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'locked' },
+      });
       throw new ForbiddenException(
         `حساب شما به دلیل تلاش‌های ناموفق مکرر موقتاً قفل شده است. ${minutesLeft} دقیقه دیگر تلاش کنید`,
       );
     }
 
     if (!admin.isActive) {
+      await this.auditService.logAdmin({
+        adminUserId: admin.id,
+        action: 'admin_auth.login',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'inactive' },
+      });
       throw new ForbiddenException('حساب ادمین غیرفعال است');
     }
 
@@ -64,6 +96,15 @@ export class AdminAuthService {
     );
     if (!validPassword) {
       await this.handleFailedLogin(admin.id, admin.failedLoginCount);
+      await this.auditService.logAdmin({
+        adminUserId: admin.id,
+        action: 'admin_auth.login',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'invalid_password' },
+      });
       throw new UnauthorizedException(invalidCredsMsg);
     }
 
@@ -85,6 +126,14 @@ export class AdminAuthService {
     const tokens = await this.createSession(admin.id, ip, userAgent);
 
     this.logger.log(`[AdminAuth] ورود موفق: ${admin.username} از IP ${ip}`);
+    await this.auditService.logAdmin({
+      adminUserId: admin.id,
+      action: 'admin_auth.login',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
 
     return {
       ...tokens,
@@ -137,15 +186,36 @@ export class AdminAuthService {
     );
   }
 
-  async logout(sessionId: string) {
+  async logout(
+    adminUserId: string,
+    sessionId: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
     await this.prisma.adminSession
       .delete({ where: { id: sessionId } })
       .catch(() => {});
+    await this.auditService.logAdmin({
+      adminUserId,
+      action: 'admin_auth.logout',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
     return { message: 'با موفقیت خارج شدید' };
   }
 
-  async logoutAll(adminUserId: string) {
+  async logoutAll(adminUserId: string, ip?: string, userAgent?: string) {
     await this.prisma.adminSession.deleteMany({ where: { adminUserId } });
+    await this.auditService.logAdmin({
+      adminUserId,
+      action: 'admin_auth.logout_all',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
     return { message: 'از تمام دستگاه‌ها خارج شدید' };
   }
 
@@ -217,6 +287,8 @@ export class AdminAuthService {
     adminUserId: string,
     currentPassword: string,
     newPassword: string,
+    ip?: string,
+    userAgent?: string,
   ) {
     if (newPassword.length < 12) {
       throw new BadRequestException('رمز عبور جدید باید حداقل ۱۲ کاراکتر باشد');
@@ -232,6 +304,14 @@ export class AdminAuthService {
       admin.passwordHash,
     );
     if (!validCurrent) {
+      await this.auditService.logAdmin({
+        adminUserId,
+        action: 'admin_auth.change_password',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+      });
       throw new UnauthorizedException('رمز عبور فعلی نادرست است');
     }
 
@@ -248,6 +328,14 @@ export class AdminAuthService {
     this.logger.log(
       `[AdminAuth] رمز عبور توسط خودِ ادمین ${admin.username} تغییر یافت`,
     );
+    await this.auditService.logAdmin({
+      adminUserId,
+      action: 'admin_auth.change_password',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
 
     return { message: 'رمز عبور با موفقیت تغییر یافت. لطفاً دوباره وارد شوید' };
   }

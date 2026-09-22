@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { Request } from 'express';
 import {
@@ -23,6 +24,8 @@ import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
 import { AdminAuthenticatedUser } from '../admin-auth/interfaces/admin-jwt-payload.interface';
+import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
+import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
 import { TicketsAdminService } from './tickets-admin.service';
 
 interface AdminAuthenticatedRequest extends Request {
@@ -30,6 +33,7 @@ interface AdminAuthenticatedRequest extends Request {
 }
 
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
+@UseInterceptors(AuditLogInterceptor)
 @Controller('admin/tickets')
 export class TicketsAdminController {
   constructor(private readonly adminService: TicketsAdminService) {}
@@ -78,6 +82,7 @@ export class TicketsAdminController {
   }
 
   @RequirePermission('tickets.assign')
+  @AuditLog('tickets.assign')
   @Post(':id/assign')
   assign(
     @Req() req: AdminAuthenticatedRequest,
@@ -88,6 +93,7 @@ export class TicketsAdminController {
   }
 
   @RequirePermission('tickets.update')
+  @AuditLog('tickets.change_status')
   @Post(':id/status')
   changeStatus(
     @Req() req: AdminAuthenticatedRequest,
@@ -98,6 +104,7 @@ export class TicketsAdminController {
   }
 
   @RequirePermission('tickets.update')
+  @AuditLog('tickets.change_priority')
   @Patch(':id/priority')
   changePriority(
     @Req() req: AdminAuthenticatedRequest,
@@ -108,6 +115,7 @@ export class TicketsAdminController {
   }
 
   @RequirePermission('tickets.update')
+  @AuditLog('tickets.add_message')
   @Post(':id/messages')
   addMessage(
     @Req() req: AdminAuthenticatedRequest,
@@ -118,6 +126,7 @@ export class TicketsAdminController {
   }
 
   @RequirePermission('tickets.close')
+  @AuditLog('tickets.close')
   @Post(':id/close')
   close(@Req() req: AdminAuthenticatedRequest, @Param('id') id: string) {
     return this.adminService.changeStatus(this.actorOf(req), id, {
@@ -126,6 +135,7 @@ export class TicketsAdminController {
   }
 
   @RequirePermission('tickets.reopen')
+  @AuditLog('tickets.reopen')
   @Post(':id/reopen')
   reopen(@Req() req: AdminAuthenticatedRequest, @Param('id') id: string) {
     return this.adminService.changeStatus(this.actorOf(req), id, {

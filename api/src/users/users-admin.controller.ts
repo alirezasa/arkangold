@@ -7,6 +7,7 @@ import {
   Query,
   Res,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { IsOptional, IsString, IsBoolean } from 'class-validator';
@@ -17,6 +18,8 @@ import { LegalProfileStatus, Prisma } from '../generated/prisma/client';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
+import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
+import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
 
 class RejectLegalProfileDto {
   @IsString()
@@ -41,6 +44,7 @@ const legalProfileInclude = {
 } satisfies Prisma.LegalProfileInclude;
 
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
+@UseInterceptors(AuditLogInterceptor)
 @Controller('admin/legal-profiles')
 export class UsersAdminController {
   constructor(
@@ -110,12 +114,14 @@ export class UsersAdminController {
   }
 
   @RequirePermission('legal_profile.approve')
+  @AuditLog('legal_profile.approve')
   @Post(':userId/approve')
   approve(@Param('userId') userId: string) {
     return this.usersService.approveLegalProfile(userId);
   }
 
   @RequirePermission('legal_profile.approve')
+  @AuditLog('legal_profile.reject')
   @Post(':userId/reject')
   reject(@Param('userId') userId: string, @Body() dto: RejectLegalProfileDto) {
     return this.usersService.rejectLegalProfile(

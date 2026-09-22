@@ -54,13 +54,22 @@ export class AdminAuthController {
   @UseGuards(AdminJwtAuthGuard)
   @Post('logout')
   async logout(@Req() req: AuthenticatedAdminRequest) {
-    return this.adminAuthService.logout(req.user.sessionId);
+    return this.adminAuthService.logout(
+      req.user.adminUserId,
+      req.user.sessionId,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   @UseGuards(AdminJwtAuthGuard)
   @Post('logout-all')
   async logoutAll(@Req() req: AuthenticatedAdminRequest) {
-    return this.adminAuthService.logoutAll(req.user.adminUserId);
+    return this.adminAuthService.logoutAll(
+      req.user.adminUserId,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   @UseGuards(AdminJwtAuthGuard)
@@ -79,6 +88,8 @@ export class AdminAuthController {
       req.user.adminUserId,
       dto.currentPassword,
       dto.newPassword,
+      req.ip,
+      req.headers['user-agent'],
     );
   }
 }

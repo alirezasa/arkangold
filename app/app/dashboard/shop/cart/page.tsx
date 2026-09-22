@@ -18,6 +18,8 @@ import {
   CreditCard,
   Clock,
   Scale,
+  Gift,
+  User,
 } from "lucide-react";
 import {
   useCart,
@@ -27,6 +29,7 @@ import {
   useShopOrder,
   CartItemDto,
   ShopOrderDto,
+  CheckoutRecipient,
 } from "@/app/hooks/useShop";
 import { useAddresses } from "@/app/hooks/usePhysicalDelivery";
 import { useWallet } from "@/app/hooks/useWallet";
@@ -209,6 +212,10 @@ function ShopCartPageInner() {
   const [step, setStep] = useState<Step>("cart");
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [order, setOrder] = useState<ShopOrderDto | null>(null);
+  // گیرنده هر آیتم — «خرید برای خودم» یا «برای فرد دیگر» (بند ۳.۳)
+  const [recipients, setRecipients] = useState<
+    Record<string, { type: "SELF" | "OTHER"; phone: string }>
+  >({});
 
   // ── بازگشت از درگاه پرداخت: خواندن paymentStatus/orderId از query ──
   const searchParams = useSearchParams();
@@ -262,7 +269,28 @@ function ShopCartPageInner() {
   };
 
   const handlePlaceOrder = async () => {
-    const res = await checkout(selectedAddressId);
+    const recipientPayload: CheckoutRecipient[] = (cart?.items ?? []).map(
+      (item) => {
+        const r = recipients[item.id];
+        return {
+          cartItemId: item.id,
+          recipientType: r?.type ?? "SELF",
+          recipientPhoneNumber: r?.type === "OTHER" ? r.phone.trim() : undefined,
+        };
+      },
+    );
+    const invalidRecipient = recipientPayload.find(
+      (r) =>
+        r.recipientType === "OTHER" &&
+        !/^09\d{9}$/.test(r.recipientPhoneNumber ?? ""),
+    );
+    if (invalidRecipient) {
+      return setCheckoutError(
+        "شماره موبایل گیرنده برای کالاهای «برای فرد دیگر» را به‌درستی وارد کنید",
+      );
+    }
+
+    const res = await checkout(selectedAddressId, recipientPayload);
     if (!res) return;
     setOrder(res);
 
@@ -561,6 +589,85 @@ function ShopCartPageInner() {
                 {fmtToman(cart.totalToman)} تومان
               </span>
             </div>
+          </div>
+
+          <div
+            className="rounded-2xl p-4 space-y-3"
+            style={{
+              backgroundColor: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <h3 className="flex items-center gap-1.5 text-[13px] font-black text-gray-800">
+              <Gift className="w-4 h-4" /> گیرنده هر کالا
+            </h3>
+            {cart.items.map((item) => {
+              const r = recipients[item.id] ?? { type: "SELF" as const, phone: "" };
+              return (
+                <div key={item.id} className="space-y-2">
+                  <p className="text-[12px] text-gray-600 font-bold truncate">
+                    {item.productName}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRecipients((prev) => ({
+                          ...prev,
+                          [item.id]: { type: "SELF", phone: "" },
+                        }))
+                      }
+                      className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold border-2 ${
+                        r.type === "SELF"
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                          : "border-gray-200 text-gray-500"
+                      }`}
+                    >
+                      <User className="w-3.5 h-3.5" /> برای خودم
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setRecipients((prev) => ({
+                          ...prev,
+                          [item.id]: { type: "OTHER", phone: prev[item.id]?.phone ?? "" },
+                        }))
+                      }
+                      className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-[11px] font-bold border-2 ${
+                        r.type === "OTHER"
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                          : "border-gray-200 text-gray-500"
+                      }`}
+                    >
+                      <Gift className="w-3.5 h-3.5" /> برای فرد دیگر
+                    </button>
+                  </div>
+                  {r.type === "OTHER" && (
+                    <input
+                      type="tel"
+                      dir="ltr"
+                      placeholder="شماره موبایل گیرنده (مثال: 09123456789)"
+                      value={r.phone}
+                      onChange={(e) =>
+                        setRecipients((prev) => ({
+                          ...prev,
+                          [item.id]: {
+                            type: "OTHER",
+                            phone: e.target.value.replace(/\D/g, ""),
+                          },
+                        }))
+                      }
+                      maxLength={11}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none focus:border-gold-500 text-sm"
+                    />
+                  )}
+                </div>
+              );
+            })}
+            <p className="text-[10px] text-gray-400 leading-relaxed">
+              برای شمش‌های طلا، مالکیت پس از تخصیص کد هولوگرام توسط اپراتور و
+              تأیید هویت گیرنده نهایی می‌شود.
+            </p>
           </div>
 
           {wallet && (

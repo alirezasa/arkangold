@@ -352,16 +352,25 @@ export default function ShopOrdersPage() {
 
                 <div className="mb-2 space-y-1">
                   {order.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between text-[12px] text-gray-600"
-                    >
-                      <span>
-                        {item.productName} × {item.quantity.toLocaleString("fa-IR")}
-                      </span>
-                      <span className="font-bold text-gray-800">
-                        {Number(item.lineTotalToman).toLocaleString("fa-IR")} ت
-                      </span>
+                    <div key={item.id} className="text-[12px] text-gray-600">
+                      <div className="flex items-center justify-between">
+                        <span>
+                          {item.productName} × {item.quantity.toLocaleString("fa-IR")}
+                        </span>
+                        <span className="font-bold text-gray-800">
+                          {Number(item.lineTotalToman).toLocaleString("fa-IR")} ت
+                        </span>
+                      </div>
+                      {/* شناسه آیتم برای تخصیص کد هولوگرام از صفحه اصالت‌سنجی */}
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard?.writeText(item.id)}
+                        dir="ltr"
+                        title="کپی شناسه آیتم برای تخصیص کد هولوگرام"
+                        className="text-[10px] text-gray-300 hover:text-gray-500 font-mono"
+                      >
+                        {item.id}
+                      </button>
                     </div>
                   ))}
                 </div>

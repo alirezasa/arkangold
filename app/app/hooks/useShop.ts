@@ -279,36 +279,46 @@ export const useUpdateCartItem = () => {
   return { loading, update, remove };
 };
 
+// گیرنده هر آیتم سبد خرید — «خرید برای خودم» یا «برای فرد دیگر» (بند ۳.۳)
+export interface CheckoutRecipient {
+  cartItemId: string;
+  recipientType: "SELF" | "OTHER";
+  recipientPhoneNumber?: string;
+}
+
 // ── ثبت سفارش (checkout) ──
 export const useCheckout = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const checkout = useCallback(async (addressId: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const idempotencyKey =
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random()}`;
+  const checkout = useCallback(
+    async (addressId: string, recipients?: CheckoutRecipient[]) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const idempotencyKey =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()}`;
 
-      const res = await axios.post(
-        "/api/orders/shop",
-        { addressId },
-        { headers: { "idempotency-key": idempotencyKey } },
-      );
-      return res.data as ShopOrderDto;
-    } catch (e: unknown) {
-      if (axios.isAxiosError(e)) {
-        const msg = e.response?.data?.message;
-        setError(Array.isArray(msg) ? msg[0] : msg || "خطا در ثبت سفارش");
-      } else setError("خطای ناشناخته");
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        const res = await axios.post(
+          "/api/orders/shop",
+          { addressId, recipients },
+          { headers: { "idempotency-key": idempotencyKey } },
+        );
+        return res.data as ShopOrderDto;
+      } catch (e: unknown) {
+        if (axios.isAxiosError(e)) {
+          const msg = e.response?.data?.message;
+          setError(Array.isArray(msg) ? msg[0] : msg || "خطا در ثبت سفارش");
+        } else setError("خطای ناشناخته");
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   return { loading, error, setError, checkout };
 };

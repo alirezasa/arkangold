@@ -1,9 +1,28 @@
-import { IsUUID, IsString, IsOptional, IsIn, IsNumberString, ValidateIf } from 'class-validator';
+import {
+  IsUUID,
+  IsString,
+  IsOptional,
+  IsIn,
+  IsNumberString,
+  ValidateIf,
+  IsArray,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaymentMethod } from '../enums';
+import { ShopOrderItemRecipientDto } from './hologram.dto';
 
 export class CreateShopOrderDto {
   @IsUUID()
   addressId!: string;
+
+  // گیرنده هر آیتم سبد خرید («خرید برای خودم» یا «برای فرد دیگر») — نیازمندی ۳.۳.
+  // اگر برای یک cartItemId مشخص نشود، پیش‌فرض SELF در نظر گرفته می‌شود.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ShopOrderItemRecipientDto)
+  recipients?: ShopOrderItemRecipientDto[];
 }
 
 export type PaymentModeType = 'WALLET' | 'GATEWAY' | 'SPLIT';

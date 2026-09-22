@@ -14,6 +14,7 @@ import {
   Scale,
   Headset,
   Tags,
+  Plug,
 } from "lucide-react";
 
 export interface NavItem {
@@ -84,6 +85,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "سیستم",
     items: [
       { label: "تنظیمات سیستم", href: "/system-config", icon: Settings2, perm: "system_config.view" },
+      { label: "یکپارچه‌سازی‌ها (KYC/فینوتک)", href: "/integrations", icon: Plug, perm: "integrations.view" },
     ],
   },
   {

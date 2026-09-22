@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
 import axios, { isAxiosError } from 'axios';
 import { ProviderCredentialService } from '../../credentials/provider-credential.service';
+import { FinotechEnvironmentService } from './finotech-environment.service';
 import {
   FINOTECH_CONFIG,
   FINOTECH_CREDENTIAL_KEYS,
@@ -42,27 +43,32 @@ export class FinotechTokenService {
   constructor(
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     private readonly credentials: ProviderCredentialService,
+    private readonly environment: FinotechEnvironmentService,
   ) {}
 
   async getAccessToken(): Promise<string> {
-    const cached = await this.redis.get(FINOTECH_CONFIG.TOKEN_CACHE_KEY);
+    const cacheKey = await this.environment.getTokenCacheKey();
+    const cached = await this.redis.get(cacheKey);
     if (cached) return cached;
 
     if (this.pendingRequest !== null) return this.pendingRequest;
 
-    this.pendingRequest = this.requestNewToken().finally(() => {
+    this.pendingRequest = this.requestNewToken(cacheKey).finally(() => {
       this.pendingRequest = null;
     });
 
     return this.pendingRequest;
   }
 
-  /** برای Health Check از پنل ادمین: توکن Cache شده را باطل می‌کند تا دوباره از فینوتک گرفته شود */
+  /** برای Health Check از پنل ادمین: توکن Cache شده (هر دو محیط) را باطل می‌کند تا دوباره از فینوتک گرفته شود */
   async invalidateCache(): Promise<void> {
-    await this.redis.del(FINOTECH_CONFIG.TOKEN_CACHE_KEY);
+    await Promise.all([
+      this.redis.del(`${FINOTECH_CONFIG.TOKEN_CACHE_KEY}:sandbox`),
+      this.redis.del(`${FINOTECH_CONFIG.TOKEN_CACHE_KEY}:production`),
+    ]);
   }
 
-  private async requestNewToken(): Promise<string> {
+  private async requestNewToken(cacheKey: string): Promise<string> {
     const { CLIENT_ID, CLIENT_SECRET, NID } =
       await this.credentials.getCredentials(FINOTECH_PROVIDER_CODE, [
         FINOTECH_CREDENTIAL_KEYS.CLIENT_ID,
@@ -75,8 +81,9 @@ export class FinotechTokenService {
     );
 
     try {
+      const baseUrl = await this.environment.getBaseUrl();
       const response = await axios.post<FinotechTokenResponse>(
-        `${FINOTECH_CONFIG.BASE_URL}${FINOTECH_CONFIG.TOKEN_PATH}`,
+        `${baseUrl}${FINOTECH_CONFIG.TOKEN_PATH}`,
         {
           grant_type: FINOTECH_CONFIG.GRANT_TYPE,
           nid: NID,
@@ -104,7 +111,7 @@ export class FinotechTokenService {
         (expiresIn ?? 3600) -
           FINOTECH_CONFIG.TOKEN_EXPIRY_SAFETY_MARGIN_SECONDS,
       );
-      await this.redis.setex(FINOTECH_CONFIG.TOKEN_CACHE_KEY, ttl, token);
+      await this.redis.setex(cacheKey, ttl, token);
 
       return token;
     } catch (err) {

@@ -16,8 +16,18 @@ export interface IdentityVerificationResult {
   fatherName?: string;
   deathStatus?: string;
   gender?: string;
+  /** شماره/سری/سریال شناسنامه و محل صدور — فقط Providerهایی که مشخصات ثبت احوال کامل برمی‌گردانند (مثل فینوتک) این‌ها را پر می‌کنند */
+  identityNo?: number;
+  identitySeri?: string;
+  identitySerial?: string;
+  officeName?: string;
+  officeCode?: string;
+  /** کد رهگیری ثبت احوال (مجزا از providerRequestId که شناسه درخواست ماست) */
+  civilRegistryTrackingCode?: string;
   /** شناسه رهگیری سمت Provider، برای Trace کردن در IntegrationLog */
   providerRequestId?: string;
+  /** کد Providerای که واقعاً این استعلام را انجام داده (FINOTECH/MOCK) — توسط IdentityVerificationService پر می‌شود */
+  verifiedByProvider?: string;
 }
 
 /**

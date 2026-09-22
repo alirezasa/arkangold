@@ -37,11 +37,11 @@ export class IdentityVerificationService {
   async verifyIdentity(
     input: IdentityVerificationInput,
   ): Promise<IdentityVerificationResult> {
-    const { result } = await this.resolver.resolveAndExecute(
+    const { result, providerCode } = await this.resolver.resolveAndExecute(
       IDENTITY_VERIFICATION_SERVICE_CODE,
       this.providerMap,
       (provider) => provider.verifyIdentity(input),
     );
-    return result;
+    return { ...result, verifiedByProvider: providerCode };
   }
 }

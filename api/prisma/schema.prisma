@@ -80,17 +80,32 @@ model UserSession {
 }
 
 model UserIdentity {
-  firstName     String?        @map("first_name")
-  lastName      String?        @map("last_name")
-  nationalCode  String?        @unique @map("national_code")
-  birthDate     DateTime?      @map("birth_date")
-  status        IdentityStatus @default(PENDING)
-  verifiedAt    DateTime?      @map("verified_at")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  id            String         @id @default(uuid()) @db.Uuid
-  userId        String         @unique @map("user_id") @db.Uuid
-  legalProfiles LegalProfile[]
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName                 String?        @map("first_name")
+  lastName                  String?        @map("last_name")
+  nationalCode              String?        @unique @map("national_code")
+  birthDate                 DateTime?      @map("birth_date")
+  status                    IdentityStatus @default(PENDING)
+  verifiedAt                DateTime?      @map("verified_at")
+  createdAt                 DateTime       @default(now()) @map("created_at")
+  id                        String         @id @default(uuid()) @db.Uuid
+  userId                    String         @unique @map("user_id") @db.Uuid
+  // ── داده رسمی ثبت احوال (استعلام اطلاعات هویتی فینوتک) ──
+  fatherName                String?        @map("father_name")
+  gender                    String?        @map("gender")
+  deathStatus               String?        @map("death_status")
+  identityNo                Int?           @map("identity_no")
+  identitySeri              String?        @map("identity_seri")
+  identitySerial            String?        @map("identity_serial")
+  officeName                String?        @map("office_name")
+  officeCode                String?        @map("office_code")
+  // کد رهگیری ثبت احوال (result.trackingCode) — برای ممیزی/پیگیری
+  civilRegistryTrackingCode String?        @map("civil_registry_tracking_code")
+  // شناسه پیگیری همان درخواست به Provider (trackId ارسالی) — برای ممیزی
+  providerRequestId         String?        @map("provider_request_id")
+  // کد Provider ای که این احراز هویت را انجام داده (FINOTECH یا MOCK)
+  verifiedByProvider        String?        @map("verified_by_provider")
+  legalProfiles             LegalProfile[]
+  user                      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_identities")
 }

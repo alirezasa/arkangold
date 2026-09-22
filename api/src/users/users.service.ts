@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SubmitIdentityDto } from '@arkan-gold/shared';
 import { UpdateLegalProfileDto } from '@arkan-gold/shared';
 import { IdentityVerificationService } from '../integrations/services/identity-verification.service';
+import { IdentityVerificationResult } from '../integrations/interfaces/identity-verification.interface';
 
 @Injectable()
 export class UsersService {
@@ -82,7 +83,7 @@ export class UsersService {
     }
 
     // استعلام از وب‌سرویس ثبت احوال
-    let civilResult: { matched: boolean; reason?: string };
+    let civilResult: IdentityVerificationResult;
     try {
       civilResult = await this.identityVerification.verifyIdentity({
         nationalCode: dto.nationalCode,
@@ -99,7 +100,7 @@ export class UsersService {
     }
 
     if (!civilResult.matched) {
-      await this.upsertIdentity(userId, dto, 'MANUAL_REVIEW');
+      await this.upsertIdentity(userId, dto, 'MANUAL_REVIEW', civilResult);
       return {
         status: 'MANUAL_REVIEW',
         message:
@@ -107,13 +108,20 @@ export class UsersService {
       };
     }
 
-    const identity = await this.upsertIdentity(userId, dto, 'VERIFIED');
+    const identity = await this.upsertIdentity(
+      userId,
+      dto,
+      'VERIFIED',
+      civilResult,
+    );
     return {
       status: 'VERIFIED',
       message: 'احراز هویت با موفقیت انجام شد',
       identity: {
         firstName: identity.firstName,
         lastName: identity.lastName,
+        fatherName: identity.fatherName,
+        gender: identity.gender,
         status: identity.status,
         verifiedAt: identity.verifiedAt,
       },
@@ -121,18 +129,32 @@ export class UsersService {
   }
 
   // ══════════════════════════════════════════
+  // پرونده هویتی بر اساس داده رسمی ثبت احوال (پاسخ Provider) ساخته می‌شود، نه صرفاً
+  // اظهار کاربر؛ اظهار کاربر فقط وقتی fallback است که Provider آن فیلد را برنگردانده.
   private async upsertIdentity(
     userId: string,
     dto: SubmitIdentityDto,
     status: 'VERIFIED' | 'MANUAL_REVIEW' | 'PENDING',
+    civilResult?: IdentityVerificationResult,
   ) {
     const data = {
-      firstName: dto.firstName,
-      lastName: dto.lastName,
+      firstName: civilResult?.firstName ?? dto.firstName,
+      lastName: civilResult?.lastName ?? dto.lastName,
       nationalCode: dto.nationalCode,
       birthDate: new Date(dto.birthDate),
       status,
       verifiedAt: status === 'VERIFIED' ? new Date() : null,
+      fatherName: civilResult?.fatherName ?? null,
+      gender: civilResult?.gender ?? null,
+      deathStatus: civilResult?.deathStatus ?? null,
+      identityNo: civilResult?.identityNo ?? null,
+      identitySeri: civilResult?.identitySeri ?? null,
+      identitySerial: civilResult?.identitySerial ?? null,
+      officeName: civilResult?.officeName ?? null,
+      officeCode: civilResult?.officeCode ?? null,
+      civilRegistryTrackingCode: civilResult?.civilRegistryTrackingCode ?? null,
+      providerRequestId: civilResult?.providerRequestId ?? null,
+      verifiedByProvider: civilResult?.verifiedByProvider ?? null,
     };
 
     return this.prisma.userIdentity.upsert({

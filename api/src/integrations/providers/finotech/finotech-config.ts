@@ -1,7 +1,12 @@
 export const FINOTECH_PROVIDER_CODE = 'FINOTECH';
 
 export const FINOTECH_CONFIG = {
-  BASE_URL: 'https://api.finnotech.ir',
+  // آدرس‌های Sandbox و Production طبق مستندات فینوتک؛ انتخاب بین این دو با
+  // کلید SystemConfig زیر (از پنل ادمین، بدون نیاز به Deploy مجدد) انجام می‌شود —
+  // دقیقاً همان الگوی payment.zarinpal.sandbox که قبلاً در پروژه پیاده شده.
+  SANDBOX_BASE_URL: 'https://sandboxapi.finnotech.ir',
+  PRODUCTION_BASE_URL: 'https://api.finnotech.ir',
+  SANDBOX_SYSTEM_CONFIG_KEY: 'identity.finotech.sandbox',
   TOKEN_PATH: '/dev/v2/oauth2/token',
   IDENTITY_INQUIRY_PATH: (clientId: string) =>
     `/kyc/v2/clients/${clientId}/identificationInquiry`,

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import axios, { isAxiosError } from 'axios';
 import { FinotechTokenService } from './finotech-token.service';
-import { FINOTECH_CONFIG } from './finotech-config';
+import { FinotechEnvironmentService } from './finotech-environment.service';
 import {
   AuthenticationError,
   ConnectionError,
@@ -16,20 +16,23 @@ interface FinotechErrorBody {
 
 @Injectable()
 export class FinotechHttpClient {
-  constructor(private readonly tokenService: FinotechTokenService) {}
+  constructor(
+    private readonly tokenService: FinotechTokenService,
+    private readonly environment: FinotechEnvironmentService,
+  ) {}
 
   async get<T>(path: string, params: Record<string, string>): Promise<T> {
-    const token = await this.tokenService.getAccessToken();
+    const [token, baseUrl] = await Promise.all([
+      this.tokenService.getAccessToken(),
+      this.environment.getBaseUrl(),
+    ]);
 
     try {
-      const response = await axios.get<T>(
-        `${FINOTECH_CONFIG.BASE_URL}${path}`,
-        {
-          params,
-          timeout: 15_000,
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const response = await axios.get<T>(`${baseUrl}${path}`, {
+        params,
+        timeout: 15_000,
+        headers: { Authorization: `Bearer ${token}` },
+      });
       return response.data;
     } catch (err) {
       throw this.mapError(err);

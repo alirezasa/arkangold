@@ -29,6 +29,8 @@ interface FinotechIdentityInquiryResponse {
     identitySerial?: string;
     officeName?: string;
     officeCode?: string;
+    trackingCode?: string | null;
+    operationStatus?: string | null;
   };
   error?: { code?: string; message?: string };
 }
@@ -104,6 +106,12 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
       fatherName: response.result.fatherName,
       deathStatus: response.result.deathStatus,
       gender: response.result.gender,
+      identityNo: response.result.identityNo,
+      identitySeri: response.result.identitySeri,
+      identitySerial: response.result.identitySerial,
+      officeName: response.result.officeName,
+      officeCode: response.result.officeCode,
+      civilRegistryTrackingCode: response.result.trackingCode ?? undefined,
       providerRequestId: response.trackId,
     };
   }

@@ -245,6 +245,13 @@ export const WALLET_CONFIG_DEFAULTS = [
     description: 'رمز عبور وب‌سرویس (رمزنگاری‌شده)',
   },
 
+  // ══ احراز هویت (KYC) ══
+  {
+    key: 'identity.finotech.sandbox',
+    value: 'true',
+    description: 'حالت آزمایشی (Sandbox) استعلام اطلاعات هویتی فینوتک',
+  },
+
   {
     key: 'payment.gateway.callback_base_url',
     value: 'http://localhost:5000',

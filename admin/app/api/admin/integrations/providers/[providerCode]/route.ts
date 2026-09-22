@@ -5,16 +5,16 @@ const NEST = "http://localhost:5000";
 
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ code: string }> },
+  { params }: { params: Promise<{ providerCode: string }> },
 ) {
   try {
-    const { code } = await params;
+    const { providerCode } = await params;
     const token = (await cookies()).get("adminAccessToken")?.value;
     if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     const body = await req.json();
     const res = await axios.patch(
-      `${NEST}/admin/integrations/providers/${encodeURIComponent(code)}`,
+      `${NEST}/admin/integrations/providers/${encodeURIComponent(providerCode)}`,
       body,
       { headers: { Authorization: `Bearer ${token}` } },
     );

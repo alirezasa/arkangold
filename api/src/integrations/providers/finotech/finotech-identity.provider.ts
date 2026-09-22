@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as jalaali from 'jalaali-js';
 import { FinotechHttpClient } from './finotech-http.client';
-import { FINOTECH_CONFIG, FINOTECH_PROVIDER_CODE } from './finotech-config';
+import { ProviderCredentialService } from '../../credentials/provider-credential.service';
+import {
+  FINOTECH_CONFIG,
+  FINOTECH_CREDENTIAL_KEYS,
+  FINOTECH_PROVIDER_CODE,
+} from './finotech-config';
 import {
   IdentityVerificationInput,
   IdentityVerificationProvider,
@@ -50,7 +55,10 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
   readonly providerCode = FINOTECH_PROVIDER_CODE;
   private readonly logger = new Logger(FinotechIdentityProvider.name);
 
-  constructor(private readonly http: FinotechHttpClient) {}
+  constructor(
+    private readonly http: FinotechHttpClient,
+    private readonly credentials: ProviderCredentialService,
+  ) {}
 
   async verifyIdentity(
     input: IdentityVerificationInput,
@@ -59,10 +67,16 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
       throw new ValidationError('کد ملی باید ۱۰ رقم باشد');
     }
 
-    const clientId = process.env.FINOTECH_CLIENT_APP_ID;
-    if (!clientId) {
-      throw new ValidationError('FINOTECH_CLIENT_APP_ID در env تنظیم نشده است');
-    }
+    // clientId داخل مسیر URL باید دقیقاً همان CLIENT_ID ای باشد که برای گرفتن توکن
+    // OAuth (Basic Auth در FinotechTokenService) استفاده شده — این دو در فینوتک یک
+    // مقدار واحدند. قبلاً clientId از یک env var جدا (FINOTECH_CLIENT_APP_ID) خوانده
+    // می‌شد که با تغییر Credential از پنل ادمین هماهنگ نمی‌ماند و باعث خطای Gateway
+    // «invalid request, Please check service url and http method» می‌شد چون توکن
+    // برای یک Client صادر می‌شد ولی URL به Client دیگری اشاره داشت.
+    const clientId = await this.credentials.getCredential(
+      FINOTECH_PROVIDER_CODE,
+      FINOTECH_CREDENTIAL_KEYS.CLIENT_ID,
+    );
 
     const jalaliBirthDate = this.toJalaliSlashFormat(input.birthDate);
 

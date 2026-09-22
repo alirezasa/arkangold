@@ -15,6 +15,7 @@ import {
   Headset,
   Tags,
   Plug,
+  ScanLine,
 } from "lucide-react";
 
 export interface NavItem {

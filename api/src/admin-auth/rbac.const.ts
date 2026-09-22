@@ -175,6 +175,42 @@ export const ADMIN_PERMISSIONS = [
     group: 'tickets',
     description: 'مدیریت دسته‌بندی‌ها و دپارتمان‌های تیکت',
   },
+
+  {
+    key: 'hologram.batch.manage',
+    group: 'hologram',
+    description: 'ایجاد دسته‌های جدید کد هولوگرام و مشاهده خروجی چاپ',
+  },
+  {
+    key: 'hologram.code.view',
+    group: 'hologram',
+    description: 'مشاهده و جستجوی کدهای هولوگرام',
+  },
+  {
+    key: 'hologram.code.assign',
+    group: 'hologram',
+    description: 'تخصیص دستی کد هولوگرام به سفارش',
+  },
+  {
+    key: 'hologram.code.revoke',
+    group: 'hologram',
+    description: 'ابطال کد هولوگرام',
+  },
+  {
+    key: 'hologram.transfer.view',
+    group: 'hologram',
+    description: 'مشاهده درخواست‌های انتقال مالکیت شمش',
+  },
+  {
+    key: 'hologram.logs.view',
+    group: 'hologram',
+    description: 'مشاهده لاگ استعلام‌های اصالت‌سنجی',
+  },
+  {
+    key: 'hologram.security.manage',
+    group: 'hologram',
+    description: 'مدیریت IPهای مسدودشده و تنظیمات امنیتی استعلام هولوگرام',
+  },
 ] as const;
 
 export type PermissionKey = (typeof ADMIN_PERMISSIONS)[number]['key'];
@@ -205,6 +241,10 @@ export const ADMIN_ROLES = [
       'deposit.approve',
       'invoice.view',
       'invoice.manage',
+      'hologram.code.view',
+      'hologram.code.assign',
+      'hologram.code.revoke',
+      'hologram.transfer.view',
     ] as PermissionKey[],
   },
   {
@@ -253,6 +293,16 @@ export const ADMIN_ROLES = [
     name: 'مدیر فروشگاه',
     description: 'مدیریت محصولات، دسته‌بندی‌ها و سفارشات فروشگاه',
     isSystem: true,
-    permissions: ['shop.manage', 'shop.view'] as PermissionKey[],
+    permissions: [
+      'shop.manage',
+      'shop.view',
+      'hologram.batch.manage',
+      'hologram.code.view',
+      'hologram.code.assign',
+      'hologram.code.revoke',
+      'hologram.transfer.view',
+      'hologram.logs.view',
+      'hologram.security.manage',
+    ] as PermissionKey[],
   },
 ] as const;

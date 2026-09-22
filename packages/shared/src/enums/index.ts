@@ -299,3 +299,64 @@ export const TICKET_PRIORITY_FA: Record<TicketPriority, string> = {
   [TicketPriority.URGENT]: 'فوری',
 };
 
+// ─────────────────── اصالت‌سنجی و انتقال مالکیت شمش (هولوگرام) ───────────────────
+
+export enum ShopOrderItemRecipientType {
+  SELF = 'SELF',
+  OTHER = 'OTHER',
+}
+
+export enum HologramCodeStatus {
+  UNASSIGNED = 'UNASSIGNED',
+  ASSIGNED = 'ASSIGNED',
+  TRANSFER_PENDING = 'TRANSFER_PENDING',
+  REVOKED = 'REVOKED',
+}
+
+export enum HologramOwnershipStatus {
+  ACTIVE = 'ACTIVE',
+  TRANSFERRED = 'TRANSFERRED',
+  PENDING_RECIPIENT_CONFIRMATION = 'PENDING_RECIPIENT_CONFIRMATION',
+}
+
+export enum HologramTransferType {
+  INITIAL_PURCHASE = 'INITIAL_PURCHASE',
+  GIFT_TRANSFER = 'GIFT_TRANSFER',
+  SALE_TRANSFER = 'SALE_TRANSFER',
+}
+
+export enum HologramTransferRequestStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  REJECTED = 'REJECTED',
+  EXPIRED = 'EXPIRED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum HologramInquiryChannel {
+  PUBLIC_WEB = 'PUBLIC_WEB',
+  APP_PANEL = 'APP_PANEL',
+  API_DIRECT = 'API_DIRECT',
+}
+
+export enum HologramInquiryResult {
+  VALID_ASSIGNED = 'VALID_ASSIGNED',
+  VALID_UNASSIGNED = 'VALID_UNASSIGNED',
+  INVALID_CODE = 'INVALID_CODE',
+}
+
+export const HOLOGRAM_CODE_STATUS_FA: Record<HologramCodeStatus, string> = {
+  [HologramCodeStatus.UNASSIGNED]: 'تخصیص‌نیافته',
+  [HologramCodeStatus.ASSIGNED]: 'تخصیص‌یافته',
+  [HologramCodeStatus.TRANSFER_PENDING]: 'در انتظار تأیید انتقال',
+  [HologramCodeStatus.REVOKED]: 'ابطال‌شده',
+};
+
+export const HOLOGRAM_TRANSFER_REQUEST_STATUS_FA: Record<HologramTransferRequestStatus, string> = {
+  [HologramTransferRequestStatus.PENDING]: 'در انتظار تأیید گیرنده',
+  [HologramTransferRequestStatus.CONFIRMED]: 'تأییدشده',
+  [HologramTransferRequestStatus.REJECTED]: 'ردشده',
+  [HologramTransferRequestStatus.EXPIRED]: 'منقضی‌شده',
+  [HologramTransferRequestStatus.CANCELLED]: 'لغوشده',
+};
+

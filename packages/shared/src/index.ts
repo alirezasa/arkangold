@@ -24,6 +24,7 @@ export * from "./dto/wallet.dto";
 export * from "./dto/payroll.dto";
 export * from './dto/deposit.dto';
 export * from './dto/tickets.dto';
+export * from './dto/hologram.dto';
 
 export * from "./interfaces/jwt-payload.interface";
 export * from './interfaces/user.interface';

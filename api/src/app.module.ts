@@ -28,6 +28,7 @@ import { InvoiceModule } from './invoice/invoice.module';
 import { DepositModule } from './deposit/deposit.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { TicketsModule } from './tickets/tickets.module';
+import { HologramModule } from './hologram/hologram.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { TicketsModule } from './tickets/tickets.module';
     DepositModule,
     IntegrationsModule,
     TicketsModule,
+    HologramModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

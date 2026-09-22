@@ -132,6 +132,11 @@ export const SIDEBAR_NAV: NavItem[] = [
     icon: "ti-package",
     path: "/dashboard/wallet/physical-delivery",
   }, // ← جدید
+  {
+    name: "اصالت‌سنجی شمش",
+    icon: "ti-scan",
+    path: "/dashboard/hologram",
+  },
   { name: "نمودار قیمت", icon: "ti-chart-candle", path: "/dashboard/chart" },
   { name: "محاسبه‌گر", icon: "ti-calculator", path: "/dashboard/calculator" },
   {

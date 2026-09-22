@@ -5,12 +5,13 @@ import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { currentJalaliYear, toPersianDigits } from '../utils/jalali.util';
 
-export type DocumentPrefix = 'INV' | 'PRF' | 'DEP';
+export type DocumentPrefix = 'INV' | 'PRF' | 'DEP' | 'HOLO';
 
 const PREFIX_LABEL: Record<DocumentPrefix, string> = {
   INV: 'INV',
   PRF: 'PRF',
   DEP: 'DEP',
+  HOLO: 'HOLO',
 };
 
 @Injectable()

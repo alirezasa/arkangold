@@ -5,8 +5,34 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { join } from 'path';
 
+// دامنه‌های مجاز CORS — arkan.gold (سایت اصلی) و app.arkan.gold/admin هر دو باید
+// بتوانند مستقیماً از مرورگر به API عمومی هولوگرام (POST /public/hologram/verify)
+// و سایر endpointها دسترسی داشته باشند (بند ۴.۱). دامنه‌های اضافه را می‌توان بدون
+// تغییر کد از طریق CORS_EXTRA_ORIGINS (جدا شده با کاما) اضافه کرد.
+const DEFAULT_CORS_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://arkan.gold',
+  'https://www.arkan.gold',
+  'https://app.arkan.gold',
+  'https://admin.arkan.gold',
+];
+
+function resolveCorsOrigins(): string[] {
+  const extra = (process.env.CORS_EXTRA_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  return [...DEFAULT_CORS_ORIGINS, ...extra];
+}
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // پشت یک reverse proxy/CDN (مثلاً Cloudflare یا Nginx) اجرا می‌شود — بدون این
+  // تنظیم، req.ip همیشه IP همان پراکسی را برمی‌گرداند، نه IP واقعی کلاینت که
+  // برای مسدودسازی هولوگرام (بند ۵.۲) لازم است.
+  app.set('trust proxy', true);
 
   // فایل‌های تصویر محصولات
   app.useStaticAssets(join(process.cwd(), 'uploads', 'products'), {
@@ -15,7 +41,7 @@ async function bootstrap() {
 
   // تنظیمات CORS
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: resolveCorsOrigins(),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [

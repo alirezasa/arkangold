@@ -1,9 +1,16 @@
+// FAU_GEN_EXT.1.2: پیش از هر کد دیگر، منطقه‌ی زمانی فرآیند Node صریحاً UTC
+// تنظیم می‌شود تا مهرهای زمانی رویدادها بدون ابهام و مستقل از ساعت هاست باشند.
+process.env.TZ = 'UTC';
+
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { join } from 'path';
+import { PinoLoggerService } from './common/logging/pino-logger.service';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { AuditService } from './common/audit/audit.service';
 
 // دامنه‌های مجاز CORS — arkan.gold (سایت اصلی) و app.arkan.gold/admin هر دو باید
 // بتوانند مستقیماً از مرورگر به API عمومی هولوگرام (POST /public/hologram/verify)
@@ -27,7 +34,14 @@ function resolveCorsOrigins(): string[] {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    // FAU_GEN_EXT.1.3: لاگ‌های عمومی برنامه هم به فرمت JSON ساخت‌یافته تولید شوند
+    logger: new PinoLoggerService(),
+  });
+
+  // FAU_GEN_EXT.1.7 / FAU_GEN_EXT.1.8: ثبت متمرکز شکست اعتبارسنجی ورودی و
+  // خطاهای پیش‌بینی‌نشده/شکست کنترل‌های امنیتی به‌عنوان رویداد امنیتی
+  app.useGlobalFilters(new AllExceptionsFilter(app.get(AuditService)));
 
   // پشت یک reverse proxy/CDN (مثلاً Cloudflare یا Nginx) اجرا می‌شود — بدون این
   // تنظیم، req.ip همیشه IP همان پراکسی را برمی‌گرداند، نه IP واقعی کلاینت که

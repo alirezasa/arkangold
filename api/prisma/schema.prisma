@@ -760,7 +760,11 @@ model AuditLog {
   success    Boolean  @default(true)
   // شناسه‌ی ادعاشده‌ی کاربر وقتی هنوز userId معتبر شناخته نشده (مثلاً تلاش ناموفق ورود با شماره‌ی نامعتبر)
   actorLabel String?  @map("actor_label")
-  createdAt  DateTime @default(now()) @map("created_at")
+  // مهر زمانی صریحاً UTC (timestamptz) — پاسخ به FAU_GEN_EXT.1.2
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  // زنجیره‌ی hash برای تضمین یکپارچگی و تشخیص دستکاری (FAU_STG_EXT.1.2)
+  prevHash   String?  @map("prev_hash")
+  hash       String?
   id         String   @id @default(uuid()) @db.Uuid
   userId     String?  @map("user_id") @db.Uuid
   adminId    String?  @map("admin_id") @db.Uuid
@@ -771,6 +775,16 @@ model AuditLog {
   @@index([adminId])
   @@index([entityType, entityId])
   @@map("audit_logs")
+}
+
+/// وضعیت آخرین حلقه‌ی زنجیره‌ی hash برای هر جدول رویدادنگاری (admin/user) — FAU_STG_EXT.1.2
+model AuditChainState {
+  /// 'admin' یا 'user'
+  id        String   @id
+  lastHash  String   @map("last_hash")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("audit_chain_state")
 }
 
 model SystemConfig {
@@ -930,7 +944,11 @@ model AdminAuditLog {
   success     Boolean    @default(true)
   // نام کاربری ادعاشده وقتی adminUserId هنوز معتبر شناخته نشده (تلاش ناموفق ورود)
   actorLabel  String?    @map("actor_label")
-  createdAt   DateTime   @default(now()) @map("created_at")
+  // مهر زمانی صریحاً UTC (timestamptz) — پاسخ به FAU_GEN_EXT.1.2
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  // زنجیره‌ی hash برای تضمین یکپارچگی و تشخیص دستکاری (FAU_STG_EXT.1.2)
+  prevHash    String?    @map("prev_hash")
+  hash        String?
 
   @@index([adminUserId])
   @@index([entityType, entityId])

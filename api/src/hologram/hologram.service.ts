@@ -54,61 +54,77 @@ export class HologramService {
   // ══════════════════════════════════════════
   // دسته‌های هولوگرام (ادمین)
   // ══════════════════════════════════════════
+  //
+  // ⚠ تولید کدها عمداً در یک تراکنش تعاملی طولانی انجام نمی‌شود: Prisma
+  // Accelerate تراکنش‌های تعاملی را به حداکثر ۱۵ ثانیه محدود می‌کند
+  // (P6005)، و برای دسته‌های بزرگ (تا ۱۰٬۰۰۰ کد) ساخت یک‌به‌یک هر کد به‌صورت
+  // sequential (هر کدام یک round-trip جدا) به‌سادگی از این سقف عبور می‌کند.
+  // به‌جای آن: شماره دسته در یک تراکنش کوتاه گرفته می‌شود، رکورد دسته با یک
+  // insert ساده ساخته می‌شود، و کدها دسته‌جمعی (createMany) درج می‌شوند —
+  // برخورد با کد تکراری (که عملاً نادر است) با skipDuplicates + چند دور
+  // تلاش مجدد پوشش داده می‌شود، بدون نیاز به هیچ تراکنش تعاملی.
   async createBatch(adminId: string, dto: CreateHologramBatchDto) {
-    return this.prisma.$transaction(
-      async (tx) => {
-        const batchNumber = await this.documentSequence.next(tx, 'HOLO');
-
-        const batch = await tx.hologramBatch.create({
-          data: {
-            batchNumber,
-            quantity: dto.quantity,
-            notes: dto.notes,
-            createdByAdminId: adminId,
-          },
-        });
-
-        const codes: string[] = [];
-        for (let i = 0; i < dto.quantity; i++) {
-          codes.push(await this.createUniqueCode(tx, batch.id));
-        }
-
-        this.logger.log(
-          `[Hologram] دسته ${batch.batchNumber} با ${dto.quantity} کد توسط ادمین ${adminId} ساخته شد`,
-        );
-
-        return { ...batch, codes };
-      },
-      { maxWait: 10000, timeout: 30000 },
+    const batchNumber = await this.prisma.$transaction((tx) =>
+      this.documentSequence.next(tx, 'HOLO'),
     );
+
+    const batch = await this.prisma.hologramBatch.create({
+      data: {
+        batchNumber,
+        quantity: dto.quantity,
+        notes: dto.notes,
+        createdByAdminId: adminId,
+      },
+    });
+
+    const codes = await this.generateUniqueCodesForBatch(
+      batch.id,
+      dto.quantity,
+    );
+
+    this.logger.log(
+      `[Hologram] دسته ${batch.batchNumber} با ${dto.quantity} کد توسط ادمین ${adminId} ساخته شد`,
+    );
+
+    return { ...batch, codes };
   }
 
-  private async createUniqueCode(
-    tx: Prisma.TransactionClient,
+  private async generateUniqueCodesForBatch(
     batchId: string,
-  ): Promise<string> {
+    quantity: number,
+  ): Promise<string[]> {
+    const confirmed = new Set<string>();
+
     for (
-      let attempt = 0;
-      attempt < MAX_GENERATION_RETRIES_PER_CODE;
-      attempt++
+      let round = 0;
+      round < MAX_GENERATION_RETRIES_PER_CODE && confirmed.size < quantity;
+      round++
     ) {
-      const code = generateHologramCode();
-      try {
-        await tx.hologramCode.create({ data: { code, batchId } });
-        return code;
-      } catch (err) {
-        if (
-          err instanceof Prisma.PrismaClientKnownRequestError &&
-          err.code === 'P2002'
-        ) {
-          continue; // تصادف بسیار نادر روی unique code — دوباره تلاش کن
-        }
-        throw err;
+      const needed = quantity - confirmed.size;
+      const candidates = new Set<string>();
+      while (candidates.size < needed) {
+        candidates.add(generateHologramCode());
       }
+
+      await this.prisma.hologramCode.createMany({
+        data: [...candidates].map((code) => ({ code, batchId })),
+        skipDuplicates: true, // برخورد نادر با کدی که قبلاً (در دسته دیگر) ساخته شده
+      });
+
+      const inserted = await this.prisma.hologramCode.findMany({
+        where: { batchId, code: { in: [...candidates] } },
+        select: { code: true },
+      });
+      for (const row of inserted) confirmed.add(row.code);
     }
-    throw new ConflictException(
-      'تولید کد یکتای هولوگرام پس از چند تلاش ناموفق بود',
-    );
+
+    if (confirmed.size < quantity) {
+      throw new ConflictException(
+        'تولید کدهای یکتای هولوگرام برای این دسته پس از چند تلاش ناموفق بود',
+      );
+    }
+
+    return [...confirmed];
   }
 
   async listBatches(query: { page: number; limit: number }) {

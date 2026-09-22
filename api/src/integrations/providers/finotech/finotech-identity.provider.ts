@@ -91,7 +91,10 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
       throw new InvalidResponseError('پاسخ فینوتک فاقد فیلد result بود');
     }
 
-    if (response.result.deathStatus && response.result.deathStatus !== 'زنده') {
+    // فینوتک برخی رشته‌ها را با فاصله اضافی برمی‌گرداند (مثلاً "زنده " با یک Space
+    // انتهایی در نمونه واقعی Sandbox) — بدون trim، مقایسه دقیق رشته‌ای شکست می‌خورد
+    const deathStatus = this.trim(response.result.deathStatus);
+    if (deathStatus && deathStatus !== 'زنده') {
       return {
         matched: false,
         reason: 'وضعیت حیات ثبت‌شده زنده نیست',
@@ -101,19 +104,25 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
 
     return {
       matched: true,
-      firstName: response.result.firstName,
-      lastName: response.result.lastName,
-      fatherName: response.result.fatherName,
-      deathStatus: response.result.deathStatus,
-      gender: response.result.gender,
+      firstName: this.trim(response.result.firstName),
+      lastName: this.trim(response.result.lastName),
+      fatherName: this.trim(response.result.fatherName),
+      deathStatus,
+      gender: this.trim(response.result.gender),
       identityNo: response.result.identityNo,
-      identitySeri: response.result.identitySeri,
-      identitySerial: response.result.identitySerial,
-      officeName: response.result.officeName,
-      officeCode: response.result.officeCode,
-      civilRegistryTrackingCode: response.result.trackingCode ?? undefined,
+      identitySeri: this.trim(response.result.identitySeri),
+      identitySerial: this.trim(response.result.identitySerial),
+      officeName: this.trim(response.result.officeName),
+      officeCode: this.trim(response.result.officeCode),
+      civilRegistryTrackingCode: this.trim(response.result.trackingCode),
       providerRequestId: response.trackId,
     };
+  }
+
+  private trim(value?: string | null): string | undefined {
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   }
 
   /**

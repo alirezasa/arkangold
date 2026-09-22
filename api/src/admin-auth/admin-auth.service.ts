@@ -95,7 +95,7 @@ export class AdminAuthService {
       admin.passwordHash,
     );
     if (!validPassword) {
-      await this.handleFailedLogin(admin.id, admin.failedLoginCount);
+      await this.handleFailedLogin(admin.id, admin.failedLoginCount, ip, userAgent);
       await this.auditService.logAdmin({
         adminUserId: admin.id,
         action: 'admin_auth.login',
@@ -146,7 +146,12 @@ export class AdminAuthService {
     };
   }
 
-  private async handleFailedLogin(adminId: string, currentCount: number) {
+  private async handleFailedLogin(
+    adminId: string,
+    currentCount: number,
+    ip?: string,
+    userAgent?: string,
+  ) {
     const newCount = currentCount + 1;
     const shouldLock = newCount >= MAX_FAILED_ATTEMPTS;
 
@@ -164,6 +169,16 @@ export class AdminAuthService {
       this.logger.warn(
         `[AdminAuth] حساب ${adminId} به دلیل تلاش‌های ناموفق مکرر قفل شد`,
       );
+      // FAU_GEN_EXT.1.5: قفل‌شدن حساب کاربری به دلیل تلاش‌های ناموفق مکرر
+      await this.auditService.logAdmin({
+        adminUserId: adminId,
+        action: 'admin_auth.account_locked',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { failedAttempts: newCount, lockDurationMs: LOCK_DURATION_MS },
+      });
     }
   }
 

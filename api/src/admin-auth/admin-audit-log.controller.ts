@@ -1,10 +1,11 @@
 // api/src/admin-auth/admin-audit-log.controller.ts
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from './guards/admin-permission.guard';
 import { RequirePermission } from './decorators/require-permission.decorator';
+import { AuditService, ChainVerificationResult } from '../common/audit/audit.service';
 
 class ListAuditLogQueryDto {
   @IsOptional()
@@ -26,7 +27,10 @@ class ListAuditLogQueryDto {
 @RequirePermission('admin.audit_log.view')
 @Controller('admin/audit-log')
 export class AdminAuditLogController {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditService: AuditService,
+  ) {}
 
   @Get()
   async list(@Query() query: ListAuditLogQueryDto) {
@@ -110,5 +114,26 @@ export class AdminAuditLogController {
       total,
       totalPages: Math.max(1, Math.ceil(total / limit)),
     };
+  }
+
+  /** FAU_STG_EXT.1.2: بازبینی یکپارچگی زنجیره‌ی hash — تشخیص دستکاری/حذف رویدادها */
+  @Get('verify')
+  async verify(
+    @Query('chain') chain?: string,
+  ): Promise<Record<'admin' | 'user', ChainVerificationResult>> {
+    let chainIds: Array<'admin' | 'user'>;
+    if (!chain) {
+      chainIds = ['admin', 'user'];
+    } else if (chain === 'admin' || chain === 'user') {
+      chainIds = [chain];
+    } else {
+      throw new BadRequestException('chain باید admin یا user باشد');
+    }
+
+    const results = {} as Record<'admin' | 'user', ChainVerificationResult>;
+    for (const id of chainIds) {
+      results[id] = await this.auditService.verifyChain(id);
+    }
+    return results;
   }
 }

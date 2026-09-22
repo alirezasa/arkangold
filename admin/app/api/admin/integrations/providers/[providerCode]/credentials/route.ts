@@ -5,15 +5,15 @@ const NEST = "http://localhost:5000";
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ code: string }> },
+  { params }: { params: Promise<{ providerCode: string }> },
 ) {
   try {
-    const { code } = await params;
+    const { providerCode } = await params;
     const token = (await cookies()).get("adminAccessToken")?.value;
     if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     const res = await axios.get(
-      `${NEST}/admin/integrations/providers/${encodeURIComponent(code)}/credentials`,
+      `${NEST}/admin/integrations/providers/${encodeURIComponent(providerCode)}/credentials`,
       { headers: { Authorization: `Bearer ${token}` } },
     );
     return NextResponse.json(res.data);
@@ -29,16 +29,16 @@ export async function GET(
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ code: string }> },
+  { params }: { params: Promise<{ providerCode: string }> },
 ) {
   try {
-    const { code } = await params;
+    const { providerCode } = await params;
     const token = (await cookies()).get("adminAccessToken")?.value;
     if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     const body = await req.json();
     const res = await axios.post(
-      `${NEST}/admin/integrations/providers/${encodeURIComponent(code)}/credentials`,
+      `${NEST}/admin/integrations/providers/${encodeURIComponent(providerCode)}/credentials`,
       body,
       { headers: { Authorization: `Bearer ${token}` } },
     );

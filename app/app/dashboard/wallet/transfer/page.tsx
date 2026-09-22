@@ -13,36 +13,27 @@ import {
   Loader2,
   Send,
   Coins,
-  Banknote,
   Info,
 } from "lucide-react";
 
-function toToman(rial: number) {
-  return (rial / 10).toLocaleString("fa-IR");
-}
-
-// تبدیل ارقام فارسی/عربی به انگلیسی؛ در حالت decimal نقطه اعشار هم نگه داشته می‌شود
-function toEnglishDigits(str: string, allowDecimal = false): string {
+// تبدیل ارقام فارسی/عربی به انگلیسی؛ نقطه اعشار هم نگه داشته می‌شود
+function toEnglishDigits(str: string): string {
   const persian = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
   const arabic = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
-  const normalized = str
+  return str
     .replace(/[۰-۹]/g, (ch) => String(persian.indexOf(ch)))
-    .replace(/[٠-٩]/g, (ch) => String(arabic.indexOf(ch)));
-  return allowDecimal
-    ? normalized.replace(/[^0-9.]/g, "")
-    : normalized.replace(/[^0-9]/g, "");
+    .replace(/[٠-٩]/g, (ch) => String(arabic.indexOf(ch)))
+    .replace(/[^0-9.]/g, "");
 }
 
 function LimitBar({
   used,
   total,
   label,
-  unit,
 }: {
   used: number;
   total: number;
   label: string;
-  unit: string;
 }) {
   // سقف صفر یا خیلی بزرگ در بک‌اند به معنای «بدون محدودیت» است
   const unlimited = total <= 0 || total > 1_000_000_000_000;
@@ -55,7 +46,7 @@ function LimitBar({
         <span>
           {unlimited
             ? "بدون محدودیت"
-            : `${used.toLocaleString("fa-IR")} / ${total.toLocaleString("fa-IR")} ${unit}`}
+            : `${used.toLocaleString("fa-IR")} / ${total.toLocaleString("fa-IR")} گرم`}
         </span>
       </div>
       {!unlimited && (
@@ -70,7 +61,6 @@ function LimitBar({
   );
 }
 
-type Mode = "rial" | "gold";
 type Step = "enter" | "confirm" | "done";
 
 export default function TransferPage() {
@@ -79,40 +69,29 @@ export default function TransferPage() {
   const { loading, error, setError, transfer } = useInternalTransfer();
 
   const [step, setStep] = useState<Step>("enter");
-  const [mode, setMode] = useState<Mode>("rial");
   const [destinationCard, setDestinationCard] = useState("");
   const [amount, setAmount] = useState("");
   const [result, setResult] = useState<{
     destinationCardNumber: string;
-    amountRial?: number;
-    amountGrams?: number;
-    message: string;
+    amountGrams: number;
   } | null>(null);
 
-  const amountRial = mode === "rial" ? Number(amount || 0) * 10 : 0;
-  const amountGrams = mode === "gold" ? Number(amount || 0) : 0;
+  const amountGrams = Number(amount || 0);
 
-  const remainingToday =
-    mode === "rial"
-      ? config?.remainingTodayRial ?? 0
-      : config?.remainingTodayGrams ?? 0;
-  const remainingMonth =
-    mode === "rial"
-      ? config?.remainingThisMonthRial ?? 0
-      : config?.remainingThisMonthGrams ?? 0;
-  const availableBalance =
-    mode === "rial" ? wallet?.availableRial ?? 0 : wallet?.availableGrams ?? 0;
-  const maxPossible = Math.min(remainingToday, remainingMonth, availableBalance);
+  const remainingToday = config?.remainingTodayGrams ?? 0;
+  const remainingMonth = config?.remainingThisMonthGrams ?? 0;
+  const availableGrams = wallet?.availableGrams ?? 0;
+  const maxPossible = Math.min(remainingToday, remainingMonth, availableGrams);
 
   const handleCardChange = (raw: string) => {
-    const digits = toEnglishDigits(raw).slice(0, 16);
-    setDestinationCard(digits);
+    const digits = raw.replace(/[^\d۰-۹٠-٩]/g, "");
+    const normalized = toEnglishDigits(digits).slice(0, 16);
+    setDestinationCard(normalized);
     if (error) setError(null);
   };
 
   const handleAmountChange = (raw: string) => {
-    const digits = toEnglishDigits(raw, mode === "gold");
-    setAmount(digits);
+    setAmount(toEnglishDigits(raw));
     if (error) setError(null);
   };
 
@@ -123,15 +102,12 @@ export default function TransferPage() {
     if (wallet && destinationCard === wallet.cardNumber) {
       return setError("امکان انتقال به کیف پول خودتان وجود ندارد");
     }
-    const value = mode === "rial" ? amountRial : amountGrams;
-    if (!value || value <= 0) {
-      return setError("مقدار انتقال را وارد کنید");
+    if (!amountGrams || amountGrams <= 0) {
+      return setError("مقدار طلای مورد نظر برای انتقال را وارد کنید");
     }
-    if (value > maxPossible) {
+    if (amountGrams > maxPossible) {
       return setError(
-        mode === "rial"
-          ? `حداکثر مقدار قابل انتقال ${toToman(maxPossible)} تومان است`
-          : `حداکثر مقدار قابل انتقال ${maxPossible.toLocaleString("fa-IR")} گرم است`,
+        `حداکثر مقدار قابل انتقال ${maxPossible.toLocaleString("fa-IR")} گرم است`,
       );
     }
     setError(null);
@@ -139,11 +115,7 @@ export default function TransferPage() {
   };
 
   const handleConfirm = async () => {
-    const res = await transfer(
-      destinationCard,
-      mode === "rial" ? amountRial : undefined,
-      mode === "gold" ? amountGrams : undefined,
-    );
+    const res = await transfer(destinationCard, amountGrams);
     if (res) {
       setResult(res);
       setStep("done");
@@ -164,15 +136,15 @@ export default function TransferPage() {
         </Link>
         <div>
           <h1 className="text-[17px] font-black text-gray-900">
-            انتقال کیف پول
+            انتقال طلا
           </h1>
           <p className="text-[11px] text-gray-400">
-            انتقال ریال یا طلا به کیف پول کاربر دیگر
+            انتقال طلای آبشده به کیف پول کاربر دیگر
           </p>
         </div>
       </div>
 
-      {/* ── موجودی ── */}
+      {/* ── موجودی طلا ── */}
       {wallet && (
         <div
           className="rounded-2xl p-4 mb-4 flex items-center justify-between"
@@ -182,18 +154,18 @@ export default function TransferPage() {
           }}
         >
           <div>
-            <p className="text-[11px] text-gray-400 mb-0.5">موجودی نقدی</p>
-            <p className="text-[16px] font-black text-gray-800">
-              {toToman(wallet.rialBalance)}
+            <p className="text-[11px] text-gray-400 mb-0.5">موجودی طلا</p>
+            <p className="text-[18px] font-black text-gray-800">
+              {wallet.goldBalanceGrams.toFixed(4)}
               <span className="text-[11px] font-bold text-gray-400 mr-1">
-                تومان
+                گرم
               </span>
             </p>
           </div>
           <div className="text-left">
-            <p className="text-[11px] text-gray-400 mb-0.5">موجودی طلا</p>
-            <p className="text-[16px] font-black text-gray-800">
-              {wallet.goldBalanceGrams.toFixed(4)}
+            <p className="text-[11px] text-gray-400 mb-0.5">قابل انتقال</p>
+            <p className="text-[16px] font-black text-green-600">
+              {availableGrams.toFixed(4)}
               <span className="text-[11px] font-bold text-gray-400 mr-1">
                 گرم
               </span>
@@ -213,39 +185,18 @@ export default function TransferPage() {
         >
           <p className="text-[12px] font-black text-gray-700 flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5" />
-            محدودیت‌های انتقال
+            محدودیت‌های انتقال طلا
           </p>
-          {mode === "rial" ? (
-            <>
-              <LimitBar
-                used={config.usedTodayRial / 10}
-                total={config.dailyLimitRial / 10}
-                label="انتقال روزانه"
-                unit="ت"
-              />
-              <LimitBar
-                used={config.usedThisMonthRial / 10}
-                total={config.monthlyLimitRial / 10}
-                label="انتقال ماهانه"
-                unit="ت"
-              />
-            </>
-          ) : (
-            <>
-              <LimitBar
-                used={config.usedTodayGrams}
-                total={config.dailyLimitGrams}
-                label="انتقال روزانه"
-                unit="گرم"
-              />
-              <LimitBar
-                used={config.usedThisMonthGrams}
-                total={config.monthlyLimitGrams}
-                label="انتقال ماهانه"
-                unit="گرم"
-              />
-            </>
-          )}
+          <LimitBar
+            used={config.usedTodayGrams}
+            total={config.dailyLimitGrams}
+            label="انتقال روزانه"
+          />
+          <LimitBar
+            used={config.usedThisMonthGrams}
+            total={config.monthlyLimitGrams}
+            label="انتقال ماهانه"
+          />
         </div>
       )}
 
@@ -265,40 +216,6 @@ export default function TransferPage() {
             border: "1px solid var(--color-border)",
           }}
         >
-          {/* نوع انتقال */}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => {
-                setMode("rial");
-                setAmount("");
-                setError(null);
-              }}
-              className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold border-2 transition-all ${
-                mode === "rial"
-                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                  : "border-gray-100 bg-gray-50 text-gray-500"
-              }`}
-            >
-              <Banknote className="w-4 h-4" />
-              انتقال ریال
-            </button>
-            <button
-              onClick={() => {
-                setMode("gold");
-                setAmount("");
-                setError(null);
-              }}
-              className={`flex items-center justify-center gap-2 py-2.5 rounded-xl text-[13px] font-bold border-2 transition-all ${
-                mode === "gold"
-                  ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                  : "border-gray-100 bg-gray-50 text-gray-500"
-              }`}
-            >
-              <Coins className="w-4 h-4" />
-              انتقال طلا
-            </button>
-          </div>
-
           {/* شماره کارت مقصد */}
           <div>
             <h2 className="text-[13px] font-black text-gray-800 mb-2">
@@ -316,35 +233,26 @@ export default function TransferPage() {
             />
           </div>
 
-          {/* مبلغ/مقدار */}
+          {/* مقدار طلا */}
           <div>
             <h2 className="text-[13px] font-black text-gray-800 mb-1">
-              {mode === "rial" ? "مبلغ انتقال (تومان)" : "مقدار طلا (گرم)"}
+              مقدار طلا (گرم)
             </h2>
             <p className="text-[11px] text-gray-400 mb-2">
-              حداکثر قابل انتقال:{" "}
-              {mode === "rial"
-                ? `${toToman(maxPossible)} تومان`
-                : `${maxPossible.toLocaleString("fa-IR")} گرم`}
+              حداکثر قابل انتقال: {maxPossible.toLocaleString("fa-IR")} گرم
             </p>
             <div className="relative">
               <input
                 type="text"
                 inputMode="decimal"
                 dir="ltr"
-                placeholder={mode === "rial" ? "0" : "0.0000"}
+                placeholder="0.0000"
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all"
               />
               <button
-                onClick={() =>
-                  handleAmountChange(
-                    mode === "rial"
-                      ? String(Math.floor(maxPossible / 10))
-                      : String(maxPossible),
-                  )
-                }
+                onClick={() => handleAmountChange(String(maxPossible))}
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-[11px] font-bold px-2 py-1 rounded-lg"
                 style={{
                   backgroundColor: "var(--color-emerald-light)",
@@ -378,16 +286,13 @@ export default function TransferPage() {
             }}
           >
             <h2 className="text-[14px] font-black text-gray-800">
-              تایید انتقال
+              تایید انتقال طلا
             </h2>
 
             {[
               {
-                label: "مقدار انتقال",
-                value:
-                  mode === "rial"
-                    ? `${toToman(amountRial)} تومان`
-                    : `${amountGrams.toLocaleString("fa-IR")} گرم`,
+                label: "مقدار طلا",
+                value: `${amountGrams.toLocaleString("fa-IR")} گرم`,
                 big: true,
               },
               {
@@ -423,8 +328,8 @@ export default function TransferPage() {
           >
             <Info className="w-4 h-4 shrink-0 mt-0.5" />
             <p>
-              انتقال به کیف پول در همان لحظه و بدون کارمزد انجام می‌شود. پیش
-              از تایید، شماره کارت مقصد را با دقت بررسی کنید.
+              انتقال طلا به کیف پول در همان لحظه و بدون کارمزد انجام می‌شود.
+              پیش از تایید، شماره کارت مقصد را با دقت بررسی کنید.
             </p>
           </div>
 
@@ -465,24 +370,14 @@ export default function TransferPage() {
         >
           <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-[18px] font-black text-gray-900 mb-2">
-            انتقال با موفقیت انجام شد
+            انتقال طلا با موفقیت انجام شد
           </h2>
-          <p className="text-[13px] text-gray-500 leading-relaxed mb-2">
-            {result.amountRial ? (
-              <>
-                مبلغ{" "}
-                <span className="font-black text-gray-800">
-                  {toToman(result.amountRial)} تومان
-                </span>
-              </>
-            ) : (
-              <>
-                مقدار{" "}
-                <span className="font-black text-gray-800">
-                  {(result.amountGrams ?? 0).toLocaleString("fa-IR")} گرم طلا
-                </span>
-              </>
-            )}
+          <p className="text-[13px] text-gray-500 leading-relaxed mb-2 flex items-center justify-center gap-1.5">
+            <Coins className="w-4 h-4 text-gold-500" />
+            مقدار{" "}
+            <span className="font-black text-gray-800">
+              {result.amountGrams.toLocaleString("fa-IR")} گرم طلا
+            </span>
           </p>
           <p className="text-[12px] text-gray-400 mb-6" dir="ltr">
             به کارت {result.destinationCardNumber}

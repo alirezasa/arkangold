@@ -5,6 +5,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '../generated/prisma/client';
 import { WALLET_CONFIG_DEFAULTS } from './system-config.seed';
 
+// کلیدهای منسوخ‌شده که باید در استارت‌آپ از دیتابیس پاک شوند (مثلاً پس از
+// حذف یک قابلیت) تا در پنل ادمین به‌صورت تنظیم بلااستفاده باقی نمانند
+const DEPRECATED_KEYS = [
+  'transfer.daily_limit_rial',
+  'transfer.monthly_limit_rial',
+];
+
 @Injectable()
 export class SystemConfigService implements OnModuleInit {
   private readonly logger = new Logger(SystemConfigService.name);
@@ -16,6 +23,7 @@ export class SystemConfigService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedDefaults();
+    await this.removeDeprecatedKeys();
     await this.loadCache();
   }
 
@@ -30,6 +38,16 @@ export class SystemConfigService implements OnModuleInit {
     this.logger.log(
       `[SystemConfig] ${WALLET_CONFIG_DEFAULTS.length} کانفیگ پیش‌فرض seed شد`,
     );
+  }
+
+  private async removeDeprecatedKeys() {
+    if (DEPRECATED_KEYS.length === 0) return;
+    const { count } = await this.prisma.systemConfig.deleteMany({
+      where: { key: { in: DEPRECATED_KEYS } },
+    });
+    if (count > 0) {
+      this.logger.log(`[SystemConfig] ${count} کانفیگ منسوخ‌شده حذف شد`);
+    }
   }
 
   private async loadCache() {

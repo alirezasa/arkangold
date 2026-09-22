@@ -252,17 +252,7 @@ export const WALLET_CONFIG_DEFAULTS = [
       'آدرس پایه API (نه فرانت) برای callback درگاه‌ها — کنترلر خودش کاربر را به فرانت ریدایرکت می‌کند',
   },
 
-  // ══ انتقال داخلی کیف پول ══
-  {
-    key: 'transfer.daily_limit_rial',
-    value: '4000000000',
-    description: 'سقف انتقال داخلی روزانه (ریال) — معادل ۴۰۰ میلیون تومان',
-  },
-  {
-    key: 'transfer.monthly_limit_rial',
-    value: '10000000000',
-    description: 'سقف انتقال داخلی ماهانه (ریال) — معادل ۱ میلیارد تومان',
-  },
+  // ══ انتقال داخلی کیف پول (فقط طلا — انتقال ریالی/تومانی مجاز نیست) ══
   {
     key: 'transfer.daily_limit_grams',
     value: '5',

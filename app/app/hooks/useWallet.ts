@@ -76,17 +76,12 @@ export interface WithdrawalConfig {
   remainingThisMonth: number;
 }
 
+// انتقال داخلی کیف پول فقط برای طلا مجاز است؛ انتقال ریالی/تومانی پشتیبانی نمی‌شود
 export interface TransferConfig {
-  dailyLimitRial: number;
-  monthlyLimitRial: number;
   dailyLimitGrams: number;
   monthlyLimitGrams: number;
-  usedTodayRial: number;
-  usedThisMonthRial: number;
   usedTodayGrams: number;
   usedThisMonthGrams: number;
-  remainingTodayRial: number;
-  remainingThisMonthRial: number;
   remainingTodayGrams: number;
   remainingThisMonthGrams: number;
 }
@@ -94,8 +89,7 @@ export interface TransferConfig {
 export interface InternalTransferResult {
   transactionId: string;
   destinationCardNumber: string;
-  amountRial?: number;
-  amountGrams?: number;
+  amountGrams: number;
   message: string;
 }
 
@@ -154,15 +148,13 @@ export const useInternalTransfer = () => {
   const transfer = useCallback(
     async (
       destinationCardNumber: string,
-      amountRial?: number,
-      amountGrams?: number,
+      amountGrams: number,
     ): Promise<InternalTransferResult | null> => {
       setLoading(true);
       setError(null);
       try {
         const res = await axios.post('/api/wallet/transfer', {
           destinationCardNumber,
-          amountRial,
           amountGrams,
         });
         return res.data;

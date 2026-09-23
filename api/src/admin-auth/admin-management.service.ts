@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
+import { hashPassword } from '../common/crypto/password.util';
 
 interface CreateAdminDto {
   username: string;
@@ -69,7 +70,7 @@ export class AdminManagementService {
     });
     if (!role) throw new NotFoundException('نقش انتخاب‌شده یافت نشد');
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const passwordHash = await hashPassword(dto.password);
     const admin = await this.prisma.adminUser.create({
       data: {
         username: dto.username,
@@ -166,7 +167,7 @@ export class AdminManagementService {
     });
     if (!target) throw new NotFoundException('ادمین یافت نشد');
 
-    const passwordHash = await bcrypt.hash(newPassword, 12);
+    const passwordHash = await hashPassword(newPassword);
     await this.prisma.adminUser.update({
       where: { id: targetId },
       data: {

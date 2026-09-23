@@ -18,6 +18,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { jalaliToIsoDate } from '@/app/utils/jalali';
+import { newIdempotencyKey } from "../../utils/idempotency";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -118,7 +119,7 @@ function TransferInitiateModal({
       await axios.post(
         '/api/user/hologram/transfer-requests',
         { hologramCodeId, recipientPhoneNumber: phone },
-        { headers: { 'idempotency-key': crypto.randomUUID?.() ?? String(Date.now()) } },
+        { headers: { 'idempotency-key': newIdempotencyKey() } },
       );
       onDone();
       onClose();

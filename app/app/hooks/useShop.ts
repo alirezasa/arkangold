@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import axios from "axios";
 import useSWR from "swr";
+import { newIdempotencyKey } from "../utils/idempotency";
 
 // ── آدرس سرور NestJS برای نمایش تصاویر محصولات (فایل‌های استاتیک) ──
 export const NEST_ORIGIN =
@@ -297,9 +298,7 @@ export const useCheckout = () => {
       setError(null);
       try {
         const idempotencyKey =
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random()}`;
+          newIdempotencyKey();
 
         const res = await axios.post(
           "/api/orders/shop",
@@ -345,9 +344,7 @@ export const usePayShopOrder = () => {
       setError(null);
       try {
         const idempotencyKey =
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random()}`;
+          newIdempotencyKey();
 
         const res = await axios.post(
           `/api/orders/shop/${orderId}/pay`,

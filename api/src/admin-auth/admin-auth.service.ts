@@ -15,6 +15,8 @@ import { maskUsername } from '../common/audit/mask.util';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import { jwtSignOptions } from '../common/secrets/jwt-keyring';
+import { hashPassword } from '../common/crypto/password.util';
 
 const AUDIT_SOURCE = 'AdminAuthService';
 
@@ -264,14 +266,14 @@ export class AdminAuthService {
     const accessToken = this.jwtService.sign(
       { sub: adminUserId, sessionId },
       {
-        secret: this.configService.get<string>('JWT_ADMIN_SECRET'),
+        ...jwtSignOptions('JWT_ADMIN_SECRET'),
         expiresIn: 1800, // ۳۰ دقیقه - کوتاه‌تر از کاربر عادی چون دسترسی حساس‌تری دارد
       },
     );
     const refreshToken = this.jwtService.sign(
       { sub: adminUserId, sessionId },
       {
-        secret: this.configService.get<string>('JWT_ADMIN_REFRESH_SECRET'),
+        ...jwtSignOptions('JWT_ADMIN_REFRESH_SECRET'),
         expiresIn: 24 * 60 * 60, // ۱ روز - کوتاه‌تر از کاربر عادی
       },
     );
@@ -330,7 +332,7 @@ export class AdminAuthService {
       throw new UnauthorizedException('رمز عبور فعلی نادرست است');
     }
 
-    const newHash = await bcrypt.hash(newPassword, 12);
+    const newHash = await hashPassword(newPassword);
     await this.prisma.adminUser.update({
       where: { id: adminUserId },
       data: { passwordHash: newHash },

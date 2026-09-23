@@ -7,6 +7,7 @@ import { AuditedThrottlerGuard } from './common/audit/audited-throttler.guard';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './common/audit/audit.module';
+import { RetentionModule } from './common/retention/retention.module';
 import { AuthModule } from './auth/auth.module';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './users/users.module';
@@ -38,6 +39,7 @@ import { HologramModule } from './hologram/hologram.module';
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60000, limit: 30 }]),
     PrismaModule,
     AuditModule,
+    RetentionModule,
     RedisModule,
     AuthModule,
     UsersModule,

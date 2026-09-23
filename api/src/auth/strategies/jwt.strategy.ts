@@ -4,6 +4,7 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtPayload } from '@arkan-gold/shared';
+import { JWT_ALGORITHM, jwtVerificationSecret } from '../../common/secrets/jwt-keyring';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -14,7 +15,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_ACCESS_SECRET'),
+      algorithms: [JWT_ALGORITHM],
+      // کلید بر اساس kid توکن (کلید فعلی یا کلید قبلی در دوره‌ی چرخش)
+      secretOrKeyProvider: (_req: unknown, rawJwt: string, done: (err: unknown, secret?: string) => void) => {
+        const secret = jwtVerificationSecret('JWT_ACCESS_SECRET', rawJwt);
+        if (secret) done(null, secret);
+        else done(new UnauthorizedException('نشست نامعتبر است'));
+      },
     });
   }
 

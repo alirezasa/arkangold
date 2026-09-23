@@ -31,6 +31,7 @@ import {
   ticketNewUserMessageAdminSmsText,
   ticketStatusChangedSmsText,
 } from './tickets-sms-messages.util';
+import { randomInt } from 'crypto';
 
 type UploadedFileLike = {
   originalname: string;
@@ -101,7 +102,7 @@ export class TicketsService {
   ) {
     const year = new Date().getFullYear();
     for (let attempt = 0; attempt < 5; attempt++) {
-      const randomPart = Math.floor(10000000 + Math.random() * 89999999);
+      const randomPart = randomInt(10000000, 100000000);
       const ticketNumber = `TKT-${year}-${randomPart}`;
       try {
         return await this.prisma.ticket.create({

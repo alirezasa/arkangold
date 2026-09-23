@@ -43,6 +43,9 @@ interface CredentialItem {
   key: string;
   maskedValue: string;
   updatedAt: string;
+  keyVersion: string;
+  needsReencryption: boolean;
+  rotationDue: boolean;
 }
 
 interface LogItem {
@@ -457,6 +460,27 @@ function FinotechCredentials({ onSaved }: { onSaved: (key: string) => void }) {
   );
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reencrypting, setReencrypting] = useState(false);
+  const [reencryptResult, setReencryptResult] = useState<string | null>(null);
+
+  // FCS_CKM_EXT.1.2: پس از چرخش کلید رمزنگاری، Credentialها با کلید فعلی دوباره رمز می‌شوند
+  const reencrypt = async () => {
+    setReencrypting(true);
+    setError(null);
+    setReencryptResult(null);
+    try {
+      const res = await adminApi.post("/api/admin/integrations/credentials/re-encrypt");
+      setReencryptResult(
+        `${(res.data.reencrypted as number).toLocaleString("fa-IR")} از ${(res.data.total as number).toLocaleString("fa-IR")} مورد با کلید فعلی رمز شد`,
+      );
+      await mutate();
+    } catch {
+      setError("خطا در رمزنگاری مجدد");
+    } finally {
+      setReencrypting(false);
+    }
+  };
+  const staleCount = data?.filter((c) => c.needsReencryption).length ?? 0;
 
   const save = async (key: string, value: string) => {
     if (!value.trim()) return;
@@ -485,6 +509,24 @@ function FinotechCredentials({ onSaved }: { onSaved: (key: string) => void }) {
       {error && (
         <p className="text-[11px] font-bold text-red-600">{error}</p>
       )}
+      {staleCount > 0 && (
+        <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-amber-50 text-[11px] font-bold text-amber-700">
+          <span>
+            {staleCount.toLocaleString("fa-IR")} Credential با کلید قدیمی رمز شده است
+          </span>
+          <button
+            onClick={reencrypt}
+            disabled={reencrypting}
+            className="shrink-0 px-3 py-1.5 rounded-lg text-white disabled:opacity-60"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+          >
+            {reencrypting ? <Loader2 className="w-3 h-3 animate-spin" /> : "رمزنگاری مجدد با کلید فعلی"}
+          </button>
+        </div>
+      )}
+      {reencryptResult && (
+        <p className="text-[11px] font-bold text-emerald-700">{reencryptResult}</p>
+      )}
       {FINOTECH_CREDENTIAL_FIELDS.map((field) => {
         const existing = data?.find((c) => c.key === field.key);
         return (
@@ -494,7 +536,13 @@ function FinotechCredentials({ onSaved }: { onSaved: (key: string) => void }) {
               {existing && (
                 <span className="text-gray-400 font-normal">
                   {" "}
-                  — مقدار فعلی: {existing.maskedValue}
+                  — مقدار فعلی: {existing.maskedValue} — آخرین تعویض:{" "}
+                  {new Date(existing.updatedAt).toLocaleDateString("fa-IR")}
+                </span>
+              )}
+              {existing?.rotationDue && (
+                <span className="badge mr-2" style={{ background: "#fef3c7", color: "#b45309" }}>
+                  زمان تعویض فرارسیده
                 </span>
               )}
             </label>

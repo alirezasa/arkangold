@@ -11,6 +11,7 @@ import { join } from 'path';
 import { PinoLoggerService } from './common/logging/pino-logger.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditService } from './common/audit/audit.service';
+import { loadSecrets } from './common/secrets/load-secrets';
 
 // دامنه‌های مجاز CORS — arkan.gold (سایت اصلی) و app.arkan.gold/admin هر دو باید
 // بتوانند مستقیماً از مرورگر به API عمومی هولوگرام (POST /public/hologram/verify)
@@ -34,9 +35,13 @@ function resolveCorsOrigins(): string[] {
 }
 
 async function bootstrap() {
+  const logger = new PinoLoggerService();
+  // FCS_CKM_EXT.1.4: اسرار پیش از ساخت هر provider از Vault / فایل secret / env بارگذاری و اعتبارسنجی می‌شوند
+  await loadSecrets(logger);
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     // FAU_GEN_EXT.1.3: لاگ‌های عمومی برنامه هم به فرمت JSON ساخت‌یافته تولید شوند
-    logger: new PinoLoggerService(),
+    logger,
   });
 
   // FAU_GEN_EXT.1.7 / FAU_GEN_EXT.1.8: ثبت متمرکز شکست اعتبارسنجی ورودی و

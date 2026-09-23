@@ -1177,7 +1177,7 @@ model IntegrationProviderCredential {
   id             String   @id @default(uuid()) @db.Uuid
   providerId     String   @map("provider_id") @db.Uuid
   key            String // CLIENT_ID, CLIENT_SECRET, API_KEY, NID ...
-  encryptedValue String   @map("encrypted_value") // فرمت: iv:authTag:cipherText (Base64، هر بخش با : جدا شده)
+  encryptedValue String   @map("encrypted_value") // v2:keyId:iv:tag:cipherText (AES-256-GCM + AAD) یا vault:vN:... — قالب قدیمی iv:tag:cipherText فقط خوانده می‌شود
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 

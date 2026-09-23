@@ -24,6 +24,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { TicketsService } from './tickets.service';
+import { OwnedResource } from '../common/audit/owned-resource.decorator';
 
 interface AuthenticatedUser {
   userId: string;
@@ -50,11 +51,13 @@ export class TicketsController {
     return this.ticketsService.listMine(req.user.userId, query);
   }
 
+  @OwnedResource({ model: 'ticket', ownerPath: 'userId' })
   @Get(':id')
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.ticketsService.getOneForUser(req.user.userId, id);
   }
 
+  @OwnedResource({ model: 'ticket', ownerPath: 'userId' })
   @Post(':id/messages')
   @Throttle({ default: { limit: 30, ttl: 3600000 } }) // ۳۰ پیام در ساعت (بخش ۳۸ اسپک)
   addMessage(
@@ -68,6 +71,7 @@ export class TicketsController {
     });
   }
 
+  @OwnedResource({ model: 'ticket', ownerPath: 'userId' })
   @Post(':id/attachments')
   @UseInterceptors(FilesInterceptor('files', 5))
   uploadAttachments(
@@ -84,6 +88,7 @@ export class TicketsController {
     );
   }
 
+  @OwnedResource({ model: 'ticket', ownerPath: 'userId' })
   @Get(':id/attachments/:attachmentId/download-url')
   getDownloadUrl(
     @Req() req: AuthenticatedRequest,
@@ -97,6 +102,7 @@ export class TicketsController {
     );
   }
 
+  @OwnedResource({ model: 'ticket', ownerPath: 'userId' })
   @Post(':id/close')
   close(
     @Req() req: AuthenticatedRequest,
@@ -106,11 +112,13 @@ export class TicketsController {
     return this.ticketsService.closeTicket(req.user.userId, id, dto.reason);
   }
 
+  @OwnedResource({ model: 'ticket', ownerPath: 'userId' })
   @Post(':id/reopen')
   reopen(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.ticketsService.reopenTicket(req.user.userId, id);
   }
 
+  @OwnedResource({ model: 'ticket', ownerPath: 'userId' })
   @Post(':id/rating')
   rate(
     @Req() req: AuthenticatedRequest,

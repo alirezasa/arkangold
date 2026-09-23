@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AuditService } from '../audit/audit.service';
+import { getBusinessRuleViolation } from '../audit/business-rule.util';
 
 interface RequestActor {
   adminUserId?: string;
@@ -41,7 +42,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const userAgent = req.headers?.['user-agent'];
     const actor = req.user;
 
-    if (isHttp && status === HttpStatus.BAD_REQUEST && this.isValidationFailure(exception)) {
+    const businessRule = getBusinessRuleViolation(exception);
+
+    if (businessRule) {
+      // FAU_GEN_EXT.1.7 بند ۲: نقض منطق کسب‌وکار (دستکاری ترتیب مراحل یا مقادیر)
+      void this.logSecurityEvent(actor, {
+        action: 'security.business_rule_violation',
+        source,
+        ip,
+        userAgent,
+        newValue: {
+          rule: businessRule,
+          status,
+          message: exception instanceof Error ? exception.message : String(exception),
+        },
+      });
+    } else if (isHttp && status === HttpStatus.BAD_REQUEST && this.isValidationFailure(exception)) {
       // FAU_GEN_EXT.1.7: تلاش برای ارسال ورودی نامعتبر/غیرمجاز (احتمال تزریق یا دستکاری)
       void this.logSecurityEvent(actor, {
         action: 'security.validation_failed',

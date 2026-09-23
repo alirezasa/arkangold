@@ -26,6 +26,7 @@ import {
   LedgerLineInput,
 } from '../accounting/accounting.service';
 import { InvoiceService } from '../invoice/invoice.service';
+import { businessRuleViolation } from '../common/audit/business-rule.util';
 
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 const PENDING_PAYMENT_TTL_MINUTES = 30;
@@ -328,7 +329,10 @@ export class ShopOrdersService {
     }
 
     if (order.status !== 'PENDING_PAYMENT') {
-      throw new ConflictException('این سفارش قابل پرداخت نیست');
+      throw businessRuleViolation(
+        new ConflictException('این سفارش قابل پرداخت نیست'),
+        'shop_order.pay_invalid_state',
+      );
     }
 
     const totalRial = this.toNumber(order.totalRial);
@@ -637,7 +641,10 @@ export class ShopOrdersService {
         if (currentPayment.status === 'SUCCESS') return;
 
         if (currentPayment.status !== 'PENDING') {
-          throw new ConflictException('این تراکنش دیگر قابل نهایی‌سازی نیست');
+          throw businessRuleViolation(
+            new ConflictException('این تراکنش دیگر قابل نهایی‌سازی نیست'),
+            'payment.finalize_replay',
+          );
         }
 
         await tx.payment.update({
@@ -708,7 +715,10 @@ export class ShopOrdersService {
 
         if (order.status === 'PAID') return;
         if (order.status !== 'PENDING_PAYMENT') {
-          throw new ConflictException('وضعیت سفارش برای ثبت پرداخت معتبر نیست');
+          throw businessRuleViolation(
+            new ConflictException('وضعیت سفارش برای ثبت پرداخت معتبر نیست'),
+            'payment.order_invalid_state',
+          );
         }
 
         const orderTotalRial = this.toNumber(order.totalRial);

@@ -41,9 +41,16 @@ const ACTION_LABELS: Record<string, string> = {
   "auth.reset_password": "بازنشانی رمز عبور",
   "auth.session_expired": "انقضای نشست",
   "auth.invalid_token": "توکن نامعتبر",
+  "auth.verify_register_otp": "تأیید کد ثبت‌نام",
+  "auth.forgot_password": "درخواست بازیابی رمز",
+  "auth.verify_reset_otp": "تأیید کد بازیابی رمز",
+  "auth.account_locked": "قفل‌شدن حساب (تلاش ناموفق مکرر)",
   // امنیتی/سیستمی
   "security.validation_failed": "ورودی نامعتبر (رد شده)",
   "security.unexpected_error": "خطای پیش‌بینی‌نشده",
+  "security.horizontal_access_attempt": "تلاش دسترسی به داده‌ی کاربر دیگر",
+  "security.business_rule_violation": "نقض قاعده‌ی کسب‌وکار",
+  "security.rate_limit_exceeded": "عبور از محدودیت نرخ درخواست",
   // مدیریت پنل
   "admin.create": "ایجاد ادمین",
   "admin.update": "ویرایش ادمین",
@@ -76,6 +83,34 @@ function actionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action;
 }
 
+const REASON_LABELS: Record<string, string> = {
+  invalid_password: "رمز نادرست",
+  locked: "حساب قفل است",
+  banned: "حساب مسدود",
+  not_active: "حساب غیرفعال",
+  inactive: "حساب غیرفعال",
+  invalid_otp: "کد نادرست",
+  otp_attempts_exceeded: "اتمام دفعات مجاز کد",
+  unknown_user: "کاربر ناموجود",
+  invalid_or_expired_reset_token: "توکن بازیابی نامعتبر",
+  wrong_token_purpose: "توکن نامعتبر",
+  "price_lock.not_owned": "قفل قیمت متعلق به دیگری",
+  "price_lock.replay": "استفاده‌ی مجدد از قفل قیمت",
+  "shop_order.pay_invalid_state": "پرداخت سفارش در وضعیت نامعتبر",
+  "payment.finalize_replay": "بازپخش تأیید پرداخت",
+  "payment.order_invalid_state": "ثبت پرداخت برای سفارش نامعتبر",
+  "deposit.idempotency_key_foreign": "کلید درخواست متعلق به دیگری",
+  "physical_delivery.cancel_invalid_state": "لغو در وضعیت نامعتبر",
+};
+
+/** دلیل شکست یا قاعده‌ی نقض‌شده، از new_value رویداد */
+function eventReason(newValue: unknown): string | null {
+  if (!newValue || typeof newValue !== "object") return null;
+  const v = newValue as { reason?: unknown; rule?: unknown };
+  const key = typeof v.rule === "string" ? v.rule : typeof v.reason === "string" ? v.reason : null;
+  return key ? (REASON_LABELS[key] ?? key) : null;
+}
+
 function OutcomeBadge({ success }: { success: boolean }) {
   return success ? (
     <span className="badge" style={{ background: "var(--color-emerald-light)", color: "var(--color-emerald)" }}>
@@ -98,6 +133,7 @@ interface AdminAuditLogItem {
   ip: string | null;
   source: string | null;
   success: boolean;
+  newValue: unknown;
   createdAt: string;
 }
 
@@ -112,6 +148,7 @@ interface UserAuditLogItem {
   ip: string | null;
   source: string | null;
   success: boolean;
+  newValue: unknown;
   createdAt: string;
 }
 
@@ -272,6 +309,11 @@ function AdminEventsTab() {
                   </td>
                   <td>
                     <OutcomeBadge success={log.success} />
+                    {eventReason(log.newValue) && (
+                      <span className="block text-[10px] text-gray-400 mt-1">
+                        {eventReason(log.newValue)}
+                      </span>
+                    )}
                   </td>
                   <td dir="ltr" className="text-[11px] text-gray-400">
                     {log.ip || "—"}
@@ -372,6 +414,11 @@ function UserEventsTab() {
                   </td>
                   <td>
                     <OutcomeBadge success={log.success} />
+                    {eventReason(log.newValue) && (
+                      <span className="block text-[10px] text-gray-400 mt-1">
+                        {eventReason(log.newValue)}
+                      </span>
+                    )}
                   </td>
                   <td dir="ltr" className="text-[11px] text-gray-400">
                     {log.ip || "—"}

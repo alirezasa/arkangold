@@ -27,6 +27,7 @@ import {
   parseHolidays,
 } from '../common/utils/jalali.util';
 import type { ProformaExtraData } from '../invoice/invoice.types';
+import { businessRuleViolation } from '../common/audit/business-rule.util';
 
 @Injectable()
 export class DepositService {
@@ -57,7 +58,10 @@ export class DepositService {
       });
       if (existing) {
         if (existing.userId !== userId) {
-          throw new ForbiddenException('کلید درخواست معتبر نیست');
+          throw businessRuleViolation(
+            new ForbiddenException('کلید درخواست معتبر نیست'),
+            'deposit.idempotency_key_foreign',
+          );
         }
         return this.getOne(userId, existing.id);
       }

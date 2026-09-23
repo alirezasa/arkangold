@@ -15,6 +15,7 @@ import { CartService } from './cart.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { AddCartItemDto, UpdateCartItemDto } from '@arkan-gold/shared';
+import { OwnedResource } from '../common/audit/owned-resource.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -39,6 +40,7 @@ export class CartController {
     return this.service.addItem(req.user.userId, dto);
   }
 
+  @OwnedResource({ model: 'cartItem', param: 'itemId', ownerPath: 'cart.userId' })
   @Patch('items/:itemId')
   @ApiOperation({ summary: 'تغییر تعداد آیتم' })
   updateItem(
@@ -49,6 +51,7 @@ export class CartController {
     return this.service.updateItem(req.user.userId, itemId, dto);
   }
 
+  @OwnedResource({ model: 'cartItem', param: 'itemId', ownerPath: 'cart.userId' })
   @Delete('items/:itemId')
   @ApiOperation({ summary: 'حذف آیتم از سبد' })
   removeItem(

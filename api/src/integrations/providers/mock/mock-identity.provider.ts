@@ -19,7 +19,9 @@ export class MockIdentityProvider implements IdentityVerificationProvider {
   async verifyIdentity(
     input: IdentityVerificationInput,
   ): Promise<IdentityVerificationResult> {
-    this.logger.log(`[MOCK] استعلام هویتی: ${input.nationalCode}`);
+    this.logger.log(
+      `[MOCK] استعلام هویتی: ${input.nationalCode.slice(0, 3)}****${input.nationalCode.slice(-3)}`,
+    );
 
     if (!this.isValidNationalCode(input.nationalCode)) {
       return { matched: false, reason: 'کد ملی از نظر الگوریتمی نامعتبر است' };

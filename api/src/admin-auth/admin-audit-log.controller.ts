@@ -65,6 +65,8 @@ export class AdminAuditLogController {
         userAgent: l.userAgent,
         source: l.source,
         success: l.success,
+        // پیش از ذخیره با redact() پاکسازی شده است
+        newValue: l.newValue,
         createdAt: l.createdAt.toISOString(),
       })),
       page,
@@ -107,6 +109,8 @@ export class AdminAuditLogController {
         userAgent: l.userAgent,
         source: l.source,
         success: l.success,
+        // پیش از ذخیره با redact() پاکسازی شده است
+        newValue: l.newValue,
         createdAt: l.createdAt.toISOString(),
       })),
       page,

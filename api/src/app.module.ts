@@ -2,7 +2,8 @@
 
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { AuditedThrottlerGuard } from './common/audit/audited-throttler.guard';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './common/audit/audit.module';
@@ -62,6 +63,6 @@ import { HologramModule } from './hologram/hologram.module';
     TicketsModule,
     HologramModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [{ provide: APP_GUARD, useClass: AuditedThrottlerGuard }],
 })
 export class AppModule {}

@@ -10,6 +10,9 @@ datasource db {
 model User {
   phone                      String                     @unique
   passwordHash               String?                    @map("password_hash")
+  // قفل موقت حساب پس از تلاش‌های ناموفق مکرر ورود با رمز عبور (FAU_GEN_EXT.1.5 بند ۵)
+  failedLoginCount           Int                        @default(0) @map("failed_login_count")
+  lockedUntil                DateTime?                  @map("locked_until")
   type                       UserType                   @default(REAL)
   status                     UserStatus                 @default(ACTIVE)
   referralCode               String                     @unique @map("referral_code")

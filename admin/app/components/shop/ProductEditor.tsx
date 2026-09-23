@@ -14,6 +14,8 @@ import {
   Calculator,
   Image as ImageIcon,
   ExternalLink,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { adminApi } from "@/app/core/api";
 import ProductImagesManager from "./ProductImagesManager";
@@ -34,6 +36,11 @@ function getErrorMessage(err: unknown, fallback: string): string {
 interface CategoryItem {
   id: string;
   name: string;
+  isActive?: boolean;
+}
+export interface ProductSpecification {
+  label: string;
+  value: string;
 }
 interface VariantItem {
   id: string;
@@ -65,6 +72,7 @@ export interface ProductDetail {
   purityKarat?: "K18" | "K24" | null;
   weightRange: WeightRange | null;
   category?: { id: string; name: string };
+  specifications?: ProductSpecification[];
   variants: VariantItem[];
 }
 
@@ -203,6 +211,96 @@ export default function ProductEditor({
 }
 
 // ══════════════════════════════════════════
+// مشخصات فنی (ابعاد، وزن، کد GTIN، ...) — در صفحه محصول به‌صورت جدول
+// و «ابعاد» و «وزن» در کارت‌های صفحه خرید شمش نمایش داده می‌شوند
+// ══════════════════════════════════════════
+const SPEC_PRESETS = [
+  "ابعاد",
+  "وزن",
+  "کد محصول",
+  "کد GTIN",
+  "کشور سازنده",
+  "شرکت سازنده",
+  "برند",
+];
+
+function SpecificationsEditor({
+  specs,
+  onChange,
+}: {
+  specs: ProductSpecification[];
+  onChange: (specs: ProductSpecification[]) => void;
+}) {
+  const update = (i: number, patch: Partial<ProductSpecification>) =>
+    onChange(specs.map((sp, idx) => (idx === i ? { ...sp, ...patch } : sp)));
+  const add = (label = "") => onChange([...specs, { label, value: "" }]);
+  const remove = (i: number) => onChange(specs.filter((_, idx) => idx !== i));
+  const usedLabels = new Set(specs.map((sp) => sp.label.trim()));
+
+  return (
+    <div className="space-y-2">
+      <label className="text-[12px] font-bold text-gray-500">
+        مشخصات فنی محصول
+      </label>
+      <p className="text-[10px] text-gray-400">
+        «ابعاد» و «وزن» در کارت محصولات صفحه خرید شمش هم نمایش داده می‌شوند.
+      </p>
+
+      {specs.map((sp, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            value={sp.label}
+            onChange={(e) => update(i, { label: e.target.value })}
+            placeholder="عنوان (مثلاً ابعاد)"
+            maxLength={60}
+            className="w-2/5 px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500"
+          />
+          <input
+            value={sp.value}
+            onChange={(e) => update(i, { value: e.target.value })}
+            placeholder="مقدار (مثلاً ۲۰×۳۰ میلی‌متر)"
+            maxLength={300}
+            className="flex-1 px-3 py-2 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500"
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="p-2 rounded-lg text-red-500 hover:bg-red-50"
+            title="حذف"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      ))}
+
+      <div className="flex flex-wrap gap-1.5 pt-1">
+        {SPEC_PRESETS.filter((label) => !usedLabels.has(label)).map(
+          (label) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => add(label)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-[11px] font-bold text-gray-500 hover:bg-gray-50"
+            >
+              <Plus className="w-3 h-3" />
+              {label}
+            </button>
+          ),
+        )}
+        <button
+          type="button"
+          onClick={() => add()}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-dashed border-gray-300 text-[11px] font-bold text-gray-500 hover:bg-gray-50"
+        >
+          <Plus className="w-3 h-3" />
+          ردیف دلخواه
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
 // تب ۱: اطلاعات پایه (نام/دسته/توضیحات/قیمت/تنوع یا بازه‌وزنی)
 // ══════════════════════════════════════════
 function BasicInfoTab({
@@ -227,6 +325,9 @@ function BasicInfoTab({
     data.shortDescription ?? "",
   );
   const [description, setDescription] = useState(data.description ?? "");
+  const [specs, setSpecs] = useState<ProductSpecification[]>(
+    data.specifications ?? [],
+  );
   const [basePriceToman, setBasePriceToman] = useState(data.basePriceToman);
   const [status, setStatus] = useState<ProductDetail["status"]>(data.status);
   const [pricingMode, setPricingMode] = useState<"FIXED" | "WEIGHT_RANGE">(
@@ -264,8 +365,12 @@ function BasicInfoTab({
     const payload: Record<string, unknown> = {
       name: name.trim(),
       categoryId,
-      description: description.trim() || undefined,
-      shortDescription: shortDescription.trim() || undefined,
+      // رشته خالی (نه undefined) تا پاک کردن توضیحات هم ذخیره شود
+      description: description.trim(),
+      shortDescription: shortDescription.trim(),
+      specifications: specs
+        .map((sp) => ({ label: sp.label.trim(), value: sp.value.trim() }))
+        .filter((sp) => sp.label && sp.value),
       basePriceRial,
       status,
       pricingMode,
@@ -358,6 +463,7 @@ function BasicInfoTab({
             {categories?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
+                {c.isActive === false ? " (غیرفعال)" : ""}
               </option>
             ))}
           </select>
@@ -390,7 +496,7 @@ function BasicInfoTab({
           onChange={(e) => setShortDescription(e.target.value)}
           rows={2}
           maxLength={200}
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500 resize-none"
+          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500 resize-y"
         />
         <p className="text-[10px] text-gray-400 text-left" dir="ltr">
           {shortDescription.length}/200
@@ -405,9 +511,15 @@ function BasicInfoTab({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={6}
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500 resize-none"
+          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500 resize-y"
         />
+        <p className="text-[10px] text-gray-400 leading-relaxed">
+          هر خط جداگانه نمایش داده می‌شود. خطوطی به شکل «عنوان: مقدار» (مثلاً
+          «کشور سازنده: ایران») در صفحه محصول به‌صورت جدول نمایش داده می‌شوند.
+        </p>
       </div>
+
+      <SpecificationsEditor specs={specs} onChange={setSpecs} />
 
       <div className="space-y-1.5">
         <label className="text-[12px] font-bold text-gray-500">

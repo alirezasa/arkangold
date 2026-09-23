@@ -11,7 +11,7 @@ export class CatalogController {
   @Get('categories')
   @ApiOperation({ summary: 'لیست دسته‌بندی‌ها' })
   listCategories() {
-    return this.service.listCategories();
+    return this.service.listActiveCategories();
   }
 
   @Get('products')

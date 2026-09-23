@@ -66,13 +66,28 @@ export class CatalogAdminController {
   }
 
   @Post('categories')
+  @AuditLog('shop.category.create')
+  @UseInterceptors(AuditLogInterceptor)
   createCategory(@Body() dto: CreateCategoryDto) {
     return this.service.createCategory(dto);
   }
 
   @Patch('categories/:id')
+  @ApiOperation({
+    summary: 'ویرایش دسته‌بندی (نام، اسلاگ، والد، فعال/غیرفعال)',
+  })
+  @AuditLog('shop.category.update')
+  @UseInterceptors(AuditLogInterceptor)
   updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     return this.service.updateCategory(id, dto);
+  }
+
+  @Delete('categories/:id')
+  @ApiOperation({ summary: 'حذف دسته‌بندی (فقط دسته‌ی بدون محصول و زیردسته)' })
+  @AuditLog('shop.category.delete')
+  @UseInterceptors(AuditLogInterceptor)
+  deleteCategory(@Param('id') id: string) {
+    return this.service.deleteCategory(id);
   }
 
   @Post('products')

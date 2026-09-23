@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useAddToCart, useProducts, productImageUrl } from "@/app/hooks/useShop";
 import { useState } from "react";
+import { findProductSpec } from "@/app/utils/product-text";
 import {
   ChevronRight,
   Wallet,
@@ -13,6 +14,8 @@ import {
   Loader2,
   CheckCircle2,
   PackageX,
+  Scale,
+  Ruler,
 } from "lucide-react";
 
 const GOLD_INGOT_CATEGORY_SLUG = "gold-ingot";
@@ -84,6 +87,7 @@ export default function GoldIngotPage() {
                 const variant = product.variants[0];
                 if (!variant) return null;
                 const justAdded = addedId === variant.id;
+                const dimensions = findProductSpec(product, ["ابعاد", "اندازه"]);
 
                 return (
                   <div
@@ -112,10 +116,32 @@ export default function GoldIngotPage() {
                             <div className="flex items-center gap-1.5 mt-1">
                               <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
                               <span className="text-[11px] font-bold text-gray-500">
-                                {variant.weightGrams} گرم
+                                پلمپ امنیتی
                               </span>
                             </div>
                           </div>
+                        </div>
+                      </div>
+
+                      {/* ── وزن و ابعاد شمش ── */}
+                      <div className="grid grid-cols-2 gap-2 mb-4">
+                        <div className="bg-gray-50 rounded-xl px-3 py-2">
+                          <span className="flex items-center gap-1 text-[10px] text-gray-400">
+                            <Scale className="w-3 h-3" />
+                            وزن
+                          </span>
+                          <span className="block text-[12px] font-black text-gray-700 mt-0.5">
+                            {Number(variant.weightGrams).toLocaleString("fa-IR")} گرم
+                          </span>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl px-3 py-2">
+                          <span className="flex items-center gap-1 text-[10px] text-gray-400">
+                            <Ruler className="w-3 h-3" />
+                            ابعاد
+                          </span>
+                          <span className="block text-[12px] font-black text-gray-700 mt-0.5 truncate" title={dimensions ?? undefined}>
+                            {dimensions ?? "—"}
+                          </span>
                         </div>
                       </div>
 

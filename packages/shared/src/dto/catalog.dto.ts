@@ -7,10 +7,20 @@ import {
   IsInt,
   Length,
   IsIn,
+  IsBoolean,
+  Matches,
+  IsArray,
+  ArrayMaxSize,
+  ValidateNested,
 } from "class-validator";
-import { Transform } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import { ProductStatus, ProductPricingMode } from "../enums";
 import { GoldPurityKarat } from './product-pricing.dto';
+
+// اسلاگ: حروف کوچک انگلیسی، ارقام، حروف فارسی و خط تیره (بدون فاصله/خط تیره ابتدا و انتها)
+export const CATEGORY_SLUG_PATTERN = /^[a-z0-9\u0600-\u06FF]+(?:-[a-z0-9\u0600-\u06FF]+)*$/;
+const CATEGORY_SLUG_MESSAGE =
+  "اسلاگ فقط می‌تواند شامل حروف کوچک انگلیسی، ارقام، حروف فارسی و خط تیره (-) باشد";
 
 export class CreateCategoryDto {
   @IsString()
@@ -19,6 +29,8 @@ export class CreateCategoryDto {
 
   @IsOptional()
   @IsString()
+  @Length(2, 100)
+  @Matches(CATEGORY_SLUG_PATTERN, { message: CATEGORY_SLUG_MESSAGE })
   slug?: string;
 
   @IsOptional()
@@ -28,6 +40,10 @@ export class CreateCategoryDto {
   @IsOptional()
   @IsUUID()
   parentId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateCategoryDto {
@@ -38,11 +54,33 @@ export class UpdateCategoryDto {
 
   @IsOptional()
   @IsString()
-  description?: string;
+  @Length(2, 100)
+  @Matches(CATEGORY_SLUG_PATTERN, { message: CATEGORY_SLUG_MESSAGE })
+  slug?: string;
 
   @IsOptional()
+  @IsString()
+  description?: string;
+
+  // null = حذف دسته والد (انتقال به سطح اول)
+  @IsOptional()
   @IsUUID()
-  parentId?: string;
+  parentId?: string | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+// یک ردیف از مشخصات فنی محصول (مثلاً «ابعاد: ۲۰×۳۰ میلی‌متر»)
+export class ProductSpecificationDto {
+  @IsString()
+  @Length(1, 60)
+  label!: string;
+
+  @IsString()
+  @Length(1, 300)
+  value!: string;
 }
 
 export class CreateProductDto {
@@ -107,6 +145,13 @@ export class CreateProductDto {
   @IsOptional()
   @IsIn(Object.values(GoldPurityKarat))
   purityKarat?: GoldPurityKarat;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => ProductSpecificationDto)
+  specifications?: ProductSpecificationDto[];
 }
 
 export class UpdateProductDto {
@@ -127,6 +172,12 @@ export class UpdateProductDto {
   @IsOptional() @IsString() shortDescription?: string;
   @IsOptional() @IsString() metaKeywords?: string;
   @IsOptional() @IsIn(Object.values(GoldPurityKarat)) purityKarat?: GoldPurityKarat;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => ProductSpecificationDto)
+  specifications?: ProductSpecificationDto[];
 }
 
 export class CreateProductVariantDto {

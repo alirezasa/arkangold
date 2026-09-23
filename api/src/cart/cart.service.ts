@@ -86,9 +86,15 @@ export class CartService {
 
     const variant = await this.prisma.productVariant.findUnique({
       where: { id: variantId },
-      include: { product: true },
+      include: {
+        product: { include: { category: { select: { isActive: true } } } },
+      },
     });
-    if (!variant || variant.product.status !== 'ACTIVE') {
+    if (
+      !variant ||
+      variant.product.status !== 'ACTIVE' ||
+      !variant.product.category.isActive
+    ) {
       throw new NotFoundException('محصول یافت نشد');
     }
     if (variant.stockQuantity <= 0) {
@@ -134,8 +140,9 @@ export class CartService {
 
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
+      include: { category: { select: { isActive: true } } },
     });
-    if (!product || product.status !== 'ACTIVE') {
+    if (!product || product.status !== 'ACTIVE' || !product.category.isActive) {
       throw new NotFoundException('محصول یافت نشد');
     }
     if (!this.isWeightRangePricingMode(product.pricingMode)) {
@@ -260,9 +267,7 @@ export class CartService {
 
       // جلوگیری از خطای Stringification و Unsafe Call با تعریف اینترفیس
       const rawFinalPrice = result.finalPriceRial as
-        | { toString(): string }
-        | null
-        | undefined;
+        { toString(): string } | null | undefined;
       let finalUnitPriceRial = new Decimal(
         rawFinalPrice != null ? rawFinalPrice.toString() : '0',
       );
@@ -296,9 +301,7 @@ export class CartService {
       });
 
       const rawBasePrice = product?.basePriceRial as
-        | { toString(): string }
-        | null
-        | undefined;
+        { toString(): string } | null | undefined;
       let fallbackPrice = new Decimal(
         rawBasePrice != null ? rawBasePrice.toString() : '0',
       );

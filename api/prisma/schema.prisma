@@ -364,6 +364,8 @@ model ProductCategory {
   name        String
   slug        String            @unique
   description String?
+  // دسته غیرفعال (و محصولاتش) در فروشگاه نمایش داده نمی‌شود و قابل خرید نیست
+  isActive    Boolean           @default(true) @map("is_active")
   createdAt   DateTime          @default(now()) @map("created_at")
   id          String            @id @default(uuid()) @db.Uuid
   parentId    String?           @map("parent_id") @db.Uuid
@@ -400,6 +402,8 @@ model Product {
   purityKarat       GoldPurityKarat?          @map("purity_karat")
   shortDescription  String?                   @map("short_description")
   metaKeywords      String?                   @map("meta_keywords")
+  // مشخصات فنی ساختاریافته: [{ label: "ابعاد", value: "۲۰×۳۰ میلی‌متر" }, ...]
+  specifications    Json?
   pricingComponents ProductPricingComponent[]
   hologramCodes     HologramCode[]
 

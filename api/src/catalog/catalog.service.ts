@@ -43,10 +43,25 @@ export class CatalogService implements OnModuleInit {
     }
   }
 
+  // ادمین: همه دسته‌ها (فعال و غیرفعال) به‌همراه تعداد محصولات
   async listCategories() {
     return this.prisma.productCategory.findMany({
       orderBy: { name: 'asc' },
-      include: { children: true },
+      include: {
+        children: { orderBy: { name: 'asc' } },
+        _count: { select: { products: true, children: true } },
+      },
+    });
+  }
+
+  // فروشگاه: فقط دسته‌های فعال
+  async listActiveCategories() {
+    return this.prisma.productCategory.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      include: {
+        children: { where: { isActive: true }, orderBy: { name: 'asc' } },
+      },
     });
   }
 
@@ -57,11 +72,26 @@ export class CatalogService implements OnModuleInit {
       });
       if (!parent) throw new NotFoundException('دسته‌بندی والد یافت نشد');
     }
-    const slug = await this.generateUniqueSlug(
-      dto.slug || dto.name,
-      'productCategory',
-    );
-    return this.prisma.productCategory.create({ data: { ...dto, slug } });
+
+    // اسلاگ دستی باید دقیقاً همان‌طور که ادمین وارد کرده ذخیره شود؛
+    // فقط وقتی خالی است از روی نام ساخته می‌شود
+    let slug: string;
+    if (dto.slug) {
+      await this.assertCategorySlugAvailable(dto.slug);
+      slug = dto.slug;
+    } else {
+      slug = await this.generateUniqueSlug(dto.name, 'productCategory');
+    }
+
+    return this.prisma.productCategory.create({
+      data: {
+        name: dto.name,
+        slug,
+        description: dto.description,
+        parentId: dto.parentId,
+        isActive: dto.isActive ?? true,
+      },
+    });
   }
 
   async updateCategory(id: string, dto: UpdateCategoryDto) {
@@ -71,12 +101,97 @@ export class CatalogService implements OnModuleInit {
     if (!category) throw new NotFoundException('دسته‌بندی یافت نشد');
 
     if (dto.parentId) {
-      const parent = await this.prisma.productCategory.findUnique({
-        where: { id: dto.parentId },
-      });
-      if (!parent) throw new NotFoundException('دسته‌بندی والد یافت نشد');
+      await this.assertValidParent(id, dto.parentId);
     }
-    return this.prisma.productCategory.update({ where: { id }, data: dto });
+
+    if (dto.slug !== undefined && dto.slug !== category.slug) {
+      if (category.slug === GOLD_INGOT_CATEGORY_SLUG) {
+        throw new BadRequestException(
+          `اسلاگ دسته «${category.name}» توسط صفحه خرید شمش استفاده می‌شود و قابل تغییر نیست`,
+        );
+      }
+      await this.assertCategorySlugAvailable(dto.slug, id);
+    }
+
+    return this.prisma.productCategory.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        slug: dto.slug,
+        description: dto.description,
+        parentId: dto.parentId,
+        isActive: dto.isActive,
+      },
+    });
+  }
+
+  async deleteCategory(id: string) {
+    const category = await this.prisma.productCategory.findUnique({
+      where: { id },
+      include: { _count: { select: { products: true, children: true } } },
+    });
+    if (!category) throw new NotFoundException('دسته‌بندی یافت نشد');
+
+    if (category.slug === GOLD_INGOT_CATEGORY_SLUG) {
+      throw new BadRequestException(
+        `دسته «${category.name}» توسط صفحه خرید شمش استفاده می‌شود و قابل حذف نیست`,
+      );
+    }
+    // رابطه محصول ← دسته onDelete: Cascade است؛ حذف دسته‌ی دارای محصول
+    // تمام محصولاتش را هم پاک می‌کرد. پس فقط دسته‌ی خالی حذف می‌شود.
+    if (category._count.products > 0) {
+      throw new BadRequestException(
+        `این دسته ${category._count.products} محصول دارد و قابل حذف نیست. ابتدا محصولات را به دسته دیگری منتقل کنید یا دسته را غیرفعال کنید`,
+      );
+    }
+    if (category._count.children > 0) {
+      throw new BadRequestException(
+        'این دسته زیردسته دارد و قابل حذف نیست. ابتدا زیردسته‌ها را حذف یا منتقل کنید',
+      );
+    }
+
+    await this.prisma.productCategory.delete({ where: { id } });
+    return { message: 'دسته‌بندی حذف شد' };
+  }
+
+  private async assertCategorySlugAvailable(slug: string, exceptId?: string) {
+    const existing = await this.prisma.productCategory.findUnique({
+      where: { slug },
+      select: { id: true },
+    });
+    if (existing && existing.id !== exceptId) {
+      throw new ConflictException(
+        'این اسلاگ قبلاً برای دسته دیگری ثبت شده است',
+      );
+    }
+  }
+
+  // والد نباید خود دسته یا یکی از زیردسته‌هایش باشد (جلوگیری از حلقه)
+  private async assertValidParent(id: string, parentId: string) {
+    if (parentId === id) {
+      throw new BadRequestException('دسته نمی‌تواند والد خودش باشد');
+    }
+    let cursor: string | null = parentId;
+    const visited = new Set<string>();
+    while (cursor && !visited.has(cursor)) {
+      visited.add(cursor);
+      const node: { id: string; parentId: string | null } | null =
+        await this.prisma.productCategory.findUnique({
+          where: { id: cursor },
+          select: { id: true, parentId: true },
+        });
+      if (!node) {
+        if (cursor === parentId)
+          throw new NotFoundException('دسته‌بندی والد یافت نشد');
+        break;
+      }
+      if (node.parentId === id) {
+        throw new BadRequestException(
+          'زیردسته‌ی همین دسته نمی‌تواند والد آن باشد',
+        );
+      }
+      cursor = node.parentId;
+    }
   }
 
   // ─────────────────────────────────────────
@@ -134,6 +249,8 @@ export class CatalogService implements OnModuleInit {
 
     const where: Prisma.ProductWhereInput = {
       status: 'ACTIVE',
+      // محصولات دسته‌های غیرفعال در فروشگاه نمایش داده نمی‌شوند
+      category: { isActive: true },
       ...(effectiveCategoryId ? { categoryId: effectiveCategoryId } : {}),
       ...(excludeCategoryId ? { categoryId: { not: excludeCategoryId } } : {}),
       ...(query.search
@@ -188,14 +305,17 @@ export class CatalogService implements OnModuleInit {
         _count: { select: { pricingComponents: true } },
       },
     });
-    if (!product || product.status !== 'ACTIVE') {
+    if (!product || product.status !== 'ACTIVE' || !product.category.isActive) {
       throw new NotFoundException('محصول یافت نشد');
     }
     return this.toProductDto(product);
   }
   async getPublicPricingPreview(slug: string, weightGrams: number) {
-    const product = await this.prisma.product.findUnique({ where: { slug } });
-    if (!product || product.status !== 'ACTIVE') {
+    const product = await this.prisma.product.findUnique({
+      where: { slug },
+      include: { category: { select: { isActive: true } } },
+    });
+    if (!product || product.status !== 'ACTIVE' || !product.category.isActive) {
       throw new NotFoundException('محصول یافت نشد');
     }
     if (!product.purityKarat) {
@@ -284,6 +404,7 @@ export class CatalogService implements OnModuleInit {
         seoTitle: dto.seoTitle,
         seoDesc: dto.seoDesc,
         metaKeywords: dto.metaKeywords,
+        specifications: this.toSpecificationsJson(dto.specifications),
         pricingMode: this.toPrismaPricingMode(pricingMode),
         minWeightGrams:
           pricingMode === SharedProductPricingMode.WEIGHT_RANGE
@@ -355,6 +476,7 @@ export class CatalogService implements OnModuleInit {
       seoTitle: dto.seoTitle,
       seoDesc: dto.seoDesc,
       metaKeywords: dto.metaKeywords,
+      specifications: this.toSpecificationsJson(dto.specifications),
       status: dto.status,
       purityKarat: dto.purityKarat ?? undefined,
       pricingMode: this.toPrismaPricingMode(effectiveMode),
@@ -619,6 +741,30 @@ export class CatalogService implements OnModuleInit {
     }
   }
 
+  // ردیف‌های خالی حذف می‌شوند؛ آرایه خالی = پاک کردن مشخصات
+  private toSpecificationsJson(
+    specs: { label: string; value: string }[] | undefined,
+  ): Prisma.InputJsonValue | typeof Prisma.DbNull | undefined {
+    if (specs === undefined) return undefined;
+    const rows = specs
+      .map((s) => ({ label: s.label.trim(), value: s.value.trim() }))
+      .filter((s) => s.label && s.value);
+    return rows.length ? rows : Prisma.DbNull;
+  }
+
+  private parseSpecifications(
+    value: unknown,
+  ): { label: string; value: string }[] {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((row: unknown) => {
+      if (!row || typeof row !== 'object') return [];
+      const { label, value: v } = row as { label?: unknown; value?: unknown };
+      return typeof label === 'string' && typeof v === 'string'
+        ? [{ label, value: v }]
+        : [];
+    });
+  }
+
   private toOptionalNumber(value: unknown): number | undefined {
     if (value === null || value === undefined) return undefined;
     const numericValue = Number(value);
@@ -694,6 +840,8 @@ export class CatalogService implements OnModuleInit {
     name: string;
     slug: string;
     description: string | null;
+    shortDescription?: string | null;
+    specifications?: unknown;
     basePriceRial: string | number | { toString(): string };
     status: string;
     pricingMode: string;
@@ -806,6 +954,8 @@ export class CatalogService implements OnModuleInit {
       name: p.name,
       slug: p.slug,
       description: p.description,
+      shortDescription: p.shortDescription ?? null,
+      specifications: this.parseSpecifications(p.specifications),
       basePriceToman: (baseRial / 10).toString(),
       status: p.status,
       pricingMode: p.pricingMode,

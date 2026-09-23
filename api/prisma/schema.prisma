@@ -930,7 +930,8 @@ model AdminAuditLog {
   id          String     @id @default(uuid()) @db.Uuid
   // در تلاش‌های ناموفق ورود (مثلاً نام کاربری نامعتبر) هنوز شناسه‌ی ادمین معتبر شناخته نشده است
   adminUserId String?    @map("admin_user_id") @db.Uuid
-  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id])
+  // Restrict صریح: پیش‌فرض رابطه‌ی اختیاری SetNull است که با حذف ادمین رکوردهای audit را تغییر می‌داد و زنجیره‌ی hash را می‌شکست
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: Restrict)
   action      String
   entityType  String?    @map("entity_type")
   entityId    String?    @map("entity_id")

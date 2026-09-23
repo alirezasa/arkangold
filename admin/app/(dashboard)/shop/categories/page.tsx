@@ -10,6 +10,9 @@ import {
   X,
   AlertCircle,
   Pencil,
+  Trash2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -32,7 +35,23 @@ interface CategoryItem {
   slug: string;
   description: string | null;
   parentId: string | null;
+  isActive: boolean;
   children?: CategoryItem[];
+  _count?: { products: number; children: number };
+}
+
+// اسلاگ رزرو شده برای صفحه «خرید شمش» در اپ — قابل تغییر/حذف نیست
+const GOLD_INGOT_CATEGORY_SLUG = "gold-ingot";
+
+// هم‌راستا با CATEGORY_SLUG_PATTERN در بک‌اند
+const SLUG_PATTERN = /^[a-z0-9\u0600-\u06FF]+(?:-[a-z0-9\u0600-\u06FF]+)*$/;
+
+function normalizeSlug(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9\u0600-\u06FF-]/g, "")
+    .replace(/-+/g, "-");
 }
 
 function CategoryModal({
@@ -47,21 +66,34 @@ function CategoryModal({
   onDone: () => void;
 }) {
   const [name, setName] = useState(editing?.name ?? "");
+  const [slug, setSlug] = useState(editing?.slug ?? "");
   const [description, setDescription] = useState(editing?.description ?? "");
   const [parentId, setParentId] = useState(editing?.parentId ?? "");
+  const [isActive, setIsActive] = useState(editing?.isActive ?? true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const slugLocked = editing?.slug === GOLD_INGOT_CATEGORY_SLUG;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError("نام دسته‌بندی را وارد کنید");
+    const cleanSlug = slug.replace(/^-+|-+$/g, "");
+    if (editing && !cleanSlug) return setError("اسلاگ را وارد کنید");
+    if (cleanSlug && (cleanSlug.length < 2 || !SLUG_PATTERN.test(cleanSlug)))
+      return setError(
+        "اسلاگ فقط می‌تواند شامل حروف کوچک انگلیسی، ارقام، حروف فارسی و خط تیره باشد",
+      );
     setLoading(true);
     setError(null);
     try {
       const payload = {
         name: name.trim(),
+        slug: cleanSlug || undefined,
         description: description.trim() || undefined,
-        parentId: parentId || undefined,
+        // در ویرایش، null یعنی انتقال به سطح اول
+        parentId: parentId || (editing ? null : undefined),
+        isActive,
       };
       if (editing) {
         await adminApi.patch(
@@ -80,7 +112,9 @@ function CategoryModal({
     }
   };
 
-  const selectableParents = categories.filter((c) => c.id !== editing?.id);
+  const selectableParents = categories.filter(
+    (c) => c.id !== editing?.id && c.parentId !== editing?.id,
+  );
 
   return (
     <div
@@ -115,6 +149,24 @@ function CategoryModal({
           onChange={(e) => setName(e.target.value)}
           className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500"
         />
+        <div className="space-y-1">
+          <label className="text-[11px] font-bold text-gray-500">
+            اسلاگ (آدرس URL)
+          </label>
+          <input
+            dir="ltr"
+            placeholder={editing ? "" : "خالی = ساخت خودکار از روی نام"}
+            value={slug}
+            disabled={slugLocked}
+            onChange={(e) => setSlug(normalizeSlug(e.target.value))}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500 text-left disabled:bg-gray-100 disabled:text-gray-400"
+          />
+          <p className="text-[10px] text-gray-400">
+            {slugLocked
+              ? "این اسلاگ توسط صفحه خرید شمش در اپ استفاده می‌شود و قابل تغییر نیست"
+              : "مثال: gold-ring — فقط حروف کوچک انگلیسی، ارقام، حروف فارسی و خط تیره"}
+          </p>
+        </div>
         <textarea
           placeholder="توضیحات (اختیاری)"
           value={description}
@@ -134,6 +186,18 @@ function CategoryModal({
             </option>
           ))}
         </select>
+
+        <label className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl border border-gray-200 cursor-pointer">
+          <span className="text-sm text-gray-700">
+            {isActive ? "فعال — در فروشگاه نمایش داده می‌شود" : "غیرفعال — در فروشگاه مخفی است"}
+          </span>
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+            className="w-4 h-4 accent-emerald-600"
+          />
+        </label>
 
         <button
           type="submit"
@@ -161,6 +225,44 @@ export default function CategoriesPage() {
   );
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<CategoryItem | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const toggleActive = async (c: CategoryItem) => {
+    if (
+      c.isActive &&
+      !confirm(
+        `دسته «${c.name}» غیرفعال شود؟ محصولات این دسته در فروشگاه نمایش داده نمی‌شوند و قابل خرید نخواهند بود.`,
+      )
+    )
+      return;
+    setBusyId(c.id);
+    setActionError(null);
+    try {
+      await adminApi.patch(`/api/admin/shop/categories/${c.id}`, {
+        isActive: !c.isActive,
+      });
+      await mutate();
+    } catch (err) {
+      setActionError(getErrorMessage(err, "خطا در تغییر وضعیت دسته‌بندی"));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (c: CategoryItem) => {
+    if (!confirm(`دسته «${c.name}» برای همیشه حذف شود؟`)) return;
+    setBusyId(c.id);
+    setActionError(null);
+    try {
+      await adminApi.delete(`/api/admin/shop/categories/${c.id}`);
+      await mutate();
+    } catch (err) {
+      setActionError(getErrorMessage(err, "خطا در حذف دسته‌بندی"));
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   return (
     <div>
@@ -179,6 +281,16 @@ export default function CategoriesPage() {
           <Plus className="w-4 h-4" /> دسته‌بندی جدید
         </button>
       </div>
+
+      {actionError && (
+        <div className="flex items-start gap-2 p-3 mb-4 rounded-xl bg-red-50 text-red-600 text-[13px] font-bold">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span className="flex-1">{actionError}</span>
+          <button onClick={() => setActionError(null)}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-16">
@@ -203,43 +315,98 @@ export default function CategoriesPage() {
                 <th>نام</th>
                 <th>اسلاگ</th>
                 <th>زیردسته‌ها</th>
+                <th>محصولات</th>
+                <th>وضعیت</th>
                 <th>عملیات</th>
               </tr>
             </thead>
             <tbody>
-              {data.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <Link
-                      href={`/shop/products?categoryId=${c.id}`}
-                      className="font-bold hover:underline"
-                      style={{ color: "var(--color-emerald)" }}
-                    >
-                      {c.name}
-                    </Link>
-                  </td>
-                  <td dir="ltr" className="text-left text-gray-400">
-                    {c.slug}
-                  </td>
-                  <td className="text-[12px] text-gray-500">
-                    {c.children?.length
-                      ? c.children.map((ch) => ch.name).join("، ")
-                      : "—"}
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => {
-                        setEditing(c);
-                        setShowModal(true);
-                      }}
-                      className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
-                      title="ویرایش"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {data.map((c) => {
+                const isReserved = c.slug === GOLD_INGOT_CATEGORY_SLUG;
+                const productCount = c._count?.products ?? 0;
+                const childCount = c._count?.children ?? c.children?.length ?? 0;
+                const canDelete = !isReserved && productCount === 0 && childCount === 0;
+                const busy = busyId === c.id;
+                return (
+                  <tr key={c.id} className={c.isActive ? "" : "opacity-60"}>
+                    <td>
+                      <Link
+                        href={`/shop/products?categoryId=${c.id}`}
+                        className="font-bold hover:underline"
+                        style={{ color: "var(--color-emerald)" }}
+                      >
+                        {c.name}
+                      </Link>
+                    </td>
+                    <td dir="ltr" className="text-left text-gray-400">
+                      {c.slug}
+                    </td>
+                    <td className="text-[12px] text-gray-500">
+                      {c.children?.length
+                        ? c.children.map((ch) => ch.name).join("، ")
+                        : "—"}
+                    </td>
+                    <td className="text-[12px] text-gray-500">
+                      {productCount.toLocaleString("fa-IR")}
+                    </td>
+                    <td>
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-lg text-[11px] font-bold ${
+                          c.isActive
+                            ? "bg-green-50 text-green-600"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {c.isActive ? "فعال" : "غیرفعال"}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setEditing(c);
+                            setShowModal(true);
+                          }}
+                          className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
+                          title="ویرایش"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => toggleActive(c)}
+                          disabled={busy}
+                          className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40"
+                          title={c.isActive ? "غیرفعال کردن" : "فعال کردن"}
+                        >
+                          {busy ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : c.isActive ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => remove(c)}
+                          disabled={busy || !canDelete}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                          title={
+                            isReserved
+                              ? "این دسته توسط صفحه خرید شمش استفاده می‌شود"
+                              : productCount > 0
+                                ? "دسته دارای محصول است؛ ابتدا محصولات را منتقل کنید یا دسته را غیرفعال کنید"
+                                : childCount > 0
+                                  ? "دسته دارای زیردسته است"
+                                  : "حذف"
+                          }
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

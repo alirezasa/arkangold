@@ -21,6 +21,10 @@ import {
   usePricingPreview,
   productImageUrl,
 } from "@/app/hooks/useShop";
+import {
+  ProductSpecTable,
+  ProductText,
+} from "@/app/dashboard/components/shop/ProductText";
 
 function fmtToman(v: string | number) {
   return Math.round(Number(v)).toLocaleString("fa-IR");
@@ -194,11 +198,7 @@ export default function ProductDetailPage() {
         </div>
 
         <div className="space-y-5">
-          {product.description && (
-            <p className="text-[13px] text-gray-600 leading-relaxed">
-              {product.description}
-            </p>
-          )}
+          <ProductText text={product.shortDescription} />
 
           {/* ══ حالت بازه‌وزنی ══ */}
           {isWeightRange && product.weightRange && (
@@ -406,6 +406,23 @@ export default function ProductDetailPage() {
           )}
         </div>
       </div>
+
+      {/* ── مشخصات فنی و توضیحات کامل (تمام‌عرض، زیر بخش خرید) ── */}
+      {product.specifications.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-[14px] font-black text-gray-800">مشخصات فنی</h2>
+          <ProductSpecTable rows={product.specifications} />
+        </section>
+      )}
+
+      {product.description?.trim() && (
+        <section className="space-y-3">
+          <h2 className="text-[14px] font-black text-gray-800">
+            توضیحات محصول
+          </h2>
+          <ProductText text={product.description} />
+        </section>
+      )}
     </div>
   );
 }

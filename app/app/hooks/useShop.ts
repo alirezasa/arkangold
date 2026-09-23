@@ -40,11 +40,18 @@ export interface WeightRangeInfo {
 
 export type ProductPricingMode = "FIXED" | "WEIGHT_RANGE";
 
+export interface ProductSpecification {
+  label: string;
+  value: string;
+}
+
 export interface ProductItem {
   id: string;
   name: string;
   slug: string;
   description: string | null;
+  shortDescription: string | null;
+  specifications: ProductSpecification[];
   basePriceToman: string;
   status: "ACTIVE" | "INACTIVE" | "OUT_OF_STOCK";
   pricingMode: ProductPricingMode;

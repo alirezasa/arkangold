@@ -114,11 +114,16 @@ export class ShopOrdersService {
     });
     if (!address) throw new NotFoundException('آدرس یافت نشد');
 
+    // دسته غیرفعال = محصولاتش قابل خرید نیستند
+    const categoryActive = { category: { select: { isActive: true } } };
     const cart = await this.prisma.cart.findUnique({
       where: { userId },
       include: {
         items: {
-          include: { variant: { include: { product: true } }, product: true },
+          include: {
+            variant: { include: { product: { include: categoryActive } } },
+            product: { include: categoryActive },
+          },
         },
       },
     });
@@ -140,7 +145,9 @@ export class ShopOrdersService {
 
     const unavailable = cart.items.find((item) => {
       const product = item.variant?.product ?? item.product;
-      return !product || product.status !== 'ACTIVE';
+      return (
+        !product || product.status !== 'ACTIVE' || !product.category.isActive
+      );
     });
 
     if (unavailable) {

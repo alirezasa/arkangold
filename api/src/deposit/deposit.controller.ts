@@ -22,6 +22,7 @@ import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { DepositService } from './deposit.service';
 import type { DepositStatusValue } from './deposit.state';
 import { CreateDepositRequestDto } from '@arkan-gold/shared';
+import { OwnedResource } from '../common/audit/owned-resource.decorator';
 
 interface AuthedRequest extends Request {
   user: {
@@ -72,6 +73,7 @@ export class DepositController {
     });
   }
 
+  @OwnedResource({ model: 'depositRequest', ownerPath: 'userId' })
   @Get(':id')
   @ApiOperation({
     summary: 'جزئیات درخواست واریز',
@@ -80,6 +82,7 @@ export class DepositController {
     return this.depositService.getOne(req.user.userId, id);
   }
 
+  @OwnedResource({ model: 'depositRequest', ownerPath: 'userId' })
   @Post(':id/receipt')
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @UseInterceptors(
@@ -112,6 +115,7 @@ export class DepositController {
     );
   }
 
+  @OwnedResource({ model: 'depositRequest', ownerPath: 'userId' })
   @Get(':id/receipts/:receiptId/url')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
@@ -125,6 +129,7 @@ export class DepositController {
     return this.depositService.getReceiptUrl(req.user.userId, id, receiptId);
   }
 
+  @OwnedResource({ model: 'depositRequest', ownerPath: 'userId' })
   @Post(':id/cancel')
   @ApiOperation({
     summary: 'لغو درخواست واریز',

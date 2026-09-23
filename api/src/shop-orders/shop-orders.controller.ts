@@ -22,6 +22,9 @@ import {
   PayShopOrderDto,
   GetShopOrdersQueryDto,
 } from '@arkan-gold/shared';
+import { OwnedResource } from '../common/audit/owned-resource.decorator';
+import { AuditService } from '../common/audit/audit.service';
+import { getBusinessRuleViolation } from '../common/audit/business-rule.util';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -32,7 +35,10 @@ interface AuthenticatedRequest extends Request {
 @UseGuards(JwtAuthGuard, ActiveUserGuard)
 @Controller('orders/shop')
 export class ShopOrdersController {
-  constructor(private readonly service: ShopOrdersService) {}
+  constructor(
+    private readonly service: ShopOrdersService,
+    private readonly auditService: AuditService,
+  ) {}
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post()
@@ -59,6 +65,7 @@ export class ShopOrdersController {
   async gatewayCallback(
     @Param('provider') provider: string,
     @Query() query: Record<string, string>,
+    @Req() req: Request,
     @Res() res: Response,
   ) {
     const providerKey = provider.toUpperCase() as 'ZARINPAL' | 'BEHPARDAKHT';
@@ -78,11 +85,26 @@ export class ShopOrdersController {
         ? `${frontendUrl}/dashboard/shop/cart?paymentStatus=success&orderId=${result.orderId}`
         : `${frontendUrl}/dashboard/shop/cart?paymentStatus=failed&orderId=${result.orderId}`;
       res.redirect(redirectTo);
-    } catch {
+    } catch (err) {
+      // این مسیر خطا را خودش مدیریت می‌کند و به AllExceptionsFilter نمی‌رسد؛
+      // بازپخش (replay) callback پرداخت به‌صورت صریح ثبت می‌شود (FAU_GEN_EXT.1.7)
+      const rule = getBusinessRuleViolation(err);
+      if (rule) {
+        void this.auditService.logUser({
+          userId: null,
+          action: 'security.business_rule_violation',
+          ip: req.ip,
+          userAgent: req.headers['user-agent'],
+          source: 'ShopOrdersController.gatewayCallback',
+          success: false,
+          newValue: { rule, provider: providerKey },
+        });
+      }
       res.redirect(`${frontendUrl}/dashboard/shop/cart?paymentStatus=error`);
     }
   }
 
+  @OwnedResource({ model: 'shopOrder', ownerPath: 'userId' })
   @Get(':id')
   @ApiOperation({ summary: 'جزئیات سفارش' })
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
@@ -90,6 +112,7 @@ export class ShopOrdersController {
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @OwnedResource({ model: 'shopOrder', ownerPath: 'userId' })
   @Post(':id/pay')
   @ApiOperation({ summary: 'پرداخت سفارش' })
   pay(
@@ -101,6 +124,7 @@ export class ShopOrdersController {
     return this.service.pay(req.user.userId, id, dto, idempotencyKey);
   }
 
+  @OwnedResource({ model: 'shopOrder', ownerPath: 'userId' })
   @Post(':id/cancel')
   @ApiOperation({ summary: 'لغو سفارش توسط کاربر (فقط قبل از پرداخت)' })
   cancel(@Req() req: AuthenticatedRequest, @Param('id') id: string) {

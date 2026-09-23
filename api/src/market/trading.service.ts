@@ -14,6 +14,7 @@ import {
   AccountingService,
   LedgerLineInput,
 } from '../accounting/accounting.service';
+import { businessRuleViolation } from '../common/audit/business-rule.util';
 
 type Side = 'BUY' | 'SELL';
 
@@ -210,7 +211,10 @@ export class TradingService {
 
           if (!lock) throw new NotFoundException('قفل قیمت یافت نشد');
           if (lock.userId !== userId) {
-            throw new ForbiddenException('این قفل قیمت متعلق به شما نیست');
+            throw businessRuleViolation(
+              new ForbiddenException('این قفل قیمت متعلق به شما نیست'),
+              'price_lock.not_owned',
+            );
           }
 
           if (lock.used) {
@@ -220,8 +224,11 @@ export class TradingService {
             if (relatedOrder && relatedOrder.status === 'COMPLETED') {
               return this.buildOrderResponse(relatedOrder, true);
             }
-            throw new BadRequestException(
-              'این قفل قیمت قبلاً پردازش شده است. لطفاً مجدداً قیمت را قفل کنید',
+            throw businessRuleViolation(
+              new BadRequestException(
+                'این قفل قیمت قبلاً پردازش شده است. لطفاً مجدداً قیمت را قفل کنید',
+              ),
+              'price_lock.replay',
             );
           }
 

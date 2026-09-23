@@ -18,6 +18,7 @@ import { Request } from 'express';
 import * as fs from 'fs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { LegalDocumentsService } from './legal-documents.service';
+import { OwnedResource } from '../common/audit/owned-resource.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -75,6 +76,7 @@ export class LegalDocumentsController {
     return this.service.list(req.user.userId);
   }
 
+  @OwnedResource({ model: 'legalProfileDocument', ownerPath: 'legalProfile.userId' })
   @Delete(':id')
   remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.remove(req.user.userId, id);

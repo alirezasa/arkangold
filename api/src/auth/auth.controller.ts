@@ -39,8 +39,11 @@ export class AuthController {
   @Public()
   @Post('verify-otp')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyOtp(dto);
+  async verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
+    return this.authService.verifyOtp(dto, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   @Public()
@@ -79,15 +82,21 @@ export class AuthController {
   @Public()
   @Post('forgot-password')
   @Throttle({ default: { limit: 3, ttl: 60000 } })
-  async forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto);
+  async forgotPassword(@Body() dto: ForgotPasswordDto, @Req() req: Request) {
+    return this.authService.forgotPassword(dto, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   @Public()
   @Post('verify-reset-otp')
   @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async verifyResetOtp(@Body() dto: VerifyOtpDto) {
-    return this.authService.verifyResetOtp(dto);
+  async verifyResetOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
+    return this.authService.verifyResetOtp(dto, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   @Public()

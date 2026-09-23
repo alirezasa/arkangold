@@ -22,6 +22,7 @@ import {
   GetPhysicalDeliveriesQueryDto,
 } from '@arkan-gold/shared';
 import { InvoiceService } from '../invoice/invoice.service';
+import { businessRuleViolation } from '../common/audit/business-rule.util';
 
 const D0 = new Prisma.Decimal(0);
 const HOLD_DURATION_DAYS = 30;
@@ -238,8 +239,11 @@ export class PhysicalDeliveryService {
         };
       }
       if (request.status !== 'PENDING') {
-        throw new ConflictException(
-          'فقط درخواست‌های در انتظار بررسی توسط کاربر قابل لغو هستند',
+        throw businessRuleViolation(
+          new ConflictException(
+            'فقط درخواست‌های در انتظار بررسی توسط کاربر قابل لغو هستند',
+          ),
+          'physical_delivery.cancel_invalid_state',
         );
       }
 

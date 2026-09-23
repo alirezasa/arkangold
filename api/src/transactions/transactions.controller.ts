@@ -10,6 +10,7 @@ import { TransactionsService } from './transactions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetTransactionsQueryDto } from '@arkan-gold/shared';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
+import { OwnedResource } from '../common/audit/owned-resource.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -44,6 +45,7 @@ export class TransactionsController {
     return this.transactionsService.getSummary(req.user.userId);
   }
 
+  @OwnedResource({ model: 'transaction', ownerPath: 'userId' })
   @Get(':id')
   @ApiOperation({ summary: 'جزئیات یک تراکنش' })
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {

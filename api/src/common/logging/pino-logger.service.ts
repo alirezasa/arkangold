@@ -4,6 +4,7 @@
 // برنامه، علاوه بر جدول audit که پیش‌تر ساخت‌یافته بود.
 import { LoggerService } from '@nestjs/common';
 import pino from 'pino';
+import { scrubSensitiveText } from './sensitive-text.util';
 
 const logger = pino({
   level: process.env.LOG_LEVEL ?? 'info',
@@ -18,13 +19,17 @@ function lastContext(params: unknown[]): string | undefined {
 }
 
 function toMessage(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (value instanceof Error) return value.message;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
+  let text: string;
+  if (typeof value === 'string') text = value;
+  else if (value instanceof Error) text = value.message;
+  else {
+    try {
+      text = JSON.stringify(value);
+    } catch {
+      text = String(value);
+    }
   }
+  return scrubSensitiveText(text);
 }
 
 export class PinoLoggerService implements LoggerService {
@@ -33,8 +38,11 @@ export class PinoLoggerService implements LoggerService {
   }
 
   error(message: unknown, ...optionalParams: unknown[]): void {
-    // امضای رایج NestJS: error(message, trace?, context?)
-    const trace = typeof optionalParams[0] === 'string' ? optionalParams[0] : undefined;
+    // امضای رایج NestJS: error(message, trace?, context?) — با یک پارامتر، آن پارامتر context است نه trace
+    const trace =
+      optionalParams.length >= 2 && typeof optionalParams[0] === 'string'
+        ? scrubSensitiveText(optionalParams[0])
+        : undefined;
     logger.error({ context: lastContext(optionalParams), trace }, toMessage(message));
   }
 

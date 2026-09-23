@@ -19,6 +19,7 @@ import {
   CreatePhysicalDeliveryDto,
   GetPhysicalDeliveriesQueryDto,
 } from '@arkan-gold/shared';
+import { OwnedResource } from '../common/audit/owned-resource.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -57,12 +58,14 @@ export class PhysicalDeliveryController {
     return this.service.list(req.user.userId, query);
   }
 
+  @OwnedResource({ model: 'physicalDeliveryRequest', ownerPath: 'userId' })
   @Get(':id')
   @ApiOperation({ summary: 'جزئیات یک درخواست' })
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.getOne(req.user.userId, id);
   }
 
+  @OwnedResource({ model: 'physicalDeliveryRequest', ownerPath: 'userId' })
   @Post(':id/cancel')
   @ApiOperation({ summary: 'لغو درخواست توسط کاربر (فقط قبل از تایید)' })
   cancel(@Req() req: AuthenticatedRequest, @Param('id') id: string) {

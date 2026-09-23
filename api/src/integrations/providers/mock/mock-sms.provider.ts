@@ -17,7 +17,13 @@ export class MockSmsProvider implements SmsProvider {
   private readonly logger = new Logger(MockSmsProvider.name);
 
   async send(input: SendSmsInput): Promise<SendSmsResult> {
-    this.logger.log(`[MOCK SMS] -> ${input.phone}: ${input.text}`);
+    // FAU_GEN_EXT.1.4: متن پیامک معمولاً کد OTP دارد؛ فقط با OTP_DEBUG_LOG در محیط غیر production چاپ می‌شود
+    const showText =
+      process.env.NODE_ENV !== 'production' &&
+      process.env.OTP_DEBUG_LOG === 'true';
+    this.logger.log(
+      `[MOCK SMS] -> ${input.phone}: ${showText ? input.text : `[${input.text.length} chars]`}`,
+    );
     await this.delay(150); // شبیه‌سازی تاخیر شبکه، مثل MockIdentityProvider
     return { sent: true, providerRequestId: `mock-${randomUUID()}` };
   }

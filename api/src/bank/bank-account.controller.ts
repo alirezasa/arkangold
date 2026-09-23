@@ -14,6 +14,7 @@ import { BankAccountService } from './bank-account.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AddBankAccountDto } from '@arkan-gold/shared';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
+import { OwnedResource } from '../common/audit/owned-resource.decorator';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -38,6 +39,7 @@ export class BankAccountController {
     return this.bankAccountService.addAccount(req.user.userId, dto);
   }
 
+  @OwnedResource({ model: 'bankAccount', ownerPath: 'userId' })
   @Patch(':id/set-default')
   @ApiOperation({ summary: 'تنظیم حساب پیش‌فرض' })
   setDefault(@Req() req: AuthenticatedRequest, @Param('id') accountId: string) {

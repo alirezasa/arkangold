@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   Logger,
   Inject,
@@ -28,6 +29,24 @@ import {
 import { OtpPurpose, UserType } from '../generated/prisma/client';
 
 const AUDIT_SOURCE = 'AuthService';
+
+const MAX_FAILED_PASSWORD_ATTEMPTS = 5;
+const LOCK_DURATION_MS = 15 * 60 * 1000;
+const OTP_ATTEMPTS_EXCEEDED_MSG = 'تعداد تلاش‌های مجاز به پایان رسید';
+
+interface RequestContext {
+  ip?: string;
+  userAgent?: string;
+}
+
+// FAU_GEN_EXT.1.4: کد OTP هرگز در لاگ عملیاتی ثبت نمی‌شود؛ فقط برای توسعه‌ی محلی
+// با فعال‌سازی صریح OTP_DEBUG_LOG=true و هیچ‌وقت در production.
+function isOtpDebugLogEnabled(): boolean {
+  return (
+    process.env.NODE_ENV !== 'production' &&
+    process.env.OTP_DEBUG_LOG === 'true'
+  );
+}
 
 // ── رابط‌های payload توکن‌ها ──
 interface TempTokenPayload {
@@ -73,16 +92,25 @@ export class AuthService {
       },
     });
 
-    this.logger.debug(`[OTP] ${phone} (${purpose}): ${otp}`);
+    if (isOtpDebugLogEnabled()) {
+      this.logger.debug(`[OTP] ${phone} (${purpose}): ${otp}`);
+    }
     return { message: 'کد تایید ارسال شد', expiresIn: 180 };
   }
 
   // ═══════════════════════════════════════════
-  async verifyOtp(dto: VerifyOtpDto) {
+  async verifyOtp(dto: VerifyOtpDto, ctx: RequestContext = {}) {
     const phone = this.normalizePhone(dto.phone);
 
     // ابتدا کد OTP بررسی شود
-    await this.validateOtp(phone, dto.code, OtpPurpose.REGISTER);
+    await this.validateOtpAudited(
+      phone,
+      dto.code,
+      OtpPurpose.REGISTER,
+      'auth.verify_register_otp',
+      null,
+      ctx,
+    );
 
     // فقط پس از صحیح بودن OTP، وجود کاربر بررسی شود
     const existingUser = await this.prisma.user.findUnique({
@@ -94,6 +122,16 @@ export class AuthService {
         'این شماره قبلاً ثبت‌نام کرده است. لطفاً وارد شوید.',
       );
     }
+
+    await this.auditService.logUser({
+      userId: null,
+      actorLabel: maskPhone(phone),
+      action: 'auth.verify_register_otp',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
 
     const payload: TempTokenPayload = {
       phone,
@@ -280,8 +318,31 @@ export class AuthService {
       throw new UnauthorizedException('حساب کاربری شما فعال نیست');
     }
 
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const minutesLeft = Math.ceil(
+        (user.lockedUntil.getTime() - Date.now()) / 60000,
+      );
+      await this.auditService.logUser({
+        userId: user.id,
+        actorLabel: maskedPhone,
+        action: 'auth.login',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'locked' },
+      });
+      throw new ForbiddenException(
+        `حساب شما به دلیل تلاش‌های ناموفق مکرر موقتاً قفل شده است. ${minutesLeft} دقیقه دیگر تلاش کنید یا با کد یک‌بارمصرف وارد شوید`,
+      );
+    }
+
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
+      await this.registerFailedPasswordAttempt(user.id, maskedPhone, {
+        ip,
+        userAgent,
+      });
       await this.auditService.logUser({
         userId: user.id,
         actorLabel: maskedPhone,
@@ -295,6 +356,11 @@ export class AuthService {
       throw new UnauthorizedException('شماره همراه یا رمز عبور نادرست است');
     }
 
+    await this.resetFailedPasswordAttempts(
+      user.id,
+      user.failedLoginCount,
+      user.lockedUntil,
+    );
     const tokens = await this.createSession(user.id, user.phone, ip, userAgent);
     await this.auditService.logUser({
       userId: user.id,
@@ -341,21 +407,21 @@ export class AuthService {
       );
     }
 
-    try {
-      await this.validateOtp(phone, dto.code, OtpPurpose.LOGIN);
-    } catch (err) {
-      await this.auditService.logUser({
-        userId: user.id,
-        actorLabel: maskedPhone,
-        action: 'auth.login_otp',
-        ip,
-        userAgent,
-        source: AUDIT_SOURCE,
-        success: false,
-      });
-      throw err;
-    }
+    await this.validateOtpAudited(
+      phone,
+      dto.code,
+      OtpPurpose.LOGIN,
+      'auth.login_otp',
+      user.id,
+      { ip, userAgent },
+    );
 
+    // ورود موفق با عامل «مالکیت شماره همراه»، قفل ناشی از رمز عبور را هم برطرف می‌کند
+    await this.resetFailedPasswordAttempts(
+      user.id,
+      user.failedLoginCount,
+      user.lockedUntil,
+    );
     const tokens = await this.createSession(user.id, user.phone, ip, userAgent);
     await this.auditService.logUser({
       userId: user.id,
@@ -379,9 +445,22 @@ export class AuthService {
   }
 
   // ═══════════════════════════════════════════
-  async forgotPassword(dto: ForgotPasswordDto) {
+  async forgotPassword(dto: ForgotPasswordDto, ctx: RequestContext = {}) {
     const phone = this.normalizePhone(dto.phone);
     const user = await this.prisma.user.findUnique({ where: { phone } });
+
+    // FAU_GEN_EXT.1.5 بند ۶: ثبت «درخواست» بازنشانی رمز (پاسخ به کلاینت در هر دو حالت یکسان می‌ماند)
+    await this.auditService.logUser({
+      userId: user?.id ?? null,
+      actorLabel: maskPhone(phone),
+      action: 'auth.forgot_password',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      source: AUDIT_SOURCE,
+      success: !!user,
+      newValue: user ? undefined : { reason: 'unknown_user' },
+    });
+
     if (!user) {
       return { message: 'در صورت وجود حساب کاربری، کد بازیابی ارسال خواهد شد' };
     }
@@ -403,16 +482,35 @@ export class AuthService {
       },
     });
 
-    this.logger.debug(`[Reset OTP] ${phone}: ${otp}`);
+    if (isOtpDebugLogEnabled()) {
+      this.logger.debug(`[Reset OTP] ${phone}: ${otp}`);
+    }
     return { message: 'در صورت وجود حساب کاربری، کد بازیابی ارسال خواهد شد' };
   }
 
-  async verifyResetOtp(dto: VerifyOtpDto) {
+  async verifyResetOtp(dto: VerifyOtpDto, ctx: RequestContext = {}) {
     const phone = this.normalizePhone(dto.phone);
-    await this.validateOtp(phone, dto.code, OtpPurpose.RESET_PASSWORD);
+    await this.validateOtpAudited(
+      phone,
+      dto.code,
+      OtpPurpose.RESET_PASSWORD,
+      'auth.verify_reset_otp',
+      null,
+      ctx,
+    );
 
     const user = await this.prisma.user.findUnique({ where: { phone } });
     if (!user) throw new NotFoundException('کاربر یافت نشد');
+
+    await this.auditService.logUser({
+      userId: user.id,
+      actorLabel: maskPhone(phone),
+      action: 'auth.verify_reset_otp',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
 
     const resetToken = this.jwtService.sign(
       {
@@ -436,16 +534,34 @@ export class AuthService {
         secret: this.configService.get<string>('JWT_RESET_SECRET'),
       });
     } catch {
+      await this.auditService.logUser({
+        userId: null,
+        action: 'auth.reset_password',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'invalid_or_expired_reset_token' },
+      });
       throw new UnauthorizedException('توکن بازیابی نامعتبر یا منقضی شده است');
     }
     if (payload.purpose !== 'reset_password') {
+      await this.auditService.logUser({
+        userId: null,
+        action: 'auth.reset_password',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'wrong_token_purpose' },
+      });
       throw new BadRequestException('توکن نامعتبر است');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
     await this.prisma.user.update({
       where: { id: payload.userId },
-      data: { passwordHash },
+      data: { passwordHash, failedLoginCount: 0, lockedUntil: null },
     });
     await this.prisma.userSession.deleteMany({
       where: { userId: payload.userId },
@@ -571,6 +687,86 @@ export class AuthService {
   // 🔧 متدهای کمکی خصوصی
   // ═══════════════════════════════════════════
 
+  /** اعتبارسنجی OTP همراه با ثبت هر تلاش ناموفق؛ اتمام دفعات مجاز یک سازوکار ضد-خودکارسازی است (FAU_GEN_EXT.1.7) */
+  private async validateOtpAudited(
+    phone: string,
+    code: string,
+    purpose: OtpPurpose,
+    action: string,
+    userId: string | null,
+    ctx: RequestContext,
+  ) {
+    try {
+      await this.validateOtp(phone, code, purpose);
+    } catch (err) {
+      const attemptsExceeded =
+        err instanceof BadRequestException &&
+        err.message === OTP_ATTEMPTS_EXCEEDED_MSG;
+      await this.auditService.logUser({
+        userId,
+        actorLabel: maskPhone(phone),
+        action,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: {
+          reason: attemptsExceeded ? 'otp_attempts_exceeded' : 'invalid_otp',
+        },
+      });
+      throw err;
+    }
+  }
+
+  private async registerFailedPasswordAttempt(
+    userId: string,
+    maskedPhone: string | null,
+    ctx: RequestContext,
+  ) {
+    // افزایش اتمیک تا تلاش‌های همزمان (از IPهای مختلف) کم‌شماری نشوند
+    const { failedLoginCount: newCount } = await this.prisma.user.update({
+      where: { id: userId },
+      data: { failedLoginCount: { increment: 1 } },
+      select: { failedLoginCount: true },
+    });
+
+    if (newCount >= MAX_FAILED_PASSWORD_ATTEMPTS) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          failedLoginCount: 0,
+          lockedUntil: new Date(Date.now() + LOCK_DURATION_MS),
+        },
+      });
+      // FAU_GEN_EXT.1.5 بند ۵: قفل‌شدن حساب به دلیل تلاش‌های ناموفق مکرر
+      await this.auditService.logUser({
+        userId,
+        actorLabel: maskedPhone,
+        action: 'auth.account_locked',
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: {
+          failedAttempts: newCount,
+          lockDurationMs: LOCK_DURATION_MS,
+        },
+      });
+    }
+  }
+
+  private async resetFailedPasswordAttempts(
+    userId: string,
+    currentCount: number,
+    lockedUntil: Date | null,
+  ) {
+    if (currentCount === 0 && !lockedUntil) return;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { failedLoginCount: 0, lockedUntil: null },
+    });
+  }
+
   private async validateOtp(phone: string, code: string, purpose: OtpPurpose) {
     const redisKey = `otp:${phone}:${purpose}`;
     const attemptsKey = `otp_attempts:${phone}:${purpose}`;
@@ -583,7 +779,7 @@ export class AuthService {
         await this.redis.del(redisKey);
         await this.redis.del(attemptsKey);
         await this.prisma.userOtp.deleteMany({ where: { phone, purpose } });
-        throw new BadRequestException('تعداد تلاش‌های مجاز به پایان رسید');
+        throw new BadRequestException(OTP_ATTEMPTS_EXCEEDED_MSG);
       }
 
       const valid = await bcrypt.compare(code, otpHashRedis);
@@ -608,7 +804,7 @@ export class AuthService {
       throw new BadRequestException('کد تایید منقضی شده یا نامعتبر است');
     if (otpRecord.attempts >= 5) {
       await this.prisma.userOtp.delete({ where: { id: otpRecord.id } });
-      throw new BadRequestException('تعداد تلاش‌های مجاز به پایان رسید');
+      throw new BadRequestException(OTP_ATTEMPTS_EXCEEDED_MSG);
     }
 
     const valid = await bcrypt.compare(code, otpRecord.codeHash);

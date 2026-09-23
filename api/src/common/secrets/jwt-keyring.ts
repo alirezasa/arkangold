@@ -25,6 +25,31 @@ function keyIdOf(secret: string): string {
   return createHash('sha256').update(`jwt-kid:${secret}`).digest('hex').slice(0, 16);
 }
 
+export interface JwtKeyStatus {
+  name: JwtKeyName;
+  configured: boolean;
+  bits: number;
+  keyId: string | null;
+  rotationInProgress: boolean;
+  previousKeyId: string | null;
+}
+
+/** وضعیت کلیدها برای پنل ادمین — فقط طول و شناسه، هرگز خود کلید */
+export function jwtKeyStatus(): JwtKeyStatus[] {
+  return JWT_KEY_NAMES.map((name) => {
+    const current = process.env[name];
+    const previous = process.env[`${name}_PREVIOUS`];
+    return {
+      name,
+      configured: !!current,
+      bits: current ? Buffer.byteLength(current, 'utf8') * 8 : 0,
+      keyId: current ? keyIdOf(current) : null,
+      rotationInProgress: !!previous,
+      previousKeyId: previous ? keyIdOf(previous) : null,
+    };
+  });
+}
+
 function requireSecret(name: JwtKeyName): string {
   const secret = process.env[name];
   if (!secret) throw new Error(`${name} تنظیم نشده است`);

@@ -54,6 +54,9 @@ const ACTION_LABELS: Record<string, string> = {
   "security.crypto_failure": "شکست عملیات رمزنگاری",
   "integrations.credentials.reencrypt": "رمزنگاری مجدد Credentialها (چرخش کلید)",
   "integrations.credential.set": "ثبت/تعویض Credential سرویس ثالث",
+  "security.credentials.reencrypt": "رمزنگاری مجدد Credentialها (پنل امنیت)",
+  "security.retention.run": "اجرای دستی پاک‌سازی داده‌های منقضی",
+  "system.retention_purge": "پاک‌سازی خودکار داده‌های منقضی",
   // مدیریت پنل
   "admin.create": "ایجاد ادمین",
   "admin.update": "ویرایش ادمین",

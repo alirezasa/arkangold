@@ -33,8 +33,16 @@ export const MANAGED_SECRET_NAMES: readonly string[] = [
   'VAULT_TOKEN',
   'VAULT_SECRET_ID',
 ];
+export type SecretSource = 'vault' | 'file' | 'env' | 'missing';
+const secretSources = new Map<string, 'vault' | 'file'>();
+
+/** منبع بارگذاری هر راز (برای نمایش وضعیت در پنل ادمین؛ هرگز مقدار را برنمی‌گرداند) */
+export function getSecretSource(name: string): SecretSource {
+  return secretSources.get(name) ?? (process.env[name] ? 'env' : 'missing');
+}
+
 /** HMAC-SHA256: کلید دست‌کم هم‌اندازه‌ی خروجی تابع درهم‌ساز (۲۵۶ بیت) */
-const MIN_JWT_SECRET_BYTES = 32;
+export const MIN_JWT_SECRET_BYTES = 32;
 
 function loadFileSecrets(providedByVault: Set<string>): string[] {
   const loaded: string[] = [];
@@ -42,6 +50,7 @@ function loadFileSecrets(providedByVault: Set<string>): string[] {
     const path = process.env[`${name}_FILE`];
     if (!path || providedByVault.has(name)) continue;
     process.env[name] = readFileSync(path, 'utf8').trim();
+    secretSources.set(name, 'file');
     loaded.push(name);
   }
   return loaded;
@@ -58,6 +67,7 @@ async function loadVaultSecrets(): Promise<string[]> {
   for (const [name, value] of Object.entries(secrets)) {
     if (!MANAGED_SECRET_NAMES.includes(name)) continue;
     process.env[name] = value;
+    secretSources.set(name, 'vault');
     loaded.push(name);
   }
   return loaded;

@@ -8,6 +8,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './common/audit/audit.module';
 import { RetentionModule } from './common/retention/retention.module';
+import { SecurityModule } from './security/security.module';
 import { AuthModule } from './auth/auth.module';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './users/users.module';
@@ -40,6 +41,7 @@ import { HologramModule } from './hologram/hologram.module';
     PrismaModule,
     AuditModule,
     RetentionModule,
+    SecurityModule,
     RedisModule,
     AuthModule,
     UsersModule,

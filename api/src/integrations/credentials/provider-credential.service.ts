@@ -110,6 +110,27 @@ export class ProviderCredentialService {
     );
   }
 
+  /** فهرست همه‌ی Credentialها با وضعیت کلید و چرخش — بدون رمزگشایی هیچ مقداری */
+  async inventory() {
+    const maxAgeMs = CREDENTIAL_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+    const rows = await this.prisma.integrationProviderCredential.findMany({
+      include: { provider: { select: { code: true, name: true } } },
+      orderBy: [{ providerId: 'asc' }, { key: 'asc' }],
+    });
+    return {
+      maxAgeDays: CREDENTIAL_MAX_AGE_DAYS,
+      items: rows.map((c) => ({
+        providerCode: c.provider.code,
+        providerName: c.provider.name,
+        key: c.key,
+        keyVersion: this.encryption.keyVersionOf(c.encryptedValue),
+        needsReencryption: this.encryption.needsReencryption(c.encryptedValue),
+        rotationDue: Date.now() - c.updatedAt.getTime() > maxAgeMs,
+        updatedAt: c.updatedAt,
+      })),
+    };
+  }
+
   /**
    * FCS_CKM_EXT.1.2: پس از چرخش کلید رمزنگاری، همه‌ی Credentialهایی که با کلید/قالب قدیمی
    * رمز شده‌اند با کلید فعلی دوباره رمز می‌شوند. پس از اجرای موفق، کلید قبلی را می‌توان

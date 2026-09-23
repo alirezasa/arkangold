@@ -15,6 +15,26 @@ export class RetentionService {
     private readonly auditService: AuditService,
   ) {}
 
+  /** تعداد رکوردهای منقضی که در اجرای بعدی حذف می‌شوند (برای پنل ادمین) */
+  async pendingCounts() {
+    const now = new Date();
+    const [userSessions, adminSessions, otps] = await Promise.all([
+      this.prisma.userSession.count({ where: { expiresAt: { lt: now } } }),
+      this.prisma.adminSession.count({ where: { expiresAt: { lt: now } } }),
+      this.prisma.userOtp.count({ where: { expiresAt: { lt: now } } }),
+    ]);
+    return { userSessions, adminSessions, otps };
+  }
+
+  async lastRun() {
+    const last = await this.prisma.auditLog.findFirst({
+      where: { action: 'system.retention_purge' },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true, newValue: true },
+    });
+    return last ? { at: last.createdAt, counts: last.newValue } : null;
+  }
+
   // هر روز ساعت ۰۳:۳۰ UTC
   @Cron('0 30 3 * * *', { name: 'security-retention', timeZone: 'UTC' })
   async purgeExpired(): Promise<Record<string, number>> {

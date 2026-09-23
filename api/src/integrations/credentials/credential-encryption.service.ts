@@ -215,6 +215,20 @@ export class CredentialEncryptionService implements OnModuleInit, OnModuleDestro
     }
   }
 
+  /** وضعیت backend و کلیدها برای پنل ادمین — فقط شناسه‌ها، هرگز خود کلید */
+  status() {
+    return {
+      backend: this.vault && this.transitKey ? 'vault-transit' : 'local-aes-256-gcm',
+      algorithm: ALGORITHM,
+      keyBits: KEY_LENGTH * 8,
+      ivBits: IV_LENGTH * 8,
+      tagBits: TAG_LENGTH * 8,
+      transitKey: this.transitKey,
+      currentKeyId: this.currentKeyId,
+      previousKeyIds: [...this.keys.keys()].filter((k) => k !== this.currentKeyId),
+    };
+  }
+
   /** نسخه‌ی کلید متن رمز — برای نمایش وضعیت چرخش در پنل ادمین */
   keyVersionOf(payload: string): string {
     if (payload.startsWith('vault:')) return payload.split(':').slice(0, 2).join(':');

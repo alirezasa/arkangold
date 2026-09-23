@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Package,
   FolderTree,
+  KeyRound,
 } from "lucide-react";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -298,6 +299,14 @@ export default function DashboardHomePage() {
               subtitle="مشاهده تاریخچه اقدامات ادمین‌ها"
               href="/audit-log"
               icon={ShieldAlert}
+            />
+          )}
+          {me?.permissions.includes("security.crypto.view") && (
+            <QuickLink
+              title="امنیت و رمزنگاری"
+              subtitle="وضعیت کلیدها، مدیریت اسرار و چرخش"
+              href="/security"
+              icon={KeyRound}
             />
           )}
         </div>

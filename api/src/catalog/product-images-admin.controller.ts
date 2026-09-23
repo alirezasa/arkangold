@@ -22,6 +22,7 @@ import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guar
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
 import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
+import { randomUUID } from 'crypto';
 
 const UPLOAD_DIR = './uploads/products';
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -59,7 +60,7 @@ export class ProductImagesAdminController {
       storage: diskStorage({
         destination: UPLOAD_DIR,
         filename: (_req, file, cb) => {
-          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
+          const unique = `${Date.now()}-${randomUUID()}${extname(file.originalname)}`;
           cb(null, unique);
         },
       }),

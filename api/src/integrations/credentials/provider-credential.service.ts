@@ -2,6 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CredentialEncryptionService } from './credential-encryption.service';
 
+// FCS_CKM_EXT.1.2: Credentialهای سرویس‌های ثالث (API Key، Client Secret) باید دوره‌ای تعویض شوند
+const CREDENTIAL_MAX_AGE_DAYS = Number(process.env.INTEGRATION_CREDENTIAL_MAX_AGE_DAYS ?? 180);
+
+/** زمینه‌ی AAD: متن رمز به همین Provider و همین کلید گره می‌خورد */
+function credentialContext(providerId: string, key: string): string {
+  return `${providerId}:${key}`;
+}
+
 @Injectable()
 export class ProviderCredentialService {
   constructor(
@@ -26,7 +34,10 @@ export class ProviderCredentialService {
       );
     }
 
-    return this.encryption.decrypt(credential.encryptedValue);
+    return this.encryption.decrypt(
+      credential.encryptedValue,
+      credentialContext(provider.id, key),
+    );
   }
 
   async getCredentials(
@@ -52,7 +63,10 @@ export class ProviderCredentialService {
     if (!provider)
       throw new NotFoundException(`Provider با کد ${providerCode} یافت نشد`);
 
-    const encryptedValue = this.encryption.encrypt(value);
+    const encryptedValue = await this.encryption.encrypt(
+      value,
+      credentialContext(provider.id, key),
+    );
 
     await this.prisma.integrationProviderCredential.upsert({
       where: { providerId_key: { providerId: provider.id, key } },
@@ -61,9 +75,16 @@ export class ProviderCredentialService {
     });
   }
 
-  async listMasked(
-    providerCode: string,
-  ): Promise<{ key: string; maskedValue: string; updatedAt: Date }[]> {
+  async listMasked(providerCode: string): Promise<
+    {
+      key: string;
+      maskedValue: string;
+      updatedAt: Date;
+      keyVersion: string;
+      needsReencryption: boolean;
+      rotationDue: boolean;
+    }[]
+  > {
     const provider = await this.prisma.integrationProvider.findUnique({
       where: { code: providerCode },
       include: { credentials: true },
@@ -71,12 +92,65 @@ export class ProviderCredentialService {
     if (!provider)
       throw new NotFoundException(`Provider با کد ${providerCode} یافت نشد`);
 
-    return provider.credentials.map((c) => ({
-      key: c.key,
-      maskedValue: this.encryption.maskForDisplay(
-        this.encryption.decrypt(c.encryptedValue),
-      ),
-      updatedAt: c.updatedAt,
-    }));
+    const maxAgeMs = CREDENTIAL_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+    return Promise.all(
+      provider.credentials.map(async (c) => ({
+        key: c.key,
+        maskedValue: this.encryption.maskForDisplay(
+          await this.encryption.decrypt(
+            c.encryptedValue,
+            credentialContext(provider.id, c.key),
+          ),
+        ),
+        updatedAt: c.updatedAt,
+        keyVersion: this.encryption.keyVersionOf(c.encryptedValue),
+        needsReencryption: this.encryption.needsReencryption(c.encryptedValue),
+        rotationDue: Date.now() - c.updatedAt.getTime() > maxAgeMs,
+      })),
+    );
+  }
+
+  /** فهرست همه‌ی Credentialها با وضعیت کلید و چرخش — بدون رمزگشایی هیچ مقداری */
+  async inventory() {
+    const maxAgeMs = CREDENTIAL_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+    const rows = await this.prisma.integrationProviderCredential.findMany({
+      include: { provider: { select: { code: true, name: true } } },
+      orderBy: [{ providerId: 'asc' }, { key: 'asc' }],
+    });
+    return {
+      maxAgeDays: CREDENTIAL_MAX_AGE_DAYS,
+      items: rows.map((c) => ({
+        providerCode: c.provider.code,
+        providerName: c.provider.name,
+        key: c.key,
+        keyVersion: this.encryption.keyVersionOf(c.encryptedValue),
+        needsReencryption: this.encryption.needsReencryption(c.encryptedValue),
+        rotationDue: Date.now() - c.updatedAt.getTime() > maxAgeMs,
+        updatedAt: c.updatedAt,
+      })),
+    };
+  }
+
+  /**
+   * FCS_CKM_EXT.1.2: پس از چرخش کلید رمزنگاری، همه‌ی Credentialهایی که با کلید/قالب قدیمی
+   * رمز شده‌اند با کلید فعلی دوباره رمز می‌شوند. پس از اجرای موفق، کلید قبلی را می‌توان
+   * از INTEGRATION_ENCRYPTION_KEYS_PREVIOUS حذف کرد (امحای کلید — FCS_CKM_EXT.1.3).
+   * updatedAt عمداً حفظ می‌شود تا تاریخ تعویض واقعی Credential (نه کلید) از دست نرود.
+   */
+  async reencryptAll(): Promise<{ total: number; reencrypted: number }> {
+    const credentials = await this.prisma.integrationProviderCredential.findMany();
+    let reencrypted = 0;
+    for (const c of credentials) {
+      if (!this.encryption.needsReencryption(c.encryptedValue)) continue;
+      const context = credentialContext(c.providerId, c.key);
+      const plain = await this.encryption.decrypt(c.encryptedValue, context);
+      const encryptedValue = await this.encryption.encrypt(plain, context);
+      await this.prisma.integrationProviderCredential.update({
+        where: { id: c.id },
+        data: { encryptedValue, updatedAt: c.updatedAt },
+      });
+      reencrypted += 1;
+    }
+    return { total: credentials.length, reencrypted };
   }
 }

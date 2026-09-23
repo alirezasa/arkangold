@@ -81,6 +81,15 @@ export class IntegrationsAdminController {
     return this.service.setCredential(code, dto.key, dto.value);
   }
 
+  /** FCS_CKM_EXT.1.2: رمزنگاری مجدد همه‌ی Credentialها با کلید فعلی، پس از چرخش کلید */
+  @Post('credentials/re-encrypt')
+  @RequirePermission('integrations.credentials.manage')
+  @AuditLog('integrations.credentials.reencrypt')
+  @UseInterceptors(AuditLogInterceptor)
+  reencryptCredentials() {
+    return this.service.reencryptCredentials();
+  }
+
   @Get('logs')
   @RequirePermission('integrations.view')
   listLogs(

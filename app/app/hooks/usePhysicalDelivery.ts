@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import axios from "axios";
 import useSWR from "swr";
+import { newIdempotencyKey } from "../utils/idempotency";
 
 export interface AddressItem {
   id: string;
@@ -80,9 +81,7 @@ export const useCreatePhysicalDelivery = () => {
       try {
         // کلید یکتای idempotency برای جلوگیری از ثبت تکراری روی retry/دابل‌کلیک
         const idempotencyKey =
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random()}`;
+          newIdempotencyKey();
 
         const res = await axios.post("/api/physical-delivery", payload, {
           headers: { "idempotency-key": idempotencyKey },

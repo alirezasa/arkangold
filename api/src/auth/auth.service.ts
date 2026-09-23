@@ -27,8 +27,16 @@ import {
   RefreshTokenDto,
 } from '@arkan-gold/shared';
 import { OtpPurpose, UserType } from '../generated/prisma/client';
+import {
+  jwtSignOptions,
+  jwtVerifyOptions,
+} from '../common/secrets/jwt-keyring';
+import { hashPassword } from '../common/crypto/password.util';
 
 const AUDIT_SOURCE = 'AuthService';
+
+// عمر توکن دسترسی کاربر: ۱۵ دقیقه (هم‌خوان با maxAge کوکی در BFF و مقدار expiresIn پاسخ)
+const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 
 const MAX_FAILED_PASSWORD_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000;
@@ -144,7 +152,7 @@ export class AuthService {
     }
 
     const tempToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_TEMP_SECRET'),
+      ...jwtSignOptions('JWT_TEMP_SECRET'),
       expiresIn: 600,
     });
 
@@ -158,9 +166,10 @@ export class AuthService {
   async setPassword(dto: SetPasswordDto, ip?: string, userAgent?: string) {
     let payload: TempTokenPayload;
     try {
-      payload = this.jwtService.verify<TempTokenPayload>(dto.tempToken, {
-        secret: this.configService.get<string>('JWT_TEMP_SECRET'),
-      });
+      payload = this.jwtService.verify<TempTokenPayload>(
+        dto.tempToken,
+        jwtVerifyOptions('JWT_TEMP_SECRET', dto.tempToken),
+      );
     } catch {
       throw new UnauthorizedException('توکن موقت نامعتبر یا منقضی شده است');
     }
@@ -190,7 +199,7 @@ export class AuthService {
       referrerId = referrer.id;
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const passwordHash = await hashPassword(dto.password);
     const referralCode = await this.generateReferralCode();
     const cardNumber = await this.generateCardNumber();
 
@@ -519,7 +528,7 @@ export class AuthService {
         userId: user.id,
       } as ResetTokenPayload,
       {
-        secret: this.configService.get<string>('JWT_RESET_SECRET'),
+        ...jwtSignOptions('JWT_RESET_SECRET'),
         expiresIn: 600,
       },
     );
@@ -530,9 +539,10 @@ export class AuthService {
   async resetPassword(dto: ResetPasswordDto, ip?: string, userAgent?: string) {
     let payload: ResetTokenPayload;
     try {
-      payload = this.jwtService.verify<ResetTokenPayload>(dto.resetToken, {
-        secret: this.configService.get<string>('JWT_RESET_SECRET'),
-      });
+      payload = this.jwtService.verify<ResetTokenPayload>(
+        dto.resetToken,
+        jwtVerifyOptions('JWT_RESET_SECRET', dto.resetToken),
+      );
     } catch {
       await this.auditService.logUser({
         userId: null,
@@ -558,7 +568,7 @@ export class AuthService {
       throw new BadRequestException('توکن نامعتبر است');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const passwordHash = await hashPassword(dto.password);
     await this.prisma.user.update({
       where: { id: payload.userId },
       data: { passwordHash, failedLoginCount: 0, lockedUntil: null },
@@ -829,14 +839,14 @@ export class AuthService {
     const accessToken = this.jwtService.sign(
       { sub: userId, phone, sessionId },
       {
-        secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
-        expiresIn: 1800, // ۱۵ دقیقه به ثانیه
+        ...jwtSignOptions('JWT_ACCESS_SECRET'),
+        expiresIn: ACCESS_TOKEN_TTL_SECONDS,
       },
     );
     const refreshToken = this.jwtService.sign(
       { sub: userId, phone, sessionId },
       {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+        ...jwtSignOptions('JWT_REFRESH_SECRET'),
         expiresIn: 7 * 24 * 60 * 60, // ۷ روز به ثانیه
       },
     );
@@ -865,11 +875,12 @@ export class AuthService {
       },
     });
 
-    return { accessToken, refreshToken, expiresIn: 900 };
+    return { accessToken, refreshToken, expiresIn: ACCESS_TOKEN_TTL_SECONDS };
   }
 
   private generateOtp(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    // FCS_RNG_EXT.1.1: مولد امن رمزنگاری (CSPRNG)، نه Math.random
+    return crypto.randomInt(100000, 1000000).toString();
   }
 
   private normalizePhone(phone: string): string {
@@ -885,7 +896,7 @@ export class AuthService {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
     for (let i = 0; i < 8; i++)
-      code += chars[Math.floor(Math.random() * chars.length)];
+      code += chars[crypto.randomInt(chars.length)];
     const exists = await this.prisma.user.findUnique({
       where: { referralCode: code },
     });
@@ -897,7 +908,7 @@ export class AuthService {
     let attempts = 0;
     while (attempts < 10) {
       let num = prefix;
-      for (let i = 0; i < 12; i++) num += Math.floor(Math.random() * 10);
+      for (let i = 0; i < 12; i++) num += crypto.randomInt(10);
       const exists = await this.prisma.wallet.findUnique({
         where: { cardNumber: num },
       });

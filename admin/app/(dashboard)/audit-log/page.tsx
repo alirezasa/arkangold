@@ -51,6 +51,12 @@ const ACTION_LABELS: Record<string, string> = {
   "security.horizontal_access_attempt": "تلاش دسترسی به داده‌ی کاربر دیگر",
   "security.business_rule_violation": "نقض قاعده‌ی کسب‌وکار",
   "security.rate_limit_exceeded": "عبور از محدودیت نرخ درخواست",
+  "security.crypto_failure": "شکست عملیات رمزنگاری",
+  "integrations.credentials.reencrypt": "رمزنگاری مجدد Credentialها (چرخش کلید)",
+  "integrations.credential.set": "ثبت/تعویض Credential سرویس ثالث",
+  "security.credentials.reencrypt": "رمزنگاری مجدد Credentialها (پنل امنیت)",
+  "security.retention.run": "اجرای دستی پاک‌سازی داده‌های منقضی",
+  "system.retention_purge": "پاک‌سازی خودکار داده‌های منقضی",
   // مدیریت پنل
   "admin.create": "ایجاد ادمین",
   "admin.update": "ویرایش ادمین",

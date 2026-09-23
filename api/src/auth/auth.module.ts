@@ -6,6 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { JWT_ALGORITHM } from '../common/secrets/jwt-keyring';
 
 @Module({
   imports: [
@@ -14,7 +15,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_ACCESS_SECRET'),
-        signOptions: { expiresIn: '30m' },
+        signOptions: { expiresIn: '30m', algorithm: JWT_ALGORITHM },
+        verifyOptions: { algorithms: [JWT_ALGORITHM] },
       }),
       inject: [ConfigService],
     }),

@@ -211,6 +211,16 @@ export const ADMIN_PERMISSIONS = [
     group: 'hologram',
     description: 'مدیریت IPهای مسدودشده و تنظیمات امنیتی استعلام هولوگرام',
   },
+  {
+    key: 'security.crypto.view',
+    group: 'security',
+    description: 'مشاهده وضعیت رمزنگاری، کلیدها و مدیریت اسرار',
+  },
+  {
+    key: 'security.crypto.manage',
+    group: 'security',
+    description: 'رمزنگاری مجدد Credentialها و اجرای پاک‌سازی داده‌های منقضی',
+  },
 ] as const;
 
 export type PermissionKey = (typeof ADMIN_PERMISSIONS)[number]['key'];

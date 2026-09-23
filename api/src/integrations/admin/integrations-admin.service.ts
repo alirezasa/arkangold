@@ -112,6 +112,11 @@ export class IntegrationsAdminService {
     return { message: 'Credential ذخیره شد' };
   }
 
+  async reencryptCredentials() {
+    const result = await this.credentials.reencryptAll();
+    return { message: 'رمزنگاری مجدد با کلید فعلی انجام شد', ...result };
+  }
+
   async listLogs(params: {
     providerCode?: string;
     serviceCode?: string;

@@ -16,6 +16,7 @@ import {
   Tags,
   Plug,
   ScanLine,
+  KeyRound,
 } from "lucide-react";
 
 export interface NavItem {
@@ -95,6 +96,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "مدیریت ادمین‌ها", href: "/admins", icon: UserCog, perm: "admin.manage" },
       { label: "گزارش فعالیت‌ها", href: "/audit-log", icon: ShieldAlert, perm: "admin.audit_log.view" },
+      { label: "امنیت و رمزنگاری", href: "/security", icon: KeyRound, perm: "security.crypto.view" },
     ],
   },
 ];

@@ -19,6 +19,7 @@ import * as fs from 'fs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { LegalDocumentsService } from './legal-documents.service';
 import { OwnedResource } from '../common/audit/owned-resource.decorator';
+import { randomUUID } from 'crypto';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -46,7 +47,7 @@ export class LegalDocumentsController {
       storage: diskStorage({
         destination: UPLOAD_DIR,
         filename: (_req, file, cb) => {
-          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname)}`;
+          const unique = `${Date.now()}-${randomUUID()}${extname(file.originalname)}`;
           cb(null, unique);
         },
       }),

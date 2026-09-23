@@ -11,6 +11,7 @@ import { RbacModule } from './rbac.module';
 import { AdminManagementController } from './admin-management.controller';
 import { AdminManagementService } from './admin-management.service';
 import { AdminAuditLogController } from './admin-audit-log.controller';
+import { JWT_ALGORITHM } from '../common/secrets/jwt-keyring';
 
 @Module({
   imports: [
@@ -20,7 +21,8 @@ import { AdminAuditLogController } from './admin-audit-log.controller';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_ADMIN_SECRET'),
-        signOptions: { expiresIn: '30m' },
+        signOptions: { expiresIn: '30m', algorithm: JWT_ALGORITHM },
+        verifyOptions: { algorithms: [JWT_ALGORITHM] },
       }),
       inject: [ConfigService],
     }),

@@ -53,7 +53,7 @@ const GROUP_TITLES: Record<string, string> = {
   delivery: "تحویل فیزیکی",
   shop: "فروشگاه",
   payroll: "پی‌رول",
-  referral: "معرفی دوستان",
+  referral: "دعوت از دوستان",
   accounting: "حسابداری",
   tickets: "تیکت‌ها",
   hologram: "هولوگرام",

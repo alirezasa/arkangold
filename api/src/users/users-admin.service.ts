@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, $Enums } from '../generated/prisma/client';
+import { ReferralService } from '../referral/referral.service';
 
 interface ListUsersQuery {
   page?: number;
@@ -12,7 +13,10 @@ interface ListUsersQuery {
 
 @Injectable()
 export class UsersAdminService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private referralService: ReferralService,
+  ) {}
 
   async list(query: ListUsersQuery) {
     const page = query.page ?? 1;
@@ -48,6 +52,7 @@ export class UsersAdminService {
             select: { firstName: true, lastName: true, status: true },
           },
           wallet: { select: { rialBalance: true, goldBalanceGrams: true } },
+          _count: { select: { sentReferrals: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -69,6 +74,8 @@ export class UsersAdminService {
         // اصلاح خطا: استفاده از String() برای تبدیل امن Decimal به رشته
         rialBalance: u.wallet ? String(u.wallet.rialBalance) : '0',
         goldBalanceGrams: u.wallet ? String(u.wallet.goldBalanceGrams) : '0',
+        // تعداد دوستانی که این کاربر با کد/لینک دعوتش ثبت‌نام کرده‌اند
+        referralCount: u._count.sentReferrals,
         createdAt: u.createdAt.toISOString(),
       })),
       page,
@@ -90,6 +97,11 @@ export class UsersAdminService {
       },
     });
     if (!user) throw new NotFoundException('کاربر یافت نشد');
+
+    const [referralStats, referredBy] = await Promise.all([
+      this.referralService.statsForReferrer(user.id),
+      this.referralService.referrerOf(user.id),
+    ]);
 
     return {
       id: user.id,
@@ -115,6 +127,8 @@ export class UsersAdminService {
         isDefault: b.isDefault,
       })),
       limits: user.limits,
+      referralStats,
+      referredBy,
       createdAt: user.createdAt.toISOString(),
     };
   }

@@ -44,6 +44,8 @@ export interface SessionPolicy {
 const DEPRECATED_KEYS = [
   'transfer.daily_limit_rial',
   'transfer.monthly_limit_rial',
+  // جایگزین با referral.reward_amount_mg (پاداش طلایی به میلی‌گرم)
+  'referral.reward_amount_grams',
 ];
 
 @Injectable()
@@ -57,6 +59,7 @@ export class SystemConfigService implements OnModuleInit {
 
   async onModuleInit() {
     await this.seedDefaults();
+    await this.migrateReferralGramsToMg();
     await this.removeDeprecatedKeys();
     await this.loadCache();
   }
@@ -72,6 +75,24 @@ export class SystemConfigService implements OnModuleInit {
     this.logger.log(
       `[SystemConfig] ${WALLET_CONFIG_DEFAULTS.length} کانفیگ پیش‌فرض seed شد`,
     );
+  }
+
+  /** انتقال مقدار کلید منسوخ پاداش طلایی (گرم) به کلید جدید (میلی‌گرم) پیش از حذف آن */
+  private async migrateReferralGramsToMg() {
+    const [legacy, current] = await Promise.all([
+      this.prisma.systemConfig.findUnique({
+        where: { key: 'referral.reward_amount_grams' },
+      }),
+      this.prisma.systemConfig.findUnique({
+        where: { key: 'referral.reward_amount_mg' },
+      }),
+    ]);
+    const grams = parseFloat(legacy?.value ?? '');
+    if (!legacy || !(grams > 0) || Number(current?.value ?? 0) > 0) return;
+    await this.prisma.systemConfig.update({
+      where: { key: 'referral.reward_amount_mg' },
+      data: { value: String(Math.round(grams * 10000) / 10) },
+    });
   }
 
   private async removeDeprecatedKeys() {

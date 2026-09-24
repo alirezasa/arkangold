@@ -10,6 +10,7 @@ import {
   Users as UsersIcon,
   ShieldCheck,
   ShieldAlert,
+  Gift,
 } from "lucide-react";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -23,6 +24,7 @@ interface UserItem {
   identityStatus: string | null;
   rialBalance: string;
   goldBalanceGrams: string;
+  referralCount: number;
   createdAt: string;
 }
 
@@ -75,7 +77,7 @@ export default function UsersPage() {
       </div>
 
       <div
-        className="rounded-2xl overflow-hidden"
+        className="rounded-2xl overflow-x-auto"
         style={{
           backgroundColor: "var(--color-surface)",
           border: "1px solid var(--color-border)",
@@ -89,19 +91,20 @@ export default function UsersPage() {
               <th>نوع</th>
               <th>احراز هویت</th>
               <th>موجودی طلا</th>
+              <th>دعوت از دوستان</th>
               <th>وضعیت</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="text-center py-10">
+                <td colSpan={7} className="text-center py-10">
                   <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-300" />
                 </td>
               </tr>
             ) : !data?.data?.length ? (
               <tr>
-                <td colSpan={6} className="text-center py-10">
+                <td colSpan={7} className="text-center py-10">
                   <div className="flex flex-col items-center gap-2">
                     <UsersIcon className="w-8 h-8 text-gray-200" />
                     <p className="text-[12px] text-gray-400 font-medium">
@@ -134,6 +137,19 @@ export default function UsersPage() {
                       )}
                     </td>
                     <td>{Number(u.goldBalanceGrams).toFixed(3)} گ</td>
+                    <td>
+                      {u.referralCount > 0 ? (
+                        <span
+                          className="badge inline-flex items-center gap-1"
+                          style={{ background: "#fdf4e3", color: "#b07d1e" }}
+                        >
+                          <Gift className="w-3 h-3" />
+                          {u.referralCount.toLocaleString("fa-IR")} نفر
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
                     <td>
                       <span
                         className="badge"

@@ -48,7 +48,7 @@ const GROUP_TITLES: Record<string, string> = {
   trade: "معاملات طلا",
   fee: "کارمزد",
   tax: "مالیات",
-  referral: "پاداش معرفی دوستان",
+  referral: "پاداش دعوت از دوستان",
   identity: "احراز هویت (KYC)",
   payment: "درگاه‌های پرداخت",
   company: "اطلاعات شرکت",

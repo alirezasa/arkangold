@@ -33,6 +33,7 @@ import {
 } from '../common/secrets/jwt-keyring';
 import { hashPassword } from '../common/crypto/password.util';
 import { SystemConfigService } from '../system-config/system-config.service';
+import { ReferralService } from '../referral/referral.service';
 import type { ChangePasswordDto } from './dto/change-password.dto';
 
 const AUDIT_SOURCE = 'AuthService';
@@ -80,6 +81,7 @@ export class AuthService {
     private auditService: AuditService,
     @Inject('REDIS_CLIENT') private redis: Redis,
     private systemConfig: SystemConfigService,
+    private referralService: ReferralService,
   ) {}
 
   // ═══════════════════════════════════════════
@@ -187,11 +189,11 @@ export class AuthService {
       throw new ConflictException('این شماره قبلاً ثبت‌نام کرده است');
     }
 
-    // کد معرف
+    // کد معرف (از لینک دعوت یا ورود دستی)
     let referrerId: string | null = null;
     if (dto.referralCode) {
       const referrer = await this.prisma.user.findUnique({
-        where: { referralCode: dto.referralCode },
+        where: { referralCode: dto.referralCode.trim().toUpperCase() },
       });
       if (!referrer) {
         throw new BadRequestException('کد معرف نامعتبر است');
@@ -259,6 +261,11 @@ export class AuthService {
 
       return newUser;
     });
+
+    // پاداش معرف در صورتی که زمان پرداخت «ثبت‌نام» تنظیم شده باشد (خطا ثبت‌نام را نمی‌شکند)
+    if (referrerId) {
+      await this.referralService.handleReferredUserEvent(user.id, 'SIGNUP');
+    }
 
     const tokens = await this.createSession(user.id, user.phone, ip, userAgent);
     await this.auditService.logUser({

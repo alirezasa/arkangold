@@ -625,6 +625,8 @@ model TaxConfig {
 
 model Referral {
   rewardClaimed Boolean          @default(false) @map("reward_claimed")
+  // زمان واریز پاداش دعوت به کیف پول معرف (null = هنوز پاداشی پرداخت نشده)
+  rewardedAt    DateTime?        @map("rewarded_at")
   createdAt     DateTime         @default(now()) @map("created_at")
   id            String           @id @default(uuid()) @db.Uuid
   referrerId    String           @map("referrer_id") @db.Uuid
@@ -649,6 +651,8 @@ model ReferralReward {
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
   user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([referralId])
+  @@index([userId])
   @@map("referral_rewards")
 }
 

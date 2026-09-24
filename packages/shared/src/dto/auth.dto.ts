@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import { IsPhoneNumber, IsString, Length, MinLength, MaxLength, IsOptional, IsIn, Matches, } from 'class-validator';
 
 export class SendOtpDto {
@@ -43,9 +44,13 @@ export class SetPasswordDto {
   @MaxLength(50)
   password!: string;
 
+  // کد دعوت (از لینک دعوت یا ورود دستی) — فاصله‌ها حذف و به حروف بزرگ تبدیل می‌شود
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() || undefined : value,
+  )
   @IsOptional()
   @IsString()
-  @Length(8, 8)
+  @Length(8, 8, { message: 'کد معرف باید ۸ کاراکتر باشد' })
   referralCode?: string;
 }
 

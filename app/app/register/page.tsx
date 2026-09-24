@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -11,8 +11,32 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
+  Gift,
 } from "lucide-react";
 import { useRegister } from "../hooks/useRegister";
+
+// کد دعوت دریافتی از لینک دعوت (/register?ref=CODE) — در sessionStorage نگه
+// داشته می‌شود تا با رفت‌وبرگشت بین صفحات ورود/ثبت‌نام از دست نرود
+const REF_STORAGE_KEY = "arkan.referralCode";
+const REF_CODE_PATTERN = /^[A-Z0-9]{8}$/;
+
+const subscribeNoop = () => () => {};
+const serverInviteCode = () => "";
+
+function readInviteCode(): string {
+  const fromUrl =
+    new URLSearchParams(window.location.search)
+      .get("ref")
+      ?.trim()
+      .toUpperCase() ?? "";
+  if (REF_CODE_PATTERN.test(fromUrl)) return fromUrl;
+  try {
+    const stored = sessionStorage.getItem(REF_STORAGE_KEY) ?? "";
+    return REF_CODE_PATTERN.test(stored) ? stored : "";
+  } catch {
+    return "";
+  }
+}
 
 // آرایه متون اسلایدر
 const SLIDES = [
@@ -42,7 +66,8 @@ export default function RegisterPage() {
     otp: ["", "", "", "", "", ""],
     password: "",
     confirmPassword: "",
-    referralCode: "",
+    // null یعنی کاربر فیلد را دستکاری نکرده و کد دعوتِ لینک استفاده می‌شود
+    referralCode: null as string | null,
   });
 
   // استیت‌های افکت تایپی (Typewriter)
@@ -51,6 +76,23 @@ export default function RegisterPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // کد دعوتی که از لینک دعوت آمده (برای نمایش بنر و پرکردن خودکار فیلد کد معرف)
+  const inviteCode = useSyncExternalStore(
+    subscribeNoop,
+    readInviteCode,
+    serverInviteCode,
+  );
+  const referralCode = formData.referralCode ?? inviteCode;
+
+  useEffect(() => {
+    if (!inviteCode) return;
+    try {
+      sessionStorage.setItem(REF_STORAGE_KEY, inviteCode);
+    } catch {
+      // دسترسی به sessionStorage ممکن نیست
+    }
+  }, [inviteCode]);
 
   // منطق افکت تایپی (Typewriter Effect)
   useEffect(() => {
@@ -114,9 +156,14 @@ export default function RegisterPage() {
       const success = await handleFinalize(
         formData.password,
         formData.confirmPassword,
-        formData.referralCode,
+        referralCode,
       );
       if (success) {
+        try {
+          sessionStorage.removeItem(REF_STORAGE_KEY);
+        } catch {
+          // دسترسی به sessionStorage ممکن نیست
+        }
         router.replace("/dashboard");
       }
     }
@@ -221,6 +268,20 @@ export default function RegisterPage() {
               ))}
             </div>
           </div>
+
+          {/* بنر ورود از طریق لینک دعوت */}
+          {inviteCode && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl flex items-start gap-3 text-sm font-bold">
+              <Gift className="w-5 h-5 shrink-0 mt-0.5 text-gold-500" />
+              <p className="leading-relaxed">
+                شما با دعوت دوستتان وارد شده‌اید. کد دعوت{" "}
+                <span className="font-mono tracking-widest" dir="ltr">
+                  {inviteCode}
+                </span>{" "}
+                به‌صورت خودکار ثبت می‌شود.
+              </p>
+            </div>
+          )}
 
           {/* نمایش ارورها */}
           {error && (
@@ -342,9 +403,14 @@ export default function RegisterPage() {
               />
               <InputField
                 label="کد معرف (اختیاری)"
-                placeholder="مثال: X7Y2Z"
-                value={formData.referralCode}
-                onChange={(v) => setFormData({ ...formData, referralCode: v })}
+                placeholder="مثال: X7Y2Z9AB"
+                value={referralCode}
+                onChange={(v) =>
+                  setFormData({
+                    ...formData,
+                    referralCode: v.replace(/\s/g, "").toUpperCase().slice(0, 8),
+                  })
+                }
               />
             </div>
           )}

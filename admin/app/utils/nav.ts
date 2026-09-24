@@ -19,6 +19,7 @@ import {
   KeyRound,
   Bell,
   ShieldCheck,
+  Gift,
 } from "lucide-react";
 
 export interface NavItem {
@@ -62,6 +63,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "لیست کاربران", href: "/users", icon: Users, perm: "users.view" },
       { label: "پروفایل‌های حقوقی", href: "/legal-profiles", icon: Building2, perm: "legal_profile.view" },
       { label: "اعلان‌های کاربران", href: "/notifications", icon: Bell, perm: "notifications.view" },
+      { label: "دعوت از دوستان", href: "/referrals", icon: Gift, perm: "referral.view" },
     ],
   },
   {

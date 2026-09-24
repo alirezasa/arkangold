@@ -9,6 +9,7 @@ export type TxCategory =
   | "fee"
   | "shop"
   | "physical"
+  | "referral"
   | "other";
 export type TxStatus = "PENDING" | "COMPLETED" | "FAILED";
 
@@ -46,7 +47,13 @@ export interface TransactionsSummary {
   totalCount: number;
 }
 
-export type TxFilter = "ALL" | "BUY_GOLD" | "SELL_GOLD" | "DEPOSIT" | "WITHDRAWAL";
+export type TxFilter =
+  | "ALL"
+  | "BUY_GOLD"
+  | "SELL_GOLD"
+  | "DEPOSIT"
+  | "WITHDRAWAL"
+  | "REFERRAL_REWARD";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 

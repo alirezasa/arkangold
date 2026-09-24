@@ -12,6 +12,7 @@ interface Transaction {
   amountGrams?: string | number;
   amountToman?: string | number;
   status: "COMPLETED" | "PENDING" | "FAILED" | string;
+  description?: string | null;
   createdAt: string;
 }
 
@@ -40,15 +41,18 @@ const TYPE_LABELS: Record<string, string> = {
   SHOP_PURCHASE: "خرید فروشگاه",
   PHYSICAL_DELIVERY: "تحویل فیزیکی",
   REFUND: "بازگشت وجه",
-  REFERRAL_REWARD: "پاداش معرفی",
+  REFERRAL_REWARD: "پاداش دعوت از دوست",
   SALARY: "واریز حقوق",
   MANUAL_ADJUSTMENT: "تنظیم دستی ادمین",
 };
 
 export default function AdminTransactionsPage() {
   const [page, setPage] = useState(1);
+  const [type, setType] = useState("");
+  const qs = new URLSearchParams({ page: String(page), limit: "30" });
+  if (type) qs.set("type", type);
   const { data, isLoading } = useSWR<TransactionsResponse>(
-    `/api/admin/transactions?page=${page}&limit=30`,
+    `/api/admin/transactions?${qs.toString()}`,
     fetcher,
   );
 
@@ -57,9 +61,26 @@ export default function AdminTransactionsPage() {
       <h1 className="text-lg font-black text-gray-900 mb-1">
         تراکنش‌های کاربران
       </h1>
-      <p className="text-[12px] text-gray-400 mb-5">
-        {data ? `${data.total.toLocaleString("fa-IR")} تراکنش` : "..."}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
+        <p className="text-[12px] text-gray-400">
+          {data ? `${data.total.toLocaleString("fa-IR")} تراکنش` : "..."}
+        </p>
+        <select
+          value={type}
+          onChange={(e) => {
+            setType(e.target.value);
+            setPage(1);
+          }}
+          className="bg-white border border-gray-200 rounded-xl py-2 px-3 text-[12px] font-bold outline-none focus:border-gold-500"
+        >
+          <option value="">همه انواع تراکنش</option>
+          {Object.entries(TYPE_LABELS).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div
         className="rounded-2xl overflow-hidden"
@@ -103,7 +124,14 @@ export default function AdminTransactionsPage() {
                   <td dir="ltr" className="text-left">
                     {t.userPhone}
                   </td>
-                  <td>{TYPE_LABELS[t.type] ?? t.type}</td>
+                  <td>
+                    {TYPE_LABELS[t.type] ?? t.type}
+                    {t.type === "REFERRAL_REWARD" && t.description && (
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {t.description}
+                      </p>
+                    )}
+                  </td>
                   <td>
                     {t.amountGrams
                       ? `${Number(t.amountGrams).toFixed(3)} گ`

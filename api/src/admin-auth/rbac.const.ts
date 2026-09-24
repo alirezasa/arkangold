@@ -104,12 +104,12 @@ export const ADMIN_PERMISSIONS = [
   {
     key: 'referral.view',
     group: 'referral',
-    description: 'مشاهده معرفی‌ها و پاداش‌های پرداختی',
+    description: 'مشاهده دعوت از دوستان و پاداش‌های پرداختی',
   },
   {
     key: 'referral.manage',
     group: 'referral',
-    description: 'مدیریت تنظیمات پاداش معرفی',
+    description: 'مدیریت تنظیمات پاداش دعوت و پرداخت دستی پاداش',
   },
   {
     key: 'accounting.view',

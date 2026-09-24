@@ -123,6 +123,7 @@ export const USER_MENU_GROUPS: NavGroup[] = [
       { name: "اطلاعات حساب کاربری", icon: "ti-user-circle", path: "/dashboard/me" },
       { name: "حساب‌ها و کارت‌های بانکی", icon: "ti-credit-card", path: "/dashboard/cards" },
       { name: "امنیت و تغییر رمز عبور", icon: "ti-lock", path: "/dashboard/security" },
+      { name: "دعوت از دوستان", icon: "ti-gift", path: "/dashboard/referral" },
     ],
   },
   {
@@ -181,7 +182,11 @@ export const BOTTOM_NAV: NavItem[] = [
 ];
 
 /** مسیرهایی که پیش از تایید احراز هویت هم در دسترس هستند */
-export const IDENTITY_FREE_PATHS = ["/dashboard/identity", "/dashboard/support"];
+export const IDENTITY_FREE_PATHS = [
+  "/dashboard/identity",
+  "/dashboard/support",
+  "/dashboard/referral",
+];
 
 export function isIdentityFreePath(path: string) {
   return IDENTITY_FREE_PATHS.some(

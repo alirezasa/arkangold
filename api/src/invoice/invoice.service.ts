@@ -25,6 +25,7 @@ import type {
   InvoiceDocumentDto,
   InvoiceItemInput,
   ProformaExtraData,
+  SaleInvoiceExtraData,
 } from './invoice.types';
 
 type Tx = Prisma.TransactionClient;
@@ -35,7 +36,7 @@ interface IssueParams {
   sourceId: string;
   userId: string;
   items: InvoiceItemInput[];
-  extraData?: ProformaExtraData | null;
+  extraData?: ProformaExtraData | SaleInvoiceExtraData | null;
   expiresAt?: Date | null;
   status?: 'ISSUED' | 'PAID';
 }
@@ -349,9 +350,15 @@ export class InvoiceService {
     });
     if (!order) throw new NotFoundException('سفارش یافت نشد');
 
+    const lineDiscounts = this.allocateDiscount(
+      order.items.map((it) => Number(it.priceRial) * it.quantity),
+      Number(order.discountRial),
+    );
+
     const items: InvoiceItemInput[] = order.items.map((it, idx) => {
       const b = this.parseBreakdown(it.priceBreakdown);
       const lineTotal = Number(it.priceRial) * it.quantity;
+      const lineDiscount = lineDiscounts[idx];
 
       return {
         rowNo: idx + 1,
@@ -366,12 +373,12 @@ export class InvoiceService {
           ? Number(it.selectedWeightGrams)
           : null,
         unitPriceRial: Number(it.priceRial),
-        discountRial: 0,
+        discountRial: lineDiscount,
         makingRial: b.making * it.quantity,
         feeRial: b.commission * it.quantity,
         taxRate: b.taxRate,
         taxRial: b.tax * it.quantity,
-        totalRial: lineTotal,
+        totalRial: lineTotal - lineDiscount,
         meta: it.priceBreakdown ?? undefined,
       };
     });
@@ -382,8 +389,39 @@ export class InvoiceService {
       sourceId: order.id,
       userId: order.userId,
       items,
+      extraData:
+        Number(order.discountRial) > 0
+          ? { discountCode: order.discountCodeText }
+          : null,
       status: 'PAID',
     });
+  }
+
+  /**
+   * تقسیم تخفیف کل سفارش بین اقلام به نسبت مبلغ هر ردیف (به تومان کامل)؛
+   * باقیمانده گرد کردن به آخرین ردیف دارای مبلغ اضافه می‌شود تا جمع
+   * تخفیف ردیف‌ها دقیقاً برابر تخفیف سفارش باشد.
+   */
+  private allocateDiscount(lineTotals: number[], discountRial: number) {
+    const result = lineTotals.map(() => 0);
+    const subtotal = lineTotals.reduce((s, v) => s + v, 0);
+    if (discountRial <= 0 || subtotal <= 0) return result;
+
+    let allocated = 0;
+    lineTotals.forEach((line, idx) => {
+      const share = Math.floor((discountRial * line) / subtotal / 10) * 10;
+      result[idx] = Math.min(share, line);
+      allocated += result[idx];
+    });
+
+    let remainder = discountRial - allocated;
+    for (let idx = lineTotals.length - 1; idx >= 0 && remainder > 0; idx--) {
+      const room = lineTotals[idx] - result[idx];
+      const add = Math.min(room, remainder);
+      result[idx] += add;
+      remainder -= add;
+    }
+    return result;
   }
 
   /**
@@ -484,7 +522,15 @@ export class InvoiceService {
 
       company: invoice.companySnapshot as unknown as CompanySnapshot,
       customer: invoice.customerSnapshot as unknown as CustomerSnapshot,
-      extra: (invoice.extraData as unknown as ProformaExtraData) ?? null,
+      extra:
+        invoice.kind === 'PROFORMA'
+          ? ((invoice.extraData as unknown as ProformaExtraData) ?? null)
+          : null,
+      discountCode:
+        invoice.kind === 'INVOICE'
+          ? ((invoice.extraData as unknown as SaleInvoiceExtraData | null)
+              ?.discountCode ?? null)
+          : null,
 
       items: invoice.items.map((i) => ({
         rowNo: i.rowNo,

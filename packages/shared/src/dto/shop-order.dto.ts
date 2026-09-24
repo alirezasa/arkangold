@@ -7,6 +7,7 @@ import {
   ValidateIf,
   IsArray,
   ValidateNested,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaymentMethod } from '../enums';
@@ -23,6 +24,18 @@ export class CreateShopOrderDto {
   @ValidateNested({ each: true })
   @Type(() => ShopOrderItemRecipientDto)
   recipients?: ShopOrderItemRecipientDto[];
+
+  // کد تخفیف اختیاری — اعتبار و مبلغ آن در سرور و داخل تراکنش ثبت سفارش بررسی می‌شود
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  discountCode?: string;
+}
+
+export class ValidateDiscountCodeDto {
+  @IsString()
+  @MaxLength(40)
+  code!: string;
 }
 
 export type PaymentModeType = 'WALLET' | 'GATEWAY' | 'SPLIT';

@@ -71,6 +71,8 @@ export interface InvoiceDocument {
   company: CompanySnapshot;
   customer: CustomerSnapshot;
   extra: ProformaExtraData | null;
+  /** کد تخفیف اعمال‌شده روی فاکتور فروش */
+  discountCode?: string | null;
   items: InvoiceLine[];
   subtotalRial: string;
   discountRial: string;

@@ -35,6 +35,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { HologramModule } from './hologram/hologram.module';
 import { ReferralModule } from './referral/referral.module';
+import { DiscountModule } from './discount/discount.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { ReferralModule } from './referral/referral.module';
     TicketsModule,
     HologramModule,
     ReferralModule,
+    DiscountModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: AuditedThrottlerGuard }],
 })

@@ -154,6 +154,11 @@ function OrderCard({ order }: { order: ShopOrderDto }) {
           {fmtToman(order.totalToman)}
         </p>
         <p className="text-[10px] text-gray-400 mt-0.5">تومان</p>
+        {Number(order.discountToman) > 0 && (
+          <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
+            {fmtToman(order.discountToman)} ت تخفیف
+          </p>
+        )}
       </div>
     </Link>
   );

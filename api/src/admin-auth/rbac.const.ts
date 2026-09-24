@@ -50,6 +50,16 @@ export const ADMIN_PERMISSIONS = [
     description: 'مدیریت محصولات، دسته‌بندی‌ها و سفارشات فروشگاه',
   },
   { key: 'shop.view', group: 'shop', description: 'مشاهده سفارشات فروشگاه' },
+  {
+    key: 'discount.view',
+    group: 'shop',
+    description: 'مشاهده کدهای تخفیف و گزارش استفاده از آن‌ها',
+  },
+  {
+    key: 'discount.manage',
+    group: 'shop',
+    description: 'ایجاد، ویرایش، غیرفعال‌سازی و حذف کدهای تخفیف',
+  },
 
   {
     key: 'transactions.view',
@@ -262,6 +272,7 @@ export const ADMIN_ROLES = [
       'deposit.approve',
       'invoice.view',
       'invoice.manage',
+      'discount.view',
       'hologram.code.view',
       'hologram.code.assign',
       'hologram.code.revoke',
@@ -319,6 +330,8 @@ export const ADMIN_ROLES = [
     permissions: [
       'shop.manage',
       'shop.view',
+      'discount.view',
+      'discount.manage',
       'hologram.batch.manage',
       'hologram.code.view',
       'hologram.code.assign',

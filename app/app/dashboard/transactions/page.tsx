@@ -164,6 +164,13 @@ function TxDetailModal({
         label: "مالیات",
         value: `${toToman(tx.taxToman)} تومان`,
       },
+    tx.discountToman &&
+      Number(tx.discountToman) > 0 && {
+        label: tx.discountCode
+          ? `تخفیف سفارش (کد ${tx.discountCode})`
+          : "تخفیف سفارش",
+        value: `${toToman(tx.discountToman)} تومان`,
+      },
     { label: "تاریخ", value: `${date} - ${time}` },
     { label: "شناسه تراکنش", value: tx.id.slice(0, 8) + "…" },
   ].filter(Boolean) as { label: string; value: string; big?: boolean }[];

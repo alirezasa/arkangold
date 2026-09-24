@@ -20,6 +20,7 @@ import {
   Bell,
   ShieldCheck,
   Gift,
+  TicketPercent,
 } from "lucide-react";
 
 export interface NavItem {
@@ -72,6 +73,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "محصولات", href: "/shop/products", icon: Package, perm: "shop.manage" },
       { label: "دسته‌بندی‌ها", href: "/shop/categories", icon: FolderTree, perm: "shop.manage" },
       { label: "سفارشات فروشگاه", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
+      { label: "کدهای تخفیف", href: "/discount-codes", icon: TicketPercent, perm: "discount.view" },
     ],
   },
   {

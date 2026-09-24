@@ -1,5 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 import { TransactionsAdminService } from './transactions-admin.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
@@ -15,6 +15,8 @@ class AdminListTransactionsQueryDto {
   @IsOptional() @IsString() userId?: string;
   @IsOptional() @IsString() type?: string;
   @IsOptional() @IsString() status?: string;
+  // فقط تراکنش‌های خرید فروشگاه که کد تخفیف داشته‌اند
+  @IsOptional() @IsIn(['true', 'false']) hasDiscount?: string;
 }
 
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
@@ -32,6 +34,7 @@ export class TransactionsAdminController {
       // رفع خطا: کست کردن ایمن با واسطه unknown به جای any مستقیم برای هماهنگی با تایپ‌های تعریف شده در متد سرویس
       type: query.type ? (query.type as unknown as never) : undefined,
       status: query.status ? (query.status as unknown as never) : undefined,
+      hasDiscount: query.hasDiscount === 'true',
     });
   }
 }

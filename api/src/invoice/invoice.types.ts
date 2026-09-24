@@ -40,6 +40,11 @@ export interface ProformaExtraData {
   requestNumber: string;
 }
 
+/** داده اضافه فاکتور فروش فروشگاه */
+export interface SaleInvoiceExtraData {
+  discountCode: string | null;
+}
+
 export interface InvoiceItemInput {
   rowNo: number;
   productCode?: string | null;
@@ -75,6 +80,8 @@ export interface InvoiceDocumentDto {
   company: CompanySnapshot;
   customer: CustomerSnapshot;
   extra: ProformaExtraData | null;
+  /** کد تخفیف اعمال‌شده روی فاکتور فروش (در صورت وجود) */
+  discountCode: string | null;
 
   items: {
     rowNo: number;

@@ -25,6 +25,9 @@ export interface TransactionItem {
   pricePerGramToman: string | null;
   feeToman: string | null;
   taxToman: string | null;
+  // تخفیف کد تخفیف سفارش فروشگاه مرتبط (در صورت وجود)
+  discountToman: string | null;
+  discountCode: string | null;
   sign: "plus" | "minus";
   createdAt: string;
   invoiceId: string | null;

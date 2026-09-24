@@ -117,6 +117,10 @@ export interface ShopOrderDto {
     | "SHIPPED"
     | "DELIVERED"
     | "CANCELLED";
+  // جمع اقلام قبل از تخفیف، مبلغ تخفیف و مبلغ نهایی قابل پرداخت (تومان)
+  subtotalToman: string;
+  discountToman: string;
+  discountCode: string | null;
   totalToman: string;
   trackingCode: string | null;
   invoiceId: string | null;
@@ -294,13 +298,56 @@ export interface CheckoutRecipient {
   recipientPhoneNumber?: string;
 }
 
+// ── کد تخفیف ──
+export interface DiscountPreview {
+  code: string;
+  description: string | null;
+  type: "PERCENT" | "FIXED";
+  value: string;
+  subtotalToman: string;
+  discountToman: string;
+  totalToman: string;
+  expiresAt: string | null;
+}
+
+/** بررسی کد تخفیف روی سبد فعلی — مبلغ نهایی واقعی هنگام ثبت سفارش در سرور محاسبه می‌شود */
+export const useValidateDiscount = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const validate = useCallback(async (code: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.post("/api/discount-codes/validate", { code });
+      return res.data as DiscountPreview;
+    } catch (e: unknown) {
+      if (axios.isAxiosError(e)) {
+        const msg = e.response?.data?.message;
+        setError(
+          Array.isArray(msg) ? msg[0] : msg || "خطا در بررسی کد تخفیف",
+        );
+      } else setError("خطای ناشناخته");
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { loading, error, setError, validate };
+};
+
 // ── ثبت سفارش (checkout) ──
 export const useCheckout = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const checkout = useCallback(
-    async (addressId: string, recipients?: CheckoutRecipient[]) => {
+    async (
+      addressId: string,
+      recipients?: CheckoutRecipient[],
+      discountCode?: string,
+    ) => {
       setLoading(true);
       setError(null);
       try {
@@ -309,7 +356,7 @@ export const useCheckout = () => {
 
         const res = await axios.post(
           "/api/orders/shop",
-          { addressId, recipients },
+          { addressId, recipients, discountCode: discountCode || undefined },
           { headers: { "idempotency-key": idempotencyKey } },
         );
         return res.data as ShopOrderDto;

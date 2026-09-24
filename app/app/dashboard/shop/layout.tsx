@@ -13,5 +13,12 @@ export default function ShopLayout({ children }: { children: ReactNode }) {
     return <>{children}</>;
   }
 
+  // سبد خرید بین زیورآلات و شمش مشترک است؛ کافی است یکی از دو خدمت فعال باشد
+  if (pathname.startsWith("/dashboard/shop/cart")) {
+    return (
+      <ServiceGate service={["jewelry", "goldIngot"]}>{children}</ServiceGate>
+    );
+  }
+
   return <ServiceGate service="jewelry">{children}</ServiceGate>;
 }

@@ -91,6 +91,17 @@ export const ADMIN_PERMISSIONS = [
   },
 
   {
+    key: 'notifications.view',
+    group: 'notifications',
+    description: 'مشاهده اعلان‌های درج‌شده برای کاربران',
+  },
+  {
+    key: 'notifications.manage',
+    group: 'notifications',
+    description: 'درج، ویرایش و حذف اعلان‌های کاربران',
+  },
+
+  {
     key: 'referral.view',
     group: 'referral',
     description: 'مشاهده معرفی‌ها و پاداش‌های پرداختی',
@@ -296,6 +307,8 @@ export const ADMIN_ROLES = [
       'tickets.close',
       'tickets.reopen',
       'tickets.manage_categories',
+      'notifications.view',
+      'notifications.manage',
     ] as PermissionKey[],
   },
   {

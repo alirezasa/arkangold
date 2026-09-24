@@ -1,9 +1,9 @@
 "use client";
 import { IdentityStatus } from "@arkan-gold/shared";
+import NotificationBell from "./NotificationBell";
 
 interface MobileHeaderProps {
   userName?: string;
-  notifCount?: number;
   identityStatus?: IdentityStatus | null;
 }
 
@@ -23,7 +23,6 @@ function statusLabel(status: IdentityStatus | null | undefined) {
 
 export default function MobileHeader({
   userName = "",
-  notifCount = 3,
   identityStatus,
 }: MobileHeaderProps) {
   const status = statusLabel(identityStatus);
@@ -49,24 +48,8 @@ export default function MobileHeader({
         </h1>
 
         <div className="flex min-w-0 items-center gap-2.5">
-          {/* دکمه اعلان‌ها */}
-          <button
-            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] text-white/90 transition-colors active:bg-white/20"
-            style={{ background: "rgba(255,255,255,.15)" }}
-            aria-label={`${notifCount} اعلان`}
-          >
-            <i className="ti ti-bell text-[18px]" aria-hidden="true" />
-            {notifCount > 0 && (
-              <span
-                className="absolute right-1 top-1 h-2 w-2 rounded-full border-2"
-                style={{
-                  background: "var(--color-red)",
-                  borderColor: "var(--color-emerald)",
-                }}
-                aria-hidden="true"
-              />
-            )}
-          </button>
+          {/* اعلان‌ها (درج‌شده توسط ادمین) */}
+          <NotificationBell variant="mobile" />
 
           {/* نام و نام خانوادگی کاربر و وضعیت احراز */}
           <div className="flex min-w-0 items-center gap-2 border-r border-white/10 pr-2.5">

@@ -26,6 +26,7 @@ import { ShopOrdersModule } from './shop-orders/shop-orders.module';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { PaymentGatewayModule } from './payment-gateway/payment-gateway.module';
 import { PayrollModule } from './payroll/payroll.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 import { StorageModule } from './common/storage/storage.module';
 import { DocumentSequenceModule } from './common/documents/document-sequence.module';
 import { InvoiceModule } from './invoice/invoice.module';
@@ -59,6 +60,7 @@ import { HologramModule } from './hologram/hologram.module';
     AdminAuthModule,
     PaymentGatewayModule,
     PayrollModule,
+    AnnouncementsModule,
     StorageModule, // Global
     DocumentSequenceModule, // Global
     InvoiceModule,

@@ -11,8 +11,11 @@ import {
 } from '../accounting/accounting.service';
 import { Prisma } from '../generated/prisma/client';
 import { CreatePayrollPlanDto, UpdatePayrollPlanDto } from '@arkan-gold/shared';
+import { PriceService } from '../market/price.service';
 
 const D0 = new Prisma.Decimal(0);
+// حداقل مقدار قابل پرداخت: ۱ میلی‌گرم
+const MIN_GRAMS = new Prisma.Decimal('0.001');
 
 @Injectable()
 export class PayrollService {
@@ -21,7 +24,58 @@ export class PayrollService {
   constructor(
     private prisma: PrismaService,
     private accountingService: AccountingService,
+    private priceService: PriceService,
   ) {}
+
+  // ══════════════════════════════════════════
+  // ── تبدیل مبلغ ریالی به طلا (دقت میلی‌گرم) ──
+  // ══════════════════════════════════════════
+  /** قیمت جاری هر گرم طلا (ریال) برای پیش‌نمایش در پنل ادمین */
+  async getGoldPrice() {
+    const priceRial = await this.priceService.getCurrentGoldPriceDecimal();
+    if (!priceRial || priceRial.lte(0)) {
+      throw new BadRequestException('قیمت لحظه‌ای طلا در دسترس نیست');
+    }
+    return {
+      pricePerGramRial: priceRial.toFixed(0),
+      pricePerGramToman: priceRial.div(10).toFixed(0),
+    };
+  }
+
+  /** مبلغ ریالی ÷ قیمت هر گرم، رو به پایین تا دقت میلی‌گرم (۳ رقم اعشار) */
+  private rialToGrams(
+    amountRial: Prisma.Decimal,
+    pricePerGramRial: Prisma.Decimal,
+  ): Prisma.Decimal {
+    return amountRial
+      .div(pricePerGramRial)
+      .toDecimalPlaces(3, Prisma.Decimal.ROUND_DOWN);
+  }
+
+  private resolveAmounts(dto: {
+    amountType?: 'GRAMS' | 'RIAL';
+    amountGrams?: number;
+    amountRial?: number;
+  }) {
+    if (dto.amountType === 'RIAL') {
+      if (!dto.amountRial || dto.amountRial <= 0) {
+        throw new BadRequestException('مبلغ ریالی پلن را وارد کنید');
+      }
+      return {
+        amountType: 'RIAL' as const,
+        amountRial: new Prisma.Decimal(dto.amountRial),
+        amountGrams: D0,
+      };
+    }
+    if (!dto.amountGrams || dto.amountGrams <= 0) {
+      throw new BadRequestException('مقدار طلای پلن را وارد کنید');
+    }
+    return {
+      amountType: 'GRAMS' as const,
+      amountRial: null,
+      amountGrams: new Prisma.Decimal(dto.amountGrams),
+    };
+  }
 
   // ══════════════════════════════════════════
   // ── مدیریت پلن‌های پی‌رول ──
@@ -52,7 +106,7 @@ export class PayrollService {
     return this.prisma.payrollPlan.create({
       data: {
         name: dto.name,
-        amountGrams: new Prisma.Decimal(dto.amountGrams),
+        ...this.resolveAmounts(dto),
         executionDay: dto.executionDay,
         isActive: dto.isActive ?? true,
         startDate: dto.startDate ? new Date(dto.startDate) : null,
@@ -67,15 +121,28 @@ export class PayrollService {
   }
 
   async updatePlan(id: string, dto: UpdatePayrollPlanDto) {
-    await this.getPlan(id);
+    const plan = await this.getPlan(id);
+    // تغییر مبلغ/مبنا فقط وقتی یکی از فیلدهای مبلغ ارسال شده باشد
+    const amountChanged =
+      dto.amountType !== undefined ||
+      dto.amountGrams !== undefined ||
+      dto.amountRial !== undefined;
+    const amounts = amountChanged
+      ? this.resolveAmounts({
+          amountType: dto.amountType ?? plan.amountType,
+          amountGrams:
+            dto.amountGrams ??
+            (plan.amountGrams.gt(0) ? plan.amountGrams.toNumber() : undefined),
+          amountRial:
+            dto.amountRial ??
+            (plan.amountRial ? plan.amountRial.toNumber() : undefined),
+        })
+      : {};
     return this.prisma.payrollPlan.update({
       where: { id },
       data: {
         name: dto.name,
-        amountGrams:
-          dto.amountGrams !== undefined
-            ? new Prisma.Decimal(dto.amountGrams)
-            : undefined,
+        ...amounts,
         executionDay: dto.executionDay,
         isActive: dto.isActive,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
@@ -130,6 +197,29 @@ export class PayrollService {
       );
     }
 
+    // ── تعیین مقدار طلای هر کاربر ──
+    // پلن ریالی: یک‌بار با قیمت لحظه‌ای همین اجرا تبدیل می‌شود تا همه کاربران
+    // با قیمت یکسان شارژ شوند؛ قیمت استفاده‌شده در لاگ اجرا ثبت می‌شود.
+    let pricePerGramRial: Prisma.Decimal | null = null;
+    let gramsPerUser = plan.amountGrams;
+    if (plan.amountType === 'RIAL') {
+      if (!plan.amountRial || plan.amountRial.lte(0)) {
+        throw new BadRequestException('مبلغ ریالی پلن نامعتبر است');
+      }
+      pricePerGramRial = await this.priceService.getCurrentGoldPriceDecimal();
+      if (!pricePerGramRial || pricePerGramRial.lte(0)) {
+        throw new BadRequestException(
+          'قیمت لحظه‌ای طلا در دسترس نیست؛ اجرای پلن ریالی ممکن نیست',
+        );
+      }
+      gramsPerUser = this.rialToGrams(plan.amountRial, pricePerGramRial);
+    }
+    if (gramsPerUser.lt(MIN_GRAMS)) {
+      throw new BadRequestException(
+        'مقدار طلای قابل پرداخت کمتر از ۱ میلی‌گرم است؛ مبلغ پلن را افزایش دهید',
+      );
+    }
+
     const startedAt = new Date();
     let successful = 0;
     let failed = 0;
@@ -137,7 +227,13 @@ export class PayrollService {
 
     for (const planUser of plan.users) {
       try {
-        await this.payUser(plan.id, plan.name, planUser.userId, plan.amountGrams);
+        await this.payUser(
+          plan.id,
+          plan.name,
+          planUser.userId,
+          gramsPerUser,
+          pricePerGramRial,
+        );
         successful += 1;
         details.push({ userId: planUser.userId, status: 'SUCCESS' });
       } catch (err) {
@@ -167,6 +263,8 @@ export class PayrollService {
         details,
         startedAt,
         finishedAt: new Date(),
+        pricePerGramRial,
+        gramsPerUser,
       },
     });
   }
@@ -178,7 +276,12 @@ export class PayrollService {
     planName: string,
     userId: string,
     amountGrams: Prisma.Decimal,
+    pricePerGramRial: Prisma.Decimal | null,
   ) {
+    // قیمت فقط برای ثبت در شرح سند حسابداری پلن‌های ریالی استفاده می‌شود
+    const priceNote = pricePerGramRial
+      ? ` - قیمت هر گرم ${pricePerGramRial.toFixed(0)} ریال`
+      : '';
     await this.prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.findUnique({ where: { userId } });
       if (!wallet) throw new NotFoundException('کیف پول کاربر یافت نشد');
@@ -205,7 +308,7 @@ export class PayrollService {
       ];
 
       await this.accountingService.postJournal(tx, {
-        description: `پرداخت حقوق طلا - پلن ${planName} - کاربر ${userId}`,
+        description: `پرداخت حقوق طلا - پلن ${planName} - کاربر ${userId}${priceNote}`,
         totalRial: D0,
         totalGrams: amountGrams,
         lines,

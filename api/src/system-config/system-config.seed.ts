@@ -157,6 +157,31 @@ export const WALLET_CONFIG_DEFAULTS = [
     description: 'فعال بودن واریز مستقیم',
   },
 
+  // ══ زمان نشست‌ها (Session) ══
+  {
+    key: 'session.user.timeout_minutes',
+    value: '15',
+    description:
+      'مدت اعتبار نشست کاربران پس از ورود (دقیقه؛ بین ۵ تا ۱۴۴۰) — پس از آن کاربر باید دوباره وارد شود',
+  },
+  {
+    key: 'session.user.refresh_days',
+    value: '7',
+    description: 'حداکثر عمر توکن تمدید (Refresh) کاربران (روز؛ بین ۱ تا ۹۰)',
+  },
+  {
+    key: 'session.admin.timeout_minutes',
+    value: '30',
+    description:
+      'مدت اعتبار نشست ادمین‌ها پس از ورود (دقیقه؛ بین ۵ تا ۴۸۰) — پس از آن ادمین باید دوباره وارد شود',
+  },
+  {
+    key: 'session.admin.refresh_hours',
+    value: '24',
+    description:
+      'حداکثر عمر توکن تمدید (Refresh) ادمین‌ها (ساعت؛ بین ۱ تا ۱۶۸)',
+  },
+
   // ══ خدمات صفحه اصلی اپلیکیشن (بنرها) ══
   {
     key: 'service.melted_gold.enabled',

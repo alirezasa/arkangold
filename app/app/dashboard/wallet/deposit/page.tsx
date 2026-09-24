@@ -33,7 +33,6 @@ export default function DepositSelectPage() {
           iconColor: "text-blue-600",
           href: "/dashboard/wallet/deposit/online-gateway",
           enabled: config.online.enabled,
-          disabledMsg: "به زودی",
         },
         {
           key: "card-to-card",
@@ -95,7 +94,7 @@ export default function DepositSelectPage() {
           href: "/dashboard/wallet/deposit/direct",
           enabled: config.direct.enabled,
         },
-      ]
+      ].filter((method) => method.enabled) // روش‌های غیرفعال در پنل ادمین نمایش داده نمی‌شوند
     : [];
 
   return (
@@ -144,6 +143,22 @@ export default function DepositSelectPage() {
         <div className="flex justify-center py-12">
           <Loader2 className="w-7 h-7 animate-spin text-gray-400" />
         </div>
+      ) : methods.length === 0 ? (
+        <div
+          className="flex flex-col items-center gap-2 rounded-2xl px-4 py-10 text-center"
+          style={{
+            backgroundColor: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <AlertCircle className="w-7 h-7 text-gray-300" />
+          <p className="text-[13px] font-bold text-gray-500">
+            در حال حاضر روش واریز فعالی وجود ندارد
+          </p>
+          <p className="text-[11px] text-gray-400">
+            لطفاً بعداً دوباره مراجعه کنید یا با پشتیبانی تماس بگیرید.
+          </p>
+        </div>
       ) : (
         <div
           className="rounded-2xl overflow-hidden"
@@ -169,24 +184,16 @@ export default function DepositSelectPage() {
                     >
                       {method.badge}
                     </span>
-                    {!method.enabled && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
-                        {(method as { disabledMsg?: string }).disabledMsg ??
-                          "غیرفعال"}
-                      </span>
-                    )}
                   </div>
                   <p className="text-[12px] text-gray-500 truncate">
                     {method.subtitle}
                   </p>
                 </div>
-                <ChevronLeft
-                  className={`w-4 h-4 shrink-0 ${method.enabled ? "text-gray-400" : "text-gray-200"}`}
-                />
+                <ChevronLeft className="w-4 h-4 shrink-0 text-gray-400" />
               </div>
             );
 
-            return method.enabled ? (
+            return (
               <Link
                 key={method.key}
                 href={method.href}
@@ -199,18 +206,6 @@ export default function DepositSelectPage() {
               >
                 {Inner}
               </Link>
-            ) : (
-              <div
-                key={method.key}
-                className="flex items-center px-4 py-4 opacity-50 cursor-not-allowed"
-                style={{
-                  backgroundColor: "var(--color-surface)",
-                  borderTop:
-                    idx > 0 ? "1px solid var(--color-border)" : undefined,
-                }}
-              >
-                {Inner}
-              </div>
             );
           })}
         </div>

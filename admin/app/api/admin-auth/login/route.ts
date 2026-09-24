@@ -12,7 +12,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const response = await axios.post(`${NEST_API_URL}/login`, body);
-    const { accessToken, refreshToken, admin } = response.data;
+    const { accessToken, refreshToken, admin, expiresIn, refreshExpiresIn } =
+      response.data;
 
     const res = NextResponse.json({ success: true, admin });
 
@@ -20,14 +21,15 @@ export async function POST(request: Request) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 30 * 60,
+      // عمر نشست از تنظیمات سیستم (session.admin.timeout_minutes)
+      maxAge: Number(expiresIn) || 30 * 60,
       path: "/",
     });
     res.cookies.set("adminRefreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 24 * 60 * 60,
+      maxAge: Number(refreshExpiresIn) || 24 * 60 * 60,
       path: "/",
     });
 

@@ -17,6 +17,7 @@ import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { jwtSignOptions } from '../common/secrets/jwt-keyring';
 import { hashPassword } from '../common/crypto/password.util';
+import { SystemConfigService } from '../system-config/system-config.service';
 
 const AUDIT_SOURCE = 'AdminAuthService';
 
@@ -37,6 +38,7 @@ export class AdminAuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private auditService: AuditService,
+    private systemConfig: SystemConfigService,
   ) {}
 
   async login(dto: LoginDto, ip?: string, userAgent?: string) {
@@ -262,19 +264,22 @@ export class AdminAuthService {
     userAgent?: string,
   ) {
     const sessionId = uuidv4();
+    // عمر نشست از تنظیمات سیستم (session.admin.*) — expiresIn پاسخ مبنای maxAge کوکی در BFF است
+    const { accessTtlSeconds, refreshTtlSeconds } =
+      await this.systemConfig.getSessionPolicy('admin');
 
     const accessToken = this.jwtService.sign(
       { sub: adminUserId, sessionId },
       {
         ...jwtSignOptions('JWT_ADMIN_SECRET'),
-        expiresIn: 1800, // ۳۰ دقیقه - کوتاه‌تر از کاربر عادی چون دسترسی حساس‌تری دارد
+        expiresIn: accessTtlSeconds,
       },
     );
     const refreshToken = this.jwtService.sign(
       { sub: adminUserId, sessionId },
       {
         ...jwtSignOptions('JWT_ADMIN_REFRESH_SECRET'),
-        expiresIn: 24 * 60 * 60, // ۱ روز - کوتاه‌تر از کاربر عادی
+        expiresIn: refreshTtlSeconds,
       },
     );
 
@@ -282,7 +287,7 @@ export class AdminAuthService {
       .createHash('sha256')
       .update(refreshToken)
       .digest('hex');
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + refreshTtlSeconds * 1000);
 
     await this.prisma.adminSession.create({
       data: {
@@ -295,7 +300,12 @@ export class AdminAuthService {
       },
     });
 
-    return { accessToken, refreshToken, expiresIn: 1800 };
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: accessTtlSeconds,
+      refreshExpiresIn: refreshTtlSeconds,
+    };
   }
   // api/src/admin-auth/admin-auth.service.ts
   // این متد را به کلاس AdminAuthService اضافه کنید

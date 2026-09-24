@@ -32,12 +32,10 @@ import {
   jwtVerifyOptions,
 } from '../common/secrets/jwt-keyring';
 import { hashPassword } from '../common/crypto/password.util';
+import { SystemConfigService } from '../system-config/system-config.service';
 import type { ChangePasswordDto } from './dto/change-password.dto';
 
 const AUDIT_SOURCE = 'AuthService';
-
-// عمر توکن دسترسی کاربر: ۱۵ دقیقه (هم‌خوان با maxAge کوکی در BFF و مقدار expiresIn پاسخ)
-const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 
 const MAX_FAILED_PASSWORD_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000;
@@ -81,6 +79,7 @@ export class AuthService {
     private configService: ConfigService,
     private auditService: AuditService,
     @Inject('REDIS_CLIENT') private redis: Redis,
+    private systemConfig: SystemConfigService,
   ) {}
 
   // ═══════════════════════════════════════════
@@ -902,18 +901,21 @@ export class AuthService {
     device?: string,
   ) {
     const sessionId = uuidv4();
+    // عمر نشست از تنظیمات سیستم (session.user.*) — expiresIn پاسخ مبنای maxAge کوکی در BFF است
+    const { accessTtlSeconds, refreshTtlSeconds } =
+      await this.systemConfig.getSessionPolicy('user');
     const accessToken = this.jwtService.sign(
       { sub: userId, phone, sessionId },
       {
         ...jwtSignOptions('JWT_ACCESS_SECRET'),
-        expiresIn: ACCESS_TOKEN_TTL_SECONDS,
+        expiresIn: accessTtlSeconds,
       },
     );
     const refreshToken = this.jwtService.sign(
       { sub: userId, phone, sessionId },
       {
         ...jwtSignOptions('JWT_REFRESH_SECRET'),
-        expiresIn: 7 * 24 * 60 * 60, // ۷ روز به ثانیه
+        expiresIn: refreshTtlSeconds,
       },
     );
 
@@ -926,8 +928,7 @@ export class AuthService {
       .update(accessToken)
       .digest('hex');
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    const expiresAt = new Date(Date.now() + refreshTtlSeconds * 1000);
 
     await this.prisma.userSession.create({
       data: {
@@ -941,7 +942,12 @@ export class AuthService {
       },
     });
 
-    return { accessToken, refreshToken, expiresIn: ACCESS_TOKEN_TTL_SECONDS };
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: accessTtlSeconds,
+      refreshExpiresIn: refreshTtlSeconds,
+    };
   }
 
   private generateOtp(): string {

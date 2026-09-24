@@ -44,6 +44,15 @@ export class PayrollAdminController {
   }
 
   @RequirePermission('payroll.view')
+  @Get('gold-price')
+  @ApiOperation({
+    summary: 'قیمت لحظه‌ای طلا برای پیش‌نمایش تبدیل ریال به طلا',
+  })
+  getGoldPrice() {
+    return this.payrollService.getGoldPrice();
+  }
+
+  @RequirePermission('payroll.view')
   @Get('plans/:id')
   @ApiOperation({ summary: 'جزئیات یک پلن پی‌رول' })
   getPlan(@Param('id') id: string) {

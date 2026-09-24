@@ -17,6 +17,8 @@ import {
   Plug,
   ScanLine,
   KeyRound,
+  Bell,
+  ShieldCheck,
 } from "lucide-react";
 
 export interface NavItem {
@@ -59,6 +61,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "لیست کاربران", href: "/users", icon: Users, perm: "users.view" },
       { label: "پروفایل‌های حقوقی", href: "/legal-profiles", icon: Building2, perm: "legal_profile.view" },
+      { label: "اعلان‌های کاربران", href: "/notifications", icon: Bell, perm: "notifications.view" },
     ],
   },
   {
@@ -95,6 +98,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "مدیریت پنل",
     items: [
       { label: "مدیریت ادمین‌ها", href: "/admins", icon: UserCog, perm: "admin.manage" },
+      { label: "نقش‌ها و دسترسی‌ها", href: "/roles", icon: ShieldCheck, perm: "admin.manage" },
       { label: "گزارش فعالیت‌ها", href: "/audit-log", icon: ShieldAlert, perm: "admin.audit_log.view" },
       { label: "امنیت و رمزنگاری", href: "/security", icon: KeyRound, perm: "security.crypto.view" },
     ],

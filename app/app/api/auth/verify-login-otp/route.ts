@@ -13,7 +13,8 @@ export async function POST(request: Request) {
 
     // ارسال اطلاعات به بک‌اند اصلی (NestJS)
     const response = await axios.post(`${NEST_API_URL}/verify-login-otp`, body);
-    const { accessToken, refreshToken, user } = response.data;
+    const { accessToken, refreshToken, user, expiresIn, refreshExpiresIn } =
+      response.data;
 
     const nextResponse = NextResponse.json({ success: true, user });
 
@@ -22,7 +23,8 @@ export async function POST(request: Request) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 15 * 60, // ۱۵ دقیقه
+      // عمر نشست از تنظیمات پنل ادمین (session.user.timeout_minutes)
+      maxAge: Number(expiresIn) || 15 * 60,
       path: "/",
     });
 
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60, // ۷ روز
+      maxAge: Number(refreshExpiresIn) || 7 * 24 * 60 * 60,
       path: "/",
     });
 

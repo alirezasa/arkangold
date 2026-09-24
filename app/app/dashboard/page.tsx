@@ -150,7 +150,7 @@ export default function DashboardPage() {
   const { transactions, loading: txLoading } = useTransactions(1, "ALL");
   const { summary } = useTransactionsSummary();
   // وضعیت فعال/غیرفعال بنرها از پنل ادمین (service.*.enabled)
-  const { isEnabled } = useAppServices();
+  const { isEnabled, loading: servicesLoading } = useAppServices();
 
   const currentPriceToman = marketPrice?.pricePerGramToman
     ? Number(marketPrice.pricePerGramToman)
@@ -216,6 +216,11 @@ export default function DashboardPage() {
       icon: Gem,
     },
   ];
+
+  // در صورت خطای دریافت وضعیت (null)، بنرها نمایش داده می‌شوند
+  const visibleServices = services.filter(
+    (service) => isEnabled(service.key) !== false,
+  );
 
   return (
     <div
@@ -346,70 +351,74 @@ export default function DashboardPage() {
         ))}
       </div> */}
 
-      {/* ── ۳. بنرهای خدمات اصلی (باگ کلاس‌های تیلویند رفع شد) ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
-        {services.map((service, idx) => {
-          const isHeroCard = idx === 0;
-          // تا دریافت وضعیت (null) بنر فعال فرض می‌شود؛ صفحه مقصد نیز خودش بررسی می‌کند
-          const disabled = isEnabled(service.key) === false;
-          const cardClass = `relative ${disabled ? "" : "group"} overflow-hidden rounded-[28px] md:rounded-4xl p-5 md:p-6 transition-all duration-500 border bg-linear-to-br from-emerald to-[#1a0204] shadow-lg flex flex-col justify-between
-                ${disabled ? "border-white/5 grayscale-[0.6] opacity-60 cursor-not-allowed" : "border-gold-500/20 hover:border-gold-500/60 hover:shadow-[0_12px_40px_rgba(197,160,89,0.2)]"}
-                ${isHeroCard ? "col-span-2 md:col-span-1 min-h-35 md:min-h-55" : "col-span-1 aspect-square md:aspect-auto md:min-h-55"}
-              `;
-
-          const content = (
-            <>
-              <service.icon className="absolute -left-6 -bottom-6 w-32 h-32 text-gold-500 opacity-5 group-hover:opacity-10 transition-all duration-700 transform group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
-
-              <div className="flex justify-between items-start w-full z-10">
-                <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-linear-to-br from-[#e6c887] via-gold-500 to-[#8c703b] flex items-center justify-center shrink-0 shadow-[0_4px_15px_rgba(197,160,89,0.4)] text-emerald">
-                  <service.icon
-                    className="w-6 h-6 md:w-7 md:h-7"
-                    strokeWidth={2}
-                  />
-                </div>
-
-                {disabled ? (
-                  <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white/80 backdrop-blur-md">
-                    <i className="ti ti-lock text-[12px]" aria-hidden="true" />
-                    غیرفعال
-                  </span>
-                ) : (
-                  isHeroCard && (
-                    <div className="w-8 h-8 rounded-full bg-white/5 backdrop-blur-md flex items-center justify-center text-gold-500 group-hover:bg-gold-500 group-hover:text-emerald transition-all border border-white/10 shadow-sm">
-                      <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
-                    </div>
-                  )
-                )}
-              </div>
-
-              <div className="z-10 flex flex-col mt-auto text-right w-full pt-4">
-                <h3 className="font-black text-white text-[15px] sm:text-[16px] md:text-[20px] tracking-tight group-hover:text-[#e6c887] transition-colors drop-shadow-md">
-                  {service.title}
-                </h3>
-                <p className="text-gold-500/80 text-[11px] md:text-[13px] font-medium mt-1">
-                  {disabled ? "به‌زودی فعال می‌شود" : service.subtitle}
-                </p>
-              </div>
-            </>
-          );
-
-          return disabled ? (
+      {/* ── ۳. بنرهای خدمات اصلی — خدمات غیرفعال در پنل ادمین اصلاً نمایش داده نمی‌شوند ── */}
+      {servicesLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
+          {[0, 1, 2].map((i) => (
             <div
-              key={service.key}
-              className={cardClass}
-              aria-disabled="true"
-              title="این خدمت در حال حاضر غیرفعال است"
-            >
-              {content}
-            </div>
-          ) : (
-            <Link key={service.key} href={service.href} className={cardClass}>
-              {content}
-            </Link>
-          );
-        })}
-      </div>
+              key={i}
+              className={`rounded-[28px] md:rounded-4xl bg-gray-200/70 animate-pulse ${
+                i === 0
+                  ? "col-span-2 md:col-span-1 min-h-35 md:min-h-55"
+                  : "col-span-1 aspect-square md:aspect-auto md:min-h-55"
+              }`}
+            />
+          ))}
+        </div>
+      ) : (
+        visibleServices.length > 0 && (
+          <div
+            className={`grid grid-cols-2 gap-3 md:gap-5 ${
+              visibleServices.length === 3
+                ? "md:grid-cols-3"
+                : visibleServices.length === 2
+                  ? "md:grid-cols-2"
+                  : "md:grid-cols-1"
+            }`}
+          >
+            {visibleServices.map((service, idx) => {
+              // اولین بنر وقتی تعداد بنرها فرد است کل عرض موبایل را می‌گیرد
+              const isHeroCard =
+                idx === 0 && visibleServices.length % 2 === 1;
+              return (
+                <Link
+                  key={service.key}
+                  href={service.href}
+                  className={`relative group overflow-hidden rounded-[28px] md:rounded-4xl p-5 md:p-6 transition-all duration-500 border border-gold-500/20 hover:border-gold-500/60 bg-linear-to-br from-emerald to-[#1a0204] shadow-lg hover:shadow-[0_12px_40px_rgba(197,160,89,0.2)] flex flex-col justify-between
+                    ${isHeroCard ? "col-span-2 md:col-span-1 min-h-35 md:min-h-55" : "col-span-1 aspect-square md:aspect-auto md:min-h-55"}
+                  `}
+                >
+                  <service.icon className="absolute -left-6 -bottom-6 w-32 h-32 text-gold-500 opacity-5 group-hover:opacity-10 transition-all duration-700 transform group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
+
+                  <div className="flex justify-between items-start w-full z-10">
+                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-linear-to-br from-[#e6c887] via-gold-500 to-[#8c703b] flex items-center justify-center shrink-0 shadow-[0_4px_15px_rgba(197,160,89,0.4)] text-emerald">
+                      <service.icon
+                        className="w-6 h-6 md:w-7 md:h-7"
+                        strokeWidth={2}
+                      />
+                    </div>
+
+                    {isHeroCard && (
+                      <div className="w-8 h-8 rounded-full bg-white/5 backdrop-blur-md flex items-center justify-center text-gold-500 group-hover:bg-gold-500 group-hover:text-emerald transition-all border border-white/10 shadow-sm">
+                        <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="z-10 flex flex-col mt-auto text-right w-full pt-4">
+                    <h3 className="font-black text-white text-[15px] sm:text-[16px] md:text-[20px] tracking-tight group-hover:text-[#e6c887] transition-colors drop-shadow-md">
+                      {service.title}
+                    </h3>
+                    <p className="text-gold-500/80 text-[11px] md:text-[13px] font-medium mt-1">
+                      {service.subtitle}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )
+      )}
 
       {/* ── ۴. نمودار قیمت واقعی + آخرین تراکنش‌های واقعی ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100/80 dark:border-gray-800/80">

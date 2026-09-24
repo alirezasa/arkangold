@@ -1,15 +1,15 @@
 "use client";
 
+import NotificationBell from "./NotificationBell";
+
 interface TopbarProps {
   onMenuOpen: () => void;
   pageTitle?: string;
-  notifCount?: number;
 }
 
 export default function Topbar({
   onMenuOpen,
   pageTitle = "پیشخوان",
-  notifCount = 3,
 }: TopbarProps) {
   return (
     <header
@@ -49,27 +49,8 @@ export default function Topbar({
           <span>جستجو...</span>
         </div>
 
-        {/* Notification bell */}
-        <button
-          className="relative flex h-9.5 w-9.5ems-center justify-center rounded-[10px] text-text-secondary transition-all duration-200 hover:border-emerald hover:text-emerald"
-          style={{
-            border: "1px solid var(--color-border)",
-            backgroundColor: "var(--color-surface)",
-          }}
-          aria-label={`${notifCount} اعلان جدید`}
-        >
-          <i className="ti ti-bell text-[18px]" aria-hidden="true" />
-          {notifCount > 0 && (
-            <span
-              className="absolute right-1.5op-[6px] h-2 w-2 rounded-full border-2"
-              style={{
-                background: "var(--color-red)",
-                borderColor: "var(--color-surface)",
-              }}
-              aria-hidden="true"
-            />
-          )}
-        </button>
+        {/* اعلان‌ها (درج‌شده توسط ادمین) */}
+        <NotificationBell variant="desktop" />
       </div>
     </header>
   );

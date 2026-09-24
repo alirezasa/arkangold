@@ -11,8 +11,8 @@ import {
   Plus,
   Play,
   Trash2,
-  Search,
 } from "lucide-react";
+import UserPicker, { type UserSearchItem } from "@/app/components/UserPicker";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -41,12 +41,18 @@ interface PayrollLog {
   failed: number;
   startedAt: string;
   finishedAt: string | null;
+  pricePerGramRial: string | null;
+  gramsPerUser: string | null;
 }
+
+type AmountType = "GRAMS" | "RIAL";
 
 interface PayrollPlan {
   id: string;
   name: string;
+  amountType: AmountType;
   amountGrams: string;
+  amountRial: string | null;
   executionDay: number;
   isActive: boolean;
   users: PlanUser[];
@@ -54,10 +60,6 @@ interface PayrollPlan {
   createdAt: string;
 }
 
-interface UserSearchItem {
-  id: string;
-  phone: string;
-}
 
 const STATUS_META: Record<string, { label: string; bg: string; color: string }> = {
   SUCCESS: { label: "موفق", bg: "#dcfce7", color: "#16a34a" },
@@ -65,80 +67,24 @@ const STATUS_META: Record<string, { label: string; bg: string; color: string }> 
   PARTIAL: { label: "بخشی موفق", bg: "#fef3c7", color: "#b45309" },
 };
 
-function UserPicker({
-  selected,
-  onAdd,
-  onRemove,
-}: {
-  selected: UserSearchItem[];
-  onAdd: (u: UserSearchItem) => void;
-  onRemove: (id: string) => void;
-}) {
-  const [q, setQ] = useState("");
-  const { data } = useSWR(
-    q.trim().length >= 3
-      ? `/api/admin/users?search=${encodeURIComponent(q.trim())}&limit=8`
-      : null,
-    fetcher,
-  );
-  const results: UserSearchItem[] = data?.data ?? [];
+interface GoldPrice {
+  pricePerGramRial: string;
+  pricePerGramToman: string;
+}
 
-  return (
-    <div className="space-y-2">
-      <div className="relative">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="جستجو با شماره موبایل (حداقل ۳ رقم)"
-          className="w-full px-3 py-2.5 pr-9 rounded-xl border border-gray-200 outline-none focus:border-gold-500 text-sm"
-          dir="ltr"
-        />
-      </div>
-      {results.length > 0 && (
-        <div className="rounded-xl border border-gray-100 divide-y max-h-40 overflow-y-auto">
-          {results.map((u) => {
-            const already = selected.some((s) => s.id === u.id);
-            return (
-              <button
-                type="button"
-                key={u.id}
-                disabled={already}
-                onClick={() => {
-                  onAdd(u);
-                  setQ("");
-                }}
-                className="w-full flex items-center justify-between px-3 py-2 text-[13px] font-bold disabled:opacity-40"
-              >
-                <span dir="ltr">{u.phone}</span>
-                {already ? (
-                  <span className="text-[11px] text-gray-400">افزوده شده</span>
-                ) : (
-                  <Plus className="w-4 h-4 text-emerald-600" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-2 pt-1">
-          {selected.map((u) => (
-            <span
-              key={u.id}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold"
-              style={{ backgroundColor: "#f3f4f6", color: "#374151" }}
-            >
-              <span dir="ltr">{u.phone}</span>
-              <button type="button" onClick={() => onRemove(u.id)}>
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+const faNum = (n: number, digits = 0) =>
+  n.toLocaleString("fa-IR", { maximumFractionDigits: digits });
+
+/** مبلغ ریالی ÷ قیمت هر گرم، رو به پایین تا دقت میلی‌گرم (هم‌خوان با محاسبه بک‌اند) */
+function rialToMilligrams(amountRial: number, pricePerGramRial: number) {
+  if (!amountRial || !pricePerGramRial) return 0;
+  return Math.floor((amountRial / pricePerGramRial) * 1000);
+}
+
+/** نمایش مقدار طلا: زیر ۱ گرم به میلی‌گرم، بالاتر به گرم */
+function formatGold(milligrams: number) {
+  if (milligrams < 1000) return `${faNum(milligrams)} میلی‌گرم`;
+  return `${faNum(milligrams / 1000, 3)} گرم`;
 }
 
 function CreatePlanModal({
@@ -149,23 +95,50 @@ function CreatePlanModal({
   onDone: () => void;
 }) {
   const [name, setName] = useState("");
+  const [amountType, setAmountType] = useState<AmountType>("RIAL");
   const [amountGrams, setAmountGrams] = useState("");
+  const [amountRial, setAmountRial] = useState("");
   const [executionDay, setExecutionDay] = useState("1");
   const [users, setUsers] = useState<UserSearchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { data: goldPrice, error: priceError } = useSWR<GoldPrice>(
+    amountType === "RIAL" ? "/api/admin/payroll/gold-price" : null,
+    fetcher,
+    { refreshInterval: 60_000 },
+  );
+
+  // ارقام فارسی/عربی هم پذیرفته می‌شوند
+  const rialNumber =
+    Number(
+      amountRial
+        .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+        .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+        .replace(/[^\d]/g, ""),
+    ) || 0;
+  const previewMg = goldPrice
+    ? rialToMilligrams(rialNumber, Number(goldPrice.pricePerGramRial))
+    : 0;
 
   const submit = async () => {
     if (!name.trim()) return setError("نام پلن را وارد کنید");
     const grams = Number(amountGrams);
-    if (!grams || grams <= 0) return setError("مقدار گرم معتبر وارد کنید");
+    if (amountType === "GRAMS" && (!grams || grams <= 0))
+      return setError("مقدار گرم معتبر وارد کنید");
+    if (amountType === "RIAL" && rialNumber < 10000)
+      return setError("مبلغ ریالی باید حداقل ۱۰٬۰۰۰ ریال باشد");
+    if (amountType === "RIAL" && goldPrice && previewMg < 1)
+      return setError("این مبلغ با قیمت فعلی کمتر از ۱ میلی‌گرم طلا می‌شود");
     if (users.length === 0) return setError("حداقل یک کاربر انتخاب کنید");
     setLoading(true);
     setError(null);
     try {
       await axios.post("/api/admin/payroll/plans", {
         name: name.trim(),
-        amountGrams: grams,
+        amountType,
+        ...(amountType === "RIAL"
+          ? { amountRial: rialNumber }
+          : { amountGrams: grams }),
         executionDay: Number(executionDay) || 1,
         userIds: users.map((u) => u.id),
       });
@@ -210,17 +183,95 @@ function CreatePlanModal({
         </div>
         <div>
           <label className="text-[12px] font-bold text-gray-500 mb-1 block">
-            مقدار طلا (گرم)
+            مبنای مبلغ
           </label>
-          <input
-            type="number"
-            value={amountGrams}
-            onChange={(e) => setAmountGrams(e.target.value)}
-            placeholder="مثلا: 1.5"
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none focus:border-gold-500 text-sm"
-            dir="ltr"
-          />
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                { key: "RIAL", label: "معادل ریالی" },
+                { key: "GRAMS", label: "مقدار ثابت طلا (گرم)" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setAmountType(opt.key)}
+                className="py-2.5 rounded-xl text-[12px] font-bold border transition-colors"
+                style={
+                  amountType === opt.key
+                    ? {
+                        backgroundColor: "var(--color-emerald)",
+                        borderColor: "var(--color-emerald)",
+                        color: "#fff",
+                      }
+                    : { borderColor: "#e5e7eb", color: "#4b5563" }
+                }
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
+        {amountType === "RIAL" ? (
+          <div>
+            <label className="text-[12px] font-bold text-gray-500 mb-1 block">
+              مبلغ هر پرداخت (ریال)
+            </label>
+            <input
+              inputMode="numeric"
+              value={rialNumber ? rialNumber.toLocaleString("en-US") : ""}
+              onChange={(e) => setAmountRial(e.target.value)}
+              placeholder="مثلا: 50,000,000"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none focus:border-gold-500 text-sm"
+              dir="ltr"
+            />
+            {rialNumber > 0 && (
+              <p className="text-[11px] text-gray-400 mt-1">
+                ≈ {faNum(rialNumber / 10)} تومان
+              </p>
+            )}
+            <div
+              className="mt-2 rounded-xl p-3 text-[12px] leading-relaxed"
+              style={{ backgroundColor: "#fbf8eb", color: "#42350c" }}
+            >
+              {priceError ? (
+                <span className="text-red-600 font-bold">
+                  قیمت لحظه‌ای طلا در دسترس نیست
+                </span>
+              ) : !goldPrice ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <p className="font-black">
+                    {rialNumber > 0
+                      ? `≈ ${formatGold(previewMg)} طلا برای هر کاربر`
+                      : "مبلغ را وارد کنید تا معادل طلا محاسبه شود"}
+                  </p>
+                  <p className="text-[11px] opacity-80 mt-1">
+                    قیمت فعلی هر گرم:{" "}
+                    {faNum(Number(goldPrice.pricePerGramRial))} ریال. مقدار
+                    نهایی در زمان هر اجرا با قیمت لحظه‌ای همان زمان (با دقت
+                    میلی‌گرم) محاسبه و به کیف پول کاربران واریز می‌شود.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <label className="text-[12px] font-bold text-gray-500 mb-1 block">
+              مقدار طلا (گرم)
+            </label>
+            <input
+              type="number"
+              value={amountGrams}
+              onChange={(e) => setAmountGrams(e.target.value)}
+              placeholder="مثلا: 1.5"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none focus:border-gold-500 text-sm"
+              dir="ltr"
+            />
+          </div>
+        )}
         <div>
           <label className="text-[12px] font-bold text-gray-500 mb-1 block">
             روز اجرا در ماه (فقط جهت یادآوری؛ اجرا صرفاً دستی است)
@@ -272,9 +323,13 @@ function PlanCard({
   const [error, setError] = useState<string | null>(null);
 
   const execute = async () => {
+    const perUser =
+      plan.amountType === "RIAL"
+        ? `معادل ${faNum(Number(plan.amountRial))} ریال طلا (با قیمت لحظه‌ای اجرا)`
+        : `${faNum(Number(plan.amountGrams), 4)} گرم طلا`;
     if (
       !confirm(
-        `آیا از اجرای پرداخت این پلن برای ${plan.users.length} کاربر مطمئنید؟ هر کاربر ${plan.amountGrams} گرم طلا دریافت می‌کند.`,
+        `آیا از اجرای پرداخت این پلن برای ${plan.users.length} کاربر مطمئنید؟ هر کاربر ${perUser} دریافت می‌کند.`,
       )
     )
       return;
@@ -342,7 +397,10 @@ function PlanCard({
         <div>
           <p className="text-[14px] font-black text-gray-900">{plan.name}</p>
           <p className="text-[11px] text-gray-400 mt-0.5">
-            {plan.users.length} کاربر · هر کاربر {Number(plan.amountGrams).toLocaleString("fa-IR")} گرم
+            {plan.users.length} کاربر · هر کاربر{" "}
+            {plan.amountType === "RIAL"
+              ? `معادل ${faNum(Number(plan.amountRial))} ریال طلا (تبدیل به میلی‌گرم در زمان اجرا)`
+              : `${faNum(Number(plan.amountGrams), 4)} گرم`}
           </p>
         </div>
         <span
@@ -382,6 +440,13 @@ function PlanCard({
           <span className="text-gray-400">
             ({lastLog.successful}/{lastLog.totalUsers} موفق)
           </span>
+          {lastLog.gramsPerUser && (
+            <span className="text-gray-400">
+              · هر کاربر {formatGold(Math.round(Number(lastLog.gramsPerUser) * 1000))}
+              {lastLog.pricePerGramRial &&
+                ` با قیمت ${faNum(Number(lastLog.pricePerGramRial))} ریال`}
+            </span>
+          )}
         </div>
       )}
 

@@ -7,6 +7,40 @@ import { WALLET_CONFIG_DEFAULTS } from './system-config.seed';
 
 // کلیدهای منسوخ‌شده که باید در استارت‌آپ از دیتابیس پاک شوند (مثلاً پس از
 // حذف یک قابلیت) تا در پنل ادمین به‌صورت تنظیم بلااستفاده باقی نمانند
+// محدوده‌ی مجاز زمان نشست‌ها — مقادیر خارج از بازه به نزدیک‌ترین حد برگردانده می‌شوند
+// تا تنظیم اشتباه در پنل ادمین (مثلاً ۰ یا عدد بسیار بزرگ) امنیت/دسترسی را نشکند
+const SESSION_LIMITS = {
+  user: {
+    timeoutKey: 'session.user.timeout_minutes',
+    timeoutDefault: 15,
+    timeoutMin: 5,
+    timeoutMax: 1440,
+    refreshKey: 'session.user.refresh_days',
+    refreshDefault: 7,
+    refreshMin: 1,
+    refreshMax: 90,
+    refreshUnitSeconds: 24 * 60 * 60,
+  },
+  admin: {
+    timeoutKey: 'session.admin.timeout_minutes',
+    timeoutDefault: 30,
+    timeoutMin: 5,
+    timeoutMax: 480,
+    refreshKey: 'session.admin.refresh_hours',
+    refreshDefault: 24,
+    refreshMin: 1,
+    refreshMax: 168,
+    refreshUnitSeconds: 60 * 60,
+  },
+} as const;
+
+export interface SessionPolicy {
+  /** عمر توکن دسترسی و کوکی نشست (ثانیه) */
+  accessTtlSeconds: number;
+  /** عمر توکن تمدید و رکورد نشست (ثانیه) — هرگز کمتر از عمر توکن دسترسی نیست */
+  refreshTtlSeconds: number;
+}
+
 const DEPRECATED_KEYS = [
   'transfer.daily_limit_rial',
   'transfer.monthly_limit_rial',
@@ -93,6 +127,33 @@ export class SystemConfigService implements OnModuleInit {
     const val = await this.get(key);
     if (!val) return fallback;
     return val === 'true' || val === '1';
+  }
+
+  /** سیاست زمان نشست کاربران یا ادمین‌ها (قابل تنظیم از پنل ادمین) */
+  async getSessionPolicy(kind: 'user' | 'admin'): Promise<SessionPolicy> {
+    const l = SESSION_LIMITS[kind];
+    const clamp = (v: number, min: number, max: number) =>
+      Math.min(max, Math.max(min, Math.round(v)));
+
+    const timeoutMinutes = clamp(
+      await this.getNumber(l.timeoutKey, l.timeoutDefault),
+      l.timeoutMin,
+      l.timeoutMax,
+    );
+    const refreshUnits = clamp(
+      await this.getNumber(l.refreshKey, l.refreshDefault),
+      l.refreshMin,
+      l.refreshMax,
+    );
+
+    const accessTtlSeconds = timeoutMinutes * 60;
+    return {
+      accessTtlSeconds,
+      refreshTtlSeconds: Math.max(
+        refreshUnits * l.refreshUnitSeconds,
+        accessTtlSeconds,
+      ),
+    };
   }
 
   async getGroup(prefix: string): Promise<Record<string, string>> {

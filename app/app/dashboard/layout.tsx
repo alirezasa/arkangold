@@ -233,7 +233,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="hidden lg:block">
-          <Topbar onMenuOpen={() => setSidebarOpen(true)} notifCount={3} />
+          <Topbar onMenuOpen={() => setSidebarOpen(true)} />
         </div>
 
         <MobileHeader userName={displayName} identityStatus={identityStatus} />

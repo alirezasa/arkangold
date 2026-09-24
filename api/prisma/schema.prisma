@@ -28,6 +28,8 @@ model User {
   feeConfigs                 FeeConfig[]
   legalProfile               LegalProfile?
   notifications              Notification[]
+  announcementRecipients     AnnouncementRecipient[]
+  announcementReads          AnnouncementRead[]
   orders                     Order[]
   payments                   Payment[]
   payrollPlanUsers           PayrollPlanUser[]
@@ -711,7 +713,10 @@ model Shipping {
 
 model PayrollPlan {
   name         String
+  // مبنای مبلغ: GRAMS = مقدار ثابت طلا، RIAL = مبلغ ریالی که در هر اجرا با قیمت لحظه‌ای به طلا (دقت میلی‌گرم) تبدیل می‌شود
+  amountType   PayrollAmountType @default(GRAMS) @map("amount_type")
   amountGrams  Decimal           @map("amount_grams") @db.Decimal(18, 4)
+  amountRial   Decimal?          @map("amount_rial") @db.Decimal(20, 0)
   executionDay Int               @map("execution_day")
   isActive     Boolean           @default(true) @map("is_active")
   startDate    DateTime?         @map("start_date")
@@ -738,17 +743,20 @@ model PayrollPlanUser {
 }
 
 model PayrollLog {
-  executionDate DateTime      @map("execution_date")
-  status        PayrollStatus
-  totalUsers    Int           @map("total_users")
-  successful    Int
-  failed        Int
-  details       Json?
-  startedAt     DateTime      @map("started_at")
-  finishedAt    DateTime?     @map("finished_at")
-  id            String        @id @default(uuid()) @db.Uuid
-  planId        String        @map("plan_id") @db.Uuid
-  plan          PayrollPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+  executionDate    DateTime      @map("execution_date")
+  status           PayrollStatus
+  totalUsers       Int           @map("total_users")
+  successful       Int
+  failed           Int
+  details          Json?
+  startedAt        DateTime      @map("started_at")
+  finishedAt       DateTime?     @map("finished_at")
+  // قیمت هر گرم (ریال) و مقدار طلای پرداختی به هر کاربر در این اجرا — برای پلن‌های ریالی
+  pricePerGramRial Decimal?      @map("price_per_gram_rial") @db.Decimal(20, 0)
+  gramsPerUser     Decimal?      @map("grams_per_user") @db.Decimal(18, 4)
+  id               String        @id @default(uuid()) @db.Uuid
+  planId           String        @map("plan_id") @db.Uuid
+  plan             PayrollPlan   @relation(fields: [planId], references: [id], onDelete: Cascade)
 
   @@map("payroll_logs")
 }
@@ -842,6 +850,53 @@ model Notification {
   @@map("notifications")
 }
 
+/// اعلان‌های درون‌برنامه‌ای که توسط ادمین درج می‌شوند (زنگوله اعلان‌های اپلیکیشن کاربر)
+model Announcement {
+  id          String                  @id @default(uuid()) @db.Uuid
+  title       String
+  body        String
+  // لینک اختیاری داخل اپلیکیشن (مثلاً /dashboard/wallet) یا آدرس کامل
+  link        String?
+  level       AnnouncementLevel       @default(INFO)
+  // ALL = همه کاربران، SELECTED = فقط کاربران انتخاب‌شده
+  audience    AnnouncementAudience    @default(ALL)
+  isActive    Boolean                 @default(true) @map("is_active")
+  publishedAt DateTime                @default(now()) @map("published_at")
+  expiresAt   DateTime?               @map("expires_at")
+  createdById String                  @map("created_by_id") @db.Uuid
+  createdBy   AdminUser               @relation(fields: [createdById], references: [id])
+  recipients  AnnouncementRecipient[]
+  reads       AnnouncementRead[]
+  createdAt   DateTime                @default(now()) @map("created_at")
+  updatedAt   DateTime                @updatedAt @map("updated_at")
+
+  @@index([isActive, publishedAt])
+  @@map("announcements")
+}
+
+model AnnouncementRecipient {
+  announcementId String       @map("announcement_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([announcementId, userId])
+  @@index([userId])
+  @@map("announcement_recipients")
+}
+
+model AnnouncementRead {
+  announcementId String       @map("announcement_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  readAt         DateTime     @default(now()) @map("read_at")
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([announcementId, userId])
+  @@index([userId])
+  @@map("announcement_reads")
+}
+
 model AdminUser {
   id           String  @id @default(uuid()) @db.Uuid
   username     String  @unique
@@ -877,6 +932,7 @@ model AdminUser {
   approvedByPhysical         PhysicalDeliveryRequest[]  @relation("ApprovedBy")
   processedWithdrawals       WithdrawalRequest[]        @relation("ProcessedBy")
   createdPayrollPlans        PayrollPlan[]
+  createdAnnouncements       Announcement[]
   hologramBatchesCreated     HologramBatch[]            @relation("HologramBatchCreatedBy")
   hologramCodesAssigned      HologramCode[]             @relation("HologramCodeAssignedBy")
   hologramCodesRevoked       HologramCode[]             @relation("HologramCodeRevokedBy")
@@ -1774,6 +1830,23 @@ enum SettlementStatus {
   PENDING
   SETTLED
   FAILED
+}
+
+enum AnnouncementLevel {
+  INFO
+  SUCCESS
+  WARNING
+  PROMO
+}
+
+enum AnnouncementAudience {
+  ALL
+  SELECTED
+}
+
+enum PayrollAmountType {
+  GRAMS
+  RIAL
 }
 
 enum NotificationType {

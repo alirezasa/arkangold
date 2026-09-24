@@ -141,9 +141,9 @@ function TxDetailModal({
   onClose: () => void;
 }) {
   const { date, time } = formatDateTime(tx.createdAt);
-  const s = CATEGORY_STYLE[tx.category] ?? CATEGORY_STYLE.other;
 
   const rows = [
+    tx.itemsSummary && { label: "اقلام", value: tx.itemsSummary },
     tx.amountGrams && { label: "مقدار طلا", value: `${tx.amountGrams} گرم` },
     tx.pricePerGramToman && {
       label: "قیمت هر گرم",
@@ -432,7 +432,9 @@ export default function TransactionsPage() {
                             <StatusBadge status={tx.status} />
                           )}
                         </div>
-                        <p className="text-[11px] text-gray-400">{time}</p>
+                        <p className="text-[11px] text-gray-400 truncate">
+                          {tx.itemsSummary ? `${tx.itemsSummary} · ${time}` : time}
+                        </p>
                       </div>
                       <div className="text-left shrink-0">
                         {tx.amountGrams && (

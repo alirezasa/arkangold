@@ -310,6 +310,24 @@ export interface DiscountPreview {
   expiresAt: string | null;
 }
 
+export interface MyDiscountCode {
+  code: string;
+  description: string | null;
+  valueLabel: string;
+  minOrderToman: string | null;
+  expiresAt: string | null;
+}
+
+/** کدهای تخفیف اختصاصی فعال کاربر */
+export const useMyDiscountCodes = () => {
+  const { data } = useSWR<MyDiscountCode[]>(
+    "/api/discount-codes/mine",
+    fetcher,
+    { revalidateOnFocus: false },
+  );
+  return { codes: data ?? [] };
+};
+
 /** بررسی کد تخفیف روی سبد فعلی — مبلغ نهایی واقعی هنگام ثبت سفارش در سرور محاسبه می‌شود */
 export const useValidateDiscount = () => {
   const [loading, setLoading] = useState(false);

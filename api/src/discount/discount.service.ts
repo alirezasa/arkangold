@@ -239,6 +239,46 @@ export class DiscountService {
     };
   }
 
+  /**
+   * کدهای تخفیف اختصاصی قابل استفاده کاربر (برای نمایش در سبد خرید).
+   * کدهای عمومی عمداً فهرست نمی‌شوند؛ آن‌ها از طریق کمپین‌ها منتشر می‌شوند.
+   */
+  async listForUser(userId: string) {
+    const now = new Date();
+    const codes = await this.prisma.discountCode.findMany({
+      where: {
+        userId,
+        isActive: true,
+        AND: [
+          { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+        ],
+      },
+      include: {
+        _count: { select: { shopOrders: { where: COUNTED_ORDER } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    // کد اختصاصی فقط توسط همین کاربر استفاده می‌شود، پس شمارش کل = شمارش کاربر
+    return codes
+      .filter((c) => {
+        const used = c._count.shopOrders;
+        if (c.usageLimit != null && used >= c.usageLimit) return false;
+        if (c.perUserLimit != null && used >= c.perUserLimit) return false;
+        return true;
+      })
+      .map((c) => ({
+        code: c.code,
+        description: c.description,
+        valueLabel: this.describeValue(c),
+        minOrderToman:
+          c.minOrderRial != null ? this.toToman(c.minOrderRial) : null,
+        expiresAt: c.expiresAt?.toISOString() ?? null,
+      }));
+  }
+
   /** پیش‌نمایش اعمال کد روی سبد فعلی کاربر (بدون رزرو سهمیه) */
   async previewForCart(userId: string, rawCode: string) {
     const cart = await this.prisma.cart.findUnique({

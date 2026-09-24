@@ -75,12 +75,48 @@ interface TxRow {
     subtotalRial: Prisma.Decimal;
     discountRial: Prisma.Decimal;
     discountCodeText: string | null;
+    items: {
+      quantity: number;
+      product: { name: string } | null;
+      variant: { product: { name: string } } | null;
+    }[];
   } | null;
 }
 
 const SHOP_ORDER_DISCOUNT_SELECT = {
-  select: { subtotalRial: true, discountRial: true, discountCodeText: true },
+  select: {
+    subtotalRial: true,
+    discountRial: true,
+    discountCodeText: true,
+    // خلاصه اقلام برای نمایش «بابت چه چیزی» در تاریخچه تراکنش
+    items: {
+      select: {
+        quantity: true,
+        product: { select: { name: true } },
+        variant: { select: { product: { select: { name: true } } } },
+      },
+    },
+  },
 } as const;
+
+/** مثلاً «شمش ۵ گرمی × ۲، انگشتر ظریف» */
+export function summarizeShopItems(
+  items: {
+    quantity: number;
+    product: { name: string } | null;
+    variant: { product: { name: string } } | null;
+  }[],
+): string | null {
+  if (!items.length) return null;
+  return items
+    .map((it) => {
+      const name = it.variant?.product.name ?? it.product?.name ?? 'کالا';
+      return it.quantity > 1
+        ? `${name} × ${it.quantity.toLocaleString('fa-IR')}`
+        : name;
+    })
+    .join('، ');
+}
 
 @Injectable()
 export class TransactionsService {
@@ -282,6 +318,7 @@ export class TransactionsService {
         t.shopOrder && t.shopOrder.discountRial.gt(0)
           ? t.shopOrder.discountCodeText
           : null,
+      itemsSummary: t.shopOrder ? summarizeShopItems(t.shopOrder.items) : null,
       sign: meta.sign,
       createdAt: t.createdAt.toISOString(),
       invoiceId,

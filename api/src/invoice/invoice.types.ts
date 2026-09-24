@@ -43,6 +43,8 @@ export interface ProformaExtraData {
 /** داده اضافه فاکتور فروش فروشگاه */
 export interface SaleInvoiceExtraData {
   discountCode: string | null;
+  /** شرح روش پرداخت برای درج در فاکتور (کیف پول / درگاه / ترکیبی) */
+  paymentMethod?: string | null;
 }
 
 export interface InvoiceItemInput {
@@ -82,6 +84,8 @@ export interface InvoiceDocumentDto {
   extra: ProformaExtraData | null;
   /** کد تخفیف اعمال‌شده روی فاکتور فروش (در صورت وجود) */
   discountCode: string | null;
+  /** روش پرداخت فاکتور فروش؛ null = پیش‌فرض (کیف پول تومانی) */
+  paymentMethod: string | null;
 
   items: {
     rowNo: number;

@@ -17,6 +17,7 @@ interface Transaction {
   discountToman?: string | null;
   discountCode?: string | null;
   subtotalToman?: string | null;
+  itemsSummary?: string | null;
   createdAt: string;
 }
 
@@ -145,6 +146,11 @@ export default function AdminTransactionsPage() {
                   </td>
                   <td>
                     {TYPE_LABELS[t.type] ?? t.type}
+                    {t.itemsSummary && (
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {t.itemsSummary}
+                      </p>
+                    )}
                     {t.type === "REFERRAL_REWARD" && t.description && (
                       <p className="text-[10px] text-gray-400 mt-0.5">
                         {t.description}

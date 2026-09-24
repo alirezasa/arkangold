@@ -28,6 +28,8 @@ export interface TransactionItem {
   // تخفیف کد تخفیف سفارش فروشگاه مرتبط (در صورت وجود)
   discountToman: string | null;
   discountCode: string | null;
+  // خلاصه اقلام سفارش فروشگاه مرتبط، مثلاً «شمش ۵ گرمی × ۲»
+  itemsSummary: string | null;
   sign: "plus" | "minus";
   createdAt: string;
   invoiceId: string | null;

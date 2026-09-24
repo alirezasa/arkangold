@@ -338,18 +338,30 @@ export const WALLET_CONFIG_DEFAULTS = [
     description: 'سقف انتقال داخلی ماهانه طلا (گرم)',
   },
 
-  // ══ پاداش معرفی (Referral) ══
+  // ══ پاداش دعوت از دوستان (Referral) ══
+  // از صفحه «دعوت از دوستان» پنل ادمین هم قابل تنظیم است
+  {
+    key: 'referral.enabled',
+    value: 'true',
+    description: 'فعال بودن پرداخت پاداش دعوت از دوستان',
+  },
+  {
+    key: 'referral.reward_trigger',
+    value: 'IDENTITY_VERIFIED',
+    description:
+      'زمان پرداخت پاداش به معرف: IDENTITY_VERIFIED = پس از احراز هویت دوست دعوت‌شده، SIGNUP = بلافاصله پس از ثبت‌نام',
+  },
   {
     key: 'referral.reward_amount_rial',
     value: '0',
     description:
-      'مبلغ پاداش معرفی برای معرف پس از احراز هویت کاربر معرفی‌شده (ریال) — صفر یعنی غیرفعال',
+      'پاداش ریالی هر دعوت که به کیف پول ریالی معرف واریز می‌شود (ریال) — صفر یعنی بدون پاداش ریالی',
   },
   {
-    key: 'referral.reward_amount_grams',
+    key: 'referral.reward_amount_mg',
     value: '0',
     description:
-      'مقدار پاداش معرفی برای معرف پس از احراز هویت کاربر معرفی‌شده (گرم طلا) — صفر یعنی غیرفعال',
+      'پاداش طلایی هر دعوت که به کیف پول طلای معرف واریز می‌شود (میلی‌گرم) — صفر یعنی بدون پاداش طلایی',
   },
   {
     key: 'company.legal_name',

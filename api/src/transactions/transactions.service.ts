@@ -17,6 +17,7 @@ type TxCategory =
   | 'fee'
   | 'shop'
   | 'physical'
+  | 'referral'
   | 'other';
 
 const TYPE_META: Record<
@@ -38,8 +39,8 @@ const TYPE_META: Record<
   FEE: { title: 'کارمزد معامله', category: 'fee', sign: 'minus' },
   TAX: { title: 'مالیات', category: 'fee', sign: 'minus' },
   REFERRAL_REWARD: {
-    title: 'پاداش معرفی دوستان',
-    category: 'deposit',
+    title: 'پاداش دعوت از دوستان',
+    category: 'referral',
     sign: 'plus',
   },
   SALARY: { title: 'واریز حقوق طلایی', category: 'deposit', sign: 'plus' },

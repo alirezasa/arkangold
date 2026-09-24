@@ -249,9 +249,14 @@ export default function SettingsPage() {
               {copied ? "کپی شد" : "کپی"}
             </button>
           </div>
-          <p className="text-[11px] text-gray-400">
-            این کد را برای دوستان خود ارسال کنید تا هنگام ثبت‌نام وارد کنند.
-          </p>
+          <Link
+            href="/dashboard/referral"
+            className="flex items-center justify-between rounded-xl px-4 py-3 text-[12px] font-bold text-white"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+          >
+            لینک دعوت، آمار دعوت‌ها و پاداش‌ها
+            <ChevronLeft className="h-4 w-4" />
+          </Link>
         </Section>
       )}
 

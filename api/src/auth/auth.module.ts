@@ -7,10 +7,12 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JWT_ALGORITHM } from '../common/secrets/jwt-keyring';
+import { ReferralModule } from '../referral/referral.module';
 
 @Module({
   imports: [
     PassportModule,
+    ReferralModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({

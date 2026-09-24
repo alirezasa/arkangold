@@ -38,6 +38,7 @@ const CATEGORY_STYLE: Record<
   fee: { bg: "#f3e8ff", color: "#9333ea", icon: Percent },
   shop: { bg: "#ffe4e6", color: "#e11d48", icon: Package },
   physical: { bg: "#fef9c3", color: "#a16207", icon: Package },
+  referral: { bg: "#fdf4e3", color: "#c8952e", icon: Gift },
   other: { bg: "#f1f5f9", color: "#64748b", icon: Gift },
 };
 
@@ -47,6 +48,7 @@ const FILTERS: { key: TxFilter; label: string }[] = [
   { key: "SELL_GOLD", label: "فروش" },
   { key: "DEPOSIT", label: "واریز" },
   { key: "WITHDRAWAL", label: "برداشت" },
+  { key: "REFERRAL_REWARD", label: "پاداش دعوت" },
 ];
 
 function toToman(rial: number | string | null) {

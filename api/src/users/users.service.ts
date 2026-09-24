@@ -14,6 +14,7 @@ import { SubmitIdentityDto } from '@arkan-gold/shared';
 import { UpdateLegalProfileDto } from '@arkan-gold/shared';
 import { IdentityVerificationService } from '../integrations/services/identity-verification.service';
 import { IdentityVerificationResult } from '../integrations/interfaces/identity-verification.interface';
+import { ReferralService } from '../referral/referral.service';
 
 @Injectable()
 export class UsersService {
@@ -22,6 +23,7 @@ export class UsersService {
   constructor(
     private prisma: PrismaService,
     private identityVerification: IdentityVerificationService,
+    private referralService: ReferralService,
   ) {}
 
   // ══════════════════════════════════════════
@@ -126,6 +128,11 @@ export class UsersService {
       dto,
       'VERIFIED',
       civilResult,
+    );
+    // پاداش معرفِ این کاربر در صورتی که زمان پرداخت «احراز هویت» تنظیم شده باشد
+    await this.referralService.handleReferredUserEvent(
+      userId,
+      'IDENTITY_VERIFIED',
     );
     return {
       status: 'VERIFIED',

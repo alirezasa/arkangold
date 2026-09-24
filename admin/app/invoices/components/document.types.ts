@@ -73,6 +73,8 @@ export interface InvoiceDocument {
   extra: ProformaExtraData | null;
   /** کد تخفیف اعمال‌شده روی فاکتور فروش */
   discountCode?: string | null;
+  /** روش پرداخت فاکتور فروش (کیف پول / درگاه / ترکیبی) */
+  paymentMethod?: string | null;
   items: InvoiceLine[];
   subtotalRial: string;
   discountRial: string;

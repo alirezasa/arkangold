@@ -132,7 +132,7 @@ export default function InvoiceDocumentView({ doc }: { doc: InvoiceDocument }) {
             <th style={{ width: "5%" }}>واحد</th>
             <th style={{ width: "10%" }}>مبلغ واحد</th>
             <th style={{ width: "9%" }}>اجرت ساخت</th>
-            <th style={{ width: "8%" }}>کارمزد</th>
+            <th style={{ width: "8%" }}>کارمزد و سود</th>
             <th style={{ width: "7%" }}>تخفیف</th>
             <th style={{ width: "9%" }}>مالیات</th>
             <th style={{ width: "11%" }}>جمع کل</th>
@@ -175,7 +175,7 @@ export default function InvoiceDocumentView({ doc }: { doc: InvoiceDocument }) {
       <div className="doc-summary">
         <div className="doc-notes">
           <div><b>شرایط و توضیحات</b></div>
-          <div>روش پرداخت: کیف پول تومانی آرکان گلد</div>
+          <div>روش پرداخت: {doc.paymentMethod ?? "کیف پول تومانی آرکان گلد"}</div>
           {doc.discountCode && Number(doc.discountRial) > 0 && (
             <div>
               کد تخفیف اعمال‌شده: <b dir="ltr">{doc.discountCode}</b> — مبلغ
@@ -205,7 +205,7 @@ export default function InvoiceDocumentView({ doc }: { doc: InvoiceDocument }) {
             <span>(<Num>{faGrouped(doc.discountRial)}</Num>) ریال</span>
           </div>
           <div className="doc-totals__row">
-            <span>کارمزد</span>
+            <span>کارمزد و سود</span>
             <span><Num>{faGrouped(doc.feeRial)}</Num> ریال</span>
           </div>
           <div className="doc-totals__row">

@@ -429,12 +429,56 @@ export class InvoiceService {
       sourceId: order.id,
       userId: order.userId,
       items,
-      extraData:
-        Number(order.discountRial) > 0
-          ? { discountCode: order.discountCodeText }
-          : null,
+      extraData: {
+        discountCode:
+          Number(order.discountRial) > 0 ? order.discountCodeText : null,
+        paymentMethod: await this.describeShopPayment(
+          tx,
+          order.id,
+          Number(order.totalRial),
+        ),
+      },
       status: 'PAID',
     });
+  }
+
+  /** شرح روش پرداخت سفارش از روی پرداخت‌های موفق آن */
+  private async describeShopPayment(
+    tx: Tx,
+    orderId: string,
+    totalRial: number,
+  ): Promise<string> {
+    if (totalRial <= 0) return 'بدون پرداخت (تخفیف کامل با کد تخفیف)';
+
+    const payments = await tx.payment.findMany({
+      where: { orderId, status: 'SUCCESS' },
+      orderBy: { createdAt: 'asc' },
+    });
+    const wallet = payments.filter((p) => p.method === 'WALLET');
+    const gateway = payments.filter((p) => p.method === 'BANK_GATEWAY');
+    const sum = (list: typeof payments) =>
+      list.reduce((s, p) => s + Number(p.amountRial), 0);
+    const gatewayLabel = (() => {
+      const g = gateway[0];
+      if (!g) return '';
+      const name =
+        g.gatewayProvider === 'ZARINPAL'
+          ? 'زرین‌پال'
+          : g.gatewayProvider === 'BEHPARDAKHT'
+            ? 'به‌پرداخت ملت'
+            : '';
+      const tracking = g.gatewayTrackingCode
+        ? ` — کد رهگیری ${g.gatewayTrackingCode}`
+        : '';
+      return `درگاه پرداخت اینترنتی${name ? ` ${name}` : ''}${tracking}`;
+    })();
+    const faRial = (v: number) => `${v.toLocaleString('fa-IR')} ریال`;
+
+    if (wallet.length && gateway.length) {
+      return `ترکیبی: کیف پول تومانی (${faRial(sum(wallet))}) + ${gatewayLabel} (${faRial(sum(gateway))})`;
+    }
+    if (gateway.length) return gatewayLabel;
+    return 'کیف پول تومانی آرکان گلد';
   }
 
   /**
@@ -541,7 +585,12 @@ export class InvoiceService {
 
       if (key.includes('making')) {
         out.making += amount;
-      } else if (key.includes('commission') || key.includes('fee')) {
+      } else if (
+        key.includes('commission') ||
+        key.includes('fee') ||
+        key.includes('profit')
+      ) {
+        // سود فروشنده و کارمزد در ستون «سود و کارمزد» فاکتور می‌آیند
         out.commission += amount;
       } else if (key.includes('tax')) {
         out.tax += amount;
@@ -610,6 +659,11 @@ export class InvoiceService {
         invoice.kind === 'INVOICE'
           ? ((invoice.extraData as unknown as SaleInvoiceExtraData | null)
               ?.discountCode ?? null)
+          : null,
+      paymentMethod:
+        invoice.kind === 'INVOICE'
+          ? ((invoice.extraData as unknown as SaleInvoiceExtraData | null)
+              ?.paymentMethod ?? null)
           : null,
 
       items: invoice.items.map((i) => ({

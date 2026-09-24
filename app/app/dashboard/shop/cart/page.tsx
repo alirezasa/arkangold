@@ -30,6 +30,7 @@ import {
   usePayShopOrder,
   useShopOrder,
   useValidateDiscount,
+  useMyDiscountCodes,
   CartItemDto,
   ShopOrderDto,
   CheckoutRecipient,
@@ -230,6 +231,7 @@ function ShopCartPageInner() {
     setError: setDiscountError,
     validate: validateDiscount,
   } = useValidateDiscount();
+  const { codes: myCodes } = useMyDiscountCodes();
 
   // ── بازگشت از درگاه پرداخت: خواندن paymentStatus/orderId از query ──
   const searchParams = useSearchParams();
@@ -239,21 +241,34 @@ function ShopCartPageInner() {
     paymentStatus === "success" && returnedOrderId ? returnedOrderId : null,
   );
 
-  useEffect(() => {
-    if (paymentStatus === "success" && returnedOrder) {
-      setOrder(returnedOrder);
-      setStep("done");
-    } else if (paymentStatus === "failed") {
-      setCheckoutError(
-        "پرداخت ناموفق بود یا توسط شما لغو شد. می‌توانید دوباره تلاش کنید.",
-      );
-    } else if (paymentStatus === "error") {
-      setCheckoutError(
-        "خطا در تایید پرداخت رخ داد. اگر مبلغی کسر شده، با پشتیبانی تماس بگیرید.",
-      );
+  // نتیجه بازگشت از درگاه یک‌بار (به ازای هر وضعیت/سفارش) حین رندر اعمال می‌شود،
+  // نه در افکت؛ برای «success» تا لود شدن سفارش صبر می‌شود
+  const [handledReturnKey, setHandledReturnKey] = useState<string | null>(
+    null,
+  );
+  const returnKey = paymentStatus
+    ? `${paymentStatus}:${returnedOrderId ?? ""}:${returnedOrder ? "loaded" : ""}`
+    : null;
+  if (returnKey && returnKey !== handledReturnKey) {
+    if (paymentStatus === "success") {
+      if (returnedOrder) {
+        setHandledReturnKey(returnKey);
+        setOrder(returnedOrder);
+        setStep("done");
+      }
+    } else {
+      setHandledReturnKey(returnKey);
+      if (paymentStatus === "failed") {
+        setCheckoutError(
+          "پرداخت ناموفق بود یا توسط شما لغو شد. می‌توانید دوباره تلاش کنید.",
+        );
+      } else if (paymentStatus === "error") {
+        setCheckoutError(
+          "خطا در تایید پرداخت رخ داد. اگر مبلغی کسر شده، با پشتیبانی تماس بگیرید.",
+        );
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentStatus, returnedOrder]);
+  }
 
   const handleQuantityChange = async (itemId: string, qty: number) => {
     await update(itemId, { quantity: qty });
@@ -279,8 +294,8 @@ function ShopCartPageInner() {
     setStep("address");
   };
 
-  const handleApplyDiscount = async () => {
-    const code = discountInput.trim();
+  const handleApplyDiscount = async (preset?: string) => {
+    const code = (preset ?? discountInput).trim();
     if (!code) return setDiscountError("کد تخفیف را وارد کنید");
     const res = await validateDiscount(code);
     if (res) {
@@ -709,13 +724,15 @@ function ShopCartPageInner() {
                     setDiscountInput(e.target.value.toUpperCase());
                     if (discountError) setDiscountError(null);
                   }}
-                  onKeyDown={(e) => e.key === "Enter" && handleApplyDiscount()}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && handleApplyDiscount()
+                  }
                   maxLength={40}
                   className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-200 outline-none focus:border-emerald-500 text-sm font-bold tracking-wide"
                 />
                 <button
                   type="button"
-                  onClick={handleApplyDiscount}
+                  onClick={() => handleApplyDiscount()}
                   disabled={discountLoading || !discountInput.trim()}
                   className="px-4 py-2.5 rounded-xl text-[13px] font-black text-white disabled:opacity-40 flex items-center gap-1.5 shrink-0"
                   style={{ backgroundColor: "var(--color-emerald)" }}
@@ -726,6 +743,39 @@ function ShopCartPageInner() {
                     "اعمال"
                   )}
                 </button>
+              </div>
+            )}
+            {!appliedDiscount && myCodes.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold text-gray-500">
+                  کدهای تخفیف ویژه شما
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {myCodes.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      disabled={discountLoading}
+                      onClick={() => {
+                        setDiscountInput(c.code);
+                        handleApplyDiscount(c.code);
+                      }}
+                      className="text-right px-3 py-2 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/50 hover:bg-emerald-50 disabled:opacity-50"
+                    >
+                      <span
+                        className="block text-[12px] font-black text-emerald-700"
+                        dir="ltr"
+                      >
+                        {c.code}
+                      </span>
+                      <span className="block text-[10px] text-emerald-600">
+                        {c.valueLabel}
+                        {c.expiresAt &&
+                          ` — تا ${new Date(c.expiresAt).toLocaleDateString("fa-IR")}`}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             {discountError && (

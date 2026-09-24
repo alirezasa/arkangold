@@ -1,6 +1,7 @@
 // api/src/transactions/transactions-admin.service.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { summarizeShopItems } from './transactions.service';
 import {
   Prisma,
   TransactionType,
@@ -45,6 +46,13 @@ export class TransactionsAdminService {
               subtotalRial: true,
               discountRial: true,
               discountCodeText: true,
+              items: {
+                select: {
+                  quantity: true,
+                  product: { select: { name: true } },
+                  variant: { select: { product: { select: { name: true } } } },
+                },
+              },
             },
           },
         },
@@ -76,6 +84,9 @@ export class TransactionsAdminService {
 
         description: transaction.description,
         shopOrderId: transaction.shopOrderId,
+        itemsSummary: transaction.shopOrder
+          ? summarizeShopItems(transaction.shopOrder.items)
+          : null,
         ...this.discountInfo(transaction.shopOrder),
         createdAt: transaction.createdAt.toISOString(),
       })),

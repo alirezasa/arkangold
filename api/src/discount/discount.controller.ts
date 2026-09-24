@@ -1,5 +1,5 @@
 // api/src/discount/discount.controller.ts
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -18,6 +18,12 @@ interface AuthenticatedRequest extends Request {
 @Controller('discount-codes')
 export class DiscountController {
   constructor(private readonly service: DiscountService) {}
+
+  @Get('mine')
+  @ApiOperation({ summary: 'کدهای تخفیف اختصاصی فعال کاربر' })
+  mine(@Req() req: AuthenticatedRequest) {
+    return this.service.listForUser(req.user.userId);
+  }
 
   // محدودیت نرخ برای جلوگیری از حدس زدن کدها
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

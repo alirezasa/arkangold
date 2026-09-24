@@ -55,3 +55,8 @@ export interface NavItem {
   badge?: number;
 }
 
+export interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+

@@ -113,6 +113,11 @@ export class WalletService {
       largeDestSheba,
       directDailyLimit,
       directDestCard,
+      c2cEnabled,
+      bankEnabled,
+      trackingEnabled,
+      largeEnabled,
+      directEnabled,
     ] = await Promise.all([
       this.systemConfig.getBoolean('deposit.online.enabled', false),
       this.systemConfig.getNumber('deposit.online.min_amount', 100000),
@@ -152,6 +157,11 @@ export class WalletService {
       this.systemConfig.get('deposit.large_transfer.destination_sheba'),
       this.systemConfig.getNumber('deposit.direct.daily_limit', 150000000),
       this.systemConfig.get('deposit.direct.destination_card'),
+      this.systemConfig.getBoolean('deposit.card_to_card.enabled', true),
+      this.systemConfig.getBoolean('deposit.bank_transfer.enabled', true),
+      this.systemConfig.getBoolean('deposit.tracking_id.enabled', true),
+      this.systemConfig.getBoolean('deposit.large_transfer.enabled', true),
+      this.systemConfig.getBoolean('deposit.direct.enabled', true),
     ]);
 
     return {
@@ -162,7 +172,7 @@ export class WalletService {
         dailyLimit: onlineDailyLimit,
       },
       cardToCard: {
-        enabled: true,
+        enabled: c2cEnabled,
         dailyLimit: c2cDailyLimit,
         minAmount: c2cMin,
         maxAmount: c2cMax,
@@ -172,7 +182,7 @@ export class WalletService {
         processingTime: c2cTime,
       },
       bankTransfer: {
-        enabled: true,
+        enabled: bankEnabled,
         dailyLimit: 0, // بدون محدودیت
         destinationAccount: bankDestAccount,
         destinationSheba: bankDestSheba,
@@ -180,7 +190,7 @@ export class WalletService {
         processingTime: bankTime,
       },
       trackingId: {
-        enabled: true,
+        enabled: trackingEnabled,
         dailyLimit: trackingDailyLimit,
         destinationAccount: trackingDestAccount,
         destinationSheba: trackingDestSheba,
@@ -188,18 +198,33 @@ export class WalletService {
         processingTime: 'سیکل پایا',
       },
       largeTransfer: {
-        enabled: true,
+        enabled: largeEnabled,
         minAmount: largeMin,
         destinationAccount: largeDestAccount,
         destinationSheba: largeDestSheba,
       },
       direct: {
-        enabled: true,
+        enabled: directEnabled,
         dailyLimit: directDailyLimit,
         destinationCard: this.maskCard(directDestCard),
         destinationCardFull: directDestCard,
       },
     };
+  }
+
+  // ══════════════════════════════════════════
+  // ── بررسی فعال بودن روش واریز (قابل تنظیم از پنل ادمین) ──
+  // ══════════════════════════════════════════
+  async assertDepositMethodEnabled(method: string) {
+    const enabled = await this.systemConfig.getBoolean(
+      `deposit.${method}.enabled`,
+      true,
+    );
+    if (!enabled) {
+      throw new ForbiddenException(
+        'این روش واریز در حال حاضر غیرفعال است. لطفاً از روش دیگری استفاده کنید',
+      );
+    }
   }
 
   // ══════════════════════════════════════════
@@ -242,6 +267,7 @@ export class WalletService {
     sourceCardId: string,
     amount: number,
   ) {
+    await this.assertDepositMethodEnabled('card_to_card');
     await this.checkUserIdentity(userId);
     await this.checkDailyDepositLimit(userId, 'card_to_card', amount);
 
@@ -327,6 +353,7 @@ export class WalletService {
   // ── ثبت درخواست واریز حساب به حساب ──
   // ══════════════════════════════════════════
   async initiateBankTransfer(userId: string, sourceCardId: string) {
+    await this.assertDepositMethodEnabled('bank_transfer');
     await this.checkUserIdentity(userId);
 
     const bankAccount = await this.prisma.bankAccount.findFirst({
@@ -373,6 +400,7 @@ export class WalletService {
   // ── دریافت شناسه واریز (Tracking ID) ──
   // ══════════════════════════════════════════
   async getTrackingIdDeposit(userId: string, sourceCardId: string) {
+    await this.assertDepositMethodEnabled('tracking_id');
     await this.checkUserIdentity(userId);
 
     const bankAccount = await this.prisma.bankAccount.findFirst({
@@ -408,6 +436,7 @@ export class WalletService {
   // ── واریز مبالغ بالا (پیش‌فاکتور) ──
   // ══════════════════════════════════════════
   async initiateLargeTransfer(userId: string, amount: number) {
+    await this.assertDepositMethodEnabled('large_transfer');
     await this.checkUserIdentity(userId);
 
     const minAmount = await this.systemConfig.getNumber(

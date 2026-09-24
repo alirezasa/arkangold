@@ -53,6 +53,11 @@ export const WALLET_CONFIG_DEFAULTS = [
     value: 'کمتر از ۱۰ دقیقه',
     description: 'زمان پردازش',
   },
+  {
+    key: 'deposit.card_to_card.enabled',
+    value: 'true',
+    description: 'فعال بودن واریز کارت به کارت',
+  },
 
   // ══ حساب به حساب ══
   {
@@ -80,6 +85,11 @@ export const WALLET_CONFIG_DEFAULTS = [
     value: 'واریز در سیکل پایا',
     description: 'زمان پردازش',
   },
+  {
+    key: 'deposit.bank_transfer.enabled',
+    value: 'true',
+    description: 'فعال بودن واریز حساب به حساب',
+  },
 
   // ══ واریز شناسه‌دار ══
   {
@@ -102,6 +112,11 @@ export const WALLET_CONFIG_DEFAULTS = [
     value: 'بانک کشاورزی - یارا تجارت الکترونیک بنیان',
     description: 'نام صاحب حساب',
   },
+  {
+    key: 'deposit.tracking_id.enabled',
+    value: 'true',
+    description: 'فعال بودن واریز شناسه‌دار',
+  },
 
   // ══ مبالغ بالا ══
   {
@@ -119,6 +134,11 @@ export const WALLET_CONFIG_DEFAULTS = [
     value: 'IR370160000000001128175516',
     description: 'شماره شبا مقصد',
   },
+  {
+    key: 'deposit.large_transfer.enabled',
+    value: 'true',
+    description: 'فعال بودن واریز مبالغ بالا (پیش‌فاکتور)',
+  },
 
   // ══ واریز مستقیم ══
   {
@@ -130,6 +150,28 @@ export const WALLET_CONFIG_DEFAULTS = [
     key: 'deposit.direct.destination_card',
     value: '6037707500624484',
     description: 'شماره کارت مقصد',
+  },
+  {
+    key: 'deposit.direct.enabled',
+    value: 'true',
+    description: 'فعال بودن واریز مستقیم',
+  },
+
+  // ══ خدمات صفحه اصلی اپلیکیشن (بنرها) ══
+  {
+    key: 'service.melted_gold.enabled',
+    value: 'true',
+    description: 'فعال بودن خدمت «طلای آب‌شده» (بنر و صفحه)',
+  },
+  {
+    key: 'service.gold_ingot.enabled',
+    value: 'true',
+    description: 'فعال بودن خدمت «شمش طلا» (بنر و صفحه)',
+  },
+  {
+    key: 'service.jewelry.enabled',
+    value: 'true',
+    description: 'فعال بودن خدمت «زیورآلات» (بنر و فروشگاه)',
   },
 
   // ══ برداشت ══

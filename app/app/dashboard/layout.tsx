@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { IdentityStatus, UserType } from "@arkan-gold/shared";
 
 import { useProfilePage } from "@/app/hooks/useProfilePage";
+import { isIdentityFreePath } from "@/app/utils/mock-data";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
 import BottomNav from "./components/BottomNav";
@@ -112,9 +113,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     userData?.identity?.status,
   );
 
-  const displayName = userData?.identity?.firstName
-    ? `${userData.identity.firstName} ${userData.identity.lastName ?? ""}`.trim()
-    : userData?.phone || "کاربر جدید";
+  // نمایش نام و نام خانوادگی کاربر (در صورت نبود، شماره موبایل)
+  const fullName = [userData?.identity?.firstName, userData?.identity?.lastName]
+    .filter((part) => part && part.trim())
+    .join(" ")
+    .trim();
+  const displayName = fullName || userData?.phone || "";
 
   const isLegalUser = userData?.type === UserType.LEGAL;
 
@@ -140,28 +144,37 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           : "legal_profile_submit";
 
   /**
-   * مسیری که کاربر باید برای تکمیل فرایند به آن منتقل شود
+   * احراز هویت برای همه کاربران اجباری است: تا تایید نهایی هویت، کاربر فقط به
+   * صفحه احراز هویت (و پشتیبانی) دسترسی دارد. برای کاربر حقوقی پس از تایید هویت،
+   * تکمیل و تایید پروفایل حقوقی نیز الزامی است.
    */
-  const gateTargetPath: string | null =
-    legalOnboardingStep === "identity"
-      ? IDENTITY_PATH
-      : legalOnboardingStep === "legal_profile_submit" ||
-          legalOnboardingStep === "legal_profile_pending"
-        ? LEGAL_PROFILE_PATH
-        : null;
+  const gateTargetPath: string | null = !isIdentityVerified
+    ? IDENTITY_PATH
+    : legalOnboardingStep === "legal_profile_submit" ||
+        legalOnboardingStep === "legal_profile_pending"
+      ? LEGAL_PROFILE_PATH
+      : null;
+
+  const isAllowedWhileGated = (path: string) =>
+    path === gateTargetPath ||
+    (gateTargetPath === IDENTITY_PATH && isIdentityFreePath(path));
+
+  const isNavLocked = gateTargetPath !== null;
 
   /**
-   * جلوگیری از ورود کاربر حقوقی به داشبورد تا زمان تکمیل مراحل لازم
+   * جلوگیری از ورود کاربر به بخش‌های سیستم تا زمان تکمیل و تایید احراز هویت
    */
+  const allowedHere = gateTargetPath === null || isAllowedWhileGated(pathname);
+
   useEffect(() => {
     if (isVerifying || error) {
       return;
     }
 
-    if (gateTargetPath && pathname !== gateTargetPath) {
+    if (gateTargetPath && !allowedHere) {
       router.replace(gateTargetPath);
     }
-  }, [isVerifying, error, gateTargetPath, pathname, router]);
+  }, [isVerifying, error, gateTargetPath, allowedHere, router]);
 
   if (isVerifying) {
     return <FullScreenLoader text="در حال برقراری ارتباط امن..." />;
@@ -171,7 +184,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     return <FullScreenLoader text="در حال انتقال به صفحه ورود..." />;
   }
 
-  if (gateTargetPath && pathname !== gateTargetPath) {
+  if (gateTargetPath && !allowedHere) {
     return <FullScreenLoader text="در حال بررسی وضعیت حساب کاربری..." />;
   }
 
@@ -214,6 +227,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           userName={displayName}
           userPhone={userData?.phone}
           identityStatus={identityStatus}
+          locked={isNavLocked}
         />
       </div>
 
@@ -230,7 +244,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <BottomNav identityStatus={identityStatus} />
+      <BottomNav
+        identityStatus={identityStatus}
+        userName={displayName}
+        userPhone={userData?.phone}
+        locked={isNavLocked}
+      />
     </div>
   );
 }

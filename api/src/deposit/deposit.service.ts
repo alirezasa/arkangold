@@ -67,6 +67,17 @@ export class DepositService {
       }
     }
 
+    // روش «مبالغ بالا (پیش‌فاکتور)» از پنل ادمین قابل غیرفعال‌سازی است
+    const largeTransferEnabled = await this.systemConfig.getBoolean(
+      'deposit.large_transfer.enabled',
+      true,
+    );
+    if (!largeTransferEnabled) {
+      throw new ForbiddenException(
+        'واریز مبالغ بالا در حال حاضر غیرفعال است. لطفاً از روش دیگری استفاده کنید',
+      );
+    }
+
     await this.assertIdentityVerified(userId);
 
     const minAmount = await this.systemConfig.getNumber(

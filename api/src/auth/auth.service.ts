@@ -32,6 +32,7 @@ import {
   jwtVerifyOptions,
 } from '../common/secrets/jwt-keyring';
 import { hashPassword } from '../common/crypto/password.util';
+import type { ChangePasswordDto } from './dto/change-password.dto';
 
 const AUDIT_SOURCE = 'AuthService';
 
@@ -588,6 +589,71 @@ export class AuthService {
     });
 
     return { message: 'رمز عبور با موفقیت تغییر کرد. لطفاً دوباره وارد شوید.' };
+  }
+
+  // ═══════════════════════════════════════════
+  // تغییر رمز عبور توسط کاربر واردشده — سایر نشست‌ها باطل می‌شوند
+  async changePassword(
+    userId: string,
+    sessionId: string,
+    dto: ChangePasswordDto,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    const maskedPhone = maskPhone(user.phone);
+
+    if (!user.passwordHash) {
+      throw new BadRequestException(
+        'برای حساب شما رمز عبوری ثبت نشده است. از بخش «فراموشی رمز عبور» اقدام کنید',
+      );
+    }
+
+    const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!valid) {
+      await this.auditService.logUser({
+        userId,
+        actorLabel: maskedPhone,
+        action: 'auth.change_password',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'invalid_current_password' },
+      });
+      throw new BadRequestException('رمز عبور فعلی نادرست است');
+    }
+
+    if (await bcrypt.compare(dto.newPassword, user.passwordHash)) {
+      throw new BadRequestException(
+        'رمز عبور جدید نباید با رمز عبور فعلی یکسان باشد',
+      );
+    }
+
+    const passwordHash = await hashPassword(dto.newPassword);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, failedLoginCount: 0, lockedUntil: null },
+    });
+    await this.prisma.userSession.deleteMany({
+      where: { userId, id: { not: sessionId } },
+    });
+
+    await this.auditService.logUser({
+      userId,
+      actorLabel: maskedPhone,
+      action: 'auth.change_password',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
+
+    return {
+      message:
+        'رمز عبور با موفقیت تغییر کرد. نشست‌های سایر دستگاه‌ها بسته شدند.',
+    };
   }
 
   // ═══════════════════════════════════════════

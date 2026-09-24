@@ -3,121 +3,231 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { BOTTOM_NAV } from "@/app/utils/mock-data";
-import MobileProfile from "./MobileProfile";
-import { IdentityStatus } from "@arkan-gold/shared"; // این خط اضافه شود
+import { IdentityStatus } from "@arkan-gold/shared";
+import {
+  BOTTOM_NAV,
+  USER_MENU_GROUPS,
+  getActiveNavPath,
+  isIdentityFreePath,
+} from "@/app/utils/mock-data";
+import UserMenuSheet from "./UserMenuSheet";
+
+const USER_MENU_KEY = "#user-menu";
+const CENTER_PATH = "/dashboard/trade";
+
+const USER_MENU_PATHS = USER_MENU_GROUPS.flatMap((g) =>
+  g.items.map((i) => i.path),
+);
+const ALL_NAV_PATHS = [
+  ...BOTTOM_NAV.map((i) => i.path).filter((p) => p !== USER_MENU_KEY),
+  ...USER_MENU_PATHS,
+  "/dashboard/identity",
+];
 
 interface BottomNavProps {
- identityStatus?: IdentityStatus | null;
+  identityStatus?: IdentityStatus | null;
   userName?: string;
   userPhone?: string;
+  /** تا تایید احراز هویت، ناوبری (به‌جز منوی کاربری) قفل است */
+  locked?: boolean;
 }
 
-export default function BottomNav({ identityStatus, userName, userPhone }: BottomNavProps) {
+export default function BottomNav({
+  identityStatus,
+  userName,
+  userPhone,
+  locked = false,
+}: BottomNavProps) {
   const pathname = usePathname();
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+  const activePath = getActiveNavPath(pathname, ALL_NAV_PATHS);
+  // صفحات منوی کاربری (و احراز هویت) زیر تب «کاربری» فعال نمایش داده می‌شوند
+  const isUserSectionActive =
+    isUserMenuOpen ||
+    (activePath !== null &&
+      (USER_MENU_PATHS.includes(activePath) ||
+        activePath === "/dashboard/identity"));
 
   return (
     <>
-      {/* نگهدارنده اصلی با فاصله از پایین و طرفین */}
-      <div className="lg:hidden fixed bottom-5 left-4 right-4 z-[80] pointer-events-none pb-safe">
+      <div
+        className="lg:hidden fixed inset-x-0 bottom-0 z-[80] pointer-events-none px-3"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}
+      >
         <nav
-          className="pointer-events-auto flex items-center justify-between px-2 py-2 rounded-3xl bg-white/85 backdrop-blur-xl border border-white/60 shadow-[0_8px_32px_rgba(0,0,0,0.08)]"
+          className="pointer-events-auto relative flex items-stretch rounded-[26px] px-1.5 py-1.5 backdrop-blur-xl shadow-[0_10px_32px_rgba(51,5,9,0.14)]"
+          style={{
+            background: "rgba(255,255,255,0.94)",
+            border: "1px solid var(--color-border)",
+          }}
           aria-label="منوی پایین"
         >
           {BOTTOM_NAV.map((item) => {
-            const isCenter = item.icon === "ti-plus";
-            const isProfileButton = item.path === "/dashboard/profile";
-            const isActive = pathname === item.path || (isProfileButton && isProfileOpen);
+            const isUserMenu = item.path === USER_MENU_KEY;
+            const isCenter = item.path === CENTER_PATH;
+            const isActive = isUserMenu
+              ? isUserSectionActive
+              : !isUserMenuOpen && item.path === activePath;
+            const isLocked =
+              locked && !isUserMenu && !isIdentityFreePath(item.path);
 
-            // ─── ۱. دکمه مرکزی (اکشن اصلی) ───
+            // ─── دکمه مرکزی خرید/فروش ───
             if (isCenter) {
-              return (
-                <div key={item.path} className="relative flex justify-center px-1">
-                  <div className="absolute bottom-1">
-                    <Link
-                      href={item.path}
-                      className="flex items-center justify-center w-[54px] h-[54px] rounded-2xl bg-gradient-to-tr from-[#064e3b] to-emerald-600 text-white shadow-[0_8px_20px_rgba(6,78,59,0.3)] active:scale-90 transition-transform duration-300"
-                    >
-                      <i className={`ti ${item.icon} text-[28px]`} aria-hidden="true" />
-                    </Link>
-                  </div>
-                </div>
-              );
-            }
-
-            // ─── ۲. ساختار دکمه‌های معمولی ───
-            const ButtonContent = (
-              <div className="relative flex flex-col items-center justify-center w-full h-[54px]">
-                {/* بک‌گراند فعال (Pill) که فقط در حالت فعال ظاهر می‌شود */}
-                <div 
-                  className={`absolute inset-0 rounded-2xl transition-all duration-300 ${
-                    isActive ? "bg-emerald-50/80 scale-100 opacity-100" : "scale-50 opacity-0"
-                  }`} 
-                />
-
-                <div className="relative flex flex-col items-center justify-center z-10 transition-transform duration-300">
-                  {/* آیکون */}
-                  <div className="relative">
-                    <i 
-                      className={`ti ${item.icon} text-[22px] transition-all duration-300 ${
-                        isActive ? "text-[#064e3b] -translate-y-0.5" : "text-gray-400"
-                      }`} 
-                    />
-                    
-                    {/* بج نوتیفیکیشن */}
-                    {item.badge ? (
-                      <span className="absolute -top-1 -right-2 flex items-center justify-center w-3.5 h-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full border-2 border-white shadow-sm">
-                        {item.badge}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  {/* متن (فقط در حالت فعال کمی پررنگ‌تر می‌شود) */}
+              const centerInner = (
+                <>
                   <span
-                    className={`text-[10px] font-bold mt-0.5 transition-all duration-300 ${
-                      isActive ? "text-[#064e3b] translate-y-0 opacity-100" : "text-gray-400 translate-y-1 opacity-70"
+                    className={`-mt-7 flex h-[56px] w-[56px] items-center justify-center rounded-[20px] shadow-[0_10px_22px_rgba(51,5,9,0.35)] ring-4 ring-bg-page transition-transform duration-300 ${
+                      isLocked ? "opacity-60" : "group-active:scale-90"
                     }`}
+                    style={{
+                      background:
+                        "linear-gradient(145deg, #5a0d15 0%, var(--color-emerald) 70%)",
+                      color: "var(--color-gold-500)",
+                    }}
+                  >
+                    <i
+                      className={`ti ${isLocked ? "ti-lock" : item.icon} text-[26px]`}
+                      aria-hidden="true"
+                    />
+                  </span>
+                  <span
+                    className="mt-1 text-[10px] font-black"
+                    style={{
+                      color: isActive
+                        ? "var(--color-emerald)"
+                        : "var(--color-text-secondary)",
+                    }}
                   >
                     {item.name}
                   </span>
-                </div>
-              </div>
+                </>
+              );
+
+              return isLocked ? (
+                <span
+                  key={item.path}
+                  aria-disabled="true"
+                  className="flex flex-1 flex-col items-center justify-end"
+                >
+                  {centerInner}
+                </span>
+              ) : (
+                <Link
+                  key={item.path}
+                  href={item.path}
+                  aria-current={isActive ? "page" : undefined}
+                  className="group flex flex-1 flex-col items-center justify-end outline-none touch-manipulation"
+                >
+                  {centerInner}
+                </Link>
+              );
+            }
+
+            // ─── دکمه‌های معمولی ───
+            const inner = (
+              <span className="relative flex h-[52px] w-full flex-col items-center justify-center">
+                <span
+                  className={`absolute inset-x-1 inset-y-0 rounded-[18px] transition-all duration-300 ${
+                    isActive ? "scale-100 opacity-100" : "scale-75 opacity-0"
+                  }`}
+                  style={{ background: "var(--color-gold-50)" }}
+                  aria-hidden="true"
+                />
+                <span
+                  className={`absolute top-0 h-[3px] w-5 rounded-full transition-all duration-300 ${
+                    isActive ? "opacity-100" : "opacity-0"
+                  }`}
+                  style={{ background: "var(--color-gold-500)" }}
+                  aria-hidden="true"
+                />
+                <span className="relative">
+                  <i
+                    className={`ti ${item.icon} text-[22px] transition-colors duration-300`}
+                    style={{
+                      color: isActive
+                        ? "var(--color-emerald)"
+                        : isLocked
+                          ? "#d1d5db"
+                          : "#9ca3af",
+                    }}
+                    aria-hidden="true"
+                  />
+                  {isLocked && (
+                    <i
+                      className="ti ti-lock absolute -bottom-1 -left-1.5 rounded-full bg-white text-[11px] text-gray-400"
+                      aria-hidden="true"
+                    />
+                  )}
+                </span>
+                <span
+                  className={`relative mt-0.5 text-[10px] transition-colors duration-300 ${
+                    isActive ? "font-black" : "font-bold"
+                  }`}
+                  style={{
+                    color: isActive
+                      ? "var(--color-emerald)"
+                      : isLocked
+                        ? "#d1d5db"
+                        : "#9ca3af",
+                  }}
+                >
+                  {item.name}
+                </span>
+              </span>
             );
 
-            // ─── ۳. دکمه پروفایل (باز کردن مودال) ───
-            if (isProfileButton) {
+            const itemClass =
+              "relative flex flex-1 items-center outline-none touch-manipulation transition-transform active:scale-95";
+
+            if (isUserMenu) {
               return (
                 <button
                   key={item.path}
-                  onClick={() => setIsProfileOpen(true)}
-                  className="relative flex-1 h-full active:scale-95 transition-transform outline-none touch-manipulation"
+                  type="button"
+                  onClick={() => setIsUserMenuOpen(true)}
+                  className={itemClass}
+                  aria-haspopup="dialog"
+                  aria-expanded={isUserMenuOpen}
                 >
-                  {ButtonContent}
+                  {inner}
                 </button>
               );
             }
 
-            // ─── ۴. لینک‌های ناوبری ───
+            if (isLocked) {
+              return (
+                <span
+                  key={item.path}
+                  aria-disabled="true"
+                  className="relative flex flex-1 items-center cursor-not-allowed"
+                >
+                  {inner}
+                </span>
+              );
+            }
+
             return (
               <Link
                 key={item.path}
                 href={item.path}
-                className="relative flex-1 h-full active:scale-95 transition-transform outline-none touch-manipulation"
+                aria-current={isActive ? "page" : undefined}
+                className={itemClass}
               >
-                {ButtonContent}
+                {inner}
               </Link>
             );
           })}
         </nav>
       </div>
 
-      <MobileProfile
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
+      <UserMenuSheet
+        isOpen={isUserMenuOpen}
+        onClose={() => setIsUserMenuOpen(false)}
         identityStatus={identityStatus}
         userName={userName}
         userPhone={userPhone}
+        locked={locked}
       />
     </>
   );

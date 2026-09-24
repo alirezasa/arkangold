@@ -4,6 +4,7 @@ import type {
   GoldHolding,
   ChartBar,
   NavItem,
+  NavGroup,
   GoldPrice,
 } from "@/app/utils/types";
 
@@ -110,55 +111,96 @@ export const CHART_DATA: ChartBar[] = [
   { day: "جمعه", value: 85, prevValue: 76 },
 ];
 
-export const SIDEBAR_NAV: NavItem[] = [
-  { name: "پیشخوان", icon: "ti-layout-dashboard", path: "/dashboard" },
-  { name: "احراز هویت", icon: "ti-shield-check", path: "/dashboard/identity" },
-  { name: "پروفایل", icon: "ti-user", path: "/dashboard/me" },
-  { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
-  
+// ══════════════════════════════════════════════════════════
+// ── ناوبری داشبورد (دسته‌بندی‌شده) ──
+// ══════════════════════════════════════════════════════════
+
+/** منوی «کاربری» (موبایل) — ترتیب بر اساس دسته‌بندی */
+export const USER_MENU_GROUPS: NavGroup[] = [
   {
-    name: "تراکنش‌ها",
-    icon: "ti-history",
-    path: "/dashboard/transactions",
-    badge: 3,
+    title: "حساب کاربری",
+    items: [
+      { name: "اطلاعات حساب کاربری", icon: "ti-user-circle", path: "/dashboard/me" },
+      { name: "حساب‌ها و کارت‌های بانکی", icon: "ti-credit-card", path: "/dashboard/cards" },
+      { name: "امنیت و تغییر رمز عبور", icon: "ti-lock", path: "/dashboard/security" },
+    ],
   },
   {
-    name: "سفارش‌های فروشگاه",
-    icon: "ti-receipt",
-    path: "/dashboard/shop/orders",
-  }, // ← جدید
-  {
-    name: "تحویل فیزیکی طلا",
-    icon: "ti-package",
-    path: "/dashboard/wallet/physical-delivery",
-  }, // ← جدید
-  {
-    name: "اصالت‌سنجی شمش",
-    icon: "ti-scan",
-    path: "/dashboard/hologram",
+    title: "خدمات طلا",
+    items: [
+      { name: "تحویل فیزیکی طلا", icon: "ti-package", path: "/dashboard/wallet/physical-delivery" },
+      { name: "اصالت‌سنجی شمش", icon: "ti-scan", path: "/dashboard/hologram" },
+      { name: "گواهی سرمایه", icon: "ti-certificate", path: "/dashboard/certificate" },
+    ],
   },
-  { name: "نمودار قیمت", icon: "ti-chart-candle", path: "/dashboard/chart" },
-  { name: "محاسبه‌گر", icon: "ti-calculator", path: "/dashboard/calculator" },
   {
-    name: "گواهی سرمایه",
-    icon: "ti-certificate",
-    path: "/dashboard/certificate",
+    title: "ابزارها",
+    items: [
+      { name: "نمودار قیمت", icon: "ti-chart-candle", path: "/dashboard/chart" },
+      { name: "محاسبه‌گر", icon: "ti-calculator", path: "/dashboard/calculator" },
+    ],
   },
-];
-export const SIDEBAR_ACCOUNT_NAV: NavItem[] = [
-  { name: "تنظیمات", icon: "ti-settings", path: "/dashboard/settings" },
-  { name: "پشتیبانی", icon: "ti-help-circle", path: "/dashboard/support" },
+  {
+    title: "پشتیبانی و تنظیمات",
+    items: [
+      { name: "تیکت پشتیبانی", icon: "ti-headset", path: "/dashboard/support" },
+      { name: "تنظیمات پیشرفته", icon: "ti-adjustments", path: "/dashboard/settings" },
+    ],
+  },
 ];
 
+/** منوی کناری دسکتاپ — دسته «اصلی» + همان دسته‌های منوی کاربری */
+export const SIDEBAR_NAV_GROUPS: NavGroup[] = [
+  {
+    title: "اصلی",
+    items: [
+      { name: "پیشخوان", icon: "ti-layout-dashboard", path: "/dashboard" },
+      { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
+      { name: "تراکنش‌ها", icon: "ti-history", path: "/dashboard/transactions" },
+      { name: "سفارش‌های فروشگاه", icon: "ti-receipt", path: "/dashboard/shop/orders" },
+    ],
+  },
+  {
+    ...USER_MENU_GROUPS[0],
+    items: [
+      USER_MENU_GROUPS[0].items[0],
+      { name: "احراز هویت", icon: "ti-shield-check", path: "/dashboard/identity" },
+      ...USER_MENU_GROUPS[0].items.slice(1),
+    ],
+  },
+  ...USER_MENU_GROUPS.slice(1),
+];
+
+/** منوی پایین موبایل — آیتم «کاربری» منوی کشویی کاربری را باز می‌کند */
 export const BOTTOM_NAV: NavItem[] = [
   { name: "پیشخوان", icon: "ti-layout-dashboard", path: "/dashboard" },
   { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
-  { name: "خرید/فروش", icon: "ti-plus", path: "/dashboard/trade" },
-  {
-    name: "تراکنش‌ها",
-    icon: "ti-history",
-    path: "/dashboard/transactions",
-    badge: 3,
-  },
-  { name: "پروفایل", icon: "ti-user", path: "/dashboard/profile" },
+  { name: "خرید/فروش", icon: "ti-arrows-exchange", path: "/dashboard/trade" },
+  { name: "تراکنش‌ها", icon: "ti-history", path: "/dashboard/transactions" },
+  { name: "کاربری", icon: "ti-user", path: "#user-menu" },
 ];
+
+/** مسیرهایی که پیش از تایید احراز هویت هم در دسترس هستند */
+export const IDENTITY_FREE_PATHS = ["/dashboard/identity", "/dashboard/support"];
+
+export function isIdentityFreePath(path: string) {
+  return IDENTITY_FREE_PATHS.some(
+    (p) => path === p || path.startsWith(`${p}/`),
+  );
+}
+
+/**
+ * مسیر فعال منو: طولانی‌ترین مسیری که با مسیر فعلی (یا زیرمسیرهایش) مطابقت دارد.
+ * مثلاً در «/dashboard/wallet/physical-delivery» فقط «تحویل فیزیکی» فعال است نه «کیف پول».
+ */
+export function getActiveNavPath(pathname: string, paths: string[]) {
+  let best: string | null = null;
+  for (const path of paths) {
+    const match =
+      path === "/dashboard"
+        ? pathname === path
+        : pathname === path || pathname.startsWith(`${path}/`);
+    if (match && (!best || path.length > best.length)) best = path;
+  }
+  return best;
+}

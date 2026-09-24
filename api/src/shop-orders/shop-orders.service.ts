@@ -26,6 +26,7 @@ import {
   LedgerLineInput,
 } from '../accounting/accounting.service';
 import { InvoiceService } from '../invoice/invoice.service';
+import { DiscountService } from '../discount/discount.service';
 import { businessRuleViolation } from '../common/audit/business-rule.util';
 
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
@@ -51,6 +52,9 @@ type ShopOrderDtoItem = {
 type ShopOrderDtoSource = {
   id: string;
   status: string;
+  subtotalRial: unknown;
+  discountRial: unknown;
+  discountCodeText: string | null;
   totalRial: unknown;
   trackingCode: string | null;
   createdAt: Date;
@@ -72,7 +76,59 @@ export class ShopOrdersService {
     private readonly systemConfig: SystemConfigService,
     private readonly accountingService: AccountingService,
     private readonly invoiceService: InvoiceService,
+    private readonly discountService: DiscountService,
   ) {}
+
+  /**
+   * سطرهای سند فروش فروشگاه:
+   * بدهکار: کیف‌پول (2010) / نقد درگاه (1010) به اندازه مبلغ پرداختی +
+   *         هزینه تخفیف فروش (5030) به اندازه تخفیف کد
+   * بستانکار: درآمد فروش فروشگاه (4020) به اندازه جمع اقلام قبل از تخفیف
+   */
+  private buildSaleJournalLines(params: {
+    walletRial: number;
+    gatewayRial: number;
+    discountRial: number;
+    subtotalRial: number;
+  }): LedgerLineInput[] {
+    const lines: LedgerLineInput[] = [];
+    if (params.walletRial > 0) {
+      lines.push({
+        accountCode: '2010',
+        side: 'DEBIT',
+        amountRial: params.walletRial,
+      });
+    }
+    if (params.gatewayRial > 0) {
+      lines.push({
+        accountCode: '1010',
+        side: 'DEBIT',
+        amountRial: params.gatewayRial,
+      });
+    }
+    if (params.discountRial > 0) {
+      lines.push({
+        accountCode: '5030',
+        side: 'DEBIT',
+        amountRial: params.discountRial,
+      });
+    }
+    lines.push({
+      accountCode: '4020',
+      side: 'CREDIT',
+      amountRial: params.subtotalRial,
+    });
+    return lines;
+  }
+
+  private discountSuffix(order: {
+    discountRial: unknown;
+    discountCodeText: string | null;
+  }): string {
+    return this.toNumber(order.discountRial) > 0 && order.discountCodeText
+      ? `|discount:${order.discountCodeText}`
+      : '';
+  }
 
   private async withIdempotency<T>(
     scope: string,
@@ -252,11 +308,34 @@ export class ShopOrdersService {
             });
           }
 
+          // کد تخفیف داخل همین تراکنش و با قفل ردیف کد بررسی می‌شود تا
+          // سهمیه استفاده در ثبت همزمان سفارش‌ها از سقف عبور نکند
+          const subtotalRial = totalRial;
+          let discountRial = 0;
+          let discountCodeId: string | null = null;
+          let discountCodeText: string | null = null;
+
+          if (dto.discountCode?.trim()) {
+            const evaluation = await this.discountService.evaluate(tx, {
+              code: dto.discountCode,
+              userId,
+              subtotalRial,
+              lock: true,
+            });
+            discountRial = evaluation.discountRial;
+            discountCodeId = evaluation.discountCode.id;
+            discountCodeText = evaluation.discountCode.code;
+          }
+
           const newOrder = await tx.shopOrder.create({
             data: {
               userId,
               addressId: dto.addressId,
-              totalRial,
+              subtotalRial,
+              discountRial,
+              totalRial: subtotalRial - discountRial,
+              discountCodeId,
+              discountCodeText,
               status: 'PENDING_PAYMENT',
             },
           });
@@ -337,7 +416,8 @@ export class ShopOrdersService {
 
     const totalRial = this.toNumber(order.totalRial);
 
-    if (dto.mode === 'WALLET') {
+    // سفارش با تخفیف ۱۰۰٪ مبلغی برای پرداخت ندارد؛ بدون درگاه نهایی می‌شود
+    if (dto.mode === 'WALLET' || totalRial <= 0) {
       await this.captureWalletOnly(userId, orderId, totalRial);
       return {
         message: 'پرداخت با موفقیت انجام شد',
@@ -417,6 +497,11 @@ export class ShopOrdersService {
         const wallet = await tx.wallet.findUnique({ where: { userId } });
         if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
 
+        const order = await tx.shopOrder.findUnique({
+          where: { id: orderId },
+        });
+        if (!order) throw new NotFoundException('سفارش یافت نشد');
+
         if (this.toNumber(wallet.rialBalance) < amountRial) {
           throw new BadRequestException(
             `موجودی کیف پول کافی نیست. مبلغ فاکتور: ${this.rialToTomanString(amountRial)} تومان`,
@@ -446,18 +531,25 @@ export class ShopOrdersService {
             type: 'SHOP_PURCHASE',
             amountRial,
             status: 'COMPLETED',
-            description: `shop_order:${orderId}`,
+            description: `shop_order:${orderId}${this.discountSuffix(order)}`,
             shopOrderId: orderId,
           },
         });
+
+        const subtotalRial = this.toNumber(order.subtotalRial);
+        const discountRial = this.toNumber(order.discountRial);
         await this.accountingService.postJournal(tx, {
-          description: `فروش فروشگاه (کیف‌پول) - سفارش ${orderId}`,
-          totalRial: amountRial,
+          description: `فروش فروشگاه (کیف‌پول) - سفارش ${orderId}${
+            discountRial > 0 ? ` - کد تخفیف ${order.discountCodeText}` : ''
+          }`,
+          totalRial: subtotalRial,
           totalGrams: 0,
-          lines: [
-            { accountCode: '2010', side: 'DEBIT', amountRial },
-            { accountCode: '4020', side: 'CREDIT', amountRial },
-          ],
+          lines: this.buildSaleJournalLines({
+            walletRial: amountRial,
+            gatewayRial: 0,
+            discountRial,
+            subtotalRial,
+          }),
         });
 
         await tx.shopOrder.update({
@@ -723,36 +815,21 @@ export class ShopOrdersService {
 
         const orderTotalRial = this.toNumber(order.totalRial);
         const gatewayPortionRial = orderTotalRial - walletPortionRial;
-
-        const accountingLines: LedgerLineInput[] = [];
-
-        if (walletPortionRial > 0) {
-          accountingLines.push({
-            accountCode: '2010',
-            side: 'DEBIT',
-            amountRial: walletPortionRial,
-          });
-        }
-
-        if (gatewayPortionRial > 0) {
-          accountingLines.push({
-            accountCode: '1010',
-            side: 'DEBIT',
-            amountRial: gatewayPortionRial,
-          });
-        }
-
-        accountingLines.push({
-          accountCode: '4020',
-          side: 'CREDIT',
-          amountRial: orderTotalRial,
-        });
+        const subtotalRial = this.toNumber(order.subtotalRial);
+        const discountRial = this.toNumber(order.discountRial);
 
         await this.accountingService.postJournal(tx, {
-          description: `فروش فروشگاه (درگاه) - سفارش ${order.id}`,
-          totalRial: orderTotalRial,
+          description: `فروش فروشگاه (درگاه) - سفارش ${order.id}${
+            discountRial > 0 ? ` - کد تخفیف ${order.discountCodeText}` : ''
+          }`,
+          totalRial: subtotalRial,
           totalGrams: 0,
-          lines: accountingLines,
+          lines: this.buildSaleJournalLines({
+            walletRial: walletPortionRial,
+            gatewayRial: gatewayPortionRial,
+            discountRial,
+            subtotalRial,
+          }),
         });
 
         await tx.transaction.create({
@@ -762,7 +839,7 @@ export class ShopOrdersService {
             type: 'SHOP_PURCHASE',
             amountRial: this.toNumber(order.totalRial),
             status: 'COMPLETED',
-            description: `shop_order:${order.id}|gateway:${providerKey}`,
+            description: `shop_order:${order.id}|gateway:${providerKey}${this.discountSuffix(order)}`,
             shopOrderId: order.id,
           },
         });
@@ -776,6 +853,20 @@ export class ShopOrdersService {
       this.logger.log(
         `[ShopOrder] سفارش ${orderId} از طریق ${providerKey} پرداخت شد`,
       );
+
+      // صدور فاکتور بعد از نهایی شدن پرداخت درگاه، در تراکنش جدا: پول از درگاه
+      // کسر شده و خطای صدور (مثلاً تنظیمات ناقص شرکت) نباید پرداخت را برگرداند.
+      // issue ضدتکرار است، پس تکرار callback سند دوم نمی‌سازد.
+      await this.prisma
+        .$transaction((tx) =>
+          this.invoiceService.issueForShopOrder(tx, orderId),
+        )
+        .catch((invoiceError: unknown) => {
+          this.logger.error(
+            `[ShopOrder] صدور فاکتور سفارش ${orderId} ناموفق بود`,
+            this.formatUnknownError(invoiceError),
+          );
+        });
 
       return { orderId, success: true, alreadyProcessed: false };
     } catch (err) {
@@ -1116,6 +1207,8 @@ export class ShopOrdersService {
 
         if (!existingRefund) {
           const refundRial = this.toNumber(order.totalRial);
+          const subtotalRial = this.toNumber(order.subtotalRial);
+          const discountRial = this.toNumber(order.discountRial);
 
           await tx.wallet.update({
             where: { id: wallet.id },
@@ -1134,14 +1227,31 @@ export class ShopOrdersService {
             },
           });
 
+          // برگشت کامل سند فروش: درآمد به اندازه جمع اقلام، و هزینه تخفیف
+          // (در صورت وجود) خنثی می‌شود؛ فقط مبلغ پرداختی به کیف پول برمی‌گردد
+          const refundLines: LedgerLineInput[] = [
+            { accountCode: '4020', side: 'DEBIT', amountRial: subtotalRial },
+          ];
+          if (refundRial > 0) {
+            refundLines.push({
+              accountCode: '2010',
+              side: 'CREDIT',
+              amountRial: refundRial,
+            });
+          }
+          if (discountRial > 0) {
+            refundLines.push({
+              accountCode: '5030',
+              side: 'CREDIT',
+              amountRial: discountRial,
+            });
+          }
+
           await this.accountingService.postJournal(tx, {
             description: `بازگشت وجه سفارش لغوشده - سفارش ${order.id}`,
-            totalRial: refundRial,
+            totalRial: subtotalRial,
             totalGrams: 0,
-            lines: [
-              { accountCode: '4020', side: 'DEBIT', amountRial: refundRial },
-              { accountCode: '2010', side: 'CREDIT', amountRial: refundRial },
-            ],
+            lines: refundLines,
           });
         }
       }
@@ -1222,6 +1332,9 @@ export class ShopOrdersService {
     return {
       id: order.id,
       status: order.status,
+      subtotalToman: this.rialToTomanString(order.subtotalRial),
+      discountToman: this.rialToTomanString(order.discountRial),
+      discountCode: order.discountCodeText,
       totalToman: this.rialToTomanString(order.totalRial),
       trackingCode: order.trackingCode,
       address: order.address,

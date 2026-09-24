@@ -71,7 +71,16 @@ interface TxRow {
   createdAt: Date;
   shopOrderId: string | null;
   physicalDeliveryId: string | null;
+  shopOrder?: {
+    subtotalRial: Prisma.Decimal;
+    discountRial: Prisma.Decimal;
+    discountCodeText: string | null;
+  } | null;
 }
+
+const SHOP_ORDER_DISCOUNT_SELECT = {
+  select: { subtotalRial: true, discountRial: true, discountCodeText: true },
+} as const;
 
 @Injectable()
 export class TransactionsService {
@@ -123,6 +132,7 @@ export class TransactionsService {
     const [items, total] = await Promise.all([
       this.prisma.transaction.findMany({
         where,
+        include: { shopOrder: SHOP_ORDER_DISCOUNT_SELECT },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -145,6 +155,7 @@ export class TransactionsService {
   async getTransactionById(userId: string, id: string) {
     const tx = await this.prisma.transaction.findFirst({
       where: { id, userId },
+      include: { shopOrder: SHOP_ORDER_DISCOUNT_SELECT },
     });
     if (!tx) throw new NotFoundException('تراکنش یافت نشد');
     const invoiceIds = await this.findInvoiceIdsFor([tx]);
@@ -262,6 +273,15 @@ export class TransactionsService {
         : null,
       feeToman: t.feeAmount ? t.feeAmount.dividedBy(10).toString() : null,
       taxToman: t.taxAmount ? t.taxAmount.dividedBy(10).toString() : null,
+      // تخفیف کد تخفیف سفارش فروشگاه مرتبط (برای خرید و بازگشت وجه)
+      discountToman:
+        t.shopOrder && t.shopOrder.discountRial.gt(0)
+          ? t.shopOrder.discountRial.dividedBy(10).toString()
+          : null,
+      discountCode:
+        t.shopOrder && t.shopOrder.discountRial.gt(0)
+          ? t.shopOrder.discountCodeText
+          : null,
       sign: meta.sign,
       createdAt: t.createdAt.toISOString(),
       invoiceId,

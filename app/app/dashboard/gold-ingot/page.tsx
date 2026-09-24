@@ -96,7 +96,14 @@ export default function GoldIngotPage() {
                   >
                     <div className="absolute -right-6 -top-6 w-32 h-32 bg-linear-to-br from-yellow-100 to-yellow-50 rounded-full blur-2xl opacity-50 group-hover:opacity-80 transition-opacity" />
 
-                    <div className="relative z-10">
+                    {/* کل کارت به صفحه جزئیات شمش لینک می‌شود؛ دکمه خرید بالای این لایه قرار دارد */}
+                    <Link
+                      href={`/dashboard/gold-ingot/${product.slug}`}
+                      aria-label={`مشاهده جزئیات ${product.name}`}
+                      className="absolute inset-0 z-10"
+                    />
+
+                    <div className="relative">
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-3">
                           <div className="w-12 h-12 bg-yellow-50 text-yellow-600 rounded-2xl flex items-center justify-center border border-yellow-100 overflow-hidden">
@@ -112,7 +119,7 @@ export default function GoldIngotPage() {
                             )}
                           </div>
                           <div>
-                            <h3 className="text-[15px] font-black text-gray-800">{product.name}</h3>
+                            <h3 className="text-[15px] font-black text-gray-800 group-hover:text-yellow-700 transition-colors">{product.name}</h3>
                             <div className="flex items-center gap-1.5 mt-1">
                               <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
                               <span className="text-[11px] font-bold text-gray-500">
@@ -157,7 +164,7 @@ export default function GoldIngotPage() {
                         <button
                           onClick={() => handleAdd(variant.id)}
                           disabled={!variant.inStock || addLoading}
-                          className="flex items-center gap-2 bg-green-900 hover:bg-green-800 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all active:scale-95 shadow-[0_4px_15px_rgba(234,179,8,0.25)]"
+                          className="relative z-20 flex items-center gap-2 bg-green-900 hover:bg-green-800 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all active:scale-95 shadow-[0_4px_15px_rgba(234,179,8,0.25)]"
                         >
                           {addLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />

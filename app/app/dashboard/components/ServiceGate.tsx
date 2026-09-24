@@ -14,15 +14,18 @@ const SERVICE_TITLES: Record<AppServiceKey, string> = {
 /**
  * اگر خدمت از پنل ادمین غیرفعال شده باشد، به‌جای محتوای صفحه پیام غیرفعال بودن
  * نمایش داده می‌شود (تا ورود مستقیم با آدرس صفحه هم ممکن نباشد).
+ * با آرایه‌ای از خدمات، صفحه در صورت فعال بودن هر کدام نمایش داده می‌شود
+ * (مثلاً سبد خرید مشترک بین زیورآلات و شمش).
  */
 export default function ServiceGate({
   service,
   children,
 }: {
-  service: AppServiceKey;
+  service: AppServiceKey | AppServiceKey[];
   children: ReactNode;
 }) {
   const { isEnabled, loading, error } = useAppServices();
+  const keys = Array.isArray(service) ? service : [service];
 
   if (loading) {
     return (
@@ -33,7 +36,7 @@ export default function ServiceGate({
   }
 
   // در صورت خطای دریافت تنظیمات، صفحه نمایش داده می‌شود
-  if (error || isEnabled(service) !== false) {
+  if (error || keys.some((key) => isEnabled(key) !== false)) {
     return <>{children}</>;
   }
 
@@ -56,7 +59,8 @@ export default function ServiceGate({
           <i className="ti ti-lock text-[30px]" aria-hidden="true" />
         </div>
         <h2 className="mb-2 text-lg font-black text-gray-900">
-          {SERVICE_TITLES[service]} در حال حاضر غیرفعال است
+          {keys.map((key) => SERVICE_TITLES[key]).join(" و ")} در حال حاضر
+          غیرفعال است
         </h2>
         <p className="mb-6 text-sm leading-relaxed text-gray-500">
           این خدمت موقتاً توسط مدیریت غیرفعال شده است. لطفاً بعداً دوباره

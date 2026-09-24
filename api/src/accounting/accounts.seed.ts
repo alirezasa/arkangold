@@ -77,4 +77,10 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     type: AccountType.EXPENSE,
     subType: 'REFERRAL_REWARD',
   },
+  {
+    code: '5030',
+    name: 'هزینه تخفیف فروش (کد تخفیف)',
+    type: AccountType.EXPENSE,
+    subType: 'SALES_DISCOUNT',
+  },
 ];

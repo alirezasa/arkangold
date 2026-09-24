@@ -50,6 +50,9 @@ interface ShopOrderItemType {
     | "SHIPPED"
     | "DELIVERED"
     | "CANCELLED";
+  subtotalToman: string;
+  discountToman: string;
+  discountCode: string | null;
   totalToman: string;
   trackingCode: string | null;
   invoiceId: string | null;
@@ -375,8 +378,27 @@ export default function ShopOrdersPage() {
                   ))}
                 </div>
 
+                {Number(order.discountToman) > 0 && (
+                  <div className="mb-1 space-y-0.5 text-[12px]">
+                    <p className="text-gray-500">
+                      جمع اقلام:{" "}
+                      {Number(order.subtotalToman).toLocaleString("fa-IR")} تومان
+                    </p>
+                    <p className="font-bold text-emerald-700">
+                      تخفیف
+                      {order.discountCode && (
+                        <span dir="ltr" className="mx-1 font-mono">
+                          ({order.discountCode})
+                        </span>
+                      )}
+                      : {Number(order.discountToman).toLocaleString("fa-IR")}{" "}
+                      تومان
+                    </p>
+                  </div>
+                )}
                 <p className="text-[16px] font-black text-gray-900 mb-2">
-                  جمع کل: {Number(order.totalToman).toLocaleString("fa-IR")} تومان
+                  {Number(order.discountToman) > 0 ? "مبلغ پرداختی" : "جمع کل"}:{" "}
+                  {Number(order.totalToman).toLocaleString("fa-IR")} تومان
                 </p>
 
                 {order.address && (

@@ -176,6 +176,12 @@ export default function InvoiceDocumentView({ doc }: { doc: InvoiceDocument }) {
         <div className="doc-notes">
           <div><b>شرایط و توضیحات</b></div>
           <div>روش پرداخت: کیف پول تومانی آرکان گلد</div>
+          {doc.discountCode && Number(doc.discountRial) > 0 && (
+            <div>
+              کد تخفیف اعمال‌شده: <b dir="ltr">{doc.discountCode}</b> — مبلغ
+              تخفیف: <Num>{faGrouped(doc.discountRial)}</Num> ریال
+            </div>
+          )}
           <div>
             کلیه مبالغ به <b>ریال</b> است. معادل تومانی صرفاً جهت اطلاع درج شده است.
           </div>

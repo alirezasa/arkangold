@@ -367,12 +367,43 @@ export default function ShopOrderDetailPage() {
             </span>
           </div>
         ))}
+        {Number(order.discountToman) > 0 && (
+          <>
+            <div
+              className="flex items-center justify-between px-4 py-2.5 border-t"
+              style={{ borderColor: "var(--color-border)" }}
+            >
+              <span className="text-[12px] text-gray-500 font-medium">
+                جمع اقلام
+              </span>
+              <span className="text-[12px] font-bold text-gray-700">
+                {fmtToman(order.subtotalToman)} ت
+              </span>
+            </div>
+            <div
+              className="flex items-center justify-between px-4 py-2.5 border-t"
+              style={{ borderColor: "var(--color-border)" }}
+            >
+              <span className="text-[12px] text-emerald-700 font-bold">
+                تخفیف
+                {order.discountCode && (
+                  <span dir="ltr" className="mr-1">
+                    ({order.discountCode})
+                  </span>
+                )}
+              </span>
+              <span className="text-[12px] font-black text-emerald-700">
+                − {fmtToman(order.discountToman)} ت
+              </span>
+            </div>
+          </>
+        )}
         <div
           className="flex items-center justify-between px-4 py-3.5 border-t bg-gray-50"
           style={{ borderColor: "var(--color-border)" }}
         >
           <span className="text-[13px] font-bold text-gray-700">
-            مبلغ کل سفارش
+            {Number(order.discountToman) > 0 ? "مبلغ پرداختی" : "مبلغ کل سفارش"}
           </span>
           <span className="text-[17px] font-black text-gray-900">
             {fmtToman(order.totalToman)} تومان

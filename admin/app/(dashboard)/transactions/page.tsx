@@ -13,6 +13,10 @@ interface Transaction {
   amountToman?: string | number;
   status: "COMPLETED" | "PENDING" | "FAILED" | string;
   description?: string | null;
+  // کد تخفیف سفارش فروشگاه مرتبط (برای خرید و بازگشت وجه)
+  discountToman?: string | null;
+  discountCode?: string | null;
+  subtotalToman?: string | null;
   createdAt: string;
 }
 
@@ -49,8 +53,10 @@ const TYPE_LABELS: Record<string, string> = {
 export default function AdminTransactionsPage() {
   const [page, setPage] = useState(1);
   const [type, setType] = useState("");
+  const [onlyDiscounted, setOnlyDiscounted] = useState(false);
   const qs = new URLSearchParams({ page: String(page), limit: "30" });
   if (type) qs.set("type", type);
+  if (onlyDiscounted) qs.set("hasDiscount", "true");
   const { data, isLoading } = useSWR<TransactionsResponse>(
     `/api/admin/transactions?${qs.toString()}`,
     fetcher,
@@ -65,6 +71,18 @@ export default function AdminTransactionsPage() {
         <p className="text-[12px] text-gray-400">
           {data ? `${data.total.toLocaleString("fa-IR")} تراکنش` : "..."}
         </p>
+        <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1.5 text-[12px] font-bold text-gray-600">
+          <input
+            type="checkbox"
+            checked={onlyDiscounted}
+            onChange={(e) => {
+              setOnlyDiscounted(e.target.checked);
+              setPage(1);
+            }}
+          />
+          فقط دارای کد تخفیف
+        </label>
         <select
           value={type}
           onChange={(e) => {
@@ -80,6 +98,7 @@ export default function AdminTransactionsPage() {
             </option>
           ))}
         </select>
+        </div>
       </div>
 
       <div
@@ -138,6 +157,16 @@ export default function AdminTransactionsPage() {
                       : t.amountToman
                         ? `${Number(t.amountToman).toLocaleString("fa-IR")} ت`
                         : "—"}
+                    {t.discountToman && Number(t.discountToman) > 0 && (
+                      <p className="text-[10px] font-bold text-emerald-700 mt-0.5">
+                        تخفیف {Number(t.discountToman).toLocaleString("fa-IR")} ت
+                        {t.discountCode && (
+                          <span dir="ltr" className="mr-1 font-mono">
+                            ({t.discountCode})
+                          </span>
+                        )}
+                      </p>
+                    )}
                   </td>
                   <td>
                     <span

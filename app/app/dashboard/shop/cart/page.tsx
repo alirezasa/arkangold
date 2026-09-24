@@ -20,6 +20,8 @@ import {
   Scale,
   Gift,
   User,
+  TicketPercent,
+  X,
 } from "lucide-react";
 import {
   useCart,
@@ -27,9 +29,11 @@ import {
   useCheckout,
   usePayShopOrder,
   useShopOrder,
+  useValidateDiscount,
   CartItemDto,
   ShopOrderDto,
   CheckoutRecipient,
+  DiscountPreview,
 } from "@/app/hooks/useShop";
 import { useAddresses } from "@/app/hooks/usePhysicalDelivery";
 import { useWallet } from "@/app/hooks/useWallet";
@@ -216,6 +220,16 @@ function ShopCartPageInner() {
   const [recipients, setRecipients] = useState<
     Record<string, { type: "SELF" | "OTHER"; phone: string }>
   >({});
+  // کد تخفیف — پیش‌نمایش سمت سرور؛ مبلغ قطعی هنگام ثبت سفارش دوباره محاسبه می‌شود
+  const [discountInput, setDiscountInput] = useState("");
+  const [appliedDiscount, setAppliedDiscount] =
+    useState<DiscountPreview | null>(null);
+  const {
+    loading: discountLoading,
+    error: discountError,
+    setError: setDiscountError,
+    validate: validateDiscount,
+  } = useValidateDiscount();
 
   // ── بازگشت از درگاه پرداخت: خواندن paymentStatus/orderId از query ──
   const searchParams = useSearchParams();
@@ -259,7 +273,26 @@ function ShopCartPageInner() {
   const handleGoToAddress = () => {
     if (!cart || cart.items.length === 0) return;
     setCheckoutError(null);
+    // سبد ممکن است تغییر کرده باشد؛ کد تخفیف دوباره روی مبلغ جدید بررسی شود
+    setAppliedDiscount(null);
+    setDiscountError(null);
     setStep("address");
+  };
+
+  const handleApplyDiscount = async () => {
+    const code = discountInput.trim();
+    if (!code) return setDiscountError("کد تخفیف را وارد کنید");
+    const res = await validateDiscount(code);
+    if (res) {
+      setAppliedDiscount(res);
+      setDiscountInput(res.code);
+    }
+  };
+
+  const handleRemoveDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountInput("");
+    setDiscountError(null);
   };
 
   const handleConfirmAddress = () => {
@@ -290,7 +323,11 @@ function ShopCartPageInner() {
       );
     }
 
-    const res = await checkout(selectedAddressId, recipientPayload);
+    const res = await checkout(
+      selectedAddressId,
+      recipientPayload,
+      appliedDiscount?.code,
+    );
     if (!res) return;
     setOrder(res);
 
@@ -306,7 +343,8 @@ function ShopCartPageInner() {
           gatewayAmountRial: string;
         };
 
-    if (paymentMode === "WALLET") {
+    // سفارش با تخفیف کامل مبلغی برای پرداخت ندارد
+    if (paymentMode === "WALLET" || totalRial <= 0) {
       payload = { mode: "WALLET" };
     } else if (paymentMode === "GATEWAY") {
       if (!selectedGateway)
@@ -342,6 +380,11 @@ function ShopCartPageInner() {
 
   const error = checkoutError || payError;
   const hasExpiredItem = cart?.items.some((i) => i.expiresInSeconds <= 0);
+  // مبلغ قابل پرداخت پس از اعمال کد تخفیف
+  const payableToman = appliedDiscount
+    ? Number(appliedDiscount.totalToman)
+    : (cart?.totalToman ?? 0);
+  const isFree = !!appliedDiscount && payableToman <= 0;
 
   if (loading) {
     return (
@@ -578,6 +621,32 @@ function ShopCartPageInner() {
                 </span>
               </div>
             ))}
+            {appliedDiscount && (
+              <>
+                <div
+                  className="flex items-center justify-between px-4 py-2.5 border-t bg-white"
+                  style={{ borderColor: "var(--color-border)" }}
+                >
+                  <span className="text-[12px] text-gray-500 font-medium">
+                    جمع اقلام
+                  </span>
+                  <span className="text-[12px] font-bold text-gray-700">
+                    {fmtToman(appliedDiscount.subtotalToman)} ت
+                  </span>
+                </div>
+                <div
+                  className="flex items-center justify-between px-4 py-2.5 border-t bg-white"
+                  style={{ borderColor: "var(--color-border)" }}
+                >
+                  <span className="text-[12px] text-emerald-700 font-bold">
+                    تخفیف ({appliedDiscount.code})
+                  </span>
+                  <span className="text-[12px] font-black text-emerald-700">
+                    − {fmtToman(appliedDiscount.discountToman)} ت
+                  </span>
+                </div>
+              </>
+            )}
             <div
               className="flex items-center justify-between px-4 py-3.5 border-t bg-gray-50"
               style={{ borderColor: "var(--color-border)" }}
@@ -586,9 +655,85 @@ function ShopCartPageInner() {
                 مبلغ قابل پرداخت
               </span>
               <span className="text-[17px] font-black text-gray-900">
-                {fmtToman(cart.totalToman)} تومان
+                {fmtToman(payableToman)} تومان
               </span>
             </div>
+          </div>
+
+          {/* ── کد تخفیف ── */}
+          <div
+            className="rounded-2xl p-4 space-y-3"
+            style={{
+              backgroundColor: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <h3 className="flex items-center gap-1.5 text-[13px] font-black text-gray-800">
+              <TicketPercent className="w-4 h-4" /> کد تخفیف
+            </h3>
+            {appliedDiscount ? (
+              <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                <div className="min-w-0">
+                  <p
+                    className="text-[13px] font-black text-emerald-700"
+                    dir="ltr"
+                  >
+                    {appliedDiscount.code}
+                  </p>
+                  <p className="text-[11px] text-emerald-600 mt-0.5">
+                    {fmtToman(appliedDiscount.discountToman)} تومان تخفیف اعمال
+                    شد
+                    {appliedDiscount.description
+                      ? ` — ${appliedDiscount.description}`
+                      : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveDiscount}
+                  disabled={checkoutLoading || payLoading}
+                  className="p-1.5 rounded-lg text-emerald-700 hover:bg-emerald-100 shrink-0"
+                  aria-label="حذف کد تخفیف"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  dir="ltr"
+                  placeholder="مثلاً ARKAN-123456"
+                  value={discountInput}
+                  onChange={(e) => {
+                    setDiscountInput(e.target.value.toUpperCase());
+                    if (discountError) setDiscountError(null);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && handleApplyDiscount()}
+                  maxLength={40}
+                  className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-200 outline-none focus:border-emerald-500 text-sm font-bold tracking-wide"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyDiscount}
+                  disabled={discountLoading || !discountInput.trim()}
+                  className="px-4 py-2.5 rounded-xl text-[13px] font-black text-white disabled:opacity-40 flex items-center gap-1.5 shrink-0"
+                  style={{ backgroundColor: "var(--color-emerald)" }}
+                >
+                  {discountLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "اعمال"
+                  )}
+                </button>
+              </div>
+            )}
+            {discountError && (
+              <p className="flex items-center gap-1.5 text-[12px] font-bold text-red-600">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                {discountError}
+              </p>
+            )}
           </div>
 
           <div
@@ -673,7 +818,7 @@ function ShopCartPageInner() {
           {wallet && (
             <div
               className={`flex items-center justify-between px-4 py-3 rounded-xl text-[12px] font-bold ${
-                wallet.availableRial / 10 < cart.totalToman
+                wallet.availableRial / 10 < payableToman
                   ? "bg-red-50 text-red-600 border border-red-100"
                   : "bg-gray-50 text-gray-600"
               }`}
@@ -684,7 +829,7 @@ function ShopCartPageInner() {
           )}
 
           <div className="space-y-3">
-            {gateways.length > 0 && (
+            {gateways.length > 0 && !isFree && (
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-2">
                   {(["WALLET", "GATEWAY", "SPLIT"] as const).map((m) => (
@@ -757,6 +902,7 @@ function ShopCartPageInner() {
                   checkoutLoading ||
                   payLoading ||
                   (gateways.length > 0 &&
+                    !isFree &&
                     paymentMode !== "WALLET" &&
                     !selectedGateway)
                 }
@@ -792,6 +938,12 @@ function ShopCartPageInner() {
           <p className="text-[13px] text-gray-500 leading-relaxed mb-6">
             سفارش شما در حال آماده‌سازی است و به‌زودی ارسال خواهد شد.
           </p>
+          {Number(order.discountToman) > 0 && (
+            <p className="-mt-3 mb-6 text-[12px] font-bold text-emerald-700">
+              با کد تخفیف {order.discountCode}،{" "}
+              {fmtToman(order.discountToman)} تومان صرفه‌جویی کردید
+            </p>
+          )}
           <div className="flex flex-col gap-3">
             <Link
               href="/dashboard/shop"

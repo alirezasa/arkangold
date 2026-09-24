@@ -226,6 +226,8 @@ export class InvoiceService {
     const company = await this.buildCompanySnapshot();
     const customer = await this.buildCustomerSnapshot(tx, userId);
 
+    // ستون‌های فاکتور جمع‌پذیرند: جمع کل − تخفیف + کارمزد + مالیات = قابل پرداخت
+    // (مبلغ واحد اقلام بدون اجرت/کارمزد/مالیات ثبت می‌شود)
     const subtotalRial = items.reduce(
       (s, i) => s + i.unitPriceRial * i.quantity + (i.makingRial ?? 0),
       0,
@@ -234,6 +236,14 @@ export class InvoiceService {
     const feeRial = items.reduce((s, i) => s + (i.feeRial ?? 0), 0);
     const taxRial = items.reduce((s, i) => s + (i.taxRial ?? 0), 0);
     const totalRial = items.reduce((s, i) => s + i.totalRial, 0);
+
+    if (subtotalRial - discountRial + feeRial + taxRial !== totalRial) {
+      this.logger.error(
+        `[Invoice][ALERT] مغایرت جمع‌بندی سند ${sourceType}:${sourceId} — ` +
+          `جمع کل ${subtotalRial} − تخفیف ${discountRial} + کارمزد ${feeRial} + ` +
+          `مالیات ${taxRial} ≠ قابل پرداخت ${totalRial}`,
+      );
+    }
 
     const invoiceNumber = await this.sequence.next(
       tx,
@@ -342,10 +352,18 @@ export class InvoiceService {
    * پرداخت‌شده را می‌گیرد.
    */
   async issueForShopOrder(tx: Tx, orderId: string) {
+    // آیتم‌های تنوع ثابت (مثل شمش) فقط variantId دارند و محصولشان از روی variant
+    // خوانده می‌شود؛ آیتم‌های بازه‌وزنی مستقیم productId دارند
+    const productInclude = { category: { select: { name: true } } };
     const order = await tx.shopOrder.findUnique({
       where: { id: orderId },
       include: {
-        items: { include: { product: true, variant: true } },
+        items: {
+          include: {
+            product: { include: productInclude },
+            variant: { include: { product: { include: productInclude } } },
+          },
+        },
       },
     });
     if (!order) throw new NotFoundException('سفارش یافت نشد');
@@ -356,28 +374,50 @@ export class InvoiceService {
     );
 
     const items: InvoiceItemInput[] = order.items.map((it, idx) => {
-      const b = this.parseBreakdown(it.priceBreakdown);
-      const lineTotal = Number(it.priceRial) * it.quantity;
+      const product = it.variant?.product ?? it.product ?? null;
+      const unitPriceRial = Number(it.priceRial);
+      const lineTotal = unitPriceRial * it.quantity;
       const lineDiscount = lineDiscounts[idx];
+      const weightGrams =
+        it.variant?.weightGrams != null
+          ? Number(it.variant.weightGrams)
+          : it.selectedWeightGrams != null
+            ? Number(it.selectedWeightGrams)
+            : null;
+
+      // قیمت قفل‌شده هر واحد شامل اجرت، کارمزد و مالیات است. برای اینکه ستون‌های
+      // فاکتور جمع‌پذیر باشند (مبلغ واحد × تعداد + اجرت + کارمزد + مالیات − تخفیف
+      // = جمع ردیف)، این اجزا از مبلغ واحد جدا می‌شوند.
+      const b = this.parseBreakdown(it.priceBreakdown);
+      const components = b.making + b.commission + b.tax;
+      const split = components > 0 && components <= unitPriceRial;
 
       return {
         rowNo: idx + 1,
         productCode:
-          it.variant?.id?.slice(0, 8) ?? it.product?.id?.slice(0, 8) ?? null,
-        title: it.product?.name ?? 'کالا',
-        unit: it.selectedWeightGrams ? 'گرم' : 'عدد',
-        purityKarat: it.product?.purityKarat ?? null,
+          it.variant?.sku ??
+          it.variant?.id?.slice(0, 8) ??
+          product?.id?.slice(0, 8) ??
+          null,
+        title: this.describeShopItem({
+          productName: product?.name ?? null,
+          categoryName: product?.category?.name ?? null,
+          weightGrams,
+          purityKarat: product?.purityKarat ?? null,
+          recipientType: it.recipientType,
+          recipientPhoneNumber: it.recipientPhoneNumber,
+        }),
+        unit: 'عدد',
+        purityKarat: product?.purityKarat ?? null,
 
         quantity: it.quantity,
-        weightGrams: it.selectedWeightGrams
-          ? Number(it.selectedWeightGrams)
-          : null,
-        unitPriceRial: Number(it.priceRial),
+        weightGrams,
+        unitPriceRial: split ? unitPriceRial - components : unitPriceRial,
         discountRial: lineDiscount,
-        makingRial: b.making * it.quantity,
-        feeRial: b.commission * it.quantity,
-        taxRate: b.taxRate,
-        taxRial: b.tax * it.quantity,
+        makingRial: split ? b.making * it.quantity : 0,
+        feeRial: split ? b.commission * it.quantity : 0,
+        taxRate: split ? b.taxRate : 0,
+        taxRial: split ? b.tax * it.quantity : 0,
         totalRial: lineTotal - lineDiscount,
         meta: it.priceBreakdown ?? undefined,
       };
@@ -395,6 +435,39 @@ export class InvoiceService {
           : null,
       status: 'PAID',
     });
+  }
+
+  /**
+   * شرح دقیق کالا در فاکتور، مثلاً:
+   * «شمش طلا — شمش ۵ گرمی، وزن ۵ گرم، عیار ۲۴ (۹۹۹٫۹)»
+   */
+  private describeShopItem(p: {
+    productName: string | null;
+    categoryName: string | null;
+    weightGrams: number | null;
+    purityKarat: string | null;
+    recipientType: string;
+    recipientPhoneNumber: string | null;
+  }): string {
+    const name = p.productName?.trim() || 'کالای فروشگاه';
+    const head =
+      p.categoryName && !name.includes(p.categoryName)
+        ? `${p.categoryName} — ${name}`
+        : name;
+
+    const details: string[] = [];
+    if (p.weightGrams != null && p.weightGrams > 0) {
+      details.push(
+        `وزن ${toPersianDigits(p.weightGrams).replace('.', '٫')} گرم`,
+      );
+    }
+    if (p.purityKarat === 'K24') details.push('عیار ۲۴ (۹۹۹٫۹)');
+    if (p.purityKarat === 'K18') details.push('عیار ۱۸ (۷۵۰)');
+    if (p.recipientType === 'OTHER' && p.recipientPhoneNumber) {
+      details.push(`خرید برای ${toPersianDigits(p.recipientPhoneNumber)}`);
+    }
+
+    return details.length ? `${head}، ${details.join('، ')}` : head;
   }
 
   /**
@@ -457,7 +530,14 @@ export class InvoiceService {
             : '';
 
       const amount = Number(r.amountRial ?? r.amount ?? r.value ?? 0) || 0;
-      const rate = Number(r.percent ?? r.rate ?? 0) || 0;
+      // خروجی موتور قیمت‌گذاری درصد را در value با valueType=PERCENT نگه می‌دارد
+      const rate =
+        Number(
+          r.percent ??
+            r.rate ??
+            (r.valueType === 'PERCENT' ? r.value : undefined) ??
+            0,
+        ) || 0;
 
       if (key.includes('making')) {
         out.making += amount;

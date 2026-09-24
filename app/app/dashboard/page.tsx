@@ -7,6 +7,7 @@ import {
   useTransactionsSummary,
 } from "@/app/hooks/useTransactions";
 import { useWallet } from "@/app/hooks/useWallet";
+import { useAppServices, type AppServiceKey } from "@/app/hooks/useAppServices";
 import type { TransactionItem } from "@/app/hooks/useTransactions";
 import {
   TrendingUp,
@@ -148,6 +149,8 @@ export default function DashboardPage() {
   const { wallet, loading: walletLoading } = useWallet();
   const { transactions, loading: txLoading } = useTransactions(1, "ALL");
   const { summary } = useTransactionsSummary();
+  // وضعیت فعال/غیرفعال بنرها از پنل ادمین (service.*.enabled)
+  const { isEnabled } = useAppServices();
 
   const currentPriceToman = marketPrice?.pricePerGramToman
     ? Number(marketPrice.pricePerGramToman)
@@ -183,21 +186,30 @@ export default function DashboardPage() {
     : 0;
   const totalAssetToman = wallet ? wallet.rialBalance / 10 + goldValueToman : 0;
 
-  // ─── بنرهای خدمات اصلی ───
-  const services = [
+  // ─── بنرهای خدمات اصلی (نمایش و لینک بر اساس وضعیت پنل ادمین) ───
+  const services: {
+    key: AppServiceKey;
+    title: string;
+    subtitle: string;
+    href: string;
+    icon: React.ElementType;
+  }[] = [
     {
+      key: "meltedGold",
       title: "طلای آبشده",
       subtitle: "خرید و فروش لحظه‌ای",
       href: "/dashboard/melted-gold",
       icon: Flame,
     },
     {
+      key: "goldIngot",
       title: "شمش طلا",
       subtitle: "سرمایه‌گذاری امن",
       href: "/dashboard/gold-ingot",
       icon: GripHorizontal,
     },
     {
+      key: "jewelry",
       title: "زیورآلات",
       subtitle: "ویترین آنلاین",
       href: "/dashboard/shop",
@@ -338,14 +350,15 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
         {services.map((service, idx) => {
           const isHeroCard = idx === 0;
-          return (
-            <Link
-              key={idx}
-              href={service.href}
-              className={`relative group overflow-hidden rounded-[28px] md:rounded-4xl p-5 md:p-6 transition-all duration-500 border border-gold-500/20 hover:border-gold-500/60 bg-linear-to-br from-emerald to-[#1a0204] shadow-lg hover:shadow-[0_12px_40px_rgba(197,160,89,0.2)] flex flex-col justify-between
+          // تا دریافت وضعیت (null) بنر فعال فرض می‌شود؛ صفحه مقصد نیز خودش بررسی می‌کند
+          const disabled = isEnabled(service.key) === false;
+          const cardClass = `relative ${disabled ? "" : "group"} overflow-hidden rounded-[28px] md:rounded-4xl p-5 md:p-6 transition-all duration-500 border bg-linear-to-br from-emerald to-[#1a0204] shadow-lg flex flex-col justify-between
+                ${disabled ? "border-white/5 grayscale-[0.6] opacity-60 cursor-not-allowed" : "border-gold-500/20 hover:border-gold-500/60 hover:shadow-[0_12px_40px_rgba(197,160,89,0.2)]"}
                 ${isHeroCard ? "col-span-2 md:col-span-1 min-h-35 md:min-h-55" : "col-span-1 aspect-square md:aspect-auto md:min-h-55"}
-              `}
-            >
+              `;
+
+          const content = (
+            <>
               <service.icon className="absolute -left-6 -bottom-6 w-32 h-32 text-gold-500 opacity-5 group-hover:opacity-10 transition-all duration-700 transform group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
 
               <div className="flex justify-between items-start w-full z-10">
@@ -356,10 +369,17 @@ export default function DashboardPage() {
                   />
                 </div>
 
-                {isHeroCard && (
-                  <div className="w-8 h-8 rounded-full bg-white/5 backdrop-blur-md flex items-center justify-center text-gold-500 group-hover:bg-gold-500 group-hover:text-emerald transition-all border border-white/10 shadow-sm">
-                    <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
-                  </div>
+                {disabled ? (
+                  <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white/80 backdrop-blur-md">
+                    <i className="ti ti-lock text-[12px]" aria-hidden="true" />
+                    غیرفعال
+                  </span>
+                ) : (
+                  isHeroCard && (
+                    <div className="w-8 h-8 rounded-full bg-white/5 backdrop-blur-md flex items-center justify-center text-gold-500 group-hover:bg-gold-500 group-hover:text-emerald transition-all border border-white/10 shadow-sm">
+                      <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
+                    </div>
+                  )
                 )}
               </div>
 
@@ -368,9 +388,24 @@ export default function DashboardPage() {
                   {service.title}
                 </h3>
                 <p className="text-gold-500/80 text-[11px] md:text-[13px] font-medium mt-1">
-                  {service.subtitle}
+                  {disabled ? "به‌زودی فعال می‌شود" : service.subtitle}
                 </p>
               </div>
+            </>
+          );
+
+          return disabled ? (
+            <div
+              key={service.key}
+              className={cardClass}
+              aria-disabled="true"
+              title="این خدمت در حال حاضر غیرفعال است"
+            >
+              {content}
+            </div>
+          ) : (
+            <Link key={service.key} href={service.href} className={cardClass}>
+              {content}
             </Link>
           );
         })}
@@ -384,12 +419,14 @@ export default function DashboardPage() {
             <h3 className="text-[15px] font-black text-gray-800 dark:text-gray-100">
               نمودار قیمت طلا (۲۴ ساعت گذشته)
             </h3>
-            <Link
-              href="/dashboard/melted-gold"
-              className="text-[12px] font-bold text-gold-500 transition-opacity hover:opacity-70"
-            >
-              معامله طلا ←
-            </Link>
+            {isEnabled("meltedGold") !== false && (
+              <Link
+                href="/dashboard/melted-gold"
+                className="text-[12px] font-bold text-gold-500 transition-opacity hover:opacity-70"
+              >
+                معامله طلا ←
+              </Link>
+            )}
           </div>
 
           {history.length === 0 ? (

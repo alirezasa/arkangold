@@ -13,13 +13,30 @@ import {
   Loader2,
   ArrowLeft,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useIdentity } from '@/app/hooks/useIdentity';
+import { useProfilePage } from '@/app/hooks/useProfilePage';
 import { jalaliToIsoDate } from '@/app/utils/jalali';
 
 export default function IdentityPage() {
   const router = useRouter();
   const { loading, error, setError, resultStatus, resultMessage, submitIdentity } =
     useIdentity();
+  // وضعیت فعلی احراز هویت (منبع مشترک با Layout — پس از ارسال، به‌روزرسانی می‌شود
+  // تا گیت دسترسی داشبورد هم بلافاصله باز شود)
+  const { data: profile, refetch } = useProfilePage();
+  const currentStatus = profile?.identity?.status ?? null;
+  const [showForm, setShowForm] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshStatus = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const [form, setForm] = useState({
     firstName: '',
@@ -57,12 +74,13 @@ export default function IdentityPage() {
     // تبدیل دقیق تاریخ شمسی به میلادی (بر اساس الگوریتم تقویم جلالی)
     const birthDate = jalaliToIsoDate(jYear, jMonth, jDay);
 
-    await submitIdentity({
+    const ok = await submitIdentity({
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
       nationalCode: form.nationalCode,
       birthDate,
     });
+    if (ok) await refetch();
   };
 
   // نتیجه نهایی
@@ -94,16 +112,63 @@ export default function IdentityPage() {
           <p className="text-gray-500 text-sm leading-relaxed mb-6">
             {resultMessage}
           </p>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2"
-            style={{ backgroundColor: 'var(--color-emerald)' }}
-          >
-            بازگشت به داشبورد
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+          {resultStatus === 'VERIFIED' ? (
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2"
+              style={{ backgroundColor: 'var(--color-emerald)' }}
+            >
+              ورود به پیشخوان
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          ) : (
+            <PendingActions refreshing={refreshing} onRefresh={refreshStatus} />
+          )}
         </div>
       </div>
+    );
+  }
+
+  // هویت قبلاً تایید شده
+  if (currentStatus === 'VERIFIED') {
+    return (
+      <StatusCard
+        icon={<CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-4" />}
+        title="احراز هویت شما تایید شده است"
+        message="دسترسی شما به تمامی بخش‌های سامانه فعال است."
+      >
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2"
+          style={{ backgroundColor: 'var(--color-emerald)' }}
+        >
+          ورود به پیشخوان
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+      </StatusCard>
+    );
+  }
+
+  // اطلاعات ارسال شده و در انتظار بررسی
+  if (
+    !showForm &&
+    (currentStatus === 'PENDING' || currentStatus === 'MANUAL_REVIEW')
+  ) {
+    return (
+      <StatusCard
+        icon={<Clock className="w-16 h-16 text-amber-500 mx-auto mb-4" />}
+        title="احراز هویت در حال بررسی"
+        message="اطلاعات هویتی شما دریافت شده و در حال بررسی است. تا زمان تایید احراز هویت، امکان استفاده از بخش‌های سامانه وجود ندارد."
+      >
+        <PendingActions refreshing={refreshing} onRefresh={refreshStatus} />
+        <button
+          type="button"
+          onClick={() => setShowForm(true)}
+          className="w-full mt-2 py-2 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          ویرایش و ارسال مجدد اطلاعات
+        </button>
+      </StatusCard>
     );
   }
 
@@ -127,6 +192,31 @@ export default function IdentityPage() {
           </p>
         </div>
       </div>
+
+      {currentStatus === 'REJECTED' ? (
+        <div className="flex items-start gap-3 p-4 rounded-xl mb-4 text-sm font-bold bg-red-50 border border-red-200 text-red-700">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <p>
+            احراز هویت قبلی شما تایید نشد. لطفاً اطلاعات را مطابق کارت ملی
+            اصلاح و دوباره ارسال کنید.
+          </p>
+        </div>
+      ) : (
+        <div
+          className="flex items-start gap-3 p-4 rounded-xl mb-4 text-sm font-bold"
+          style={{
+            backgroundColor: 'var(--color-gold-50)',
+            border: '1px solid var(--color-gold-100)',
+            color: 'var(--color-emerald)',
+          }}
+        >
+          <ShieldCheck className="w-4 h-4 mt-0.5 shrink-0" />
+          <p>
+            احراز هویت برای استفاده از خدمات آرکان گلد الزامی است. پس از تایید
+            هویت، تمامی بخش‌های سامانه برای شما فعال می‌شود.
+          </p>
+        </div>
+      )}
 
       {/* نوتیس */}
       <div
@@ -267,15 +357,79 @@ export default function IdentityPage() {
           )}
         </button>
 
-        {/* لینک بعداً */}
-        <button
-          type="button"
-          onClick={() => router.push('/dashboard')}
-          className="w-full py-2 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors"
+        {/* راهنمایی */}
+        <Link
+          href="/dashboard/support"
+          className="block w-full py-2 text-center text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors"
         >
-          بعداً این کار را انجام می‌دهم
-        </button>
+          نیاز به راهنمایی دارید؟ ثبت تیکت پشتیبانی
+        </Link>
       </form>
+    </div>
+  );
+}
+
+function StatusCard({
+  icon,
+  title,
+  message,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  message: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="max-w-md mx-auto mt-8" dir="rtl">
+      <div
+        className="rounded-2xl p-8 text-center"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+        }}
+      >
+        {icon}
+        <h2 className="text-xl font-black text-gray-900 mb-2">{title}</h2>
+        <p className="text-gray-500 text-sm leading-relaxed mb-6">{message}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function PendingActions({
+  refreshing,
+  onRefresh,
+}: {
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={refreshing}
+        className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2 disabled:opacity-60"
+        style={{ backgroundColor: 'var(--color-emerald)' }}
+      >
+        {refreshing ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          'بروزرسانی وضعیت'
+        )}
+      </button>
+      <Link
+        href="/dashboard/support"
+        className="block w-full py-3 rounded-xl font-bold text-center border transition-colors hover:bg-gray-50"
+        style={{
+          borderColor: 'var(--color-border)',
+          color: 'var(--color-emerald)',
+        }}
+      >
+        تماس با پشتیبانی
+      </Link>
     </div>
   );
 }

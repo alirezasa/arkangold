@@ -13,6 +13,7 @@ import {
   ResetPasswordDto,
   RefreshTokenDto,
 } from '@arkan-gold/shared';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 // تعریف دقیق ساختار user که توسط JwtStrategy اضافه می‌شود
 interface AuthenticatedUser {
@@ -127,6 +128,22 @@ export class AuthController {
   async logoutAll(@Req() req: AuthenticatedRequest) {
     return this.authService.logoutAll(
       req.user.userId,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('change-password')
+  async changePassword(
+    @Body() dto: ChangePasswordDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.authService.changePassword(
+      req.user.userId,
+      req.user.sessionId,
+      dto,
       req.ip,
       req.headers['user-agent'],
     );

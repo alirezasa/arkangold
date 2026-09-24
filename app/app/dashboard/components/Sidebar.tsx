@@ -2,26 +2,39 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { SIDEBAR_NAV, SIDEBAR_ACCOUNT_NAV } from "@/app/utils/mock-data";
+import {
+  SIDEBAR_NAV_GROUPS,
+  getActiveNavPath,
+  isIdentityFreePath,
+} from "@/app/utils/mock-data";
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import GoldPriceCard from "@/app/dashboard/components/gold/GoldPriceCard";
-import { IdentityStatus } from "@arkan-gold/shared"; // این خط اضافه شود
+import { IdentityStatus } from "@arkan-gold/shared";
+
+const ALL_SIDEBAR_PATHS = SIDEBAR_NAV_GROUPS.flatMap((g) =>
+  g.items.map((i) => i.path),
+);
+
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   userName?: string;
   userPhone?: string;
   identityStatus?: IdentityStatus | null;
+  /** تا تایید احراز هویت، آیتم‌های منو (به‌جز احراز هویت و پشتیبانی) قفل هستند */
+  locked?: boolean;
 }
 
 export default function Sidebar({
   isOpen,
   onClose,
-  userName = "کاربر گرامی",
-  userPhone = "...",
+  userName = "",
+  userPhone = "",
   identityStatus = null,
+  locked = false,
 }: SidebarProps) {
   const pathname = usePathname();
+  const activePath = getActiveNavPath(pathname, ALL_SIDEBAR_PATHS);
   const router = useRouter();
 
   const handleLogout = async () => {
@@ -74,69 +87,73 @@ export default function Sidebar({
         <GoldPriceCard />
       
 
-        <nav className="relative flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          {SIDEBAR_NAV.map((item) => {
-            const active = pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                href={item.path}
-                onClick={onClose}
-                className={[
-                  "flex items-center gap-3 px-3 py-2.75 rounded-xl",
-                  "text-[13px] font-bold transition-all duration-200",
-                  active
-                    ? "text-white! shadow-md font-black"
-                    : "text-white! hover:bg-white/8",
-                ].join(" ")}
-                style={
-                  active
-                    ? { backgroundColor: "var(--color-gold-500)" }
-                    : undefined
-                }
-              >
-                <i
-                  className={`ti ${item.icon} w-5 text-center text-[19px] shrink-0`}
-                  aria-hidden="true"
-                />
-                <span>{item.name}</span>
-                {item.badge ? (
-                  <span className="mr-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                    {item.badge}
-                  </span>
-                ) : null}
-              </Link>
-            );
-          })}
+        <nav className="relative flex-1 overflow-y-auto px-3 py-2">
+          {SIDEBAR_NAV_GROUPS.map((group) => (
+            <div key={group.title} className="mb-3">
+              <p className="px-3 pb-1.5 pt-2 text-[10px] font-black tracking-wide text-white/40">
+                {group.title}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const active = item.path === activePath;
+                  const isLocked = locked && !isIdentityFreePath(item.path);
+                  const className = [
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl",
+                    "text-[13px] font-bold transition-all duration-200",
+                    active
+                      ? "text-white! shadow-md font-black"
+                      : isLocked
+                        ? "text-white/35! cursor-not-allowed"
+                        : "text-white! hover:bg-white/8",
+                  ].join(" ");
+                  const content = (
+                    <>
+                      <i
+                        className={`ti ${item.icon} w-5 text-center text-[19px] shrink-0`}
+                        aria-hidden="true"
+                      />
+                      <span className="flex-1 truncate">{item.name}</span>
+                      {isLocked && (
+                        <i
+                          className="ti ti-lock text-[14px] text-white/35"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </>
+                  );
 
-          {SIDEBAR_ACCOUNT_NAV.map((item) => {
-            const active = pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                href={item.path}
-                onClick={onClose}
-                className={[
-                  "flex items-center gap-3 px-3 py-2.75 rounded-xl",
-                  "text-[13px] font-bold transition-all duration-200",
-                  active
-                    ? "text-white! shadow-md font-black"
-                    : "text-white! hover:bg-white/8",
-                ].join(" ")}
-                style={
-                  active
-                    ? { backgroundColor: "var(--color-gold-500)" }
-                    : undefined
-                }
-              >
-                <i
-                  className={`ti ${item.icon} w-5 text-center text-[19px] shrink-0`}
-                  aria-hidden="true"
-                />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
+                  if (isLocked) {
+                    return (
+                      <span
+                        key={item.path}
+                        className={className}
+                        aria-disabled="true"
+                        title="پس از تایید احراز هویت فعال می‌شود"
+                      >
+                        {content}
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      key={item.path}
+                      href={item.path}
+                      onClick={onClose}
+                      className={className}
+                      style={
+                        active
+                          ? { backgroundColor: "var(--color-gold-500)" }
+                          : undefined
+                      }
+                    >
+                      {content}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         <div className="relative p-3 border-t border-white/10">
@@ -151,7 +168,9 @@ export default function Sidebar({
                 color: "var(--color-emerald)",
               }}
             >
-              {userName.charAt(0)}
+              {userName.charAt(0) || (
+                <i className="ti ti-user text-[16px]" aria-hidden="true" />
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">

@@ -112,10 +112,10 @@ export const useWallet = () => {
 
 // ── Hook: تنظیمات واریز ──
 export const useDepositConfig = () => {
+  // وضعیت فعال/غیرفعال روش‌ها از پنل ادمین تغییر می‌کند؛ با فوکوس مجدد تازه‌سازی می‌شود
   const { data, isLoading, error } = useSWR<DepositConfig>(
     '/api/wallet/deposit/config',
     fetcher,
-    { revalidateOnFocus: false },
   );
   return { config: data ?? null, loading: isLoading, error };
 };

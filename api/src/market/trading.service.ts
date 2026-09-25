@@ -499,9 +499,13 @@ export class TradingService {
   ) {
     const { side, orderId, totalRial, amountGrams, feeRial, taxRial } = params;
 
+    // ⚠ فروش طلای آب‌شده به کاربر، طلا را از خزانه خارج نمی‌کند: فقط بدهی طلایی به
+    // کاربر (2020) ایجاد و مقدار آن در حساب واسط تأمین (1090) به‌عنوان «کسری پوشش»
+    // ثبت می‌شود. خرید واقعی معادل آن از بازار در ماژول خزانه (TreasuryOrder) ثبت و
+    // همان‌جا 1090 تسویه و 1020 (موجودی واقعی خزانه) افزایش می‌یابد. فروش کاربر
+    // برعکس، کسری را کم (یا مازاد ایجاد) می‌کند.
     const CODES = {
-      bankRial: '1010',
-      goldInventory: '1020',
+      coverage: '1090',
       rialLiability: '2010',
       goldLiability: '2020',
       taxPayable: '2030',
@@ -526,15 +530,9 @@ export class TradingService {
         amountGrams,
       });
       lines.push({
-        accountCode: CODES.goldInventory,
+        accountCode: CODES.coverage,
         side: 'DEBIT',
-        amountRial: totalRial,
         amountGrams,
-      });
-      lines.push({
-        accountCode: CODES.bankRial,
-        side: 'CREDIT',
-        amountRial: totalRial,
       });
     } else {
       const receivable = totalRial.minus(feeRial).minus(taxRial);
@@ -551,15 +549,9 @@ export class TradingService {
         amountRial: receivable,
       });
       lines.push({
-        accountCode: CODES.goldInventory,
+        accountCode: CODES.coverage,
         side: 'CREDIT',
-        amountRial: totalRial,
         amountGrams,
-      });
-      lines.push({
-        accountCode: CODES.bankRial,
-        side: 'DEBIT',
-        amountRial: totalRial,
       });
     }
 
@@ -583,6 +575,8 @@ export class TradingService {
       description,
       totalRial,
       totalGrams: amountGrams,
+      referenceType: 'ORDER',
+      referenceId: orderId,
       lines,
     });
   }

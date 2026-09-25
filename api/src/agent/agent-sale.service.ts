@@ -687,6 +687,7 @@ export class AgentSaleService {
           premiumRial: d(s.premiumRial),
           commissionRial: d(s.commissionRial),
           netPayableRial: d(s.netPayableRial),
+          originalJournalId: s.journalEntryId,
         },
         true,
       );

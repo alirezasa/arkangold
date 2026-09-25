@@ -53,6 +53,10 @@ export interface SaleInvoiceExtraData {
   agentCode?: string;
   agentName?: string;
   agentSaleNumber?: string;
+  /** فروش از طریق شریک فروش (خرید اقساطی / اپ همکار) */
+  partnerName?: string;
+  partnerOrderNumber?: string;
+  installmentCount?: number | null;
 }
 
 export interface InvoiceItemInput {

@@ -39,6 +39,12 @@ function createFakeTx() {
             where.code.in.includes(a.code),
           ).map((a) => ({ ...a, id: a.code, balanceRial: 0, balanceGrams: 0 })),
         ),
+      findUnique: ({ where }: { where: { code: string } }) => {
+        const b = balances.get(where.code);
+        return Promise.resolve(
+          b ? { balanceRial: b.rial, balanceGrams: b.grams } : null,
+        );
+      },
       update: ({
         where,
         data,
@@ -145,7 +151,7 @@ describe('AgentAccountingService', () => {
       direction: 'ALLOCATION',
     });
     expect(bal('1030').grams.toNumber()).toBe(10);
-    expect(bal('1020').grams.toNumber()).toBe(-10);
+    expect(bal('1025').grams.toNumber()).toBe(-10);
 
     // فروش
     await service.journalSale(t, sale);

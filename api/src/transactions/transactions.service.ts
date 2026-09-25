@@ -25,6 +25,11 @@ const TYPE_META: Record<
   { title: string; category: TxCategory; sign: 'plus' | 'minus' }
 > = {
   BUY_GOLD: { title: 'خرید طلای آبشده', category: 'buy', sign: 'minus' },
+  INSTALLMENT_PURCHASE: {
+    title: 'خرید اقساطی طلا (شریک فروش)',
+    category: 'buy',
+    sign: 'plus',
+  },
   SELL_GOLD: { title: 'فروش طلای آبشده', category: 'sell', sign: 'plus' },
   BUY_SILVER: { title: 'خرید نقره', category: 'buy', sign: 'minus' },
   SELL_SILVER: { title: 'فروش نقره', category: 'sell', sign: 'plus' },

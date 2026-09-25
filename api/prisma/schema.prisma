@@ -58,6 +58,7 @@ model User {
   receivedHologramTransfers  OwnershipTransferRequest[] @relation("TransferRecipient")
   discountCodes              DiscountCode[]
   agentPurchases             AgentSale[]                @relation("AgentSaleBuyer")
+  partnerOrders              PartnerOrder[]
 
   @@map("users")
 }
@@ -238,29 +239,62 @@ model Transaction {
 }
 
 model Account {
-  code          String        @unique
-  name          String
-  type          AccountType
-  subType       String?       @map("sub_type")
-  balanceRial   Decimal       @default(0) @map("balance_rial") @db.Decimal(18, 0)
-  balanceGrams  Decimal       @default(0) @map("balance_grams") @db.Decimal(18, 4)
-  id            String        @id @default(uuid()) @db.Uuid
-  ledgerEntries LedgerEntry[]
+  code             String        @unique
+  name             String
+  type             AccountType
+  subType          String?       @map("sub_type")
+  balanceRial      Decimal       @default(0) @map("balance_rial") @db.Decimal(18, 0)
+  balanceGrams     Decimal       @default(0) @map("balance_grams") @db.Decimal(18, 4)
+  id               String        @id @default(uuid()) @db.Uuid
+  /// حساب والد (کل → معین)؛ مثلاً 101001 «بانک ملت» زیرمجموعه‌ی 1010
+  parentId         String?       @map("parent_id") @db.Uuid
+  parent           Account?      @relation("AccountTree", fields: [parentId], references: [id])
+  children         Account[]     @relation("AccountTree")
+  description      String?
+  /// حساب پایه‌ی سیستم (seed) — کد و نوع آن قابل ویرایش/حذف نیست
+  isSystem         Boolean       @default(true) @map("is_system")
+  isActive         Boolean       @default(true) @map("is_active")
+  /// حساب‌های کنترلی (کیف پول کاربران، نمایندگان، شرکا، تأمین‌کنندگان) فقط از مسیر سیستمی
+  /// تغییر می‌کنند تا دفاتر معین با دفتر کل مغایرت پیدا نکنند
+  allowManualEntry Boolean       @default(true) @map("allow_manual_entry")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  ledgerEntries    LedgerEntry[]
 
+  @@index([parentId])
   @@map("accounts")
 }
 
 model JournalEntry {
-  description   String?
-  totalRial     Decimal       @default(0) @map("total_rial") @db.Decimal(18, 0)
-  totalGrams    Decimal       @default(0) @map("total_grams") @db.Decimal(18, 4)
-  entryDate     DateTime      @default(now()) @map("entry_date")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  id            String        @id @default(uuid()) @db.Uuid
-  transactionId String?       @map("transaction_id") @db.Uuid
-  transaction   Transaction?  @relation(fields: [transactionId], references: [id])
-  ledgerEntries LedgerEntry[]
+  description      String?
+  totalRial        Decimal       @default(0) @map("total_rial") @db.Decimal(18, 0)
+  totalGrams       Decimal       @default(0) @map("total_grams") @db.Decimal(18, 4)
+  entryDate        DateTime      @default(now()) @map("entry_date")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  id               String        @id @default(uuid()) @db.Uuid
+  transactionId    String?       @map("transaction_id") @db.Uuid
+  transaction      Transaction?  @relation(fields: [transactionId], references: [id])
+  /// شماره عطف — ترتیبی و خودکار برای هر سند (بدون قفل سراسری)
+  referenceNumber  Int           @unique @default(autoincrement()) @map("reference_number")
+  /// شماره قطعی (دائم) — هنگام قطعی‌سازی اسناد به ترتیب تاریخ و بدون فاصله در سال مالی داده می‌شود
+  permanentNumber  Int?          @map("permanent_number")
+  fiscalYearId     String?       @map("fiscal_year_id") @db.Uuid
+  fiscalYear       FiscalYear?   @relation(fields: [fiscalYearId], references: [id])
+  finalizedAt      DateTime?     @map("finalized_at")
+  source           JournalSource @default(SYSTEM)
+  /// منبع عملیاتی سند (مثلاً TREASURY_ORDER / PARTNER_ORDER / MANUAL_VOUCHER) برای ردیابی دوطرفه
+  referenceType    String?       @map("reference_type")
+  referenceId      String?       @map("reference_id")
+  createdByAdminId String?       @map("created_by_admin_id") @db.Uuid
+  /// سند برگشتی: به سند اصلی اشاره می‌کند
+  reversalOfId     String?       @unique @map("reversal_of_id") @db.Uuid
+  reversalOf       JournalEntry? @relation("JournalReversal", fields: [reversalOfId], references: [id])
+  reversedBy       JournalEntry? @relation("JournalReversal")
+  ledgerEntries    LedgerEntry[]
 
+  @@unique([fiscalYearId, permanentNumber])
+  @@index([entryDate])
+  @@index([source, entryDate])
+  @@index([referenceType, referenceId])
   @@map("journal_entries")
 }
 
@@ -268,6 +302,8 @@ model LedgerEntry {
   side           LedgerSide
   amountRial     Decimal      @default(0) @map("amount_rial") @db.Decimal(18, 0)
   amountGrams    Decimal      @default(0) @map("amount_grams") @db.Decimal(18, 4)
+  /// شرح اختصاصی سطر (اسناد دستی)
+  description    String?
   createdAt      DateTime     @default(now()) @map("created_at")
   id             String       @id @default(uuid()) @db.Uuid
   journalEntryId String       @map("journal_entry_id") @db.Uuid
@@ -276,6 +312,8 @@ model LedgerEntry {
   journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
+  @@index([accountId, createdAt])
+  @@index([journalEntryId])
   @@map("ledger_entries")
 }
 
@@ -1614,6 +1652,9 @@ model HologramCode {
   /// اجرت/حق ضرب هر شمش (ریال) که هنگام تحویل امانی تعیین و در قیمت فروش نماینده لحاظ می‌شود
   agentPremiumRial Decimal?  @map("agent_premium_rial") @db.Decimal(18, 0)
 
+  /// زمان کدگذاری شمش موجود در خزانه (اتصال کد به شمش فیزیکی پیش از فروش/تحویل امانی)
+  vaultCodedAt DateTime? @map("vault_coded_at")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1950,6 +1991,7 @@ enum InvoiceSource {
   PHYSICAL_DELIVERY
   DEPOSIT
   AGENT_SALE
+  PARTNER_ORDER
 }
 
 enum DepositMethod {
@@ -2019,6 +2061,7 @@ enum TransactionType {
   SHOP_PURCHASE
   REFUND
   MANUAL_ADJUSTMENT
+  INSTALLMENT_PURCHASE
 }
 
 enum TransactionStatus {
@@ -2295,4 +2338,405 @@ enum AgentLedgerType {
   SALE_VOID
   SETTLEMENT
   ADJUSTMENT
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  حسابداری پیشرفته — سال مالی، اسناد دستی، خزانه (خرید پوششی طلا)، شرکای فروش اقساطی
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// سال مالی — بستن سال، حساب‌های موقت (درآمد/هزینه) را به سود و زیان انباشته منتقل می‌کند
+model FiscalYear {
+  id               String           @id @default(uuid()) @db.Uuid
+  title            String
+  startDate        DateTime         @map("start_date")
+  endDate          DateTime         @map("end_date")
+  status           FiscalYearStatus @default(OPEN)
+  closedAt         DateTime?        @map("closed_at")
+  closedByAdminId  String?          @map("closed_by_admin_id") @db.Uuid
+  closingJournalId String?          @map("closing_journal_id") @db.Uuid
+  createdAt        DateTime         @default(now()) @map("created_at")
+  journalEntries   JournalEntry[]
+
+  @@index([startDate, endDate])
+  @@map("fiscal_years")
+}
+
+/// سند حسابداری دستی — ثبت توسط حسابدار، تأیید توسط شخص دوم (کنترل دوگانه) و سپس ثبت در دفتر کل
+model ManualVoucher {
+  id                     String              @id @default(uuid()) @db.Uuid
+  voucherNumber          String              @unique @map("voucher_number")
+  type                   ManualVoucherType   @default(GENERAL)
+  status                 ManualVoucherStatus @default(DRAFT)
+  entryDate              DateTime            @map("entry_date")
+  description            String
+  /// [{ accountCode, side, amountRial, amountGrams, description }]
+  lines                  Json
+  totalRial              Decimal             @default(0) @map("total_rial") @db.Decimal(18, 0)
+  totalGrams             Decimal             @default(0) @map("total_grams") @db.Decimal(18, 4)
+  attachmentRef          String?             @map("attachment_ref")
+  createdByAdminId       String              @map("created_by_admin_id") @db.Uuid
+  approvedByAdminId      String?             @map("approved_by_admin_id") @db.Uuid
+  approvedAt             DateTime?           @map("approved_at")
+  rejectReason           String?             @map("reject_reason")
+  journalEntryId         String?             @map("journal_entry_id") @db.Uuid
+  reversalJournalEntryId String?             @map("reversal_journal_entry_id") @db.Uuid
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+
+  @@index([status, entryDate])
+  @@map("manual_vouchers")
+}
+
+/// طرف حساب خرید/فروش طلا با بازار (بنکدار آب‌شده، ضرابخانه، پالایشگاه، بانک)
+model Supplier {
+  id            String            @id @default(uuid()) @db.Uuid
+  code          String            @unique
+  name          String
+  kind          SupplierKind      @default(MELTED_GOLD_DEALER)
+  nationalId    String?           @map("national_id")
+  economicCode  String?           @map("economic_code")
+  contactPerson String?           @map("contact_person")
+  phone         String?
+  address       String?
+  iban          String?
+  /// مانده‌ی طرف حساب (ریال): مثبت = بدهکار (طلب ما)، منفی = بستانکار (بدهی ما) — فقط از مسیر PartyLedgerEntry
+  balanceRial   Decimal           @default(0) @map("balance_rial") @db.Decimal(18, 0)
+  isActive      Boolean           @default(true) @map("is_active")
+  notes         String?
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  orders        TreasuryOrder[]
+  payments      SupplierPayment[]
+
+  @@map("suppliers")
+}
+
+/// سفارش خرید/فروش طلا با بازار — خرید پوششی معادل طلای آب‌شده‌ی فروخته‌شده به کاربران،
+/// خرید شمش برای فروشگاه/نمایندگان، یا فروش مازاد خزانه
+model TreasuryOrder {
+  id                 String              @id @default(uuid()) @db.Uuid
+  orderNumber        String              @unique @map("order_number")
+  side               TreasurySide
+  assetType          TreasuryAssetType   @map("asset_type")
+  status             TreasuryOrderStatus @default(DRAFT)
+  supplierId         String              @map("supplier_id") @db.Uuid
+  supplier           Supplier            @relation(fields: [supplierId], references: [id])
+  /// وزن ترازو (ناخالص)
+  grossWeightGrams   Decimal             @map("gross_weight_grams") @db.Decimal(18, 4)
+  /// عیار به هزارم (مثلاً ۷۵۰، ۷۴۰، ۹۹۵)
+  purityMillesimal   Int                 @map("purity_millesimal")
+  /// وزن مبنای حسابداری: آب‌شده = معادل ۷۵۰ (وزن × عیار ÷ ۷۵۰)؛ شمش = وزن فیزیکی
+  fineGrams          Decimal             @map("fine_grams") @db.Decimal(18, 4)
+  barCount           Int?                @map("bar_count")
+  /// قیمت هر گرم ۷۵۰ (آب‌شده) یا هر گرم شمش (ریال)
+  pricePerGramRial   Decimal             @map("price_per_gram_rial") @db.Decimal(18, 0)
+  goldValueRial      Decimal             @map("gold_value_rial") @db.Decimal(18, 0)
+  wageRial           Decimal             @default(0) @map("wage_rial") @db.Decimal(18, 0)
+  feeRial            Decimal             @default(0) @map("fee_rial") @db.Decimal(18, 0)
+  taxRial            Decimal             @default(0) @map("tax_rial") @db.Decimal(18, 0)
+  totalRial          Decimal             @map("total_rial") @db.Decimal(18, 0)
+  paidRial           Decimal             @default(0) @map("paid_rial") @db.Decimal(18, 0)
+  /// مقدار پیشنهادی گزارش پوشش در لحظه‌ی ایجاد درخواست خرید
+  requestedGrams     Decimal?            @map("requested_grams") @db.Decimal(18, 4)
+  coverageSnapshot   Json?               @map("coverage_snapshot")
+  supplierInvoiceNo  String?             @map("supplier_invoice_no")
+  assayCertificateNo String?             @map("assay_certificate_no")
+  vaultLocation      String?             @map("vault_location")
+  note               String?
+  cancelReason       String?             @map("cancel_reason")
+  confirmJournalId   String?             @map("confirm_journal_id") @db.Uuid
+  receiveJournalId   String?             @map("receive_journal_id") @db.Uuid
+  cancelJournalId    String?             @map("cancel_journal_id") @db.Uuid
+  createdByAdminId   String              @map("created_by_admin_id") @db.Uuid
+  confirmedByAdminId String?             @map("confirmed_by_admin_id") @db.Uuid
+  confirmedAt        DateTime?           @map("confirmed_at")
+  receivedByAdminId  String?             @map("received_by_admin_id") @db.Uuid
+  receivedAt         DateTime?           @map("received_at")
+  cancelledAt        DateTime?           @map("cancelled_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  payments           SupplierPayment[]
+
+  @@index([status, createdAt])
+  @@index([supplierId, createdAt])
+  @@map("treasury_orders")
+}
+
+/// پرداخت به / دریافت از تأمین‌کننده
+model SupplierPayment {
+  id               String                @id @default(uuid()) @db.Uuid
+  paymentNumber    String                @unique @map("payment_number")
+  supplierId       String                @map("supplier_id") @db.Uuid
+  supplier         Supplier              @relation(fields: [supplierId], references: [id])
+  orderId          String?               @map("order_id") @db.Uuid
+  order            TreasuryOrder?        @relation(fields: [orderId], references: [id])
+  direction        PaymentDirection
+  amountRial       Decimal               @map("amount_rial") @db.Decimal(18, 0)
+  method           AgentSettlementMethod
+  /// حساب نقد/بانک مبدأ یا مقصد (1010 یا زیرحساب‌های بانکی آن)
+  cashAccountCode  String                @default("1010") @map("cash_account_code")
+  referenceNumber  String?               @map("reference_number")
+  paidAt           DateTime              @map("paid_at")
+  note             String?
+  journalEntryId   String?               @map("journal_entry_id") @db.Uuid
+  createdByAdminId String                @map("created_by_admin_id") @db.Uuid
+  createdAt        DateTime              @default(now()) @map("created_at")
+
+  @@index([supplierId, createdAt])
+  @@map("supplier_payments")
+}
+
+/// شمارش فیزیکی خزانه (انبارگردانی) و ثبت مغایرت با دفاتر
+model VaultCount {
+  id               String            @id @default(uuid()) @db.Uuid
+  countNumber      String            @unique @map("count_number")
+  assetType        TreasuryAssetType @map("asset_type")
+  bookGrams        Decimal           @map("book_grams") @db.Decimal(18, 4)
+  countedGrams     Decimal           @map("counted_grams") @db.Decimal(18, 4)
+  differenceGrams  Decimal           @map("difference_grams") @db.Decimal(18, 4)
+  note             String?
+  journalEntryId   String?           @map("journal_entry_id") @db.Uuid
+  countedByAdminId String            @map("counted_by_admin_id") @db.Uuid
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  @@map("vault_counts")
+}
+
+/// دفتر معین طرف‌حساب‌ها (تأمین‌کنندگان و شرکای فروش) — append-only
+/// بدهکار = افزایش طلب ما از طرف حساب؛ بستانکار = کاهش طلب / افزایش بدهی ما
+model PartyLedgerEntry {
+  id               String    @id @default(uuid()) @db.Uuid
+  partyType        PartyType @map("party_type")
+  partyId          String    @map("party_id") @db.Uuid
+  type             String
+  debitRial        Decimal   @default(0) @map("debit_rial") @db.Decimal(18, 0)
+  creditRial       Decimal   @default(0) @map("credit_rial") @db.Decimal(18, 0)
+  balanceAfterRial Decimal   @map("balance_after_rial") @db.Decimal(18, 0)
+  description      String
+  referenceType    String?   @map("reference_type")
+  referenceId      String?   @map("reference_id")
+  referenceNumber  String?   @map("reference_number")
+  journalEntryId   String?   @map("journal_entry_id") @db.Uuid
+  createdByAdminId String?   @map("created_by_admin_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@index([partyType, partyId, createdAt])
+  @@map("party_ledger_entries")
+}
+
+/// شریک فروش: سرویس‌های خرید اقساطی (اسنپ‌پی، دیجی‌پی و ...) یا اپلیکیشن‌های همکار که طلا را
+/// به کاربران خود می‌فروشند و وجه آن را طبق قرارداد با شرکت تسویه می‌کنند
+model SalesPartner {
+  id                  String               @id @default(uuid()) @db.Uuid
+  code                String               @unique
+  name                String
+  kind                PartnerKind          @default(BNPL)
+  /// کلید آداپتور یکپارچه‌سازی (SNAPPPAY / DIGIPAY / ...) — null یعنی فقط ثبت دستی/API عمومی
+  providerKey         String?              @map("provider_key")
+  status              PartnerStatus        @default(ACTIVE)
+  /// کارمزد شریک (درصد از مبلغ سفارش) که از مبلغ تسویه کسر می‌شود
+  commissionPercent   Decimal              @default(0) @map("commission_percent") @db.Decimal(7, 4)
+  commissionFixedRial Decimal              @default(0) @map("commission_fixed_rial") @db.Decimal(18, 0)
+  /// مهلت تسویه‌ی قراردادی (T+N روز)
+  settlementDays      Int                  @default(0) @map("settlement_days")
+  creditLimitRial     Decimal?             @map("credit_limit_rial") @db.Decimal(18, 0)
+  minOrderRial        Decimal?             @map("min_order_rial") @db.Decimal(18, 0)
+  maxOrderRial        Decimal?             @map("max_order_rial") @db.Decimal(18, 0)
+  allowedProducts     PartnerProductKind[] @default([MELTED_GOLD]) @map("allowed_products")
+  /// مانده‌ی طلب شرکت از شریک (ریال) — فقط از مسیر PartyLedgerEntry
+  balanceRial         Decimal              @default(0) @map("balance_rial") @db.Decimal(18, 0)
+  contractNumber      String?              @map("contract_number")
+  contractStartAt     DateTime?            @map("contract_start_at")
+  contractEndAt       DateTime?            @map("contract_end_at")
+  contactName         String?              @map("contact_name")
+  contactPhone        String?              @map("contact_phone")
+  email               String?
+  website             String?
+  iban                String?
+  nationalId          String?              @map("national_id")
+  economicCode        String?              @map("economic_code")
+  notes               String?
+  /// کلید API (فقط هش SHA-256 نگهداری می‌شود؛ خود کلید فقط یک‌بار نمایش داده می‌شود)
+  apiEnabled          Boolean              @default(false) @map("api_enabled")
+  apiKeyHash          String?              @unique @map("api_key_hash")
+  apiKeyPrefix        String?              @map("api_key_prefix")
+  apiIpWhitelist      String[]             @default([]) @map("api_ip_whitelist")
+  webhookUrl          String?              @map("webhook_url")
+  createdByAdminId    String?              @map("created_by_admin_id") @db.Uuid
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  orders              PartnerOrder[]
+  settlements         PartnerSettlement[]
+
+  @@index([status])
+  @@map("sales_partners")
+}
+
+/// سفارش/قرارداد فروش از طریق شریک (مثلاً خرید اقساطی طلا در اسنپ‌پی)
+model PartnerOrder {
+  id                String             @id @default(uuid()) @db.Uuid
+  orderNumber       String             @unique @map("order_number")
+  partnerId         String             @map("partner_id") @db.Uuid
+  partner           SalesPartner       @relation(fields: [partnerId], references: [id])
+  /// شناسه‌ی سفارش/قرارداد در سامانه‌ی شریک — کلید idempotency
+  externalRef       String             @map("external_ref")
+  userId            String             @map("user_id") @db.Uuid
+  user              User               @relation(fields: [userId], references: [id])
+  productKind       PartnerProductKind @map("product_kind")
+  status            PartnerOrderStatus @default(PENDING)
+  /// آب‌شده: گرم ۷۵۰ که به کیف پول کاربر واریز می‌شود — شمش: وزن فیزیکی شمش
+  amountGrams       Decimal            @map("amount_grams") @db.Decimal(18, 4)
+  hologramCodeId    String?            @map("hologram_code_id") @db.Uuid
+  pricePerGramRial  Decimal            @map("price_per_gram_rial") @db.Decimal(18, 0)
+  goldValueRial     Decimal            @map("gold_value_rial") @db.Decimal(18, 0)
+  wageRial          Decimal            @default(0) @map("wage_rial") @db.Decimal(18, 0)
+  feeRial           Decimal            @default(0) @map("fee_rial") @db.Decimal(18, 0)
+  taxRial           Decimal            @default(0) @map("tax_rial") @db.Decimal(18, 0)
+  totalRial         Decimal            @map("total_rial") @db.Decimal(18, 0)
+  /// پیش‌پرداخت مشتری نزد شریک و طرح اقساط — اطلاعاتی (ریسک اعتباری با شریک است)
+  downPaymentRial   Decimal            @default(0) @map("down_payment_rial") @db.Decimal(18, 0)
+  installmentCount  Int?               @map("installment_count")
+  installmentPlan   Json?              @map("installment_plan")
+  commissionRial    Decimal            @default(0) @map("commission_rial") @db.Decimal(18, 0)
+  netReceivableRial Decimal            @map("net_receivable_rial") @db.Decimal(18, 0)
+  /// سررسید تسویه (تاریخ تأیید + مهلت قراردادی)
+  dueDate           DateTime?          @map("due_date")
+  settlementId      String?            @map("settlement_id") @db.Uuid
+  settlement        PartnerSettlement? @relation(fields: [settlementId], references: [id])
+  customerSnapshot  Json?              @map("customer_snapshot")
+  note              String?
+  cancelReason      String?            @map("cancel_reason")
+  confirmJournalId  String?            @map("confirm_journal_id") @db.Uuid
+  refundJournalId   String?            @map("refund_journal_id") @db.Uuid
+  invoiceId         String?            @map("invoice_id") @db.Uuid
+  transactionId     String?            @map("transaction_id") @db.Uuid
+  createdVia        String             @default("ADMIN") @map("created_via")
+  createdByAdminId  String?            @map("created_by_admin_id") @db.Uuid
+  confirmedAt       DateTime?          @map("confirmed_at")
+  settledAt         DateTime?          @map("settled_at")
+  cancelledAt       DateTime?          @map("cancelled_at")
+  refundedAt        DateTime?          @map("refunded_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  @@unique([partnerId, externalRef])
+  @@index([partnerId, status, createdAt])
+  @@index([userId])
+  @@index([status, dueDate])
+  @@map("partner_orders")
+}
+
+/// تسویه‌ی دریافتی از شریک (یک واریز برای یک یا چند سفارش)
+model PartnerSettlement {
+  id               String                @id @default(uuid()) @db.Uuid
+  settlementNumber String                @unique @map("settlement_number")
+  partnerId        String                @map("partner_id") @db.Uuid
+  partner          SalesPartner          @relation(fields: [partnerId], references: [id])
+  amountRial       Decimal               @map("amount_rial") @db.Decimal(18, 0)
+  method           AgentSettlementMethod
+  cashAccountCode  String                @default("1010") @map("cash_account_code")
+  referenceNumber  String?               @map("reference_number")
+  paidAt           DateTime              @map("paid_at")
+  note             String?
+  journalEntryId   String?               @map("journal_entry_id") @db.Uuid
+  createdByAdminId String?               @map("created_by_admin_id") @db.Uuid
+  createdAt        DateTime              @default(now()) @map("created_at")
+  orders           PartnerOrder[]
+
+  @@index([partnerId, createdAt])
+  @@map("partner_settlements")
+}
+
+enum JournalSource {
+  SYSTEM
+  MANUAL
+  OPENING
+  CLOSING
+  REVALUATION
+  REVERSAL
+  TREASURY
+  PARTNER
+  INVENTORY
+}
+
+enum FiscalYearStatus {
+  OPEN
+  CLOSED
+}
+
+enum ManualVoucherType {
+  GENERAL
+  OPENING
+  EXPENSE
+  ADJUSTMENT
+}
+
+enum ManualVoucherStatus {
+  DRAFT
+  POSTED
+  REJECTED
+  CANCELLED
+  REVERSED
+}
+
+enum SupplierKind {
+  MELTED_GOLD_DEALER
+  MINT
+  REFINERY
+  BANK
+  OTHER
+}
+
+enum TreasurySide {
+  BUY
+  SELL
+}
+
+enum TreasuryAssetType {
+  MELTED_GOLD
+  BULLION
+}
+
+enum TreasuryOrderStatus {
+  DRAFT
+  CONFIRMED
+  RECEIVED
+  CANCELLED
+}
+
+enum PaymentDirection {
+  PAY
+  RECEIVE
+}
+
+enum PartyType {
+  SUPPLIER
+  PARTNER
+}
+
+enum PartnerKind {
+  BNPL
+  RESELLER_APP
+  MARKETPLACE
+  CORPORATE
+  OTHER
+}
+
+enum PartnerStatus {
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum PartnerProductKind {
+  MELTED_GOLD
+  BULLION
+}
+
+enum PartnerOrderStatus {
+  PENDING
+  CONFIRMED
+  SETTLED
+  CANCELLED
+  REFUNDED
 }

@@ -17,6 +17,12 @@ export class AddCartItemDto {
   @IsInt()
   @Min(1)
   quantity!: number;
+
+  // طرح بسته‌بندی انتخابی کاربر — اگر محصول بسته‌بندی دارد و ارسال نشود،
+  // گزینه پیش‌فرض محصول در نظر گرفته می‌شود
+  @IsOptional()
+  @IsUUID()
+  packagingOptionId?: string;
 }
 
 export class UpdateCartItemDto {
@@ -28,4 +34,9 @@ export class UpdateCartItemDto {
   @IsNumber()
   @Min(0.01)
   weightGrams?: number;
+
+  // تغییر بسته‌بندی آیتم از داخل سبد خرید
+  @IsOptional()
+  @IsUUID()
+  packagingOptionId?: string;
 }

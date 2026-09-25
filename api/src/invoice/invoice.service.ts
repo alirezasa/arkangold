@@ -362,6 +362,7 @@ export class InvoiceService {
           include: {
             product: { include: productInclude },
             variant: { include: { product: { include: productInclude } } },
+            packagingOption: { select: { code: true } },
           },
         },
       },
@@ -423,6 +424,37 @@ export class InvoiceService {
       };
     });
 
+    // بسته‌بندی هر کالا ردیف جدای فاکتور است؛ بسته‌بندی رایگان‌شده با مبلغ
+    // واقعی و تخفیف برابر درج می‌شود تا ستون‌ها جمع‌پذیر بمانند
+    for (const it of order.items) {
+      if (!it.packagingName || it.packagingQuantity <= 0) continue;
+      const product = it.variant?.product ?? it.product ?? null;
+      const unitPriceRial = Number(it.packagingUnitPriceRial ?? 0);
+      const listRial = unitPriceRial * it.packagingQuantity;
+      const chargedRial = Number(it.packagingRial);
+      const productName = product?.name?.trim();
+
+      items.push({
+        rowNo: items.length + 1,
+        productCode: it.packagingOption?.code ?? 'PKG',
+        title: `بسته‌بندی «${it.packagingName}»${
+          productName ? ` برای ${productName}` : ''
+        }${it.packagingFree ? ' (رایگان — هدیه خرید)' : ''}`,
+        unit: 'عدد',
+        purityKarat: null,
+        quantity: it.packagingQuantity,
+        weightGrams: null,
+        unitPriceRial,
+        discountRial: listRial - chargedRial,
+        makingRial: 0,
+        feeRial: 0,
+        taxRate: 0,
+        taxRial: 0,
+        totalRial: chargedRial,
+        meta: { type: 'PACKAGING', free: it.packagingFree },
+      });
+    }
+
     return this.issue(tx, {
       kind: 'INVOICE',
       sourceType: 'SHOP_ORDER',
@@ -432,6 +464,8 @@ export class InvoiceService {
       extraData: {
         discountCode:
           Number(order.discountRial) > 0 ? order.discountCodeText : null,
+        discountCodeRial: Number(order.discountRial),
+        packagingWaivedRial: Number(order.packagingWaivedRial),
         paymentMethod: await this.describeShopPayment(
           tx,
           order.id,
@@ -665,6 +699,18 @@ export class InvoiceService {
           ? ((invoice.extraData as unknown as SaleInvoiceExtraData | null)
               ?.paymentMethod ?? null)
           : null,
+      discountCodeRial: this.optionalRial(
+        invoice.kind === 'INVOICE'
+          ? (invoice.extraData as unknown as SaleInvoiceExtraData | null)
+              ?.discountCodeRial
+          : undefined,
+      ),
+      packagingWaivedRial: this.optionalRial(
+        invoice.kind === 'INVOICE'
+          ? (invoice.extraData as unknown as SaleInvoiceExtraData | null)
+              ?.packagingWaivedRial
+          : undefined,
+      ),
 
       items: invoice.items.map((i) => ({
         rowNo: i.rowNo,
@@ -819,6 +865,12 @@ export class InvoiceService {
       issuerLegalName: company?.legalName ?? '',
       contentHashPrefix: invoice.contentHash.slice(0, 12),
     };
+  }
+
+  private optionalRial(value: number | null | undefined): string | null {
+    return typeof value === 'number' && Number.isFinite(value)
+      ? value.toString()
+      : null;
   }
 
   /** نمایش فارسی اعداد برای فرانت */

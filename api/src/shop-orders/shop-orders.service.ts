@@ -27,6 +27,7 @@ import {
 } from '../accounting/accounting.service';
 import { InvoiceService } from '../invoice/invoice.service';
 import { DiscountService } from '../discount/discount.service';
+import { PackagingService } from '../packaging/packaging.service';
 import { businessRuleViolation } from '../common/audit/business-rule.util';
 
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
@@ -47,6 +48,11 @@ type ShopOrderDtoItem = {
     product: { name: string; slug: string };
   } | null;
   product?: { name: string; slug: string } | null;
+  packagingName: string | null;
+  packagingUnitPriceRial: unknown;
+  packagingQuantity: number;
+  packagingRial: unknown;
+  packagingFree: boolean;
 };
 
 type ShopOrderDtoSource = {
@@ -55,6 +61,8 @@ type ShopOrderDtoSource = {
   subtotalRial: unknown;
   discountRial: unknown;
   discountCodeText: string | null;
+  packagingRial: unknown;
+  packagingWaivedRial: unknown;
   totalRial: unknown;
   trackingCode: string | null;
   createdAt: Date;
@@ -77,19 +85,22 @@ export class ShopOrdersService {
     private readonly accountingService: AccountingService,
     private readonly invoiceService: InvoiceService,
     private readonly discountService: DiscountService,
+    private readonly packagingService: PackagingService,
   ) {}
 
   /**
    * سطرهای سند فروش فروشگاه:
    * بدهکار: کیف‌پول (2010) / نقد درگاه (1010) به اندازه مبلغ پرداختی +
    *         هزینه تخفیف فروش (5030) به اندازه تخفیف کد
-   * بستانکار: درآمد فروش فروشگاه (4020) به اندازه جمع اقلام قبل از تخفیف
+   * بستانکار: درآمد فروش فروشگاه (4020) به اندازه جمع اقلام قبل از تخفیف +
+   *           درآمد بسته‌بندی (4030) به اندازه هزینه بسته‌بندی دریافتی
    */
   private buildSaleJournalLines(params: {
     walletRial: number;
     gatewayRial: number;
     discountRial: number;
     subtotalRial: number;
+    packagingRial: number;
   }): LedgerLineInput[] {
     const lines: LedgerLineInput[] = [];
     if (params.walletRial > 0) {
@@ -118,6 +129,13 @@ export class ShopOrdersService {
       side: 'CREDIT',
       amountRial: params.subtotalRial,
     });
+    if (params.packagingRial > 0) {
+      lines.push({
+        accountCode: '4030',
+        side: 'CREDIT',
+        amountRial: params.packagingRial,
+      });
+    }
     return lines;
   }
 
@@ -239,8 +257,18 @@ export class ShopOrdersService {
             (dto.recipients ?? []).map((r) => [r.cartItemId, r]),
           );
 
+          const requestedByVariant = new Map<string, number>();
+          for (const item of cart.items) {
+            if (!item.variantId) continue;
+            requestedByVariant.set(
+              item.variantId,
+              (requestedByVariant.get(item.variantId) ?? 0) + item.quantity,
+            );
+          }
+
           let totalRial = 0;
           const orderItemsData: {
+            cartItemId: string;
             variantId?: string;
             productId?: string;
             selectedWeightGrams?: number;
@@ -275,7 +303,11 @@ export class ShopOrdersService {
                 throw new NotFoundException('تنوع محصول یافت نشد');
               }
 
-              if (freshVariant.stockQuantity < item.quantity) {
+              // یک تنوع ممکن است با بسته‌بندی‌های مختلف در چند ردیف سبد باشد
+              if (
+                freshVariant.stockQuantity <
+                (requestedByVariant.get(item.variantId) ?? 0)
+              ) {
                 throw new BadRequestException(
                   `موجودی «${product.name}» کافی نیست (موجودی: ${freshVariant.stockQuantity})`,
                 );
@@ -283,6 +315,7 @@ export class ShopOrdersService {
 
               totalRial += unitPriceRial * item.quantity;
               orderItemsData.push({
+                cartItemId: item.id,
                 variantId: item.variantId,
                 quantity: item.quantity,
                 priceRial: unitPriceRial,
@@ -298,6 +331,7 @@ export class ShopOrdersService {
 
             totalRial += unitPriceRial * item.quantity;
             orderItemsData.push({
+              cartItemId: item.id,
               productId: product.id,
               selectedWeightGrams: this.toNumber(item.selectedWeightGrams),
               quantity: item.quantity,
@@ -327,13 +361,54 @@ export class ShopOrdersService {
             discountCodeText = evaluation.discountCode.code;
           }
 
+          // بسته‌بندی: خارج از کد تخفیف؛ رایگان شدن بر اساس جمع اقلام پیش از تخفیف
+          const productIdOf = (item: (typeof cart.items)[number]) =>
+            item.variant?.productId ?? item.productId ?? '';
+          const [optionsByProduct, globalThresholdRial] = await Promise.all([
+            this.packagingService.resolveOptionsForProducts(
+              tx,
+              cart.items.map(productIdOf),
+            ),
+            this.packagingService.getGlobalFreeThresholdRial(),
+          ]);
+          const packagingInputs = cart.items.map((item) => {
+            const options = optionsByProduct.get(productIdOf(item));
+            // انتخاب کاربر اگر دیگر در دسترس نیست، بی‌صدا جایگزین نمی‌شود
+            if (
+              item.packagingOptionId &&
+              options?.length &&
+              !options.some((o) => o.id === item.packagingOptionId)
+            ) {
+              const name =
+                item.variant?.product.name ?? item.product?.name ?? '';
+              throw new BadRequestException(
+                `بسته‌بندی انتخاب‌شده برای «${name}» دیگر در دسترس نیست؛ لطفاً سبد خرید را بررسی و بسته‌بندی دیگری انتخاب کنید`,
+              );
+            }
+            return {
+              key: item.id,
+              option: this.packagingService.pick(
+                options,
+                item.packagingOptionId,
+              ),
+              quantity: item.quantity,
+            };
+          });
+          const packaging = this.packagingService.computeCharges(
+            packagingInputs,
+            subtotalRial,
+            globalThresholdRial,
+          );
+
           const newOrder = await tx.shopOrder.create({
             data: {
               userId,
               addressId: dto.addressId,
               subtotalRial,
               discountRial,
-              totalRial: subtotalRial - discountRial,
+              packagingRial: packaging.chargedRial,
+              packagingWaivedRial: packaging.waivedRial,
+              totalRial: subtotalRial - discountRial + packaging.chargedRial,
               discountCodeId,
               discountCodeText,
               status: 'PENDING_PAYMENT',
@@ -341,9 +416,16 @@ export class ShopOrdersService {
           });
 
           for (const orderItem of orderItemsData) {
+            const charge = packaging.lines.get(orderItem.cartItemId);
             await tx.shopOrderItem.create({
               data: {
                 orderId: newOrder.id,
+                packagingOptionId: charge?.option.id ?? null,
+                packagingName: charge?.option.name ?? null,
+                packagingUnitPriceRial: charge?.unitPriceRial ?? null,
+                packagingQuantity: charge?.packagingQuantity ?? 0,
+                packagingRial: charge?.chargedRial ?? 0,
+                packagingFree: charge?.free ?? false,
                 variantId: orderItem.variantId,
                 productId: orderItem.productId,
                 selectedWeightGrams: orderItem.selectedWeightGrams,
@@ -538,17 +620,19 @@ export class ShopOrdersService {
 
         const subtotalRial = this.toNumber(order.subtotalRial);
         const discountRial = this.toNumber(order.discountRial);
+        const packagingRial = this.toNumber(order.packagingRial);
         await this.accountingService.postJournal(tx, {
           description: `فروش فروشگاه (کیف‌پول) - سفارش ${orderId}${
             discountRial > 0 ? ` - کد تخفیف ${order.discountCodeText}` : ''
           }`,
-          totalRial: subtotalRial,
+          totalRial: subtotalRial + packagingRial,
           totalGrams: 0,
           lines: this.buildSaleJournalLines({
             walletRial: amountRial,
             gatewayRial: 0,
             discountRial,
             subtotalRial,
+            packagingRial,
           }),
         });
 
@@ -817,18 +901,20 @@ export class ShopOrdersService {
         const gatewayPortionRial = orderTotalRial - walletPortionRial;
         const subtotalRial = this.toNumber(order.subtotalRial);
         const discountRial = this.toNumber(order.discountRial);
+        const packagingRial = this.toNumber(order.packagingRial);
 
         await this.accountingService.postJournal(tx, {
           description: `فروش فروشگاه (درگاه) - سفارش ${order.id}${
             discountRial > 0 ? ` - کد تخفیف ${order.discountCodeText}` : ''
           }`,
-          totalRial: subtotalRial,
+          totalRial: subtotalRial + packagingRial,
           totalGrams: 0,
           lines: this.buildSaleJournalLines({
             walletRial: walletPortionRial,
             gatewayRial: gatewayPortionRial,
             discountRial,
             subtotalRial,
+            packagingRial,
           }),
         });
 
@@ -1209,6 +1295,7 @@ export class ShopOrdersService {
           const refundRial = this.toNumber(order.totalRial);
           const subtotalRial = this.toNumber(order.subtotalRial);
           const discountRial = this.toNumber(order.discountRial);
+          const packagingRial = this.toNumber(order.packagingRial);
 
           await tx.wallet.update({
             where: { id: wallet.id },
@@ -1227,11 +1314,18 @@ export class ShopOrdersService {
             },
           });
 
-          // برگشت کامل سند فروش: درآمد به اندازه جمع اقلام، و هزینه تخفیف
-          // (در صورت وجود) خنثی می‌شود؛ فقط مبلغ پرداختی به کیف پول برمی‌گردد
+          // برگشت کامل سند فروش: درآمد به اندازه جمع اقلام و بسته‌بندی، و هزینه
+          // تخفیف (در صورت وجود) خنثی می‌شود؛ فقط مبلغ پرداختی به کیف پول برمی‌گردد
           const refundLines: LedgerLineInput[] = [
             { accountCode: '4020', side: 'DEBIT', amountRial: subtotalRial },
           ];
+          if (packagingRial > 0) {
+            refundLines.push({
+              accountCode: '4030',
+              side: 'DEBIT',
+              amountRial: packagingRial,
+            });
+          }
           if (refundRial > 0) {
             refundLines.push({
               accountCode: '2010',
@@ -1249,7 +1343,7 @@ export class ShopOrdersService {
 
           await this.accountingService.postJournal(tx, {
             description: `بازگشت وجه سفارش لغوشده - سفارش ${order.id}`,
-            totalRial: subtotalRial,
+            totalRial: subtotalRial + packagingRial,
             totalGrams: 0,
             lines: refundLines,
           });
@@ -1335,6 +1429,8 @@ export class ShopOrdersService {
       subtotalToman: this.rialToTomanString(order.subtotalRial),
       discountToman: this.rialToTomanString(order.discountRial),
       discountCode: order.discountCodeText,
+      packagingToman: this.rialToTomanString(order.packagingRial),
+      packagingWaivedToman: this.rialToTomanString(order.packagingWaivedRial),
       totalToman: this.rialToTomanString(order.totalRial),
       trackingCode: order.trackingCode,
       address: order.address,
@@ -1359,6 +1455,17 @@ export class ShopOrdersService {
           quantity: item.quantity,
           unitPriceToman: this.rialToTomanString(unitPriceRial),
           lineTotalToman: this.rialToTomanString(lineTotalRial),
+          packaging: item.packagingName
+            ? {
+                name: item.packagingName,
+                unitPriceToman: this.rialToTomanString(
+                  item.packagingUnitPriceRial,
+                ),
+                quantity: item.packagingQuantity,
+                chargedToman: this.rialToTomanString(item.packagingRial),
+                free: item.packagingFree,
+              }
+            : null,
         };
       }),
       createdAt: order.createdAt.toISOString(),

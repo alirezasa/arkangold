@@ -179,7 +179,15 @@ export default function InvoiceDocumentView({ doc }: { doc: InvoiceDocument }) {
           {doc.discountCode && Number(doc.discountRial) > 0 && (
             <div>
               کد تخفیف اعمال‌شده: <b dir="ltr">{doc.discountCode}</b> — مبلغ
-              تخفیف: <Num>{faGrouped(doc.discountRial)}</Num> ریال
+              تخفیف:{" "}
+              <Num>{faGrouped(doc.discountCodeRial ?? doc.discountRial)}</Num>{" "}
+              ریال
+            </div>
+          )}
+          {Number(doc.packagingWaivedRial ?? 0) > 0 && (
+            <div>
+              بسته‌بندی رایگان (هدیه خرید): <Num>{faGrouped(doc.packagingWaivedRial ?? 0)}</Num>{" "}
+              ریال در ستون تخفیف لحاظ شده است
             </div>
           )}
           <div>

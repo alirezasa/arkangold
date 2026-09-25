@@ -75,6 +75,10 @@ export interface InvoiceDocument {
   discountCode?: string | null;
   /** روش پرداخت فاکتور فروش (کیف پول / درگاه / ترکیبی) */
   paymentMethod?: string | null;
+  /** مبلغ تخفیف کد (ریال)؛ جدا از بسته‌بندی رایگان‌شده که آن هم در ستون تخفیف است */
+  discountCodeRial?: string | null;
+  /** مبلغ بسته‌بندی رایگان‌شده به‌دلیل رسیدن خرید به آستانه (ریال) */
+  packagingWaivedRial?: string | null;
   items: InvoiceLine[];
   subtotalRial: string;
   discountRial: string;

@@ -11,6 +11,7 @@ import {
   Truck,
   MapPin,
   FileText,
+  Box,
 } from "lucide-react";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -31,6 +32,13 @@ interface ShopOrderItem {
   productName: string;
   quantity: number;
   lineTotalToman: string;
+  // بسته‌بندی انتخابی کاربر برای این ردیف (برای آماده‌سازی در انبار)
+  packaging: {
+    name: string;
+    quantity: number;
+    chargedToman: string;
+    free: boolean;
+  } | null;
 }
 
 interface ShopOrderAddress {
@@ -53,6 +61,8 @@ interface ShopOrderItemType {
   subtotalToman: string;
   discountToman: string;
   discountCode: string | null;
+  packagingToman: string;
+  packagingWaivedToman: string;
   totalToman: string;
   trackingCode: string | null;
   invoiceId: string | null;
@@ -364,6 +374,22 @@ export default function ShopOrdersPage() {
                           {Number(item.lineTotalToman).toLocaleString("fa-IR")} ت
                         </span>
                       </div>
+                      {item.packaging && (
+                        <div className="flex items-center justify-between text-[11px] text-amber-700">
+                          <span className="flex items-center gap-1">
+                            <Box className="w-3 h-3" />
+                            بسته‌بندی: {item.packaging.name} ×{" "}
+                            {item.packaging.quantity.toLocaleString("fa-IR")}
+                          </span>
+                          <span className="font-bold">
+                            {item.packaging.free
+                              ? "رایگان"
+                              : Number(item.packaging.chargedToman) > 0
+                                ? `${Number(item.packaging.chargedToman).toLocaleString("fa-IR")} ت`
+                                : "—"}
+                          </span>
+                        </div>
+                      )}
                       {/* شناسه آیتم برای تخصیص کد هولوگرام از صفحه اصالت‌سنجی */}
                       <button
                         type="button"
@@ -378,12 +404,26 @@ export default function ShopOrdersPage() {
                   ))}
                 </div>
 
-                {Number(order.discountToman) > 0 && (
+                {(Number(order.discountToman) > 0 ||
+                  Number(order.packagingToman) > 0 ||
+                  Number(order.packagingWaivedToman) > 0) && (
                   <div className="mb-1 space-y-0.5 text-[12px]">
                     <p className="text-gray-500">
                       جمع اقلام:{" "}
                       {Number(order.subtotalToman).toLocaleString("fa-IR")} تومان
                     </p>
+                    {(Number(order.packagingToman) > 0 ||
+                      Number(order.packagingWaivedToman) > 0) && (
+                      <p className="text-gray-500">
+                        بسته‌بندی:{" "}
+                        {Number(order.packagingToman) > 0
+                          ? `${Number(order.packagingToman).toLocaleString("fa-IR")} تومان`
+                          : "رایگان"}
+                        {Number(order.packagingWaivedToman) > 0 &&
+                          ` (${Number(order.packagingWaivedToman).toLocaleString("fa-IR")} تومان رایگان شد)`}
+                      </p>
+                    )}
+                    {Number(order.discountToman) > 0 && (
                     <p className="font-bold text-emerald-700">
                       تخفیف
                       {order.discountCode && (
@@ -394,10 +434,15 @@ export default function ShopOrdersPage() {
                       : {Number(order.discountToman).toLocaleString("fa-IR")}{" "}
                       تومان
                     </p>
+                    )}
                   </div>
                 )}
                 <p className="text-[16px] font-black text-gray-900 mb-2">
-                  {Number(order.discountToman) > 0 ? "مبلغ پرداختی" : "جمع کل"}:{" "}
+                  {Number(order.discountToman) > 0 ||
+                  Number(order.packagingToman) > 0
+                    ? "مبلغ پرداختی"
+                    : "جمع کل"}
+                  :{" "}
                   {Number(order.totalToman).toLocaleString("fa-IR")} تومان
                 </p>
 

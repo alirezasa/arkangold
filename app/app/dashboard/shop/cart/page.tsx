@@ -22,6 +22,7 @@ import {
   User,
   TicketPercent,
   X,
+  Package,
 } from "lucide-react";
 import {
   useCart,
@@ -59,11 +60,13 @@ function CartRow({
   item,
   onQuantityChange,
   onWeightChange,
+  onPackagingChange,
   onRemove,
 }: {
   item: CartItemDto;
   onQuantityChange: (id: string, qty: number) => void;
   onWeightChange: (id: string, weightGrams: number) => void;
+  onPackagingChange: (item: CartItemDto, packagingOptionId: string) => void;
   onRemove: (id: string) => void;
 }) {
   // کانتر محلی برای زمان انقضای قفل قیمت این آیتم
@@ -177,6 +180,50 @@ function CartRow({
         </button>
       </div>
 
+      {/* ── بسته‌بندی انتخابی این ردیف ── */}
+      {item.packaging && (
+        <div className="flex items-center gap-2 mt-2 mr-17 text-[11px]">
+          <Package className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+          {item.packagingOptions.length > 1 ? (
+            <select
+              value={item.packaging.id}
+              onChange={(e) => onPackagingChange(item, e.target.value)}
+              aria-label="تغییر بسته‌بندی"
+              className="min-w-0 flex-1 max-w-56 px-2 py-1 rounded-lg border border-gray-200 bg-white text-[11px] font-bold text-gray-700 outline-none focus:border-rose-400"
+            >
+              {item.packagingOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                  {Number(o.priceToman) > 0
+                    ? ` — ${fmtToman(o.priceToman)} ت${o.perUnit ? " / عدد" : ""}`
+                    : " — رایگان"}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="font-bold text-gray-600 truncate">
+              {item.packaging.name}
+            </span>
+          )}
+          <span className="mr-auto shrink-0 font-bold">
+            {item.packaging.free ? (
+              <span className="text-emerald-600">
+                <span className="line-through text-gray-300 ml-1">
+                  {fmtToman(item.packaging.listToman)}
+                </span>
+                رایگان
+              </span>
+            ) : Number(item.packaging.chargedToman) > 0 ? (
+              <span className="text-gray-700">
+                {fmtToman(item.packaging.chargedToman)} ت
+              </span>
+            ) : (
+              <span className="text-gray-400">رایگان</span>
+            )}
+          </span>
+        </div>
+      )}
+
       {(expiringSoon || expired) && (
         <div
           className={`flex items-center gap-1.5 mt-2 mr-17 text-[11px] font-bold ${
@@ -277,6 +324,14 @@ function ShopCartPageInner() {
 
   const handleWeightChange = async (itemId: string, weightGrams: number) => {
     await update(itemId, { weightGrams });
+    refresh();
+  };
+
+  const handlePackagingChange = async (
+    item: CartItemDto,
+    packagingOptionId: string,
+  ) => {
+    await update(item.id, { quantity: item.quantity, packagingOptionId });
     refresh();
   };
 
@@ -395,10 +450,14 @@ function ShopCartPageInner() {
 
   const error = checkoutError || payError;
   const hasExpiredItem = cart?.items.some((i) => i.expiresInSeconds <= 0);
-  // مبلغ قابل پرداخت پس از اعمال کد تخفیف
-  const payableToman = appliedDiscount
-    ? Number(appliedDiscount.totalToman)
-    : (cart?.totalToman ?? 0);
+  // مبلغ قابل پرداخت = اقلام + بسته‌بندی − تخفیف (کد تخفیف فقط روی اقلام اعمال می‌شود)
+  const payableToman = Math.max(
+    0,
+    (cart?.totalToman ?? 0) -
+      (appliedDiscount ? Number(appliedDiscount.discountToman) : 0),
+  );
+  const hasPackaging = !!cart?.items.some((i) => i.packaging);
+  const packagingFreeRemaining = Number(cart?.packagingFreeRemainingToman ?? 0);
   const isFree = !!appliedDiscount && payableToman <= 0;
 
   if (loading) {
@@ -466,27 +525,64 @@ function ShopCartPageInner() {
                     item={item}
                     onQuantityChange={handleQuantityChange}
                     onWeightChange={handleWeightChange}
+                    onPackagingChange={handlePackagingChange}
                     onRemove={handleRemove}
                   />
                 ))}
               </div>
 
               <div
-                className="rounded-2xl p-4 flex items-center justify-between"
+                className="rounded-2xl p-4 space-y-2"
                 style={{
                   backgroundColor: "var(--color-surface)",
                   border: "1px solid var(--color-border)",
                 }}
               >
-                <span className="text-[13px] font-bold text-gray-600">
-                  جمع کل
-                </span>
-                <span className="text-[18px] font-black text-gray-900">
-                  {fmtToman(cart.totalToman)}{" "}
-                  <span className="text-[12px] font-bold text-gray-400">
-                    تومان
+                {hasPackaging && (
+                  <>
+                    <div className="flex items-center justify-between text-[12px]">
+                      <span className="font-bold text-gray-500">جمع اقلام</span>
+                      <span className="font-bold text-gray-700">
+                        {fmtToman(cart.itemsTotalToman)} ت
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[12px]">
+                      <span className="font-bold text-gray-500">
+                        هزینه بسته‌بندی
+                      </span>
+                      <span className="font-bold text-gray-700">
+                        {cart.packagingTotalToman > 0
+                          ? `${fmtToman(cart.packagingTotalToman)} ت`
+                          : "رایگان"}
+                      </span>
+                    </div>
+                  </>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-[13px] font-bold text-gray-600">
+                    جمع کل
                   </span>
-                </span>
+                  <span className="text-[18px] font-black text-gray-900">
+                    {fmtToman(cart.totalToman)}{" "}
+                    <span className="text-[12px] font-bold text-gray-400">
+                      تومان
+                    </span>
+                  </span>
+                </div>
+                {cart.packagingWaivedToman > 0 && (
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600">
+                    <Gift className="w-3.5 h-3.5 shrink-0" />
+                    بسته‌بندی سفارش شما رایگان شد (
+                    {fmtToman(cart.packagingWaivedToman)} تومان صرفه‌جویی)
+                  </p>
+                )}
+                {packagingFreeRemaining > 0 && (
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold text-amber-600">
+                    <Gift className="w-3.5 h-3.5 shrink-0" />
+                    با {fmtToman(packagingFreeRemaining)} تومان خرید بیشتر،
+                    بسته‌بندی رایگان می‌شود
+                  </p>
+                )}
               </div>
 
               {hasExpiredItem && (
@@ -636,19 +732,49 @@ function ShopCartPageInner() {
                 </span>
               </div>
             ))}
-            {appliedDiscount && (
-              <>
+            {/* بسته‌بندی هر کالا ردیف جدای فاکتور است */}
+            {cart.items
+              .filter((item) => item.packaging)
+              .map((item) => (
                 <div
+                  key={`pkg-${item.id}`}
                   className="flex items-center justify-between px-4 py-2.5 border-t bg-white"
                   style={{ borderColor: "var(--color-border)" }}
                 >
-                  <span className="text-[12px] text-gray-500 font-medium">
-                    جمع اقلام
+                  <span className="flex items-center gap-1.5 text-[12px] text-gray-500 font-medium min-w-0">
+                    <Package className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span className="truncate">
+                      بسته‌بندی {item.packaging!.name} ({item.productName}) ×{" "}
+                      {item.packaging!.quantity.toLocaleString("fa-IR")}
+                    </span>
                   </span>
-                  <span className="text-[12px] font-bold text-gray-700">
-                    {fmtToman(appliedDiscount.subtotalToman)} ت
+                  <span className="text-[12px] font-bold text-gray-800 shrink-0">
+                    {item.packaging!.free
+                      ? "رایگان"
+                      : Number(item.packaging!.chargedToman) > 0
+                        ? `${fmtToman(item.packaging!.chargedToman)} ت`
+                        : "رایگان"}
                   </span>
                 </div>
+              ))}
+            {(appliedDiscount || hasPackaging) && (
+              <div
+                className="flex items-center justify-between px-4 py-2.5 border-t bg-white"
+                style={{ borderColor: "var(--color-border)" }}
+              >
+                <span className="text-[12px] text-gray-500 font-medium">
+                  جمع اقلام
+                  {hasPackaging && cart.packagingTotalToman > 0
+                    ? " + بسته‌بندی"
+                    : ""}
+                </span>
+                <span className="text-[12px] font-bold text-gray-700">
+                  {fmtToman(cart.totalToman)} ت
+                </span>
+              </div>
+            )}
+            {appliedDiscount && (
+              <>
                 <div
                   className="flex items-center justify-between px-4 py-2.5 border-t bg-white"
                   style={{ borderColor: "var(--color-border)" }}

@@ -12,6 +12,10 @@ import {
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PricingEngineService } from '../catalog/pricing-engine.service';
+import {
+  PackagingService,
+  ResolvedPackaging,
+} from '../packaging/packaging.service';
 import { Decimal } from 'decimal.js';
 
 type CartWithRelations = Prisma.CartGetPayload<{
@@ -39,12 +43,51 @@ export class CartService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricingEngine: PricingEngineService,
+    private readonly packaging: PackagingService,
   ) {}
 
   async getCart(userId: string) {
     await this.purgeExpiredItems(userId);
     const cart = await this.getOrCreateCart(userId);
     return this.toDto(cart);
+  }
+
+  /**
+   * اعتبارسنجی بسته‌بندی انتخابی برای یک محصول. اگر محصول طرح بسته‌بندی دارد،
+   * انتخاب اجباری است و در نبود انتخاب، گزینه پیش‌فرض محصول ثبت می‌شود.
+   */
+  private async resolvePackagingSelection(
+    productId: string,
+    packagingOptionId: string | undefined,
+  ): Promise<string | null> {
+    const options =
+      (
+        await this.packaging.resolveOptionsForProducts(this.prisma, [productId])
+      ).get(productId) ?? [];
+
+    if (packagingOptionId && !options.some((o) => o.id === packagingOptionId)) {
+      throw new BadRequestException(
+        'طرح بسته‌بندی انتخاب‌شده برای این محصول در دسترس نیست',
+      );
+    }
+    return this.packaging.pick(options, packagingOptionId)?.id ?? null;
+  }
+
+  /** مجموع تعداد یک تنوع در سایر ردیف‌های سبد (ردیف‌هایی با بسته‌بندی متفاوت) */
+  private async otherLinesQuantity(
+    cartId: string,
+    variantId: string,
+    exceptItemId?: string,
+  ): Promise<number> {
+    const agg = await this.prisma.cartItem.aggregate({
+      where: {
+        cartId,
+        variantId,
+        ...(exceptItemId ? { id: { not: exceptItemId } } : {}),
+      },
+      _sum: { quantity: true },
+    });
+    return agg._sum.quantity ?? 0;
   }
 
   async addItem(userId: string, dto: AddCartItemDto) {
@@ -101,12 +144,23 @@ export class CartService {
       throw new BadRequestException('این تنوع محصول ناموجود است');
     }
 
+    const packagingOptionId = await this.resolvePackagingSelection(
+      variant.productId,
+      dto.packagingOptionId,
+    );
+
+    // یک تنوع با بسته‌بندی‌های متفاوت، ردیف‌های جدا در سبد است
     const existing = await this.prisma.cartItem.findFirst({
-      where: { cartId, variantId },
+      where: { cartId, variantId, packagingOptionId },
     });
     const newQuantity = (existing?.quantity ?? 0) + dto.quantity;
+    const otherLines = await this.otherLinesQuantity(
+      cartId,
+      variantId,
+      existing?.id,
+    );
 
-    if (newQuantity > variant.stockQuantity) {
+    if (otherLines + newQuantity > variant.stockQuantity) {
       throw new BadRequestException(
         `حداکثر ${variant.stockQuantity} عدد از این تنوع موجود است`,
       );
@@ -121,7 +175,7 @@ export class CartService {
     }
 
     const created = await this.prisma.cartItem.create({
-      data: { cartId, variantId, quantity: dto.quantity },
+      data: { cartId, variantId, quantity: dto.quantity, packagingOptionId },
     });
     return created.id;
   }
@@ -151,8 +205,18 @@ export class CartService {
 
     this.assertWeightInRange(product, weightGrams);
 
+    const packagingOptionId = await this.resolvePackagingSelection(
+      productId,
+      dto.packagingOptionId,
+    );
+
     const existing = await this.prisma.cartItem.findFirst({
-      where: { cartId, productId, selectedWeightGrams: weightGrams },
+      where: {
+        cartId,
+        productId,
+        selectedWeightGrams: weightGrams,
+        packagingOptionId,
+      },
     });
 
     if (existing) {
@@ -169,6 +233,7 @@ export class CartService {
         productId,
         selectedWeightGrams: weightGrams,
         quantity: dto.quantity,
+        packagingOptionId,
       },
     });
     return created.id;
@@ -181,16 +246,30 @@ export class CartService {
     });
     if (!item) throw new NotFoundException('آیتم سبد یافت نشد');
 
+    const itemProductId = item.variant?.productId ?? item.productId;
+    const packagingOptionId =
+      dto.packagingOptionId !== undefined && itemProductId
+        ? await this.resolvePackagingSelection(
+            itemProductId,
+            dto.packagingOptionId,
+          )
+        : undefined;
+
     if (item.variantId) {
       if (!item.variant) throw new NotFoundException('تنوع محصول یافت نشد');
-      if (dto.quantity > item.variant.stockQuantity) {
+      const otherLines = await this.otherLinesQuantity(
+        item.cartId,
+        item.variantId,
+        item.id,
+      );
+      if (otherLines + dto.quantity > item.variant.stockQuantity) {
         throw new BadRequestException(
           `حداکثر ${item.variant.stockQuantity} عدد از این تنوع موجود است`,
         );
       }
       await this.prisma.cartItem.update({
         where: { id: itemId },
-        data: { quantity: dto.quantity },
+        data: { quantity: dto.quantity, packagingOptionId },
       });
       await this.lockPriceForItem(itemId);
       return this.getCart(userId);
@@ -210,7 +289,11 @@ export class CartService {
 
     await this.prisma.cartItem.update({
       where: { id: itemId },
-      data: { quantity: dto.quantity, selectedWeightGrams: weightGrams },
+      data: {
+        quantity: dto.quantity,
+        selectedWeightGrams: weightGrams,
+        packagingOptionId,
+      },
     });
     await this.lockPriceForItem(itemId);
     return this.getCart(userId);
@@ -416,7 +499,7 @@ export class CartService {
     return Number.isFinite(numericValue) ? numericValue : Number.NaN;
   }
 
-  private toDto(cart: CartWithRelations) {
+  private async toDto(cart: CartWithRelations) {
     const now = Date.now();
 
     const items = cart.items.map((item) => {
@@ -477,15 +560,87 @@ export class CartService {
       };
     });
 
-    const totalToman = items.reduce(
-      (sum, item) => sum + Number(item.lineTotalToman),
+    const itemsTotalToman = Math.round(
+      items.reduce((sum, item) => sum + Number(item.lineTotalToman), 0),
+    );
+
+    // ── بسته‌بندی: همان منطقی که هنگام ثبت سفارش اجرا می‌شود ──
+    const productIdOf = (item: CartWithRelations['items'][number]) =>
+      item.variant?.productId ?? item.productId ?? '';
+    const [optionsByProduct, globalThresholdRial] = await Promise.all([
+      this.packaging.resolveOptionsForProducts(
+        this.prisma,
+        cart.items.map(productIdOf),
+      ),
+      this.packaging.getGlobalFreeThresholdRial(),
+    ]);
+    const itemsSubtotalRial = cart.items.reduce(
+      (sum, item) =>
+        sum + (this.toNumber(item.lockedUnitPriceRial) || 0) * item.quantity,
       0,
     );
+    const packagingSummary = this.packaging.computeCharges(
+      cart.items.map((item) => ({
+        key: item.id,
+        option: this.packaging.pick(
+          optionsByProduct.get(productIdOf(item)),
+          item.packagingOptionId,
+        ),
+        quantity: item.quantity,
+      })),
+      itemsSubtotalRial,
+      globalThresholdRial,
+    );
+    const toToman = (rial: number) => (rial / 10).toString();
+    const optionDto = (o: ResolvedPackaging) => ({
+      id: o.id,
+      name: o.name,
+      imageUrl: o.imageUrl,
+      priceToman: toToman(o.priceRial),
+      perUnit: o.perUnit,
+    });
+
+    const itemsWithPackaging = items.map((item, idx) => {
+      const source = cart.items[idx];
+      const charge = packagingSummary.lines.get(item.id);
+      return {
+        ...item,
+        packaging: charge
+          ? {
+              id: charge.option.id,
+              name: charge.option.name,
+              imageUrl: charge.option.imageUrl,
+              unitPriceToman: toToman(charge.unitPriceRial),
+              quantity: charge.packagingQuantity,
+              listToman: toToman(charge.listRial),
+              chargedToman: toToman(charge.chargedRial),
+              free: charge.free,
+            }
+          : null,
+        packagingOptions: (optionsByProduct.get(productIdOf(source)) ?? []).map(
+          optionDto,
+        ),
+      };
+    });
+
+    const nextThreshold = packagingSummary.nextFreeThresholdRial;
+    const packagingTotalToman = Math.round(packagingSummary.chargedRial / 10);
 
     return {
       id: cart.id,
-      items,
-      totalToman: Math.round(totalToman),
+      items: itemsWithPackaging,
+      // جمع اقلام (بدون بسته‌بندی) — مبنای کد تخفیف و آستانه رایگان شدن بسته‌بندی
+      itemsTotalToman,
+      packagingTotalToman,
+      packagingWaivedToman: Math.round(packagingSummary.waivedRial / 10),
+      packagingFreeThresholdToman:
+        nextThreshold != null ? toToman(nextThreshold) : null,
+      packagingFreeRemainingToman:
+        nextThreshold != null
+          ? toToman(Math.max(0, nextThreshold - itemsSubtotalRial))
+          : null,
+      // مبلغ کل = اقلام + بسته‌بندی (پیش از کد تخفیف)
+      totalToman: itemsTotalToman + packagingTotalToman,
     };
   }
 }

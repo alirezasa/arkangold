@@ -14,6 +14,8 @@ import {
   Loader2,
   Scale,
   Info,
+  Package,
+  Gift,
 } from "lucide-react";
 import {
   useProduct,
@@ -54,6 +56,8 @@ export default function ProductDetailView({
   const [weightGrams, setWeightGrams] = useState<number | null>(null);
 
   const [quantity, setQuantity] = useState(1);
+  // بسته‌بندی انتخابی؛ null = گزینه پیش‌فرض محصول
+  const [packagingId, setPackagingId] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
 
@@ -100,6 +104,17 @@ export default function ProductDetailView({
     );
   }
 
+  const packagingOptions = product.packagingOptions ?? [];
+  const selectedPackaging =
+    packagingOptions.find((o) => o.id === packagingId) ??
+    packagingOptions.find((o) => o.isDefault) ??
+    packagingOptions[0] ??
+    null;
+  const packagingCostToman = selectedPackaging
+    ? Number(selectedPackaging.priceToman) *
+      (selectedPackaging.perUnit ? quantity : 1)
+    : 0;
+
   const images = product.images.length
     ? product.images
     : product.primaryImageUrl
@@ -128,6 +143,7 @@ export default function ProductDetailView({
         productId: product.id,
         weightGrams: effectiveWeight,
         quantity,
+        packagingOptionId: selectedPackaging?.id,
       });
       if (res) {
         setAdded(true);
@@ -138,7 +154,11 @@ export default function ProductDetailView({
 
     if (!selectedVariant) return setError("یک تنوع را انتخاب کنید");
     if (!selectedVariant.inStock) return setError("این تنوع موجود نیست");
-    const res = await add({ variantId: selectedVariant.id, quantity });
+    const res = await add({
+      variantId: selectedVariant.id,
+      quantity,
+      packagingOptionId: selectedPackaging?.id,
+    });
     if (res) {
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
@@ -376,6 +396,82 @@ export default function ProductDetailView({
               </button>
             </div>
           </div>
+
+          {/* ══ انتخاب بسته‌بندی ارسال ══ */}
+          {packagingOptions.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-[12px] font-bold text-gray-500 flex items-center gap-1.5">
+                <Package className="w-3.5 h-3.5" />
+                بسته‌بندی ارسال
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {packagingOptions.map((o) => {
+                  const active = selectedPackaging?.id === o.id;
+                  const price = Number(o.priceToman);
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => setPackagingId(o.id)}
+                      aria-pressed={active}
+                      className={`flex items-start gap-3 p-2.5 rounded-xl border-2 text-right transition-all ${
+                        active
+                          ? "border-rose-500 bg-rose-50"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="w-14 h-14 rounded-lg bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
+                        {o.imageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={productImageUrl(o.imageUrl) ?? undefined}
+                            alt={o.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Package className="w-6 h-6 text-gray-300" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={`text-[12px] font-black ${
+                            active ? "text-rose-700" : "text-gray-800"
+                          }`}
+                        >
+                          {o.name}
+                        </p>
+                        <p className="text-[11px] font-bold text-gray-500 mt-0.5">
+                          {price > 0
+                            ? `${fmtToman(price)} تومان${
+                                o.perUnit ? " / هر عدد" : ""
+                              }`
+                            : "رایگان"}
+                        </p>
+                        {o.description && (
+                          <p className="text-[10px] text-gray-400 mt-0.5 line-clamp-2">
+                            {o.description}
+                          </p>
+                        )}
+                        {price > 0 && o.freeThresholdToman && (
+                          <p className="text-[10px] font-bold text-emerald-600 mt-0.5 flex items-center gap-1">
+                            <Gift className="w-3 h-3 shrink-0" />
+                            رایگان برای خرید بالای{" "}
+                            {fmtToman(o.freeThresholdToman)} تومان
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {packagingCostToman > 0 && (
+                <p className="text-[11px] text-gray-400">
+                  هزینه بسته‌بندی: {fmtToman(packagingCostToman)} تومان — در سبد
+                  خرید و فاکتور به‌صورت ردیف جدا محاسبه می‌شود
+                </p>
+              )}
+            </div>
+          )}
 
           {error && (
             <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-[13px] font-bold">

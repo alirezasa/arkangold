@@ -7,9 +7,10 @@ import { CatalogService } from './catalog.service';
 import { ProductImagesService } from './product-images.service';
 import { PricingEngineService } from './pricing-engine.service';
 import { MarketModule } from '../market/market.module';
+import { PackagingModule } from '../packaging/packaging.module';
 
 @Module({
-  imports: [MarketModule], // برای دسترسی PricingEngineService به PriceService
+  imports: [MarketModule, PackagingModule], // برای دسترسی PricingEngineService به PriceService
   controllers: [
     CatalogController,
     CatalogAdminController,

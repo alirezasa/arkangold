@@ -350,7 +350,9 @@ export class CartService {
 
       // جلوگیری از خطای Stringification و Unsafe Call با تعریف اینترفیس
       const rawFinalPrice = result.finalPriceRial as
-        { toString(): string } | null | undefined;
+        | { toString(): string }
+        | null
+        | undefined;
       let finalUnitPriceRial = new Decimal(
         rawFinalPrice != null ? rawFinalPrice.toString() : '0',
       );
@@ -384,7 +386,9 @@ export class CartService {
       });
 
       const rawBasePrice = product?.basePriceRial as
-        { toString(): string } | null | undefined;
+        | { toString(): string }
+        | null
+        | undefined;
       let fallbackPrice = new Decimal(
         rawBasePrice != null ? rawBasePrice.toString() : '0',
       );

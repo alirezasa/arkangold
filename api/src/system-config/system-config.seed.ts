@@ -530,4 +530,76 @@ export const WALLET_CONFIG_DEFAULTS = [
     description:
       'آستانه عمومی رایگان شدن بسته‌بندی: اگر جمع اقلام سفارش (ریال، پیش از کد تخفیف) به این مبلغ برسد، بسته‌بندی‌های مشمول رایگان می‌شوند — ۰ = غیرفعال',
   },
+
+  // ══ حسابداری ══
+  {
+    key: 'accounting.locked_until',
+    value: '',
+    description:
+      'تاریخ قفل دوره مالی (YYYY-MM-DD): ثبت سند دستی با تاریخ تا این روز مجاز نیست — خالی = بدون قفل',
+  },
+  {
+    key: 'accounting.allow_self_approve',
+    value: 'false',
+    description:
+      'اجازه‌ی تأیید سند دستی توسط همان کاربری که آن را ثبت کرده (کنترل دوگانه) — true/false',
+  },
+
+  // ══ خزانه و پوشش طلای آب‌شده ══
+  {
+    key: 'treasury.target_reserve_percent',
+    value: '100',
+    description:
+      'درصد هدف پوشش طلای کاربران با طلای فیزیکی خزانه (۱۰۰ = پوشش کامل)',
+  },
+  {
+    key: 'treasury.safety_buffer_grams',
+    value: '0',
+    description:
+      'ذخیره‌ی احتیاطی مازاد بر بدهی طلایی کاربران (گرم ۷۵۰) که در گزارش خرید لحاظ می‌شود',
+  },
+  {
+    key: 'treasury.purchase_lot_grams',
+    value: '0',
+    description:
+      'واحد گرد کردن مقدار پیشنهادی خرید از بازار (گرم) — مثلاً ۱۰ یعنی مضرب ۱۰ گرم؛ ۰ = بدون گرد کردن',
+  },
+  {
+    key: 'treasury.alert_coverage_percent',
+    value: '95',
+    description:
+      'اگر نسبت پوشش خزانه از این درصد کمتر شود، هشدار خرید به مدیران مالی ارسال می‌شود',
+  },
+
+  {
+    key: 'treasury.last_alert_date',
+    value: '',
+    description:
+      'تاریخ آخرین پیامک هشدار کسری پوشش خزانه (سیستمی — برای جلوگیری از ارسال تکراری در یک روز)',
+  },
+
+  // ══ شرکای فروش (اقساطی / اپ‌های همکار) ══
+  {
+    key: 'partner.api.enabled',
+    value: 'false',
+    description:
+      'فعال بودن API عمومی شرکای فروش (اسنپ‌پی، دیجی‌پی و اپ‌های همکار) — true/false',
+  },
+  {
+    key: 'partner.quote_ttl_minutes',
+    value: '30',
+    description:
+      'اعتبار قیمت سفارش‌های ثبت‌شده از API شرکا (دقیقه) — تأیید پس از این مدت رد می‌شود',
+  },
+  {
+    key: 'partner.quote_spread_percent',
+    value: '0',
+    description:
+      'اسپرد قیمت فروش طلای آب‌شده به مشتریان شرکا نسبت به قیمت لحظه‌ای (درصد)',
+  },
+  {
+    key: 'partner.fee_percent',
+    value: '0',
+    description: 'کارمزد خدمات آرکان روی فروش از طریق شرکا (درصد از ارزش طلا)',
+  },
 ];

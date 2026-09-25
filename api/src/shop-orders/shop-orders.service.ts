@@ -21,6 +21,7 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentGatewayFactory } from '../payment-gateway/payment-gateway.factory';
 import { SystemConfigService } from '../system-config/system-config.service';
+import { InventoryAccountingService } from '../accounting/inventory-accounting.service';
 import {
   AccountingService,
   LedgerLineInput,
@@ -86,6 +87,7 @@ export class ShopOrdersService {
     private readonly invoiceService: InvoiceService,
     private readonly discountService: DiscountService,
     private readonly packagingService: PackagingService,
+    private readonly inventoryAccounting: InventoryAccountingService,
   ) {}
 
   /**
@@ -635,6 +637,7 @@ export class ShopOrdersService {
             packagingRial,
           }),
         });
+        await this.inventoryAccounting.postShopCogs(tx, orderId);
 
         await tx.shopOrder.update({
           where: { id: orderId },
@@ -917,6 +920,7 @@ export class ShopOrdersService {
             packagingRial,
           }),
         });
+        await this.inventoryAccounting.postShopCogs(tx, order.id);
 
         await tx.transaction.create({
           data: {
@@ -1347,6 +1351,7 @@ export class ShopOrdersService {
             totalGrams: 0,
             lines: refundLines,
           });
+          await this.inventoryAccounting.reverseShopCogs(tx, order.id);
         }
       }
 

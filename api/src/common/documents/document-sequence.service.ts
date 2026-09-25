@@ -14,7 +14,16 @@ export type DocumentPrefix =
   | 'AGS'
   | 'AGV'
   | 'AGP'
-  | 'AGJ';
+  | 'AGJ'
+  // حسابداری پیشرفته: سند دستی، خرید/فروش خزانه، پرداخت تأمین‌کننده، شمارش خزانه،
+  // سفارش و تسویه‌ی شرکای فروش
+  | 'MJV'
+  | 'TRP'
+  | 'TRS'
+  | 'SPY'
+  | 'VCT'
+  | 'PTO'
+  | 'PTS';
 
 const PREFIX_LABEL: Record<DocumentPrefix, string> = {
   INV: 'INV',
@@ -25,6 +34,13 @@ const PREFIX_LABEL: Record<DocumentPrefix, string> = {
   AGV: 'AGV',
   AGP: 'AGP',
   AGJ: 'AGJ',
+  MJV: 'MJV',
+  TRP: 'TRP',
+  TRS: 'TRS',
+  SPY: 'SPY',
+  VCT: 'VCT',
+  PTO: 'PTO',
+  PTS: 'PTS',
 };
 
 @Injectable()

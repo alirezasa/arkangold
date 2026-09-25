@@ -127,6 +127,83 @@ export const ADMIN_PERMISSIONS = [
     description: 'مشاهده دفترکل و گزارش‌های مالی',
   },
   {
+    key: 'accounting.manage',
+    group: 'accounting',
+    description:
+      'مدیریت سرفصل حساب‌ها (تعریف/ویرایش حساب معین) و ثبت سند ارزیابی طلا',
+  },
+  {
+    key: 'accounting.voucher.create',
+    group: 'accounting',
+    description: 'ثبت و ویرایش سند حسابداری دستی (پیش‌نویس)',
+  },
+  {
+    key: 'accounting.voucher.approve',
+    group: 'accounting',
+    description:
+      'تأیید/رد سند دستی و ثبت آن در دفتر کل، و صدور سند برگشتی (کنترل دوگانه)',
+  },
+  {
+    key: 'accounting.period.manage',
+    group: 'accounting',
+    description: 'تعریف و بستن سال مالی، قفل دوره‌ی مالی و قطعی‌سازی اسناد',
+  },
+  {
+    key: 'treasury.view',
+    group: 'treasury',
+    description:
+      'مشاهده‌ی خزانه: گزارش پوشش و خرید طلای آب‌شده، سفارش‌های خرید/فروش، تأمین‌کنندگان',
+  },
+  {
+    key: 'treasury.order.manage',
+    group: 'treasury',
+    description:
+      'ثبت، قطعی‌سازی، رسید ورود به خزانه و ابطال سفارش خرید/فروش طلا با بازار؛ تعریف تأمین‌کننده',
+  },
+  {
+    key: 'treasury.payment.manage',
+    group: 'treasury',
+    description: 'ثبت پرداخت به تأمین‌کننده / دریافت از خریدار طلا',
+  },
+  {
+    key: 'treasury.vault_count',
+    group: 'treasury',
+    description: 'ثبت شمارش فیزیکی خزانه و اصلاح مغایرت موجودی',
+  },
+  {
+    key: 'inventory.view',
+    group: 'inventory',
+    description:
+      'گزارش لحظه‌ای موجودی شمش: خزانه، کددار، نزد نمایندگان، فروخته‌شده و کدهای خام',
+  },
+  {
+    key: 'inventory.code',
+    group: 'inventory',
+    description:
+      'کدگذاری شمش‌های موجود در خزانه (اتصال کد هولوگرام به شمش فیزیکی)',
+  },
+  {
+    key: 'partner.view',
+    group: 'partner',
+    description:
+      'مشاهده‌ی شرکای فروش (اسنپ‌پی، دیجی‌پی، اپ‌های همکار)، سفارش‌ها، تسویه‌ها و صورتحساب',
+  },
+  {
+    key: 'partner.manage',
+    group: 'partner',
+    description: 'تعریف/ویرایش شریک فروش، قرارداد، کارمزد و کلید API',
+  },
+  {
+    key: 'partner.order.manage',
+    group: 'partner',
+    description: 'ثبت، تأیید، لغو و استرداد سفارش شرکای فروش',
+  },
+  {
+    key: 'partner.settlement.manage',
+    group: 'partner',
+    description: 'ثبت تسویه‌ی دریافتی از شرکای فروش',
+  },
+  {
     key: 'deposit.view',
     group: 'wallet',
     description: 'مشاهده درخواست‌های واریز و رسیدها',
@@ -325,6 +402,40 @@ export const ADMIN_ROLES = [
       'hologram.transfer.view',
       'agent.view',
       'agent.settlement.manage',
+      'accounting.manage',
+      'accounting.voucher.create',
+      'accounting.voucher.approve',
+      'accounting.period.manage',
+      'treasury.view',
+      'treasury.order.manage',
+      'treasury.payment.manage',
+      'treasury.vault_count',
+      'inventory.view',
+      'partner.view',
+      'partner.manage',
+      'partner.order.manage',
+      'partner.settlement.manage',
+    ] as PermissionKey[],
+  },
+  {
+    key: 'ACCOUNTANT',
+    name: 'حسابدار',
+    description:
+      'ثبت اسناد دستی، مشاهده‌ی دفاتر و گزارش‌های مالی، خزانه، شرکا و موجودی شمش (تأیید سند با مدیر مالی)',
+    isSystem: true,
+    permissions: [
+      'accounting.view',
+      'accounting.voucher.create',
+      'invoice.view',
+      'transactions.view',
+      'deposit.view',
+      'withdrawal.view',
+      'treasury.view',
+      'treasury.payment.manage',
+      'inventory.view',
+      'partner.view',
+      'partner.settlement.manage',
+      'agent.view',
     ] as PermissionKey[],
   },
   {
@@ -389,6 +500,8 @@ export const ADMIN_ROLES = [
       'hologram.security.manage',
       'agent.view',
       'agent.stock.manage',
+      'inventory.view',
+      'inventory.code',
     ] as PermissionKey[],
   },
   {

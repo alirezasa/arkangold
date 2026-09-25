@@ -7,11 +7,11 @@
 // و وضعیت شمش هرگز از هم جدا نشوند.
 //
 // نقشه‌ی حساب‌ها:
-//   1020 موجودی طلای فیزیکی (گرم)        1030 موجودی شمش امانی نزد نمایندگان (گرم)
+//   1025 موجودی شمش خزانه (گرم)           1030 موجودی شمش امانی نزد نمایندگان (گرم)
 //   1010 موجودی نقد                       1040 دریافتنی از نمایندگان
 //   4040 درآمد فروش شمش (نمایندگی)        4050 درآمد اجرت/حق ضرب شمش
 //   4060 درآمد متفرقه نمایندگان           5040 هزینه حق‌العمل نمایندگان
-//   5050 بهای تمام‌شده شمش فروخته‌شده (گرم)
+//   5050 بهای تمام‌شده شمش فروخته‌شده (گرم + ریال به بهای میانگین موزون)
 
 import { Injectable, NotFoundException } from '@nestjs/common';
 import Decimal from 'decimal.js';
@@ -25,7 +25,7 @@ type Tx = Prisma.TransactionClient;
 
 export const AGENT_ACCOUNTS = {
   CASH: '1010',
-  VAULT_GOLD: '1020',
+  VAULT_BULLION: '1025',
   CONSIGNMENT: '1030',
   RECEIVABLE: '1040',
   BAR_SALE_INCOME: '4040',
@@ -57,6 +57,8 @@ export interface SaleJournalInput {
   premiumRial: Decimal;
   commissionRial: Decimal;
   netPayableRial: Decimal;
+  /** فقط برای ابطال: سند فروش اصلی تا دقیقاً همان بهای تمام‌شده برگردد */
+  originalJournalId?: string | null;
 }
 
 /** برچسب یکتای نماینده در شرح اسناد — جست‌وجوی اسناد هر نماینده بر اساس همین است */
@@ -115,7 +117,10 @@ export class AgentAccountingService {
   // اسناد دفتر کل
   // ═══════════════════════════════════════════
 
-  /** تحویل امانی (خزانه → نماینده) یا عودت (نماینده → خزانه) — فقط اثر وزنی */
+  /**
+   * تحویل امانی (خزانه → نماینده) یا عودت (نماینده → خزانه): وزن و بهای تمام‌شده
+   * (میانگین موزون حساب مبدأ) بین 1025 و 1030 جابه‌جا می‌شود.
+   */
   async journalStockMovement(
     tx: Tx,
     params: {
@@ -128,25 +133,35 @@ export class AgentAccountingService {
     },
   ) {
     const toAgent = params.direction === 'ALLOCATION';
+    const costRial = await this.accounting.averageCostRial(
+      tx,
+      toAgent ? AGENT_ACCOUNTS.VAULT_BULLION : AGENT_ACCOUNTS.CONSIGNMENT,
+      params.totalGrams,
+    );
     return this.accounting.postJournal(tx, {
       description: `${toAgent ? 'تحویل امانی' : 'عودت'} ${params.count} شمش ${
         toAgent ? 'به' : 'از'
       } نماینده «${params.agentName}» ${params.agentTag} — حواله ${params.voucherNumber}`,
-      totalRial: 0,
+      totalRial: costRial,
       totalGrams: params.totalGrams,
+      source: 'INVENTORY',
+      referenceType: 'AGENT_VOUCHER',
+      referenceId: params.voucherNumber,
       lines: [
         {
           accountCode: toAgent
             ? AGENT_ACCOUNTS.CONSIGNMENT
-            : AGENT_ACCOUNTS.VAULT_GOLD,
+            : AGENT_ACCOUNTS.VAULT_BULLION,
           side: 'DEBIT',
+          amountRial: costRial,
           amountGrams: params.totalGrams,
         },
         {
           accountCode: toAgent
-            ? AGENT_ACCOUNTS.VAULT_GOLD
+            ? AGENT_ACCOUNTS.VAULT_BULLION
             : AGENT_ACCOUNTS.CONSIGNMENT,
           side: 'CREDIT',
+          amountRial: costRial,
           amountGrams: params.totalGrams,
         },
       ],
@@ -166,6 +181,13 @@ export class AgentAccountingService {
     const dr: 'DEBIT' | 'CREDIT' = reversed ? 'CREDIT' : 'DEBIT';
     const cr: 'DEBIT' | 'CREDIT' = reversed ? 'DEBIT' : 'CREDIT';
     const lines: LedgerLineInput[] = [];
+    const costRial = reversed
+      ? await this.costFromJournal(tx, input.originalJournalId)
+      : await this.accounting.averageCostRial(
+          tx,
+          AGENT_ACCOUNTS.CONSIGNMENT,
+          input.weightGrams,
+        );
 
     if (input.netPayableRial.greaterThan(0)) {
       lines.push({
@@ -197,11 +219,13 @@ export class AgentAccountingService {
       {
         accountCode: AGENT_ACCOUNTS.BAR_COGS,
         side: dr,
+        amountRial: costRial,
         amountGrams: input.weightGrams,
       },
       {
         accountCode: AGENT_ACCOUNTS.CONSIGNMENT,
         side: cr,
+        amountRial: costRial,
         amountGrams: input.weightGrams,
       },
     );
@@ -214,6 +238,23 @@ export class AgentAccountingService {
       totalGrams: input.weightGrams,
       lines,
     });
+  }
+
+  /** بهای تمام‌شده‌ی ثبت‌شده در سطر 5050 سند فروش اصلی (برای ابطال) */
+  private async costFromJournal(
+    tx: Tx,
+    journalId?: string | null,
+  ): Promise<Decimal> {
+    if (!journalId) return new Decimal(0);
+    const line = await tx.ledgerEntry.findFirst({
+      where: {
+        journalEntryId: journalId,
+        side: 'DEBIT',
+        account: { code: AGENT_ACCOUNTS.BAR_COGS },
+      },
+      select: { amountRial: true },
+    });
+    return d(line?.amountRial);
   }
 
   /** تسویه‌ی نقدی نماینده: بدهکار 1010 موجودی نقد / بستانکار 1040 دریافتنی */

@@ -316,9 +316,20 @@ export class ReferralService {
               amountGrams: rewardGrams,
             },
           });
+          // هزینه به ارزش روز؛ طلای معادل باید از بازار خریده شود (کسری پوشش 1090)
+          const price = await this.accounting.currentGoldPriceRial(tx);
+          const valueRial = rewardGrams
+            .times(price.toString())
+            .toDecimalPlaces(0);
           lines.push(
-            { accountCode: '5020', side: 'DEBIT', amountGrams: rewardGrams },
-            { accountCode: '2020', side: 'CREDIT', amountGrams: rewardGrams },
+            { accountCode: '5020', side: 'DEBIT', amountRial: valueRial },
+            { accountCode: '1090', side: 'DEBIT', amountGrams: rewardGrams },
+            {
+              accountCode: '2020',
+              side: 'CREDIT',
+              amountRial: valueRial,
+              amountGrams: rewardGrams,
+            },
           );
         }
 

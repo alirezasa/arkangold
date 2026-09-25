@@ -32,7 +32,12 @@ type Tx = Prisma.TransactionClient;
 
 interface IssueParams {
   kind: 'INVOICE' | 'PROFORMA';
-  sourceType: 'SHOP_ORDER' | 'PHYSICAL_DELIVERY' | 'DEPOSIT' | 'AGENT_SALE';
+  sourceType:
+    | 'SHOP_ORDER'
+    | 'PHYSICAL_DELIVERY'
+    | 'DEPOSIT'
+    | 'AGENT_SALE'
+    | 'PARTNER_ORDER';
   sourceId: string;
   userId: string;
   items: InvoiceItemInput[];
@@ -549,6 +554,85 @@ export class InvoiceService {
         agentCode: sale.agent.code,
         agentName: sale.agent.name,
         agentSaleNumber: sale.saleNumber,
+      },
+      status: 'PAID',
+    });
+  }
+
+  /** فاکتور فروش سفارش شریک (خرید اقساطی طلا / اپ همکار) */
+  async issueForPartnerOrder(tx: Tx, partnerOrderId: string) {
+    const o = await tx.partnerOrder.findUnique({
+      where: { id: partnerOrderId },
+      include: { partner: { select: { name: true, code: true } } },
+    });
+    if (!o) throw new NotFoundException('سفارش شریک یافت نشد');
+    const grams = Number(o.amountGrams);
+    const goldValueRial = Number(o.goldValueRial);
+    const wageRial = Number(o.wageRial);
+    const feeRial = Number(o.feeRial);
+    const taxRial = Number(o.taxRial);
+    let title: string;
+    let productCode: string | null = o.orderNumber;
+    let purity: string | null = 'K18';
+    if (o.productKind === 'BULLION' && o.hologramCodeId) {
+      const bar = await tx.hologramCode.findUnique({
+        where: { id: o.hologramCodeId },
+        select: {
+          code: true,
+          purityKarat: true,
+          factorySerialNumber: true,
+          product: { select: { name: true } },
+        },
+      });
+      purity = bar?.purityKarat ?? null;
+      productCode = bar?.code ?? productCode;
+      title = `${bar?.product?.name ?? 'شمش طلا'} ${toPersianDigits(grams)} گرمی عیار ${
+        purity === 'K24' ? '۲۴' : '۱۸'
+      } — کد هولوگرام ${toPersianDigits(bar?.code ?? '')}${
+        bar?.factorySerialNumber ? ` — سریال ${bar.factorySerialNumber}` : ''
+      }`;
+    } else {
+      title = `طلای آب‌شده ۱۸ عیار — ${toPersianDigits(grams)} گرم (واریز به کیف پول طلایی)`;
+    }
+    return this.issue(tx, {
+      kind: 'INVOICE',
+      sourceType: 'PARTNER_ORDER',
+      sourceId: o.id,
+      userId: o.userId,
+      items: [
+        {
+          rowNo: 1,
+          productCode,
+          title,
+          unit: o.productKind === 'BULLION' ? 'عدد' : 'گرم',
+          purityKarat: purity,
+          quantity: 1,
+          weightGrams: grams,
+          unitPriceRial: goldValueRial,
+          discountRial: 0,
+          makingRial: wageRial,
+          feeRial,
+          taxRate: 0,
+          taxRial,
+          totalRial: goldValueRial + wageRial + feeRial + taxRial,
+          meta: {
+            type: 'PARTNER_ORDER',
+            orderNumber: o.orderNumber,
+            externalRef: o.externalRef,
+            pricePerGramRial: o.pricePerGramRial.toString(),
+          },
+        },
+      ],
+      extraData: {
+        discountCode: null,
+        paymentMethod: `خرید اقساطی / پرداخت از طریق «${o.partner.name}» — مرجع ${o.externalRef}${
+          o.installmentCount
+            ? ` — ${toPersianDigits(o.installmentCount)} قسط`
+            : ''
+        }`,
+        partnerName: o.partner.name,
+        partnerOrderNumber: o.orderNumber,
+        installmentCount: o.installmentCount,
       },
       status: 'PAID',
     });

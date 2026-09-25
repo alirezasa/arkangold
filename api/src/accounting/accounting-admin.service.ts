@@ -11,11 +11,10 @@ interface ListJournalQuery {
   from?: string;
   to?: string;
   search?: string;
-}
-
-interface AccountLedgerQuery {
-  page?: number;
-  limit?: number;
+  source?: string;
+  referenceNumber?: number;
+  accountCode?: string;
+  withLines?: boolean;
 }
 
 /** تبدیل ایمن مقادیر ورودی/دیتابیس به Decimal از decimal.js */
@@ -28,81 +27,6 @@ function toDecimal(value: unknown): Decimal {
 export class AccountingAdminService {
   constructor(private prisma: PrismaService) {}
 
-  private isDebitNature(code: string): boolean {
-    return code.startsWith('1') || code.startsWith('5');
-  }
-
-  async listAccounts() {
-    const accounts = await this.prisma.account.findMany({
-      orderBy: { code: 'asc' },
-    });
-
-    return accounts.map((a) => {
-      const balRial = toDecimal(a.balanceRial);
-      return {
-        id: a.id,
-        code: a.code,
-        name: a.name,
-        type: a.type,
-        subType: a.subType,
-        balanceRial: balRial.toString(),
-        balanceToman: balRial.dividedBy(10).toString(),
-        balanceGrams: toDecimal(a.balanceGrams).toString(),
-        isDebitNature: this.isDebitNature(a.code),
-      };
-    });
-  }
-
-  async getAccountLedger(accountId: string, query: AccountLedgerQuery) {
-    // 👈 جلوگیری از اعداد منفی در صفحه‌بندی
-    const page = Math.max(1, query.page ?? 1);
-    const limit = Math.min(Math.max(1, query.limit ?? 30), 100);
-
-    const account = await this.prisma.account.findUnique({
-      where: { id: accountId },
-    });
-    if (!account) return null;
-
-    const [entries, total] = await Promise.all([
-      this.prisma.ledgerEntry.findMany({
-        where: { accountId },
-        include: { journalEntry: true },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.ledgerEntry.count({ where: { accountId } }),
-    ]);
-
-    const accBalRial = toDecimal(account.balanceRial);
-
-    return {
-      account: {
-        code: account.code,
-        name: account.name,
-        balanceRial: accBalRial.toString(),
-        balanceToman: accBalRial.dividedBy(10).toString(),
-      },
-      data: entries.map((e) => {
-        const amountRial = toDecimal(e.amountRial);
-        return {
-          id: e.id,
-          side: e.side,
-          amountRial: amountRial.toString(),
-          amountToman: amountRial.dividedBy(10).toString(),
-          amountGrams: toDecimal(e.amountGrams).toString(),
-          description: e.journalEntry.description,
-          journalEntryId: e.journalEntryId,
-          createdAt: e.createdAt.toISOString(),
-        };
-      }),
-      page,
-      limit,
-      total,
-      totalPages: Math.max(1, Math.ceil(total / limit)),
-    };
-  }
-
   async listJournalEntries(query: ListJournalQuery) {
     const page = Math.max(1, query.page ?? 1);
     const limit = Math.min(Math.max(1, query.limit ?? 30), 100);
@@ -111,6 +35,16 @@ export class AccountingAdminService {
 
     if (query.search) {
       where.description = { contains: query.search, mode: 'insensitive' };
+    }
+    if (query.source) where.source = query.source as never;
+    if (query.referenceNumber) {
+      where.OR = [
+        { referenceNumber: query.referenceNumber },
+        { permanentNumber: query.referenceNumber },
+      ];
+    }
+    if (query.accountCode) {
+      where.ledgerEntries = { some: { account: { code: query.accountCode } } };
     }
 
     if (query.from || query.to) {
@@ -128,9 +62,12 @@ export class AccountingAdminService {
     const [items, total] = await Promise.all([
       this.prisma.journalEntry.findMany({
         where,
-        orderBy: { entryDate: 'desc' },
+        orderBy: [{ entryDate: 'desc' }, { referenceNumber: 'desc' }],
         skip: (page - 1) * limit,
         take: limit,
+        include: query.withLines
+          ? { ledgerEntries: { include: { account: true } } }
+          : undefined,
       }),
       this.prisma.journalEntry.count({ where }),
     ]);
@@ -139,9 +76,36 @@ export class AccountingAdminService {
       data: items.map((j) => ({
         id: j.id,
         description: j.description,
+        referenceNumber: j.referenceNumber,
+        permanentNumber: j.permanentNumber,
+        source: j.source,
+        referenceType: j.referenceType,
+        referenceId: j.referenceId,
+        reversalOfId: j.reversalOfId,
+        totalRial: toDecimal(j.totalRial).toString(),
         totalToman: toDecimal(j.totalRial).dividedBy(10).toString(),
         totalGrams: toDecimal(j.totalGrams).toString(),
         entryDate: j.entryDate.toISOString(),
+        createdAt: j.createdAt.toISOString(),
+        lines:
+          'ledgerEntries' in j
+            ? (
+                j.ledgerEntries as {
+                  side: string;
+                  amountRial: unknown;
+                  amountGrams: unknown;
+                  description: string | null;
+                  account: { code: string; name: string };
+                }[]
+              ).map((l) => ({
+                accountCode: l.account.code,
+                accountName: l.account.name,
+                side: l.side,
+                amountRial: toDecimal(l.amountRial).toString(),
+                amountGrams: toDecimal(l.amountGrams).toString(),
+                description: l.description,
+              }))
+            : undefined,
       })),
       page,
       limit,
@@ -153,69 +117,47 @@ export class AccountingAdminService {
   async getJournalEntryDetail(id: string) {
     const journal = await this.prisma.journalEntry.findUnique({
       where: { id },
-      include: { ledgerEntries: { include: { account: true } } },
+      include: {
+        ledgerEntries: { include: { account: true } },
+        reversedBy: { select: { id: true, referenceNumber: true } },
+        reversalOf: { select: { id: true, referenceNumber: true } },
+      },
     });
     if (!journal) return null;
+
+    const createdBy = journal.createdByAdminId
+      ? await this.prisma.adminUser.findUnique({
+          where: { id: journal.createdByAdminId },
+          select: { fullName: true },
+        })
+      : null;
 
     return {
       id: journal.id,
       description: journal.description,
+      referenceNumber: journal.referenceNumber,
+      permanentNumber: journal.permanentNumber,
+      finalizedAt: journal.finalizedAt?.toISOString() ?? null,
+      source: journal.source,
+      referenceType: journal.referenceType,
+      referenceId: journal.referenceId,
+      createdBy: createdBy?.fullName ?? null,
+      reversedBy: journal.reversedBy,
+      reversalOf: journal.reversalOf,
+      totalRial: toDecimal(journal.totalRial).toString(),
       totalToman: toDecimal(journal.totalRial).dividedBy(10).toString(),
       totalGrams: toDecimal(journal.totalGrams).toString(),
       entryDate: journal.entryDate.toISOString(),
+      createdAt: journal.createdAt.toISOString(),
       lines: journal.ledgerEntries.map((l) => ({
         accountCode: l.account.code,
         accountName: l.account.name,
         side: l.side,
+        description: l.description,
+        amountRial: toDecimal(l.amountRial).toString(),
         amountToman: toDecimal(l.amountRial).dividedBy(10).toString(),
         amountGrams: toDecimal(l.amountGrams).toString(),
       })),
-    };
-  }
-
-  async getTrialBalance() {
-    const accounts = await this.prisma.account.findMany({
-      orderBy: { code: 'asc' },
-    });
-
-    let totalDebitRial = new Decimal(0);
-    let totalCreditRial = new Decimal(0);
-
-    const rows = accounts.map((a) => {
-      const isDebit = this.isDebitNature(a.code);
-      const balanceRial = toDecimal(a.balanceRial);
-
-      let debitRial = new Decimal(0);
-      let creditRial = new Decimal(0);
-
-      if (isDebit && balanceRial.greaterThan(0)) {
-        debitRial = balanceRial;
-      } else if (!isDebit && balanceRial.lessThan(0)) {
-        debitRial = balanceRial.abs();
-      }
-
-      if (!isDebit && balanceRial.greaterThan(0)) {
-        creditRial = balanceRial;
-      } else if (isDebit && balanceRial.lessThan(0)) {
-        creditRial = balanceRial.abs();
-      }
-
-      totalDebitRial = totalDebitRial.plus(debitRial);
-      totalCreditRial = totalCreditRial.plus(creditRial);
-
-      return {
-        code: a.code,
-        name: a.name,
-        debitToman: debitRial.dividedBy(10).toString(),
-        creditToman: creditRial.dividedBy(10).toString(),
-      };
-    });
-
-    return {
-      rows,
-      totalDebitToman: totalDebitRial.dividedBy(10).toString(),
-      totalCreditToman: totalCreditRial.dividedBy(10).toString(),
-      isBalanced: totalDebitRial.equals(totalCreditRial),
     };
   }
 

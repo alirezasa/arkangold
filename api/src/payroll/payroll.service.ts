@@ -192,9 +192,7 @@ export class PayrollService {
       where: { planId, executionDate: today },
     });
     if (existingLog) {
-      throw new BadRequestException(
-        'پی‌رول این پلن امروز قبلاً اجرا شده است',
-      );
+      throw new BadRequestException('پی‌رول این پلن امروز قبلاً اجرا شده است');
     }
 
     // ── تعیین مقدار طلای هر کاربر ──
@@ -269,8 +267,9 @@ export class PayrollService {
     });
   }
 
-  // پرداخت حقوق: خزانه طلای شرکت (1020) کاهش می‌یابد، بدهی طلایی به کاربر
-  // (2020) و هزینه حقوق (5010) افزایش می‌یابد؛ موجودی کیف‌پول کاربر بالا می‌رود.
+  // پرداخت حقوق: هزینه حقوق (5010، به ارزش روز) و بدهی طلایی به کاربر (2020)
+  // افزایش می‌یابد؛ طلای معادل هنوز از بازار خریده نشده، پس کسری پوشش (1090) بالا
+  // می‌رود تا در گزارش خرید خزانه دیده شود. موجودی کیف‌پول کاربر بالا می‌رود.
   private async payUser(
     planId: string,
     planName: string,
@@ -302,15 +301,27 @@ export class PayrollService {
         },
       });
 
+      const price =
+        pricePerGramRial ??
+        (await this.accountingService.currentGoldPriceRial(tx));
+      const valueRial = amountGrams.times(price.toString()).toDecimalPlaces(0);
       const lines: LedgerLineInput[] = [
-        { accountCode: '5010', side: 'DEBIT', amountGrams },
-        { accountCode: '1020', side: 'CREDIT', amountGrams },
+        { accountCode: '5010', side: 'DEBIT', amountRial: valueRial },
+        { accountCode: '1090', side: 'DEBIT', amountGrams },
+        {
+          accountCode: '2020',
+          side: 'CREDIT',
+          amountRial: valueRial,
+          amountGrams,
+        },
       ];
 
       await this.accountingService.postJournal(tx, {
         description: `پرداخت حقوق طلا - پلن ${planName} - کاربر ${userId}${priceNote}`,
-        totalRial: D0,
+        totalRial: valueRial,
         totalGrams: amountGrams,
+        referenceType: 'PAYROLL_PLAN',
+        referenceId: planId,
         lines,
       });
     });

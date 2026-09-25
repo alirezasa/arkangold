@@ -38,6 +38,8 @@ import { ReferralModule } from './referral/referral.module';
 import { DiscountModule } from './discount/discount.module';
 import { PackagingModule } from './packaging/packaging.module';
 import { AgentModule } from './agent/agent.module';
+import { TreasuryModule } from './treasury/treasury.module';
+import { PartnersModule } from './partners/partners.module';
 
 @Module({
   imports: [
@@ -76,6 +78,8 @@ import { AgentModule } from './agent/agent.module';
     DiscountModule,
     PackagingModule,
     AgentModule,
+    TreasuryModule,
+    PartnersModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: AuditedThrottlerGuard }],
 })

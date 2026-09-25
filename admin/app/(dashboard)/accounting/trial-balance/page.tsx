@@ -1,115 +1,149 @@
+// admin/app/(dashboard)/accounting/trial-balance/page.tsx — تراز آزمایشی چهارستونی
 "use client";
+import { useState } from "react";
+import Link from "next/link";
 import useSWR from "swr";
-import { adminApi } from "@/app/core/api";
-import { Loader2, Scale, CheckCircle2, AlertTriangle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Scale } from "lucide-react";
+import {
+  CsvButton,
+  DateRange,
+  Num,
+  PageHeader,
+  Spinner,
+  Table,
+  cardStyle,
+  downloadCsv,
+  fetcher,
+  grams,
+  toman,
+} from "@/app/components/finance/ui";
 
-const fetcher = (url: string) => adminApi.get(url).then((r) => r.data);
-
-interface TrialBalanceRow {
+interface Row {
+  accountId: string;
   code: string;
   name: string;
-  debitToman: string;
-  creditToman: string;
+  openingDebitRial: string;
+  openingCreditRial: string;
+  periodDebitRial: string;
+  periodCreditRial: string;
+  closingDebitRial: string;
+  closingCreditRial: string;
+  closingGrams: string;
 }
-interface TrialBalanceResponse {
-  rows: TrialBalanceRow[];
-  totalDebitToman: string;
-  totalCreditToman: string;
+interface TB {
+  rows: Row[];
+  totals: Record<string, string>;
   isBalanced: boolean;
 }
 
+const t = (v: string) => (Number(v) ? toman(v) : "—");
+
 export default function TrialBalancePage() {
-  const { data, isLoading } = useSWR<TrialBalanceResponse>(
-    "/api/admin/accounting/trial-balance",
-    fetcher,
-  );
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [hideZero, setHideZero] = useState(true);
+  const qs = new URLSearchParams({ hideZero: String(hideZero) });
+  if (from) qs.set("from", from);
+  if (to) qs.set("to", to);
+  const { data, isLoading } = useSWR<TB>(`/api/admin/accounting/trial-balance?${qs}`, fetcher);
+
+  const exportCsv = () =>
+    data &&
+    downloadCsv(
+      `trial-balance-${from || "start"}-${to || "now"}.csv`,
+      ["کد", "حساب", "بدهکار ابتدای دوره", "بستانکار ابتدای دوره", "گردش بدهکار", "گردش بستانکار", "مانده بدهکار", "مانده بستانکار", "مانده گرم"],
+      data.rows.map((r) => [
+        r.code,
+        r.name,
+        r.openingDebitRial,
+        r.openingCreditRial,
+        r.periodDebitRial,
+        r.periodCreditRial,
+        r.closingDebitRial,
+        r.closingCreditRial,
+        r.closingGrams,
+      ]),
+    );
 
   return (
-    <div>
-      <h1 className="text-lg font-black text-gray-900 mb-1">تراز آزمایشی</h1>
-      <p className="text-[12px] text-gray-400 mb-4">
-        جمع ستون بدهکار باید همیشه با جمع ستون بستانکار برابر باشد
-      </p>
-
-      {isLoading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-        </div>
-      ) : !data ? (
-        <div className="flex flex-col items-center gap-2 py-16">
-          <Scale className="w-8 h-8 text-gray-200" />
-          <p className="text-[12px] text-gray-400">داده‌ای یافت نشد</p>
-        </div>
-      ) : (
-        <>
-          <div
-            className="flex items-center gap-2 mb-4 p-4 rounded-2xl text-[13px] font-bold"
-            style={{
-              backgroundColor: data.isBalanced ? "#dcfce7" : "#fee2e2",
-              color: data.isBalanced ? "#16a34a" : "#dc2626",
-            }}
-          >
-            {data.isBalanced ? (
-              <CheckCircle2 className="w-4 h-4" />
-            ) : (
-              <AlertTriangle className="w-4 h-4" />
-            )}
-            {data.isBalanced
-              ? "تراز صحیح است — بدهکار و بستانکار برابرند"
-              : "هشدار: تراز نامتوازن است! نیاز به بررسی فوری"}
-          </div>
-
-          <div
-            className="rounded-2xl overflow-hidden"
-            style={{
-              backgroundColor: "var(--color-surface)",
-              border: "1px solid var(--color-border)",
-            }}
-          >
-            <table className="w-full admin-table">
+    <div className="space-y-5">
+      <PageHeader
+        icon={Scale}
+        title="تراز آزمایشی"
+        subtitle="تراز چهارستونی: مانده ابتدای دوره، گردش بدهکار و بستانکار دوره و مانده پایان دوره (ریال به تومان). جمع بدهکار و بستانکار باید همیشه برابر باشد."
+        actions={<CsvButton onClick={exportCsv} />}
+      />
+      <div className="rounded-2xl p-4 space-y-3" style={cardStyle}>
+        <DateRange from={from} to={to} onFrom={setFrom} onTo={setTo}>
+          <label className="flex items-center gap-2 text-[12px] font-bold text-gray-600 pb-2">
+            <input type="checkbox" checked={hideZero} onChange={(e) => setHideZero(e.target.checked)} /> پنهان کردن حساب‌های بدون گردش
+          </label>
+        </DateRange>
+        {isLoading || !data ? (
+          <Spinner />
+        ) : (
+          <>
+            <div
+              className="flex items-center gap-2 p-3 rounded-xl text-[12px] font-bold"
+              style={{ backgroundColor: data.isBalanced ? "#dcfce7" : "#fee2e2", color: data.isBalanced ? "#16a34a" : "#dc2626" }}
+            >
+              {data.isBalanced ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+              {data.isBalanced ? "تراز صحیح است — بدهکار و بستانکار برابرند" : "هشدار: تراز نامتوازن است! صفحه‌ی مغایرت‌گیری را بررسی کنید"}
+            </div>
+            <Table>
               <thead>
                 <tr>
-                  <th>کد حساب</th>
-                  <th>نام حساب</th>
-                  <th>بدهکار (تومان)</th>
-                  <th>بستانکار (تومان)</th>
+                  <th rowSpan={2}>کد</th>
+                  <th rowSpan={2}>حساب</th>
+                  <th colSpan={2}>ابتدای دوره</th>
+                  <th colSpan={2}>گردش دوره</th>
+                  <th colSpan={2}>مانده پایان دوره</th>
+                  <th rowSpan={2}>مانده گرم</th>
+                </tr>
+                <tr>
+                  <th>بدهکار</th>
+                  <th>بستانکار</th>
+                  <th>بدهکار</th>
+                  <th>بستانکار</th>
+                  <th>بدهکار</th>
+                  <th>بستانکار</th>
                 </tr>
               </thead>
               <tbody>
                 {data.rows.map((r) => (
                   <tr key={r.code}>
-                    <td dir="ltr" className="text-left font-bold">
-                      {r.code}
+                    <Num bold>{r.code}</Num>
+                    <td>
+                      <Link href={`/accounting/chart-of-accounts/${r.accountId}`} className="hover:underline">
+                        {r.name}
+                      </Link>
                     </td>
-                    <td>{r.name}</td>
-                    <td dir="ltr" className="text-left">
-                      {Number(r.debitToman) > 0
-                        ? Number(r.debitToman).toLocaleString("fa-IR")
-                        : "—"}
-                    </td>
-                    <td dir="ltr" className="text-left">
-                      {Number(r.creditToman) > 0
-                        ? Number(r.creditToman).toLocaleString("fa-IR")
-                        : "—"}
-                    </td>
+                    <Num>{t(r.openingDebitRial)}</Num>
+                    <Num>{t(r.openingCreditRial)}</Num>
+                    <Num>{t(r.periodDebitRial)}</Num>
+                    <Num>{t(r.periodCreditRial)}</Num>
+                    <Num bold>{t(r.closingDebitRial)}</Num>
+                    <Num bold>{t(r.closingCreditRial)}</Num>
+                    <Num>{Number(r.closingGrams) ? grams(r.closingGrams) : "—"}</Num>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="font-black">
                   <td colSpan={2}>جمع کل</td>
-                  <td dir="ltr" className="text-left">
-                    {Number(data.totalDebitToman).toLocaleString("fa-IR")}
-                  </td>
-                  <td dir="ltr" className="text-left">
-                    {Number(data.totalCreditToman).toLocaleString("fa-IR")}
-                  </td>
+                  <Num>{t(data.totals.openingDebitRial)}</Num>
+                  <Num>{t(data.totals.openingCreditRial)}</Num>
+                  <Num>{t(data.totals.periodDebitRial)}</Num>
+                  <Num>{t(data.totals.periodCreditRial)}</Num>
+                  <Num>{t(data.totals.closingDebitRial)}</Num>
+                  <Num>{t(data.totals.closingCreditRial)}</Num>
+                  <td></td>
                 </tr>
               </tfoot>
-            </table>
-          </div>
-        </>
-      )}
+            </Table>
+          </>
+        )}
+      </div>
     </div>
   );
 }

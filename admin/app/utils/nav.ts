@@ -31,6 +31,16 @@ import {
   Boxes,
   ShoppingCart,
   UserCircle,
+  Vault,
+  ClipboardList,
+  Landmark,
+  Handshake,
+  ReceiptText,
+  FileText,
+  CalendarRange,
+  ShieldCheck as ShieldCheck2,
+  LineChart,
+  Warehouse,
 } from "lucide-react";
 
 export interface NavItem {
@@ -76,11 +86,36 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "درخواست‌های واریز", href: "/deposits", icon: Wallet, perm: "deposit.view" },
     ],
   },
-    {
+  {
     title: "حسابداری",
     items: [
-      { label: "دفتر حساب‌ها", href: "/accounting/chart-of-accounts", icon: BookOpen, perm: "accounting.view" },
+      { label: "داشبورد مالی", href: "/accounting", icon: LineChart, perm: "accounting.view" },
+      { label: "سرفصل حساب‌ها", href: "/accounting/chart-of-accounts", icon: BookOpen, perm: "accounting.view" },
+      { label: "دفتر روزنامه", href: "/accounting/journal", icon: FileText, perm: "accounting.view" },
+      { label: "اسناد دستی و هزینه‌ها", href: "/accounting/vouchers", icon: FileText, perm: "accounting.view" },
       { label: "تراز آزمایشی", href: "/accounting/trial-balance", icon: Scale, perm: "accounting.view" },
+      { label: "صورت‌های مالی", href: "/accounting/reports", icon: BarChart3, perm: "accounting.view" },
+      { label: "مغایرت‌گیری", href: "/accounting/reconciliation", icon: ShieldCheck2, perm: "accounting.view" },
+      { label: "سال مالی و قفل دوره", href: "/accounting/fiscal-years", icon: CalendarRange, perm: "accounting.view" },
+    ],
+  },
+  {
+    title: "خزانه و شمش",
+    items: [
+      { label: "پوشش و خرید طلا", href: "/treasury", icon: Vault, perm: "treasury.view" },
+      { label: "سفارش‌های خزانه", href: "/treasury/orders", icon: ClipboardList, perm: "treasury.view" },
+      { label: "تأمین‌کنندگان", href: "/treasury/suppliers", icon: Landmark, perm: "treasury.view" },
+      { label: "شمارش خزانه", href: "/treasury/vault-counts", icon: Scale, perm: "treasury.view" },
+      { label: "موجودی شمش", href: "/inventory/bullion", icon: Warehouse, perm: "inventory.view" },
+    ],
+  },
+  {
+    title: "شرکای فروش (اقساطی)",
+    items: [
+      { label: "شرکا", href: "/partners", icon: Handshake, perm: "partner.view" },
+      { label: "سفارش‌ها و قراردادها", href: "/partners/orders", icon: ReceiptText, perm: "partner.view" },
+      { label: "تسویه‌ها", href: "/partners/settlements", icon: HandCoins, perm: "partner.view" },
+      { label: "گزارش و مطالبات", href: "/partners/report", icon: BarChart3, perm: "partner.view" },
     ],
   },
   {

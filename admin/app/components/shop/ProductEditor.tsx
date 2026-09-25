@@ -16,11 +16,13 @@ import {
   ExternalLink,
   Plus,
   Trash2,
+  Box,
 } from "lucide-react";
 import { adminApi } from "@/app/core/api";
 import ProductImagesManager from "./ProductImagesManager";
 import PricingFormulaEditor from "./PricingFormulaEditor";
 import ProductVariantsManager from "./ProductVariantsManager";
+import ProductPackagingManager from "./ProductPackagingManager";
 
 function getErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
@@ -83,12 +85,13 @@ const STATUS_OPTIONS: Array<{ value: ProductDetail["status"]; label: string }> =
     { value: "OUT_OF_STOCK", label: "ناموجود" },
   ];
 
-type TabKey = "basic" | "seo" | "pricing" | "gallery";
+type TabKey = "basic" | "seo" | "pricing" | "packaging" | "gallery";
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: "basic", label: "اطلاعات پایه", icon: FileText },
   { key: "seo", label: "سئو", icon: Search },
   { key: "pricing", label: "فرمول قیمت", icon: Calculator },
+  { key: "packaging", label: "بسته‌بندی", icon: Box },
   { key: "gallery", label: "گالری تصاویر", icon: ImageIcon },
 ];
 
@@ -198,6 +201,7 @@ export default function ProductEditor({
           )}
           {tab === "seo" && <SeoTab id={id} data={data} mutate={mutate} />}
           {tab === "pricing" && <PricingFormulaEditor productId={id} />}
+          {tab === "packaging" && <ProductPackagingManager productId={id} />}
           {tab === "gallery" && <ProductImagesManager productId={id} />}
         </div>
 

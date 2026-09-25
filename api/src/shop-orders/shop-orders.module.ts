@@ -6,6 +6,7 @@ import { PaymentGatewayModule } from '../payment-gateway/payment-gateway.module'
 import { AccountingModule } from '../accounting/accounting.module';
 import { InvoiceModule } from '../invoice/invoice.module';
 import { DiscountModule } from '../discount/discount.module';
+import { PackagingModule } from '../packaging/packaging.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { DiscountModule } from '../discount/discount.module';
     AccountingModule,
     InvoiceModule,
     DiscountModule,
+    PackagingModule,
   ],
   controllers: [ShopOrdersController, ShopOrdersAdminController],
   providers: [ShopOrdersService],

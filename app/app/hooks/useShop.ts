@@ -46,6 +46,20 @@ export interface ProductSpecification {
   value: string;
 }
 
+// طرح بسته‌بندی قابل انتخاب در صفحه محصول
+export interface PackagingOptionItem {
+  id: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  priceToman: string;
+  // true: قیمت به ازای هر عدد کالا — false: یک‌بار برای این ردیف سفارش
+  perUnit: boolean;
+  isDefault: boolean;
+  // با خرید (جمع اقلام) بالای این مبلغ رایگان می‌شود؛ null = رایگان نمی‌شود
+  freeThresholdToman: string | null;
+}
+
 export interface ProductItem {
   id: string;
   name: string;
@@ -62,6 +76,8 @@ export interface ProductItem {
   primaryImageUrl: string | null;
   weightRange: WeightRangeInfo | null;
   variants: ProductVariantItem[];
+  // فقط در جزئیات محصول برگردانده می‌شود
+  packagingOptions?: PackagingOptionItem[];
 }
 
 export interface CategoryItem {
@@ -90,11 +106,38 @@ export interface CartItemDto {
   expiresInSeconds: number;
   stockQuantity: number | null;
   available: boolean;
+  // بسته‌بندی مؤثر این ردیف (null = محصول بسته‌بندی ندارد)
+  packaging: {
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    unitPriceToman: string;
+    quantity: number;
+    listToman: string;
+    chargedToman: string;
+    free: boolean;
+  } | null;
+  // طرح‌های قابل انتخاب برای تغییر بسته‌بندی از داخل سبد
+  packagingOptions: {
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    priceToman: string;
+    perUnit: boolean;
+  }[];
 }
 
 export interface CartDto {
   id: string;
   items: CartItemDto[];
+  // جمع اقلام بدون بسته‌بندی (مبنای کد تخفیف و آستانه بسته‌بندی رایگان)
+  itemsTotalToman: number;
+  packagingTotalToman: number;
+  packagingWaivedToman: number;
+  // نزدیک‌ترین آستانه رایگان شدن بسته‌بندی و مبلغ باقی‌مانده تا آن
+  packagingFreeThresholdToman: string | null;
+  packagingFreeRemainingToman: string | null;
+  // اقلام + بسته‌بندی (پیش از کد تخفیف)
   totalToman: number;
 }
 
@@ -106,6 +149,13 @@ export interface ShopOrderItemDto {
   quantity: number;
   unitPriceToman: string;
   lineTotalToman: string;
+  packaging: {
+    name: string;
+    unitPriceToman: string;
+    quantity: number;
+    chargedToman: string;
+    free: boolean;
+  } | null;
 }
 
 export interface ShopOrderDto {
@@ -121,6 +171,9 @@ export interface ShopOrderDto {
   subtotalToman: string;
   discountToman: string;
   discountCode: string | null;
+  // هزینه بسته‌بندی دریافتی و مبلغ بسته‌بندی رایگان‌شده (تومان)
+  packagingToman: string;
+  packagingWaivedToman: string;
   totalToman: string;
   trackingCode: string | null;
   invoiceId: string | null;
@@ -225,9 +278,10 @@ export const useCart = () => {
 
 // payload برای افزودن به سبد: یا variantId (محصول با تنوع ثابت)
 // یا productId + weightGrams (محصول بازه‌وزنی)
-export type AddToCartPayload =
+export type AddToCartPayload = (
   | { variantId: string; quantity: number }
-  | { productId: string; weightGrams: number; quantity: number };
+  | { productId: string; weightGrams: number; quantity: number }
+) & { packagingOptionId?: string };
 
 export const useAddToCart = () => {
   const [loading, setLoading] = useState(false);
@@ -261,7 +315,11 @@ export const useUpdateCartItem = () => {
   const update = useCallback(
     async (
       itemId: string,
-      payload: { quantity?: number; weightGrams?: number },
+      payload: {
+        quantity?: number;
+        weightGrams?: number;
+        packagingOptionId?: string;
+      },
     ) => {
       setLoading(true);
       try {

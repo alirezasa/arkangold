@@ -3,9 +3,10 @@ import { Module } from '@nestjs/common';
 import { CartController } from './cart.controller';
 import { CartService } from './cart.service';
 import { CatalogModule } from '../catalog/catalog.module';
+import { PackagingModule } from '../packaging/packaging.module';
 
 @Module({
-  imports: [CatalogModule], // برای دسترسی به PricingEngineService
+  imports: [CatalogModule, PackagingModule], // برای دسترسی به PricingEngineService
   controllers: [CartController],
   providers: [CartService],
   exports: [CartService],

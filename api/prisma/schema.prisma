@@ -412,6 +412,8 @@ model Product {
   specifications    Json?
   pricingComponents ProductPricingComponent[]
   hologramCodes     HologramCode[]
+  // طرح‌های بسته‌بندی قابل انتخاب برای این محصول
+  packagingOptions  ProductPackagingOption[]
 
   @@map("products")
 }
@@ -460,49 +462,57 @@ model Cart {
 
 model CartItem {
   quantity            Int
-  createdAt           DateTime        @default(now()) @map("created_at")
-  id                  String          @id @default(uuid()) @db.Uuid
-  cartId              String          @map("cart_id") @db.Uuid
-  variantId           String?         @map("variant_id") @db.Uuid
-  productId           String?         @map("product_id") @db.Uuid
-  selectedWeightGrams Decimal?        @map("selected_weight_grams") @db.Decimal(18, 4)
-  cart                Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  variant             ProductVariant? @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  product             Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  lockedUnitPriceRial Decimal?        @map("locked_unit_price_rial") @db.Decimal(18, 0)
-  lockedBreakdown     Json?           @map("locked_breakdown") // اجزای فرمول برای نمایش به کاربر
-  priceLockedAt       DateTime?       @map("price_locked_at")
-  priceExpiresAt      DateTime?       @map("price_expires_at")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  id                  String           @id @default(uuid()) @db.Uuid
+  cartId              String           @map("cart_id") @db.Uuid
+  variantId           String?          @map("variant_id") @db.Uuid
+  productId           String?          @map("product_id") @db.Uuid
+  selectedWeightGrams Decimal?         @map("selected_weight_grams") @db.Decimal(18, 4)
+  cart                Cart             @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variant             ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  product             Product?         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  lockedUnitPriceRial Decimal?         @map("locked_unit_price_rial") @db.Decimal(18, 0)
+  lockedBreakdown     Json?            @map("locked_breakdown") // اجزای فرمول برای نمایش به کاربر
+  priceLockedAt       DateTime?        @map("price_locked_at")
+  priceExpiresAt      DateTime?        @map("price_expires_at")
+  // بسته‌بندی انتخابی کاربر؛ یک تنوع با دو بسته‌بندی متفاوت دو ردیف جدا در سبد است
+  packagingOptionId   String?          @map("packaging_option_id") @db.Uuid
+  packagingOption     PackagingOption? @relation(fields: [packagingOptionId], references: [id], onDelete: SetNull)
 
-  @@unique([cartId, variantId])
+  @@index([cartId, variantId])
   @@index([priceExpiresAt])
   @@map("cart_items")
 }
 
 model ShopOrder {
-  status             ShopOrderStatus     @default(PENDING_PAYMENT)
+  status              ShopOrderStatus     @default(PENDING_PAYMENT)
   // جمع اقلام قبل از تخفیف
-  subtotalRial       Decimal             @map("subtotal_rial") @db.Decimal(18, 0)
+  subtotalRial        Decimal             @map("subtotal_rial") @db.Decimal(18, 0)
   // مبلغ تخفیف کد تخفیف (ریال)؛ totalRial = subtotalRial - discountRial = مبلغ قابل پرداخت
-  discountRial       Decimal             @default(0) @map("discount_rial") @db.Decimal(18, 0)
-  totalRial          Decimal             @map("total_rial") @db.Decimal(18, 0)
+  discountRial        Decimal             @default(0) @map("discount_rial") @db.Decimal(18, 0)
+  totalRial           Decimal             @map("total_rial") @db.Decimal(18, 0)
   // snapshot متن کد تخفیف در لحظه ثبت سفارش (حتی اگر کد بعداً حذف شود)
-  discountCodeText   String?             @map("discount_code_text")
-  discountCodeId     String?             @map("discount_code_id") @db.Uuid
-  discountCode       DiscountCode?       @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
-  trackingCode       String?             @map("tracking_code")
-  createdAt          DateTime            @default(now()) @map("created_at")
-  updatedAt          DateTime            @updatedAt @map("updated_at")
-  id                 String              @id @default(uuid()) @db.Uuid
-  userId             String              @map("user_id") @db.Uuid
-  addressId          String              @map("address_id") @db.Uuid
-  payments           Payment[]
-  items              ShopOrderItem[]
-  address            Address             @relation(fields: [addressId], references: [id], onDelete: Cascade)
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions       Transaction[]
-  shippings          Shipping[]
-  hologramOwnerships HologramOwnership[]
+  discountCodeText    String?             @map("discount_code_text")
+  discountCodeId      String?             @map("discount_code_id") @db.Uuid
+  discountCode        DiscountCode?       @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
+  // هزینه بسته‌بندی دریافت‌شده از کاربر (ریال) — خارج از subtotal و مشمول کد تخفیف نیست؛
+  // totalRial = subtotalRial - discountRial + packagingRial
+  packagingRial       Decimal             @default(0) @map("packaging_rial") @db.Decimal(18, 0)
+  // هزینه بسته‌بندی‌ای که به‌دلیل رسیدن خرید به آستانه، رایگان شد (ریال)
+  packagingWaivedRial Decimal             @default(0) @map("packaging_waived_rial") @db.Decimal(18, 0)
+  trackingCode        String?             @map("tracking_code")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  id                  String              @id @default(uuid()) @db.Uuid
+  userId              String              @map("user_id") @db.Uuid
+  addressId           String              @map("address_id") @db.Uuid
+  payments            Payment[]
+  items               ShopOrderItem[]
+  address             Address             @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions        Transaction[]
+  shippings           Shipping[]
+  hologramOwnerships  HologramOwnership[]
 
   @@index([userId])
   @@index([discountCodeId])
@@ -545,26 +555,81 @@ model DiscountCode {
   @@map("discount_codes")
 }
 
+/// طرح بسته‌بندی ارسال کالا (مثلاً جعبه چوبی، جعبه مخمل، کیسه هدیه).
+/// ادمین طرح‌ها را تعریف و به محصولات اختصاص می‌دهد؛ کاربر هنگام خرید یکی را انتخاب می‌کند.
+model PackagingOption {
+  id                String                   @id @default(uuid()) @db.Uuid
+  name              String
+  // کد انبار (اختیاری) — در فاکتور به‌عنوان کد کالا درج می‌شود
+  code              String?                  @unique
+  description       String?
+  imageUrl          String?                  @map("image_url")
+  priceRial         Decimal                  @default(0) @map("price_rial") @db.Decimal(18, 0)
+  // true: قیمت به ازای هر عدد کالا — false: یک‌بار برای هر ردیف سبد
+  perUnit           Boolean                  @default(true) @map("per_unit")
+  // آیا با رسیدن مبلغ خرید به آستانه، این بسته‌بندی رایگان می‌شود؟
+  freeEligible      Boolean                  @default(true) @map("free_eligible")
+  // آستانه اختصاصی رایگان شدن (ریال)؛ null = آستانه عمومی تنظیمات فروشگاه
+  freeThresholdRial Decimal?                 @map("free_threshold_rial") @db.Decimal(18, 0)
+  isActive          Boolean                  @default(true) @map("is_active")
+  sortOrder         Int                      @default(0) @map("sort_order")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  products          ProductPackagingOption[]
+  cartItems         CartItem[]
+  shopOrderItems    ShopOrderItem[]
+
+  @@index([isActive, sortOrder])
+  @@map("packaging_options")
+}
+
+model ProductPackagingOption {
+  id                String          @id @default(uuid()) @db.Uuid
+  productId         String          @map("product_id") @db.Uuid
+  product           Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  packagingOptionId String          @map("packaging_option_id") @db.Uuid
+  packagingOption   PackagingOption @relation(fields: [packagingOptionId], references: [id], onDelete: Cascade)
+  // گزینه پیش‌فرض که در صفحه محصول از قبل انتخاب شده است
+  isDefault         Boolean         @default(false) @map("is_default")
+  sortOrder         Int             @default(0) @map("sort_order")
+  createdAt         DateTime        @default(now()) @map("created_at")
+
+  @@unique([productId, packagingOptionId])
+  @@index([packagingOptionId])
+  @@map("product_packaging_options")
+}
+
 model ShopOrderItem {
-  quantity             Int
-  priceRial            Decimal                    @map("price_rial") @db.Decimal(18, 0)
-  selectedWeightGrams  Decimal?                   @map("selected_weight_grams") @db.Decimal(18, 4)
-  createdAt            DateTime                   @default(now()) @map("created_at")
-  id                   String                     @id @default(uuid()) @db.Uuid
-  orderId              String                     @map("order_id") @db.Uuid
-  variantId            String?                    @map("variant_id") @db.Uuid
-  productId            String?                    @map("product_id") @db.Uuid
-  order                ShopOrder                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  variant              ProductVariant?            @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  product              Product?                   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  priceBreakdown       Json?                      @map("price_breakdown")
+  quantity               Int
+  priceRial              Decimal                    @map("price_rial") @db.Decimal(18, 0)
+  selectedWeightGrams    Decimal?                   @map("selected_weight_grams") @db.Decimal(18, 4)
+  createdAt              DateTime                   @default(now()) @map("created_at")
+  id                     String                     @id @default(uuid()) @db.Uuid
+  orderId                String                     @map("order_id") @db.Uuid
+  variantId              String?                    @map("variant_id") @db.Uuid
+  productId              String?                    @map("product_id") @db.Uuid
+  order                  ShopOrder                  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant                ProductVariant?            @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  product                Product?                   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceBreakdown         Json?                      @map("price_breakdown")
   // گیرنده تحویل شمش — «برای خودم» یا «برای فرد دیگر» (نیازمندی ۳.۳). این انتخاب در
   // سطح هر آیتم سفارش ذخیره می‌شود (پیش‌فرض سند معماری، چون هر آیتم به یک کد هولوگرام
   // مستقل ختم می‌شود)؛ اگر quantity > 1 باشد، انتخاب گیرنده برای همه واحدهای آن آیتم یکسان است.
-  recipientType        ShopOrderItemRecipientType @default(SELF) @map("recipient_type")
-  recipientPhoneNumber String?                    @map("recipient_phone_number")
-  hologramCode         HologramCode?              @relation("ShopOrderItemHologramCode")
-  transferRequests     OwnershipTransferRequest[]
+  recipientType          ShopOrderItemRecipientType @default(SELF) @map("recipient_type")
+  recipientPhoneNumber   String?                    @map("recipient_phone_number")
+  // snapshot بسته‌بندی انتخابی در لحظه ثبت سفارش (حتی اگر طرح بعداً حذف یا ویرایش شود)
+  packagingOptionId      String?                    @map("packaging_option_id") @db.Uuid
+  packagingOption        PackagingOption?           @relation(fields: [packagingOptionId], references: [id], onDelete: SetNull)
+  packagingName          String?                    @map("packaging_name")
+  // قیمت هر واحد بسته‌بندی در لحظه خرید (ریال)
+  packagingUnitPriceRial Decimal?                   @map("packaging_unit_price_rial") @db.Decimal(18, 0)
+  // تعداد بسته‌بندی محاسبه‌شده (per-unit = quantity، در غیر این صورت ۱)
+  packagingQuantity      Int                        @default(0) @map("packaging_quantity")
+  // مبلغ دریافت‌شده بابت بسته‌بندی این ردیف (ریال؛ صفر در صورت رایگان شدن)
+  packagingRial          Decimal                    @default(0) @map("packaging_rial") @db.Decimal(18, 0)
+  packagingFree          Boolean                    @default(false) @map("packaging_free")
+  hologramCode           HologramCode?              @relation("ShopOrderItemHologramCode")
+  transferRequests       OwnershipTransferRequest[]
 
   @@map("shop_order_items")
 }

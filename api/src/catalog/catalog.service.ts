@@ -24,6 +24,7 @@ import {
 } from '@arkan-gold/shared';
 import { PRICING_COMPONENT_DEFAULTS } from './pricing-components.seed';
 import { PricingEngineService } from './pricing-engine.service';
+import { PackagingService } from '../packaging/packaging.service';
 const GOLD_INGOT_CATEGORY_SLUG = 'gold-ingot';
 
 @Injectable()
@@ -31,6 +32,7 @@ export class CatalogService implements OnModuleInit {
   constructor(
     private prisma: PrismaService,
     private pricingEngine: PricingEngineService,
+    private packaging: PackagingService,
   ) {}
 
   async onModuleInit() {
@@ -308,7 +310,12 @@ export class CatalogService implements OnModuleInit {
     if (!product || product.status !== 'ACTIVE' || !product.category.isActive) {
       throw new NotFoundException('محصول یافت نشد');
     }
-    return this.toProductDto(product);
+    const [dto, packagingOptions] = await Promise.all([
+      this.toProductDto(product),
+      this.packaging.listForProductPublic(product.id),
+    ]);
+    // طرح‌های بسته‌بندی قابل انتخاب کاربر هنگام خرید
+    return { ...dto, packagingOptions };
   }
   async getPublicPricingPreview(slug: string, weightGrams: number) {
     const product = await this.prisma.product.findUnique({

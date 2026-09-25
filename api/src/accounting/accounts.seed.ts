@@ -63,6 +63,12 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     type: AccountType.INCOME,
     subType: 'SHOP_SALE',
   },
+  {
+    code: '4030',
+    name: 'درآمد بسته‌بندی سفارش‌های فروشگاه',
+    type: AccountType.INCOME,
+    subType: 'SHOP_PACKAGING',
+  },
 
   // ─── هزینه‌ها (EXPENSE) ───
   {

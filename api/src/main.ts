@@ -57,6 +57,10 @@ async function bootstrap() {
   app.useStaticAssets(join(process.cwd(), 'uploads', 'products'), {
     prefix: '/uploads/products',
   });
+  // تصاویر طرح‌های بسته‌بندی
+  app.useStaticAssets(join(process.cwd(), 'uploads', 'packaging'), {
+    prefix: '/uploads/packaging',
+  });
 
   // تنظیمات CORS
   app.enableCors({

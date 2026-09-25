@@ -184,6 +184,7 @@ export default function ShopOrderDetailPage() {
     }
   };
 
+  const hasPackaging = order.items.some((i) => i.packaging);
   const insufficientBalance =
     isPendingPayment &&
     wallet &&
@@ -361,25 +362,58 @@ export default function ShopOrderDetailPage() {
               <p className="text-[11px] text-gray-400 mt-0.5">
                 {item.weightGrams} گرم × {item.quantity.toLocaleString("fa-IR")}
               </p>
+              {item.packaging && (
+                <p className="flex items-center gap-1 text-[11px] text-amber-700 mt-0.5">
+                  <Package className="w-3 h-3 shrink-0" />
+                  بسته‌بندی: {item.packaging.name}
+                  {item.packaging.free
+                    ? " (رایگان)"
+                    : Number(item.packaging.chargedToman) > 0
+                      ? ` — ${fmtToman(item.packaging.chargedToman)} ت`
+                      : ""}
+                </p>
+              )}
             </div>
             <span className="text-[12px] font-black text-gray-800 shrink-0">
               {fmtToman(item.lineTotalToman)} ت
             </span>
           </div>
         ))}
+        {(Number(order.discountToman) > 0 || hasPackaging) && (
+          <div
+            className="flex items-center justify-between px-4 py-2.5 border-t"
+            style={{ borderColor: "var(--color-border)" }}
+          >
+            <span className="text-[12px] text-gray-500 font-medium">
+              جمع اقلام
+            </span>
+            <span className="text-[12px] font-bold text-gray-700">
+              {fmtToman(order.subtotalToman)} ت
+            </span>
+          </div>
+        )}
+        {hasPackaging && (
+          <div
+            className="flex items-center justify-between px-4 py-2.5 border-t"
+            style={{ borderColor: "var(--color-border)" }}
+          >
+            <span className="text-[12px] text-gray-500 font-medium">
+              هزینه بسته‌بندی
+            </span>
+            <span className="text-[12px] font-bold text-gray-700">
+              {Number(order.packagingToman) > 0
+                ? `${fmtToman(order.packagingToman)} ت`
+                : "رایگان"}
+              {Number(order.packagingWaivedToman) > 0 && (
+                <span className="mr-1 text-[10px] text-emerald-600">
+                  ({fmtToman(order.packagingWaivedToman)} ت هدیه)
+                </span>
+              )}
+            </span>
+          </div>
+        )}
         {Number(order.discountToman) > 0 && (
           <>
-            <div
-              className="flex items-center justify-between px-4 py-2.5 border-t"
-              style={{ borderColor: "var(--color-border)" }}
-            >
-              <span className="text-[12px] text-gray-500 font-medium">
-                جمع اقلام
-              </span>
-              <span className="text-[12px] font-bold text-gray-700">
-                {fmtToman(order.subtotalToman)} ت
-              </span>
-            </div>
             <div
               className="flex items-center justify-between px-4 py-2.5 border-t"
               style={{ borderColor: "var(--color-border)" }}
@@ -403,7 +437,9 @@ export default function ShopOrderDetailPage() {
           style={{ borderColor: "var(--color-border)" }}
         >
           <span className="text-[13px] font-bold text-gray-700">
-            {Number(order.discountToman) > 0 ? "مبلغ پرداختی" : "مبلغ کل سفارش"}
+            {Number(order.discountToman) > 0 || hasPackaging
+              ? "مبلغ پرداختی"
+              : "مبلغ کل سفارش"}
           </span>
           <span className="text-[17px] font-black text-gray-900">
             {fmtToman(order.totalToman)} تومان

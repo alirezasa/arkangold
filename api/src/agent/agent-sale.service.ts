@@ -38,7 +38,8 @@ import { toPersianDigits } from '../common/utils/jalali.util';
 type Tx = Prisma.TransactionClient;
 
 const QUOTE_KEY = (id: string) => `agent:quote:${id}`;
-const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+// Prisma Accelerate تراکنش تعاملی بیش از ۱۵ ثانیه را رد می‌کند (P6005)
+const TX_OPTIONS = { maxWait: 5000, timeout: 15000 };
 
 export const SALE_PAYMENT_METHOD_FA: Record<string, string> = {
   CASH: 'نقدی',

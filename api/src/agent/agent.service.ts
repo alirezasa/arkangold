@@ -50,7 +50,8 @@ export const SETTLEMENT_METHOD_FA: Record<string, string> = {
 const d = (v: Decimal.Value | Prisma.Decimal | null | undefined) =>
   new Decimal(v == null ? 0 : v.toString());
 
-const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
+// Prisma Accelerate تراکنش تعاملی بیش از ۱۵ ثانیه را رد می‌کند (P6005)
+const TX_OPTIONS = { maxWait: 5000, timeout: 15000 };
 
 function dateRange(from?: string, to?: string) {
   if (!from && !to) return undefined;
@@ -644,23 +645,42 @@ export class AgentService {
       const now = new Date();
       let totalGrams = new Decimal(0);
 
+      // همه‌ی شمش‌ها با یک UPDATE ... FROM (VALUES ...) به‌روز می‌شوند — به‌روزرسانی
+      // تک‌به‌تک (یک round-trip برای هر شمش) در دسته‌های بزرگ از سقف ۱۵ ثانیه‌ی
+      // تراکنش Accelerate عبور می‌کرد
       for (const item of dto.items) {
         totalGrams = totalGrams.plus(item.weightGrams);
-        await tx.hologramCode.update({
-          where: { code: item.code },
-          data: {
-            status: 'AT_AGENT',
-            agentId,
-            agentAllocatedAt: now,
-            agentPremiumRial:
-              item.premiumRial == null ? 0 : Math.round(item.premiumRial),
-            weightGrams: item.weightGrams,
-            purityKarat: item.purityKarat,
-            factorySerialNumber: item.factorySerialNumber,
-            mintedAt: item.mintedAt ? new Date(item.mintedAt) : undefined,
-            productId: item.productId,
-          },
-        });
+      }
+      const valueRows = dto.items.map(
+        (item) => Prisma.sql`(
+          ${item.code}::text,
+          ${new Decimal(item.weightGrams).toString()}::numeric,
+          ${item.purityKarat}::text,
+          ${Math.round(item.premiumRial ?? 0)}::numeric,
+          ${item.factorySerialNumber ?? null}::text,
+          ${item.mintedAt ? new Date(item.mintedAt) : null}::timestamp,
+          ${item.productId ?? null}::uuid
+        )`,
+      );
+      const updated = await tx.$executeRaw`
+        UPDATE "hologram_codes" AS h SET
+          "status" = 'AT_AGENT'::"HologramCodeStatus",
+          "agent_id" = ${agentId}::uuid,
+          "agent_allocated_at" = ${now},
+          "agent_premium_rial" = v.premium,
+          "weight_grams" = v.weight,
+          "purity_karat" = v.purity::"GoldPurityKarat",
+          "factory_serial_number" = COALESCE(v.serial, h."factory_serial_number"),
+          "minted_at" = COALESCE(v.minted, h."minted_at"),
+          "product_id" = COALESCE(v.product, h."product_id"),
+          "updated_at" = ${now}
+        FROM (VALUES ${Prisma.join(valueRows)})
+          AS v(code, weight, purity, premium, serial, minted, product)
+        WHERE h."code" = v.code AND h."status" = 'UNASSIGNED'::"HologramCodeStatus"`;
+      if (updated !== dto.items.length) {
+        throw new ConflictException(
+          'وضعیت برخی شمش‌ها هم‌زمان تغییر کرد؛ دوباره تلاش کنید',
+        );
       }
 
       const journal = await this.agentAccounting.journalStockMovement(tx, {

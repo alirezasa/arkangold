@@ -2,10 +2,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_SECTIONS } from "@/app/utils/nav";
+import { NAV_SECTIONS, canSeeNavItem, isNavActive } from "@/app/utils/nav";
 import { ShieldCheck } from "lucide-react";
+import type { AdminMe } from "@/app/hooks/useAdminMe";
+import UserMenuCard from "./UserMenuCard";
 
-export default function Sidebar({ permissions }: { permissions: string[] }) {
+export default function Sidebar({ me }: { me: AdminMe }) {
   const pathname = usePathname();
 
   return (
@@ -21,14 +23,16 @@ export default function Sidebar({ permissions }: { permissions: string[] }) {
           <ShieldCheck className="w-5 h-5" style={{ color: "var(--color-emerald)" }} />
         </div>
         <div>
-          <h1 className="text-white font-black text-[15px] leading-tight">پنل مدیریت</h1>
+          <h1 className="text-white font-black text-[15px] leading-tight">
+            {me.agent ? "پنل نمایندگی" : "پنل مدیریت"}
+          </h1>
           <p className="text-white/40 text-[10px]">آرکان گلد</p>
         </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
         {NAV_SECTIONS.map((section) => {
-          const visibleItems = section.items.filter((item) => !item.perm || permissions.includes(item.perm));
+          const visibleItems = section.items.filter((item) => canSeeNavItem(item, me));
           if (visibleItems.length === 0) return null;
 
           return (
@@ -38,7 +42,7 @@ export default function Sidebar({ permissions }: { permissions: string[] }) {
               </p>
               <div className="space-y-1">
                 {visibleItems.map((item) => {
-                  const active = pathname === item.href;
+                  const active = isNavActive(pathname, item.href);
                   return (
                     <Link
                       key={item.href}
@@ -58,6 +62,8 @@ export default function Sidebar({ permissions }: { permissions: string[] }) {
           );
         })}
       </nav>
+
+      <UserMenuCard me={me} />
     </aside>
   );
 }

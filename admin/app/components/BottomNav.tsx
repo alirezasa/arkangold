@@ -2,11 +2,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BOTTOM_NAV_ITEMS } from "@/app/utils/nav";
+import { BOTTOM_NAV_ITEMS, canSeeNavItem, isNavActive } from "@/app/utils/nav";
+import type { AdminMe } from "@/app/hooks/useAdminMe";
 
-export default function BottomNav({ permissions }: { permissions: string[] }) {
+export default function BottomNav({ me }: { me: AdminMe }) {
   const pathname = usePathname();
-  const items = BOTTOM_NAV_ITEMS.filter((item) => !item.perm || permissions.includes(item.perm));
+  const items = BOTTOM_NAV_ITEMS.filter((item) => canSeeNavItem(item, me)).slice(-5);
 
   return (
     <nav
@@ -14,7 +15,7 @@ export default function BottomNav({ permissions }: { permissions: string[] }) {
       style={{ backgroundColor: "var(--color-surface)", borderTop: "1px solid var(--color-border)" }}
     >
       {items.map((item) => {
-        const active = pathname === item.href;
+        const active = isNavActive(pathname, item.href);
         return (
           <Link
             key={item.href}

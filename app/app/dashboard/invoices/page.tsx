@@ -30,6 +30,7 @@ const SOURCE_LABEL: Record<string, string> = {
   SHOP_ORDER: "خرید از فروشگاه",
   PHYSICAL_DELIVERY: "تحویل فیزیکی طلا",
   DEPOSIT: "واریز کیف پول",
+  AGENT_SALE: "خرید شمش حضوری از نماینده",
 };
 
 const STATUS_META: Record<

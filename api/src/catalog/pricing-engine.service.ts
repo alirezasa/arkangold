@@ -221,6 +221,11 @@ export class PricingEngineService {
    * می‌شد وقتی ادمین عیار ۱۸ را انتخاب می‌کرد، قیمتی کمتر از نرخ واقعی
    * بازار به‌عنوان مبنا در نظر گرفته شود.
    */
+  /** قیمت لحظه‌ای هر گرم برای یک عیار — مورد استفاده‌ی قیمت‌گذاری فروش نمایندگان */
+  async getGoldPricePerGram(purityKarat: string): Promise<Decimal> {
+    return this.resolveGoldPricePerGram(purityKarat);
+  }
+
   private async resolveGoldPricePerGram(purityKarat: string): Promise<Decimal> {
     const price18 = toDecimal(
       await this.priceService.getCurrentGoldPriceDecimal(),

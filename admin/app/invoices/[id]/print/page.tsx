@@ -21,8 +21,14 @@ export default function AdminInvoicePrintPage({
 
   useEffect(() => {
     let cancelled = false;
+    // نماینده‌ی فروش فاکتور فروش‌های خودش را از مسیر پرتال نمایندگی می‌گیرد
+    const scope = new URLSearchParams(window.location.search).get("scope");
+    const url =
+      scope === "agent"
+        ? `/api/agent-portal/invoices/${id}`
+        : `/api/admin/invoices/${id}`;
     axios
-      .get<InvoiceDocument>(`/api/admin/invoices/${id}`)
+      .get<InvoiceDocument>(url)
       .then((res) => {
         if (!cancelled) setDoc(res.data);
       })

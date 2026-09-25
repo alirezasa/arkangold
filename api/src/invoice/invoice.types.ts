@@ -49,6 +49,10 @@ export interface SaleInvoiceExtraData {
   discountCodeRial?: number;
   /** مبلغ بسته‌بندی رایگان‌شده به‌دلیل رسیدن خرید به آستانه (ریال) */
   packagingWaivedRial?: number;
+  /** فروش حضوری توسط نماینده فروش */
+  agentCode?: string;
+  agentName?: string;
+  agentSaleNumber?: string;
 }
 
 export interface InvoiceItemInput {

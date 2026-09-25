@@ -99,7 +99,12 @@ export class AdminAuthService {
       admin.passwordHash,
     );
     if (!validPassword) {
-      await this.handleFailedLogin(admin.id, admin.failedLoginCount, ip, userAgent);
+      await this.handleFailedLogin(
+        admin.id,
+        admin.failedLoginCount,
+        ip,
+        userAgent,
+      );
       await this.auditService.logAdmin({
         adminUserId: admin.id,
         action: 'admin_auth.login',
@@ -181,7 +186,10 @@ export class AdminAuthService {
         userAgent,
         source: AUDIT_SOURCE,
         success: false,
-        newValue: { failedAttempts: newCount, lockDurationMs: LOCK_DURATION_MS },
+        newValue: {
+          failedAttempts: newCount,
+          lockDurationMs: LOCK_DURATION_MS,
+        },
       });
     }
   }
@@ -238,11 +246,19 @@ export class AdminAuthService {
     return { message: 'از تمام دستگاه‌ها خارج شدید' };
   }
 
-  async getMe(adminUserId: string) {
+  async getMe(adminUserId: string, currentSessionId?: string) {
+    const now = new Date();
     const admin = await this.prisma.adminUser.findUnique({
       where: { id: adminUserId },
       include: {
         role: { include: { permissions: { include: { permission: true } } } },
+        agent: {
+          select: { id: true, code: true, name: true, status: true },
+        },
+        createdBy: { select: { fullName: true } },
+        _count: {
+          select: { sessions: { where: { expiresAt: { gt: now } } } },
+        },
       },
     });
     if (!admin) throw new NotFoundException('ادمین یافت نشد');
@@ -251,10 +267,193 @@ export class AdminAuthService {
       id: admin.id,
       username: admin.username,
       fullName: admin.fullName,
+      phone: admin.phone,
       totpEnabled: admin.totpEnabled,
       lastLoginAt: admin.lastLoginAt,
-      role: { key: admin.role.key, name: admin.role.name },
+      lastLoginIp: admin.lastLoginIp,
+      createdAt: admin.createdAt,
+      createdBy: admin.createdBy?.fullName ?? null,
+      activeSessions: admin._count.sessions,
+      currentSessionId: currentSessionId ?? null,
+      role: {
+        key: admin.role.key,
+        name: admin.role.name,
+        description: admin.role.description,
+      },
       permissions: admin.role.permissions.map((rp) => rp.permission.key),
+      permissionDetails: admin.role.permissions.map((rp) => ({
+        key: rp.permission.key,
+        group: rp.permission.group,
+        description: rp.permission.description,
+      })),
+      // حساب ورود نماینده فروش — پنل بر اساس این فیلد پرتال نماینده را نشان می‌دهد
+      agent: admin.agent,
+    };
+  }
+
+  // ══════════════════════════════════════════
+  // ── پروفایل شخصی ادمین ──
+  // ══════════════════════════════════════════
+
+  async updateOwnProfile(
+    adminUserId: string,
+    dto: { fullName?: string; phone?: string | null },
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: adminUserId },
+    });
+    if (!admin) throw new NotFoundException('ادمین یافت نشد');
+
+    const data: { fullName?: string; phone?: string | null } = {};
+    if (dto.fullName !== undefined) {
+      const fullName = dto.fullName.trim();
+      if (fullName.length < 3) {
+        throw new BadRequestException('نام و نام خانوادگی حداقل ۳ کاراکتر است');
+      }
+      data.fullName = fullName;
+    }
+    if (dto.phone !== undefined) {
+      const phone = (dto.phone ?? '').trim();
+      if (phone && !/^09\d{9}$/.test(phone)) {
+        throw new BadRequestException(
+          'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود',
+        );
+      }
+      data.phone = phone || null;
+    }
+
+    const updated = await this.prisma.adminUser.update({
+      where: { id: adminUserId },
+      data,
+    });
+
+    await this.auditService.logAdmin({
+      adminUserId,
+      action: 'admin_auth.update_profile',
+      entityType: 'admin_user',
+      entityId: adminUserId,
+      oldValue: { fullName: admin.fullName, phone: admin.phone },
+      newValue: { fullName: updated.fullName, phone: updated.phone },
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
+
+    return {
+      message: 'اطلاعات پروفایل به‌روزرسانی شد',
+      fullName: updated.fullName,
+      phone: updated.phone,
+    };
+  }
+
+  /** نشست‌های فعال خودِ ادمین (دستگاه‌ها) */
+  async listOwnSessions(adminUserId: string, currentSessionId: string) {
+    const sessions = await this.prisma.adminSession.findMany({
+      where: { adminUserId, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        ip: true,
+        userAgent: true,
+        createdAt: true,
+        expiresAt: true,
+      },
+    });
+    return sessions.map((s) => ({ ...s, current: s.id === currentSessionId }));
+  }
+
+  async revokeOwnSession(
+    adminUserId: string,
+    sessionId: string,
+    currentSessionId: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const session = await this.prisma.adminSession.findUnique({
+      where: { id: sessionId },
+    });
+    // نشست متعلق به ادمین دیگر عمداً «یافت نشد» گزارش می‌شود (عدم افشای وجود)
+    if (!session || session.adminUserId !== adminUserId) {
+      throw new NotFoundException('نشست یافت نشد');
+    }
+    await this.prisma.adminSession.delete({ where: { id: sessionId } });
+    await this.auditService.logAdmin({
+      adminUserId,
+      action: 'admin_auth.revoke_session',
+      entityType: 'admin_session',
+      entityId: sessionId,
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
+    return {
+      message: 'نشست با موفقیت خاتمه یافت',
+      current: sessionId === currentSessionId,
+    };
+  }
+
+  /** خروج از همه‌ی دستگاه‌ها به‌جز دستگاه فعلی */
+  async revokeOtherSessions(
+    adminUserId: string,
+    currentSessionId: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const { count } = await this.prisma.adminSession.deleteMany({
+      where: { adminUserId, id: { not: currentSessionId } },
+    });
+    await this.auditService.logAdmin({
+      adminUserId,
+      action: 'admin_auth.revoke_other_sessions',
+      newValue: { revoked: count },
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
+    return { message: `${count} نشست دیگر خاتمه یافت`, revoked: count };
+  }
+
+  /** تاریخچه‌ی فعالیت‌های خودِ ادمین (ورودها، تغییرات و عملیات) */
+  async listOwnActivity(
+    adminUserId: string,
+    query: { page?: number; limit?: number; onlyAuth?: boolean },
+  ) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(50, Math.max(1, Number(query.limit) || 20));
+    const where = {
+      adminUserId,
+      ...(query.onlyAuth ? { action: { startsWith: 'admin_auth.' } } : {}),
+    };
+    const [items, total] = await Promise.all([
+      this.prisma.adminAuditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          action: true,
+          entityType: true,
+          entityId: true,
+          ip: true,
+          userAgent: true,
+          success: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.adminAuditLog.count({ where }),
+    ]);
+    return {
+      data: items,
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     };
   }
 
@@ -307,9 +506,6 @@ export class AdminAuthService {
       refreshExpiresIn: refreshTtlSeconds,
     };
   }
-  // api/src/admin-auth/admin-auth.service.ts
-  // این متد را به کلاس AdminAuthService اضافه کنید
-
   async changeOwnPassword(
     adminUserId: string,
     currentPassword: string,
@@ -319,6 +515,16 @@ export class AdminAuthService {
   ) {
     if (newPassword.length < 12) {
       throw new BadRequestException('رمز عبور جدید باید حداقل ۱۲ کاراکتر باشد');
+    }
+    if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      throw new BadRequestException(
+        'رمز عبور جدید باید ترکیبی از حروف انگلیسی و عدد باشد',
+      );
+    }
+    if (newPassword === currentPassword) {
+      throw new BadRequestException(
+        'رمز عبور جدید نباید با رمز عبور فعلی یکسان باشد',
+      );
     }
 
     const admin = await this.prisma.adminUser.findUnique({

@@ -1,7 +1,8 @@
-// admin/app/api/admin-auth/login/me/route.ts
+// admin/app/api/admin-auth/me/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
+import { adminProxy } from "@/app/lib/adminProxy";
 
 const NEST_API_URL = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
@@ -24,4 +25,9 @@ export async function GET() {
     }
     return NextResponse.json({ message: "خطای سرور" }, { status: 500 });
   }
+}
+
+export async function PATCH(req: Request) {
+  const body = (await req.json()) as unknown;
+  return adminProxy("/admin-auth/me", { method: "PATCH", data: body });
 }

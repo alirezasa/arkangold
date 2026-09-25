@@ -213,6 +213,7 @@ export class HologramService {
           product: { select: { id: true, name: true } },
           variant: { select: { id: true, weightGrams: true } },
           ownerships: { where: { status: 'ACTIVE' }, take: 1 },
+          agent: { select: { id: true, code: true, name: true } },
         },
       }),
       this.prisma.hologramCode.count({ where }),
@@ -236,6 +237,18 @@ export class HologramService {
         variant: true,
         ownerships: { orderBy: { ownershipStartAt: 'desc' } },
         transferRequests: { orderBy: { requestedAt: 'desc' } },
+        agent: { select: { id: true, code: true, name: true } },
+        agentSales: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            saleNumber: true,
+            status: true,
+            totalRial: true,
+            createdAt: true,
+            agent: { select: { id: true, code: true, name: true } },
+          },
+        },
       },
     });
     if (!hologramCode) throw new NotFoundException('کد هولوگرام یافت نشد');
@@ -374,6 +387,11 @@ export class HologramService {
       if (hologramCode.status === 'ASSIGNED') {
         throw new ConflictException(
           'کد تخصیص‌یافته با مالک فعال را نمی‌توان مستقیماً باطل کرد؛ ابتدا از فرآیند انتقال مالکیت استفاده کنید',
+        );
+      }
+      if (hologramCode.status === 'AT_AGENT') {
+        throw new ConflictException(
+          'این شمش به‌صورت امانی نزد نماینده است؛ ابتدا آن را از نماینده عودت بگیرید',
         );
       }
 

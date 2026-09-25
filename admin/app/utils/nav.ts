@@ -22,6 +22,15 @@ import {
   Gift,
   TicketPercent,
   Box,
+  Store,
+  Coins,
+  Receipt,
+  HandCoins,
+  FileSpreadsheet,
+  BarChart3,
+  Boxes,
+  ShoppingCart,
+  UserCircle,
 } from "lucide-react";
 
 export interface NavItem {
@@ -30,6 +39,10 @@ export interface NavItem {
   icon: typeof LayoutDashboard;
   perm: string | null;
   badgeKey?: string; // برای نشون دادن تعداد در انتظار (اختیاری، در آینده)
+  /** فقط برای حساب‌های متصل به نماینده فروش (پرتال نماینده) */
+  agentOnly?: boolean;
+  /** برای حساب نماینده نمایش داده نشود */
+  hideForAgent?: boolean;
 }
 
 export interface NavSection {
@@ -41,7 +54,18 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     title: "کلی",
     items: [
-      { label: "داشبورد", href: "/", icon: LayoutDashboard, perm: null },
+      { label: "داشبورد", href: "/", icon: LayoutDashboard, perm: null, hideForAgent: true },
+    ],
+  },
+  {
+    title: "پرتال نماینده",
+    items: [
+      { label: "داشبورد نمایندگی", href: "/agent-portal", icon: Store, perm: "agent_portal.view", agentOnly: true },
+      { label: "ثبت فروش شمش", href: "/agent-portal/sell", icon: ShoppingCart, perm: "agent_portal.sell", agentOnly: true },
+      { label: "موجودی امانی", href: "/agent-portal/inventory", icon: Boxes, perm: "agent_portal.view", agentOnly: true },
+      { label: "فروش‌های من", href: "/agent-portal/sales", icon: Receipt, perm: "agent_portal.view", agentOnly: true },
+      { label: "تسویه و واریز", href: "/agent-portal/settlements", icon: HandCoins, perm: "agent_portal.view", agentOnly: true },
+      { label: "صورتحساب", href: "/agent-portal/statement", icon: FileSpreadsheet, perm: "agent_portal.view", agentOnly: true },
     ],
   },
   {
@@ -87,6 +111,15 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: "نمایندگان فروش",
+    items: [
+      { label: "نمایندگان", href: "/agents", icon: Store, perm: "agent.view" },
+      { label: "فروش‌های نمایندگان", href: "/agents/sales", icon: Coins, perm: "agent.view" },
+      { label: "تسویه‌های نمایندگان", href: "/agents/settlements", icon: HandCoins, perm: "agent.view" },
+      { label: "گزارش عملکرد", href: "/agents/reports", icon: BarChart3, perm: "agent.view" },
+    ],
+  },
+  {
     title: "پشتیبانی",
     items: [
       { label: "تیکت‌ها", href: "/tickets", icon: Headset, perm: "tickets.view" },
@@ -111,10 +144,37 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-export const BOTTOM_NAV_ITEMS = [
-  { label: "داشبورد", href: "/", icon: LayoutDashboard, perm: null },
+export const BOTTOM_NAV_ITEMS: NavItem[] = [
+  { label: "داشبورد", href: "/", icon: LayoutDashboard, perm: null, hideForAgent: true },
   { label: "برداشت‌ها", href: "/withdrawals", icon: Wallet, perm: "withdrawal.view" },
   { label: "محصولات", href: "/shop/products", icon: Package, perm: "shop.manage" },
   { label: "سفارشات", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
-  { label: "پروفایل", href: "/profile", icon: UserCog, perm: null },
+  { label: "نمایندگی", href: "/agent-portal", icon: Store, perm: "agent_portal.view", agentOnly: true },
+  { label: "فروش", href: "/agent-portal/sell", icon: ShoppingCart, perm: "agent_portal.sell", agentOnly: true },
+  { label: "صورتحساب", href: "/agent-portal/statement", icon: FileSpreadsheet, perm: "agent_portal.view", agentOnly: true },
+  { label: "پروفایل", href: "/profile", icon: UserCircle, perm: null },
 ];
+
+export interface NavViewer {
+  permissions: string[];
+  agent: unknown | null;
+}
+
+/** آیا این آیتم منو برای کاربر فعلی نمایش داده شود؟ */
+export function canSeeNavItem(item: NavItem, viewer: NavViewer): boolean {
+  const isAgent = !!viewer.agent;
+  if (item.agentOnly && !isAgent) return false;
+  if (item.hideForAgent && isAgent) return false;
+  return !item.perm || viewer.permissions.includes(item.perm);
+}
+
+const ALL_HREFS = NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+
+/** فعال بودن لینک: تطابق دقیق یا طولانی‌ترین پیشوند (برای صفحات جزئیات مثل /agents/[id]) */
+export function isNavActive(pathname: string, href: string): boolean {
+  if (pathname === href) return true;
+  if (href === "/" || !pathname.startsWith(`${href}/`)) return false;
+  return !ALL_HREFS.some(
+    (h) => h !== href && h.length > href.length && (pathname === h || pathname.startsWith(`${h}/`)),
+  );
+}

@@ -57,6 +57,7 @@ model User {
   initiatedHologramTransfers OwnershipTransferRequest[] @relation("TransferInitiatedBy")
   receivedHologramTransfers  OwnershipTransferRequest[] @relation("TransferRecipient")
   discountCodes              DiscountCode[]
+  agentPurchases             AgentSale[]                @relation("AgentSaleBuyer")
 
   @@map("users")
 }
@@ -1034,6 +1035,10 @@ model AdminUser {
   roleId String    @map("role_id") @db.Uuid
   role   AdminRole @relation(fields: [roleId], references: [id])
 
+  // حساب ورود نماینده فروش: اگر پر باشد این کاربر فقط در محدوده‌ی همان نماینده عمل می‌کند
+  agentId String? @map("agent_id") @db.Uuid
+  agent   Agent?  @relation("AgentAccounts", fields: [agentId], references: [id])
+
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
   createdById   String?     @map("created_by_id") @db.Uuid
@@ -1054,7 +1059,15 @@ model AdminUser {
   initiatedHologramTransfers OwnershipTransferRequest[] @relation("TransferInitiatedByAdmin")
   unblockedRateLimitBlocks   HologramRateLimitBlock[]
   createdDiscountCodes       DiscountCode[]
+  createdAgents              Agent[]                    @relation("AgentCreatedBy")
+  agentStockMovements        AgentStockMovement[]       @relation("AgentStockMovementBy")
+  agentSalesRegistered       AgentSale[]                @relation("AgentSaleSoldBy")
+  agentSalesVoided           AgentSale[]                @relation("AgentSaleVoidedBy")
+  agentSettlementsSubmitted  AgentSettlement[]          @relation("AgentSettlementSubmittedBy")
+  agentSettlementsReviewed   AgentSettlement[]          @relation("AgentSettlementReviewedBy")
+  agentLedgerEntries         AgentLedgerEntry[]         @relation("AgentLedgerCreatedBy")
 
+  @@index([agentId])
   @@map("admin_users")
 }
 
@@ -1594,15 +1607,25 @@ model HologramCode {
   revokedAt        DateTime?  @map("revoked_at")
   revokeReason     String?    @map("revoke_reason")
 
+  // ── امانت نزد نماینده: شمشی که به نماینده تحویل شده و هنوز فروخته نشده ──
+  agentId          String?   @map("agent_id") @db.Uuid
+  agent            Agent?    @relation("AgentHoldings", fields: [agentId], references: [id])
+  agentAllocatedAt DateTime? @map("agent_allocated_at")
+  /// اجرت/حق ضرب هر شمش (ریال) که هنگام تحویل امانی تعیین و در قیمت فروش نماینده لحاظ می‌شود
+  agentPremiumRial Decimal?  @map("agent_premium_rial") @db.Decimal(18, 0)
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  ownerships       HologramOwnership[]
-  transferRequests OwnershipTransferRequest[]
-  inquiryLogs      HologramInquiryLog[]
+  ownerships          HologramOwnership[]
+  transferRequests    OwnershipTransferRequest[]
+  inquiryLogs         HologramInquiryLog[]
+  agentStockMovements AgentStockMovement[]
+  agentSales          AgentSale[]
 
   @@index([batchId])
   @@index([status])
+  @@index([agentId])
   @@map("hologram_codes")
 }
 
@@ -1711,6 +1734,180 @@ model HologramRateLimitBlock {
   @@map("hologram_rate_limit_blocks")
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  نمایندگان فروش — تحویل امانی شمش، فروش به مالک نهایی، تسویه و صورتحساب
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// نماینده فروش (شخص یا فروشگاه) که شمش را به‌صورت امانی دریافت و به مشتری نهایی می‌فروشد
+model Agent {
+  id              String              @id @default(uuid()) @db.Uuid
+  /// کد یکتای نماینده، مثلاً AGT-0001
+  code            String              @unique
+  name            String
+  managerName     String              @map("manager_name")
+  nationalCode    String?             @map("national_code")
+  phone           String
+  email           String?
+  province        String?
+  city            String?
+  address         String?
+  postalCode      String?             @map("postal_code")
+  contractNumber  String?             @map("contract_number")
+  contractStartAt DateTime?           @map("contract_start_at")
+  contractEndAt   DateTime?           @map("contract_end_at")
+  commissionType  AgentCommissionType @default(PERCENT) @map("commission_type")
+  /// درصد (برای PERCENT) یا مبلغ ریالی (برای PER_GRAM / FIXED_PER_BAR)
+  commissionValue Decimal             @default(0) @map("commission_value") @db.Decimal(18, 4)
+  /// سقف بدهی مجاز نماینده (ریال) — null یعنی بدون سقف
+  creditLimitRial Decimal?            @map("credit_limit_rial") @db.Decimal(18, 0)
+  /// مانده‌ی بدهی نماینده به شرکت (ریال) — فقط از مسیر AgentLedgerEntry تغییر می‌کند
+  balanceRial     Decimal             @default(0) @map("balance_rial") @db.Decimal(18, 0)
+  status          AgentStatus         @default(ACTIVE)
+  notes           String?
+  createdById     String?             @map("created_by_id") @db.Uuid
+  createdBy       AdminUser?          @relation("AgentCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  accounts       AdminUser[]          @relation("AgentAccounts")
+  holdings       HologramCode[]       @relation("AgentHoldings")
+  stockMovements AgentStockMovement[]
+  sales          AgentSale[]
+  settlements    AgentSettlement[]
+  ledgerEntries  AgentLedgerEntry[]
+
+  @@index([status])
+  @@map("agents")
+}
+
+/// حواله‌ی جابه‌جایی شمش بین خزانه و نماینده (تحویل امانی / عودت / فروش / ابطال فروش)
+model AgentStockMovement {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  /// شماره حواله — برای تحویل/عودت دسته‌ای، همه‌ی ردیف‌ها یک شماره مشترک دارند
+  voucherNumber      String                 @map("voucher_number")
+  agentId            String                 @map("agent_id") @db.Uuid
+  agent              Agent                  @relation(fields: [agentId], references: [id])
+  hologramCodeId     String                 @map("hologram_code_id") @db.Uuid
+  hologramCode       HologramCode           @relation(fields: [hologramCodeId], references: [id])
+  type               AgentStockMovementType
+  weightGrams        Decimal                @map("weight_grams") @db.Decimal(18, 4)
+  note               String?
+  referenceId        String?                @map("reference_id") @db.Uuid
+  journalEntryId     String?                @map("journal_entry_id") @db.Uuid
+  performedByAdminId String?                @map("performed_by_admin_id") @db.Uuid
+  performedByAdmin   AdminUser?             @relation("AgentStockMovementBy", fields: [performedByAdminId], references: [id])
+  createdAt          DateTime               @default(now()) @map("created_at")
+
+  @@index([agentId, createdAt])
+  @@index([hologramCodeId])
+  @@index([voucherNumber])
+  @@map("agent_stock_movements")
+}
+
+/// فروش شمش توسط نماینده به مالک نهایی — مبنای فاکتور مشتری، سند حسابداری و بدهی نماینده
+model AgentSale {
+  id                      String              @id @default(uuid()) @db.Uuid
+  saleNumber              String              @unique @map("sale_number")
+  agentId                 String              @map("agent_id") @db.Uuid
+  agent                   Agent               @relation(fields: [agentId], references: [id])
+  hologramCodeId          String              @map("hologram_code_id") @db.Uuid
+  hologramCode            HologramCode        @relation(fields: [hologramCodeId], references: [id])
+  buyerUserId             String              @map("buyer_user_id") @db.Uuid
+  buyerUser               User                @relation("AgentSaleBuyer", fields: [buyerUserId], references: [id])
+  // snapshot خریدار در لحظه فروش
+  buyerFullName           String              @map("buyer_full_name")
+  buyerNationalCode       String              @map("buyer_national_code")
+  buyerPhone              String              @map("buyer_phone")
+  buyerAccountCreated     Boolean             @default(false) @map("buyer_account_created")
+  identityVerified        Boolean             @default(false) @map("identity_verified")
+  identityVerificationRef String?             @map("identity_verification_ref")
+  // snapshot قیمت‌گذاری
+  weightGrams             Decimal             @map("weight_grams") @db.Decimal(18, 4)
+  purityKarat             GoldPurityKarat     @map("purity_karat")
+  goldPricePerGramRial    Decimal             @map("gold_price_per_gram_rial") @db.Decimal(18, 0)
+  goldValueRial           Decimal             @map("gold_value_rial") @db.Decimal(18, 0)
+  premiumRial             Decimal             @default(0) @map("premium_rial") @db.Decimal(18, 0)
+  totalRial               Decimal             @map("total_rial") @db.Decimal(18, 0)
+  commissionType          AgentCommissionType @map("commission_type")
+  commissionValue         Decimal             @map("commission_value") @db.Decimal(18, 4)
+  commissionRial          Decimal             @map("commission_rial") @db.Decimal(18, 0)
+  /// سهم شرکت که نماینده باید تسویه کند = مبلغ فروش − حق‌العمل نماینده
+  netPayableRial          Decimal             @map("net_payable_rial") @db.Decimal(18, 0)
+  paymentMethod           String              @map("payment_method")
+  paymentReference        String?             @map("payment_reference")
+  note                    String?
+  status                  AgentSaleStatus     @default(COMPLETED)
+  ownershipId             String?             @map("ownership_id") @db.Uuid
+  invoiceId               String?             @map("invoice_id") @db.Uuid
+  journalEntryId          String?             @map("journal_entry_id") @db.Uuid
+  voidJournalEntryId      String?             @map("void_journal_entry_id") @db.Uuid
+  voidReason              String?             @map("void_reason")
+  voidedAt                DateTime?           @map("voided_at")
+  voidedByAdminId         String?             @map("voided_by_admin_id") @db.Uuid
+  voidedByAdmin           AdminUser?          @relation("AgentSaleVoidedBy", fields: [voidedByAdminId], references: [id])
+  soldByAdminId           String              @map("sold_by_admin_id") @db.Uuid
+  soldByAdmin             AdminUser           @relation("AgentSaleSoldBy", fields: [soldByAdminId], references: [id])
+  createdAt               DateTime            @default(now()) @map("created_at")
+  updatedAt               DateTime            @updatedAt @map("updated_at")
+
+  @@index([agentId, createdAt])
+  @@index([buyerUserId])
+  @@index([hologramCodeId])
+  @@index([status, createdAt])
+  @@map("agent_sales")
+}
+
+/// تسویه (واریز وجه) نماینده بابت فروش‌ها — اعلام توسط نماینده و تأیید مالی، یا ثبت مستقیم توسط مالی
+model AgentSettlement {
+  id                 String                @id @default(uuid()) @db.Uuid
+  settlementNumber   String                @unique @map("settlement_number")
+  agentId            String                @map("agent_id") @db.Uuid
+  agent              Agent                 @relation(fields: [agentId], references: [id])
+  amountRial         Decimal               @map("amount_rial") @db.Decimal(18, 0)
+  method             AgentSettlementMethod
+  referenceNumber    String?               @map("reference_number")
+  paidAt             DateTime?             @map("paid_at")
+  note               String?
+  status             AgentSettlementStatus @default(PENDING)
+  rejectionReason    String?               @map("rejection_reason")
+  journalEntryId     String?               @map("journal_entry_id") @db.Uuid
+  submittedByAdminId String?               @map("submitted_by_admin_id") @db.Uuid
+  submittedByAdmin   AdminUser?            @relation("AgentSettlementSubmittedBy", fields: [submittedByAdminId], references: [id])
+  reviewedByAdminId  String?               @map("reviewed_by_admin_id") @db.Uuid
+  reviewedByAdmin    AdminUser?            @relation("AgentSettlementReviewedBy", fields: [reviewedByAdminId], references: [id])
+  reviewedAt         DateTime?             @map("reviewed_at")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  @@index([agentId, status])
+  @@index([status, createdAt])
+  @@map("agent_settlements")
+}
+
+/// دفتر معین (صورتحساب) نماینده — append-only؛ هر ردیف مانده‌ی پس از خود را نگه می‌دارد
+model AgentLedgerEntry {
+  id               String          @id @default(uuid()) @db.Uuid
+  agentId          String          @map("agent_id") @db.Uuid
+  agent            Agent           @relation(fields: [agentId], references: [id])
+  type             AgentLedgerType
+  /// بدهکار: افزایش بدهی نماینده (فروش، اصلاحیه افزایشی)
+  debitRial        Decimal         @default(0) @map("debit_rial") @db.Decimal(18, 0)
+  /// بستانکار: کاهش بدهی نماینده (تسویه، ابطال فروش، اصلاحیه کاهشی)
+  creditRial       Decimal         @default(0) @map("credit_rial") @db.Decimal(18, 0)
+  balanceAfterRial Decimal         @map("balance_after_rial") @db.Decimal(18, 0)
+  description      String
+  referenceType    String?         @map("reference_type")
+  referenceId      String?         @map("reference_id") @db.Uuid
+  referenceNumber  String?         @map("reference_number")
+  journalEntryId   String?         @map("journal_entry_id") @db.Uuid
+  createdByAdminId String?         @map("created_by_admin_id") @db.Uuid
+  createdByAdmin   AdminUser?      @relation("AgentLedgerCreatedBy", fields: [createdByAdminId], references: [id])
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  @@index([agentId, createdAt])
+  @@map("agent_ledger_entries")
+}
+
 // ───────────────────────────── Enum های جدید ─────────────────────────────
 
 enum TicketStatus {
@@ -1752,6 +1949,7 @@ enum InvoiceSource {
   SHOP_ORDER
   PHYSICAL_DELIVERY
   DEPOSIT
+  AGENT_SALE
 }
 
 enum DepositMethod {
@@ -2018,12 +2216,14 @@ enum HologramCodeStatus {
   ASSIGNED
   TRANSFER_PENDING
   REVOKED
+  AT_AGENT
 }
 
 enum HologramOwnershipStatus {
   ACTIVE
   TRANSFERRED
   PENDING_RECIPIENT_CONFIRMATION
+  VOIDED
 }
 
 enum HologramTransferType {
@@ -2050,4 +2250,49 @@ enum HologramInquiryResult {
   VALID_ASSIGNED
   VALID_UNASSIGNED
   INVALID_CODE
+}
+
+enum AgentStatus {
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum AgentCommissionType {
+  PERCENT
+  PER_GRAM
+  FIXED_PER_BAR
+}
+
+enum AgentStockMovementType {
+  ALLOCATION
+  RETURN
+  SALE
+  SALE_VOID
+}
+
+enum AgentSaleStatus {
+  COMPLETED
+  VOIDED
+}
+
+enum AgentSettlementMethod {
+  CASH
+  BANK_TRANSFER
+  CARD_TO_CARD
+  POS
+  CHEQUE
+}
+
+enum AgentSettlementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AgentLedgerType {
+  SALE
+  SALE_VOID
+  SETTLEMENT
+  ADJUSTMENT
 }

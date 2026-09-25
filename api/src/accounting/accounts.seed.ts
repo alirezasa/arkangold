@@ -29,6 +29,18 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     type: AccountType.ASSET,
     subType: 'GOLD_INVENTORY',
   },
+  {
+    code: '1030',
+    name: 'موجودی شمش امانی نزد نمایندگان (گرم)',
+    type: AccountType.ASSET,
+    subType: 'AGENT_CONSIGNMENT',
+  },
+  {
+    code: '1040',
+    name: 'حساب‌های دریافتنی از نمایندگان فروش',
+    type: AccountType.ASSET,
+    subType: 'AGENT_RECEIVABLE',
+  },
 
   // ─── بدهی‌ها (LIABILITY) ───
   {
@@ -69,6 +81,24 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     type: AccountType.INCOME,
     subType: 'SHOP_PACKAGING',
   },
+  {
+    code: '4040',
+    name: 'درآمد فروش شمش از طریق نمایندگان',
+    type: AccountType.INCOME,
+    subType: 'AGENT_BAR_SALE',
+  },
+  {
+    code: '4050',
+    name: 'درآمد اجرت و حق ضرب شمش (فروش نمایندگی)',
+    type: AccountType.INCOME,
+    subType: 'AGENT_BAR_PREMIUM',
+  },
+  {
+    code: '4060',
+    name: 'درآمدهای متفرقه نمایندگان (جریمه/اصلاحیه)',
+    type: AccountType.INCOME,
+    subType: 'AGENT_OTHER_INCOME',
+  },
 
   // ─── هزینه‌ها (EXPENSE) ───
   {
@@ -88,5 +118,17 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     name: 'هزینه تخفیف فروش (کد تخفیف)',
     type: AccountType.EXPENSE,
     subType: 'SALES_DISCOUNT',
+  },
+  {
+    code: '5040',
+    name: 'هزینه حق‌العمل (کمیسیون) نمایندگان فروش',
+    type: AccountType.EXPENSE,
+    subType: 'AGENT_COMMISSION',
+  },
+  {
+    code: '5050',
+    name: 'بهای تمام‌شده شمش فروخته‌شده توسط نمایندگان (گرم)',
+    type: AccountType.EXPENSE,
+    subType: 'AGENT_BAR_COGS',
   },
 ];

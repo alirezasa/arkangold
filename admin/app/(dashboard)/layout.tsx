@@ -1,7 +1,7 @@
 // admin/app/(dashboard)/layout.tsx
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
 import Sidebar from "@/app/components/Sidebar";
 import MobileHeader from "@/app/components/MobileHeader";
@@ -18,12 +18,20 @@ export default function DashboardLayout({
   const { me, loading, error } = useAdminMe();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (error) router.replace("/login");
   }, [error, router]);
 
-  if (loading || !me) {
+  // حساب نماینده فقط پرتال نمایندگی و پروفایل خودش را دارد؛ مسیرهای مدیریتی به پرتال هدایت می‌شوند
+  const agentBlocked =
+    !!me?.agent && !pathname.startsWith("/agent-portal") && !pathname.startsWith("/profile");
+  useEffect(() => {
+    if (agentBlocked) router.replace("/agent-portal");
+  }, [agentBlocked, router]);
+
+  if (loading || !me || agentBlocked) {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
@@ -43,20 +51,17 @@ export default function DashboardLayout({
       style={{ backgroundColor: "var(--color-bg-page)" }}
     >
       <OfflineBanner />
-      <Sidebar permissions={me.permissions} />
+      <Sidebar me={me} />
       <MobileDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        permissions={me.permissions}
+        me={me}
       />
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <MobileHeader
-          onMenuOpen={() => setDrawerOpen(true)}
-          fullName={me.fullName}
-        />
+        <MobileHeader onMenuOpen={() => setDrawerOpen(true)} me={me} />
         <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-6">{children}</main>
-        <BottomNav permissions={me.permissions} />
+        <BottomNav me={me} />
       </div>
     </div>
   );

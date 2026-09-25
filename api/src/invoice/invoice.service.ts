@@ -32,7 +32,7 @@ type Tx = Prisma.TransactionClient;
 
 interface IssueParams {
   kind: 'INVOICE' | 'PROFORMA';
-  sourceType: 'SHOP_ORDER' | 'PHYSICAL_DELIVERY' | 'DEPOSIT';
+  sourceType: 'SHOP_ORDER' | 'PHYSICAL_DELIVERY' | 'DEPOSIT' | 'AGENT_SALE';
   sourceId: string;
   userId: string;
   items: InvoiceItemInput[];
@@ -471,6 +471,84 @@ export class InvoiceService {
           order.id,
           Number(order.totalRial),
         ),
+      },
+      status: 'PAID',
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // ── صدور فاکتور فروش شمش توسط نماینده ──
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * فاکتور رسمی مشتری نهایی برای فروش حضوری شمش توسط نماینده. مبالغ فقط از
+   * snapshot قفل‌شده‌ی AgentSale خوانده می‌شود (بدون محاسبه‌ی مجدد قیمت).
+   * ارزش طلا در ستون «مبلغ واحد» و اجرت/حق ضرب در ستون «اجرت» درج می‌شود.
+   */
+  async issueForAgentSale(tx: Tx, saleId: string) {
+    const sale = await tx.agentSale.findUnique({
+      where: { id: saleId },
+      include: {
+        agent: { select: { code: true, name: true, phone: true } },
+        hologramCode: {
+          select: {
+            code: true,
+            factorySerialNumber: true,
+            product: { select: { name: true } },
+          },
+        },
+      },
+    });
+    if (!sale) throw new NotFoundException('فروش نماینده یافت نشد');
+
+    const weight = Number(sale.weightGrams);
+    const goldValueRial = Number(sale.goldValueRial);
+    const premiumRial = Number(sale.premiumRial);
+    const karatLabel = sale.purityKarat === 'K24' ? '۲۴' : '۱۸';
+    const productName = sale.hologramCode.product?.name ?? 'شمش طلا';
+
+    return this.issue(tx, {
+      kind: 'INVOICE',
+      sourceType: 'AGENT_SALE',
+      sourceId: sale.id,
+      userId: sale.buyerUserId,
+      items: [
+        {
+          rowNo: 1,
+          productCode: sale.hologramCode.code,
+          title: `${productName} ${toPersianDigits(weight)} گرمی عیار ${karatLabel} — کد هولوگرام ${toPersianDigits(
+            sale.hologramCode.code,
+          )}${
+            sale.hologramCode.factorySerialNumber
+              ? ` — سریال ${sale.hologramCode.factorySerialNumber}`
+              : ''
+          }`,
+          unit: 'عدد',
+          purityKarat: sale.purityKarat,
+          quantity: 1,
+          weightGrams: weight,
+          unitPriceRial: goldValueRial,
+          discountRial: 0,
+          makingRial: premiumRial,
+          feeRial: 0,
+          taxRate: 0,
+          taxRial: 0,
+          totalRial: goldValueRial + premiumRial,
+          meta: {
+            type: 'AGENT_SALE',
+            saleNumber: sale.saleNumber,
+            goldPricePerGramRial: sale.goldPricePerGramRial.toString(),
+          },
+        },
+      ],
+      extraData: {
+        discountCode: null,
+        paymentMethod: `پرداخت حضوری نزد نماینده «${sale.agent.name}» (کد ${sale.agent.code})${
+          sale.paymentReference ? ` — مرجع ${sale.paymentReference}` : ''
+        }`,
+        agentCode: sale.agent.code,
+        agentName: sale.agent.name,
+        agentSaleNumber: sale.saleNumber,
       },
       status: 'PAID',
     });

@@ -1,7 +1,9 @@
 // admin/app/(dashboard)/page.tsx
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
 import {
@@ -16,6 +18,9 @@ import {
   Package,
   FolderTree,
   KeyRound,
+  Store,
+  HandCoins,
+  Boxes,
 } from "lucide-react";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -26,7 +31,18 @@ interface AdminMe {
   role: { key: string; name: string };
   permissions: string[];
   lastLoginAt: string | null;
+  agent: { id: string } | null;
 }
+
+interface AgentsOverview {
+  agents: { active: number; suspended: number; terminated: number };
+  stock: { count: number; grams: string };
+  receivableRial: string;
+  pendingSettlements: { count: number; amountRial: string };
+}
+
+const toman = (rial: string | number) =>
+  Math.round(Number(rial) / 10).toLocaleString("fa-IR");
 
 function StatCard({
   title,
@@ -111,7 +127,19 @@ function QuickLink({
 }
 
 export default function DashboardHomePage() {
+  const router = useRouter();
   const { data: me } = useSWR<AdminMe>("/api/admin-auth/me", fetcher);
+
+  // حساب نماینده فروش داشبورد مدیریتی ندارد — مستقیم به پرتال نمایندگی می‌رود
+  useEffect(() => {
+    if (me?.agent) router.replace("/agent-portal");
+  }, [me, router]);
+
+  const canViewAgents = (me?.permissions.includes("agent.view") ?? false) && !me?.agent;
+  const { data: agentsOverview, isLoading: agentsLoading } = useSWR<AgentsOverview>(
+    canViewAgents ? "/api/admin/agents/overview" : null,
+    fetcher,
+  );
 
   const canViewWithdrawals =
     me?.permissions.includes("withdrawal.view") ?? false;
@@ -235,6 +263,40 @@ export default function DashboardHomePage() {
             color="#0891b2"
           />
         )}
+        {canViewAgents && (
+          <StatCard
+            title="نمایندگان فعال"
+            href="/agents"
+            icon={Store}
+            value={agentsOverview?.agents.active ?? 0}
+            loading={agentsLoading}
+            color="#c5a059"
+          />
+        )}
+        {canViewAgents && (
+          <StatCard
+            title="شمش امانی نزد نمایندگان"
+            href="/agents"
+            icon={Boxes}
+            value={
+              agentsOverview
+                ? `${agentsOverview.stock.count.toLocaleString("fa-IR")} عدد`
+                : 0
+            }
+            loading={agentsLoading}
+            color="#0f766e"
+          />
+        )}
+        {canViewAgents && (
+          <StatCard
+            title="مطالبات از نمایندگان (تومان)"
+            href="/agents/reports"
+            icon={HandCoins}
+            value={agentsOverview ? toman(agentsOverview.receivableRial) : 0}
+            loading={agentsLoading}
+            color="#b91c1c"
+          />
+        )}
         {canManageAdmins && (
           <StatCard
             title="تعداد کل ادمین‌ها"
@@ -283,6 +345,14 @@ export default function DashboardHomePage() {
               subtitle="مدیریت ساختار دسته‌بندی محصولات"
               href="/shop/categories"
               icon={FolderTree}
+            />
+          )}
+          {canViewAgents && (
+            <QuickLink
+              title="نمایندگان فروش"
+              subtitle="تحویل امانی شمش، فروش، تسویه و صورتحساب نمایندگان"
+              href="/agents"
+              icon={Store}
             />
           )}
           {canManageAdmins && (

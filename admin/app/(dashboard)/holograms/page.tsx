@@ -30,8 +30,9 @@ function getErrorMessage(err: unknown, fallback: string): string {
 interface HologramCodeItem {
   id: string;
   code: string;
-  status: "UNASSIGNED" | "ASSIGNED" | "TRANSFER_PENDING" | "REVOKED";
+  status: "UNASSIGNED" | "ASSIGNED" | "TRANSFER_PENDING" | "REVOKED" | "AT_AGENT";
   batch: { id: string; batchNumber: string };
+  agent: { id: string; code: string; name: string } | null;
   product: { id: string; name: string } | null;
   variant: { id: string; weightGrams: string } | null;
   weightGrams: string | null;
@@ -105,6 +106,7 @@ const CODE_STATUS_META: Record<string, { label: string; bg: string; color: strin
   ASSIGNED: { label: "تخصیص‌یافته", bg: "#dcfce7", color: "#16a34a" },
   TRANSFER_PENDING: { label: "در انتظار تأیید انتقال", bg: "#fef3c7", color: "#b45309" },
   REVOKED: { label: "باطل‌شده", bg: "#fee2e2", color: "#dc2626" },
+  AT_AGENT: { label: "امانی نزد نماینده", bg: "#e0f2fe", color: "#0369a1" },
 };
 
 const TRANSFER_STATUS_META: Record<string, { label: string; bg: string; color: string }> = {
@@ -313,7 +315,7 @@ function CodesTab() {
       ) : (
         <div className="space-y-2">
           {data.data.map((c) => {
-            const meta = CODE_STATUS_META[c.status];
+            const meta = CODE_STATUS_META[c.status] ?? { label: c.status, bg: "#f3f4f6", color: "#4b5563" };
             const owner = c.ownerships[0];
             return (
               <div
@@ -339,6 +341,14 @@ function CodesTab() {
                 {owner && (
                   <p className="text-[12px] text-gray-600 mb-2">
                     مالک: {owner.fullName} — {owner.nationalCode}
+                  </p>
+                )}
+                {c.status === "AT_AGENT" && c.agent && (
+                  <p className="text-[12px] text-sky-700 mb-2">
+                    امانی نزد نماینده:{" "}
+                    <a href={`/agents/${c.agent.id}`} className="font-bold underline">
+                      {c.agent.name} ({c.agent.code})
+                    </a>
                   </p>
                 )}
                 <div className="flex gap-2 flex-wrap">

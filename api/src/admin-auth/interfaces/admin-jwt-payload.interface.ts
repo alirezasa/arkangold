@@ -11,4 +11,6 @@ export interface AdminAuthenticatedUser {
   sessionId: string;
   roleKey: string;
   permissions: string[];
+  /** اگر این حساب متعلق به یک نماینده فروش باشد، شناسه‌ی همان نماینده */
+  agentId: string | null;
 }

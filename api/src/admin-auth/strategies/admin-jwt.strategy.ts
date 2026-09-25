@@ -67,6 +67,7 @@ export class AdminJwtStrategy extends PassportStrategy(
       sessionId: payload.sessionId,
       roleKey: admin.role.key,
       permissions: admin.role.permissions.map((rp) => rp.permission.key),
+      agentId: admin.agentId ?? null,
     };
   }
 }

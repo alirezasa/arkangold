@@ -232,6 +232,52 @@ export const ADMIN_PERMISSIONS = [
     group: 'hologram',
     description: 'مدیریت IPهای مسدودشده و تنظیمات امنیتی استعلام هولوگرام',
   },
+  // ── نمایندگان فروش (سمت مدیریت) ──
+  {
+    key: 'agent.view',
+    group: 'agent',
+    description:
+      'مشاهده نمایندگان، موجودی امانی، فروش‌ها، تسویه‌ها، صورتحساب و گزارش‌ها',
+  },
+  {
+    key: 'agent.manage',
+    group: 'agent',
+    description:
+      'ایجاد/ویرایش/تعلیق نماینده و مدیریت حساب‌های ورود نماینده به پنل',
+  },
+  {
+    key: 'agent.stock.manage',
+    group: 'agent',
+    description: 'تحویل امانی شمش به نماینده و عودت شمش از نماینده',
+  },
+  {
+    key: 'agent.settlement.manage',
+    group: 'agent',
+    description: 'ثبت، تأیید و رد تسویه نماینده و ثبت اصلاحیه حساب نماینده',
+  },
+  {
+    key: 'agent.sale.void',
+    group: 'agent',
+    description: 'ابطال فروش ثبت‌شده توسط نماینده (برگشت مالکیت و سند)',
+  },
+
+  // ── پرتال نماینده (فقط برای حساب‌های متصل به یک نماینده) ──
+  {
+    key: 'agent_portal.view',
+    group: 'agent_portal',
+    description: 'پرتال نماینده: مشاهده موجودی، فروش‌ها و صورتحساب خود',
+  },
+  {
+    key: 'agent_portal.sell',
+    group: 'agent_portal',
+    description: 'پرتال نماینده: ثبت فروش شمش و ثبت مالک نهایی',
+  },
+  {
+    key: 'agent_portal.settle',
+    group: 'agent_portal',
+    description: 'پرتال نماینده: اعلام واریز/تسویه به شرکت',
+  },
+
   {
     key: 'security.crypto.view',
     group: 'security',
@@ -277,6 +323,8 @@ export const ADMIN_ROLES = [
       'hologram.code.assign',
       'hologram.code.revoke',
       'hologram.transfer.view',
+      'agent.view',
+      'agent.settlement.manage',
     ] as PermissionKey[],
   },
   {
@@ -339,6 +387,42 @@ export const ADMIN_ROLES = [
       'hologram.transfer.view',
       'hologram.logs.view',
       'hologram.security.manage',
+      'agent.view',
+      'agent.stock.manage',
+    ] as PermissionKey[],
+  },
+  {
+    key: 'AGENT_MANAGER',
+    name: 'مدیر نمایندگان',
+    description:
+      'مدیریت کامل نمایندگان فروش: تعریف نماینده، تحویل/عودت شمش، تسویه، ابطال فروش و گزارش‌ها',
+    isSystem: true,
+    permissions: [
+      'agent.view',
+      'agent.manage',
+      'agent.stock.manage',
+      'agent.settlement.manage',
+      'agent.sale.void',
+      'hologram.code.view',
+      'hologram.transfer.view',
+      'users.view',
+      'invoice.view',
+      'accounting.view',
+    ] as PermissionKey[],
+  },
+  {
+    key: 'AGENT',
+    name: 'نماینده فروش',
+    description:
+      'حساب ورود نماینده: فقط موجودی امانی، ثبت فروش برای مالک نهایی، تسویه و صورتحساب همان نماینده',
+    isSystem: true,
+    permissions: [
+      'agent_portal.view',
+      'agent_portal.sell',
+      'agent_portal.settle',
     ] as PermissionKey[],
   },
 ] as const;
+
+/** کلید نقش سیستمی حساب‌های ورود نمایندگان */
+export const AGENT_ROLE_KEY = 'AGENT';

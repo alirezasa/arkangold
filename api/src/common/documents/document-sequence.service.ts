@@ -5,13 +5,26 @@ import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { currentJalaliYear, toPersianDigits } from '../utils/jalali.util';
 
-export type DocumentPrefix = 'INV' | 'PRF' | 'DEP' | 'HOLO';
+export type DocumentPrefix =
+  | 'INV'
+  | 'PRF'
+  | 'DEP'
+  | 'HOLO'
+  // نمایندگان فروش: فروش، حواله‌ی تحویل/عودت، تسویه، اصلاحیه
+  | 'AGS'
+  | 'AGV'
+  | 'AGP'
+  | 'AGJ';
 
 const PREFIX_LABEL: Record<DocumentPrefix, string> = {
   INV: 'INV',
   PRF: 'PRF',
   DEP: 'DEP',
   HOLO: 'HOLO',
+  AGS: 'AGS',
+  AGV: 'AGV',
+  AGP: 'AGP',
+  AGJ: 'AGJ',
 };
 
 @Injectable()

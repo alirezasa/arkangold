@@ -311,12 +311,16 @@ export enum HologramCodeStatus {
   ASSIGNED = 'ASSIGNED',
   TRANSFER_PENDING = 'TRANSFER_PENDING',
   REVOKED = 'REVOKED',
+  /** تحویل امانی به نماینده فروش — هنوز به مالک نهایی فروخته نشده */
+  AT_AGENT = 'AT_AGENT',
 }
 
 export enum HologramOwnershipStatus {
   ACTIVE = 'ACTIVE',
   TRANSFERRED = 'TRANSFERRED',
   PENDING_RECIPIENT_CONFIRMATION = 'PENDING_RECIPIENT_CONFIRMATION',
+  /** مالکیت در اثر ابطال فروش نماینده باطل شده است */
+  VOIDED = 'VOIDED',
 }
 
 export enum HologramTransferType {
@@ -350,6 +354,7 @@ export const HOLOGRAM_CODE_STATUS_FA: Record<HologramCodeStatus, string> = {
   [HologramCodeStatus.ASSIGNED]: 'تخصیص‌یافته',
   [HologramCodeStatus.TRANSFER_PENDING]: 'در انتظار تأیید انتقال',
   [HologramCodeStatus.REVOKED]: 'ابطال‌شده',
+  [HologramCodeStatus.AT_AGENT]: 'امانی نزد نماینده',
 };
 
 export const HOLOGRAM_TRANSFER_REQUEST_STATUS_FA: Record<HologramTransferRequestStatus, string> = {

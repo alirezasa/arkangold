@@ -503,6 +503,26 @@ export const WALLET_CONFIG_DEFAULTS = [
     description: 'مهلت تأیید گیرنده برای درخواست انتقال مالکیت شمش (ساعت)',
   },
 
+  // ══ نمایندگان فروش ══
+  {
+    key: 'agent.sale.require_identity_verification',
+    value: 'true',
+    description:
+      'استعلام اجباری هویت خریدار از ثبت احوال هنگام ثبت فروش توسط نماینده (true/false)',
+  },
+  {
+    key: 'agent.sale.quote_ttl_seconds',
+    value: '180',
+    description:
+      'مدت اعتبار قیمت استعلام‌شده برای ثبت فروش نماینده (ثانیه) — پس از آن باید دوباره استعلام شود',
+  },
+  {
+    key: 'agent.sale.notify_buyer_sms',
+    value: 'true',
+    description:
+      'ارسال پیامک ثبت مالکیت شمش و راهنمای ورود به پنل برای خریدار نهایی (true/false)',
+  },
+
   // ══ بسته‌بندی ارسال فروشگاه ══
   {
     key: 'shop.packaging.free_threshold_rial',

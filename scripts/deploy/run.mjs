@@ -9,7 +9,7 @@
 //   node scripts/deploy/run.mjs build   ← نصب وابستگی‌های همان سرویس با pnpm و build
 //   node scripts/deploy/run.mjs start   ← (api: اجرای migrationها) و بالا آوردن سرور
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -37,13 +37,30 @@ function assertService() {
   }
 }
 
-/** دستور اجرای pnpm: نسخه‌ی نصب‌شده روی سیستم، وگرنه همان نسخه‌ی packageManager از طریق npx */
+/**
+ * دستور اجرای pnpm با همان نسخه‌ی packageManager در package.json ریشه: اگر pnpm سیستم همین نسخه
+ * باشد از آن، وگرنه دقیقاً همین نسخه از طریق npx (نسخه‌ی دیگر pnpm ممکن است allowBuilds را نشناسد).
+ */
 function pnpmCommand() {
-  const probe = spawnSync('pnpm', ['--version'], { stdio: 'ignore', shell: false });
-  if (probe.status === 0) return ['pnpm'];
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
-  const version = /^pnpm@([^+]+)/.exec(pkg.packageManager ?? '')?.[1] ?? 'latest';
-  return ['npx', '--yes', `pnpm@${version}`];
+  const version = /^pnpm@([^+]+)/.exec(pkg.packageManager ?? '')?.[1];
+  const probe = spawnSync('pnpm', ['--version'], { encoding: 'utf8', shell: false });
+  if (probe.status === 0 && (!version || probe.stdout.trim() === version)) return ['pnpm'];
+  return ['npx', '--yes', `pnpm@${version ?? 'latest'}`];
+}
+
+// لیارا با دیدن pnpm-lock.yaml در ریشه خودش pnpm نصب و اجرا می‌کند (با yarn و نسخه‌ای خارج از
+// کنترل ما) که با فیلد packageManager شکست می‌خورد؛ برای همین .liaraignore فایل قفل ریشه را آپلود
+// نمی‌کند و یک کپی از آن با نام دیگر آپلود می‌شود که اینجا پیش از نصب سر جایش برمی‌گردد.
+// به‌روزرسانی کپی پس از تغییر وابستگی‌ها: pnpm run lockfile:sync
+const LOCKFILE = join(ROOT, 'pnpm-lock.yaml');
+const DEPLOY_LOCKFILE = join(ROOT, 'scripts', 'deploy', 'pnpm-lock.deploy.yaml');
+
+function restoreLockfile() {
+  if (!existsSync(LOCKFILE) && existsSync(DEPLOY_LOCKFILE)) {
+    copyFileSync(DEPLOY_LOCKFILE, LOCKFILE);
+    log('pnpm-lock.yaml از scripts/deploy/pnpm-lock.deploy.yaml بازگردانده شد');
+  }
 }
 
 function run(cmd, args, options = {}) {
@@ -55,6 +72,7 @@ function run(cmd, args, options = {}) {
 }
 
 function build(targets) {
+  restoreLockfile();
   const [pnpm, ...pnpmArgs] = pnpmCommand();
   const pnpmRun = (args, options) => run(pnpm, [...pnpmArgs, ...args], options);
 

@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "node scripts/chabokan/run.mjs build",
-    "start": "node scripts/chabokan/run.mjs start",
+    "build": "node scripts/deploy/run.mjs build",
+    "start": "node scripts/deploy/run.mjs start",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

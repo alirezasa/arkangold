@@ -14,12 +14,12 @@
 `APP_SERVICE` تعیین می‌کند کدام بسته ساخته و اجرا شود. چابکان به‌ترتیب این مراحل را در ریشه اجرا می‌کند:
 
 1. `npm install` — در ریشه وابستگی‌ای وجود ندارد و سریع تمام می‌شود.
-2. `npm run build` → `scripts/chabokan/run.mjs build`:
+2. `npm run build` → `scripts/deploy/run.mjs build`:
    - نصب وابستگی‌های همان سرویس با pnpm (`pnpm install --filter <service>...`؛ اگر pnpm روی سرور نباشد
      همان نسخه‌ی `packageManager` با `npx` اجرا می‌شود)
    - برای `api`: build پکیج `@arkan-gold/shared`، سپس `prisma generate` و `nest build`
    - برای `app` / `admin`: `next build`
-3. `npm start` → `scripts/chabokan/run.mjs start`:
+3. `npm start` → `scripts/deploy/run.mjs start`:
    - برای `api`: ابتدا `prisma migrate deploy` (با `PRISMA_MIGRATE_ON_START=false` غیرفعال می‌شود)
      و بعد `node dist/src/main.js`
    - برای `app` / `admin`: `next start`
@@ -66,7 +66,7 @@ chabok deploy -s <نام-سرویس-app>
 chabok deploy -s <نام-سرویس-admin>
 ```
 
-روند نصب و build را در بخش **لاگ‌ها**ی هر سرویس ببینید؛ خطوط اسکریپت با `[chabokan]` شروع می‌شوند.
+روند نصب و build را در بخش **لاگ‌ها**ی هر سرویس ببینید؛ خطوط اسکریپت با `[deploy]` شروع می‌شوند.
 
 ### ۴. دامنه‌ها
 

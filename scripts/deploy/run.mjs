@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// اجراکننده‌ی استقرار روی چابکان برای مونوریپو.
+// اجراکننده‌ی استقرار مونوریپو روی سرویس‌های Node.js (لیارا و چابکان).
 //
-// هر سه سرویس چابکان (api / app / admin) کل مونوریپو را دریافت می‌کنند و با متغیر
-// محیطی APP_SERVICE مشخص می‌شود کدام بسته ساخته و اجرا شود. چابکان به‌ترتیب
-// `npm install` → `npm run build` → `npm start` را در ریشه‌ی پروژه اجرا می‌کند؛
+// هر سه سرویس (api / app / admin) کل مونوریپو را دریافت می‌کنند و با متغیر محیطی
+// APP_SERVICE مشخص می‌شود کدام بسته ساخته و اجرا شود. هر دو پلتفرم به‌ترتیب
+// `npm install` → `npm run build` → `npm start` را در ریشه‌ی پروژه اجرا می‌کنند؛
 // package.json ریشه این دو اسکریپت را به همین فایل می‌سپارد.
 //
-//   node scripts/chabokan/run.mjs build   ← نصب وابستگی‌های همان سرویس با pnpm و build
-//   node scripts/chabokan/run.mjs start   ← (api: اجرای migrationها) و بالا آوردن سرور
+//   node scripts/deploy/run.mjs build   ← نصب وابستگی‌های همان سرویس با pnpm و build
+//   node scripts/deploy/run.mjs start   ← (api: اجرای migrationها) و بالا آوردن سرور
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -20,22 +20,22 @@ const command = process.argv[2];
 const service = (process.env.APP_SERVICE ?? '').trim();
 
 function fail(message) {
-  console.error(`[chabokan] ${message}`);
+  console.error(`[deploy] ${message}`);
   process.exit(1);
 }
 
 function log(message) {
-  console.log(`[chabokan] ${message}`);
+  console.log(`[deploy] ${message}`);
 }
 
-if (!SERVICES.includes(service)) {
-  fail(
-    `متغیر محیطی APP_SERVICE باید یکی از ${SERVICES.join(' | ')} باشد (مقدار فعلی: "${service}"). ` +
-      'آن را در تنظیمات سرویس چابکان ← متغیرهای محیطی تعریف کنید.',
-  );
+function assertService() {
+  if (!SERVICES.includes(service)) {
+    fail(
+      `متغیر محیطی APP_SERVICE باید یکی از ${SERVICES.join(' | ')} باشد (مقدار فعلی: "${service}"). ` +
+        'آن را در تنظیمات برنامه ← متغیرهای محیطی تعریف کنید.',
+    );
+  }
 }
-
-const serviceDir = join(ROOT, service);
 
 /** دستور اجرای pnpm: نسخه‌ی نصب‌شده روی سیستم، وگرنه همان نسخه‌ی packageManager از طریق npx */
 function pnpmCommand() {
@@ -54,40 +54,44 @@ function run(cmd, args, options = {}) {
   }
 }
 
-function build() {
+function build(targets) {
   const [pnpm, ...pnpmArgs] = pnpmCommand();
   const pnpmRun = (args, options) => run(pnpm, [...pnpmArgs, ...args], options);
 
-  // فقط همین سرویس و بسته‌های workspace که به آن وابسته‌اند (مثلاً @arkan-gold/shared برای api).
+  // فقط سرویس‌های هدف و بسته‌های workspace که به آن‌ها وابسته‌اند (مثلاً @arkan-gold/shared برای api).
   // اگر pnpm-lock.yaml آپلود شده باشد از آن استفاده می‌شود و در صورت ناهماهنگی به‌روز می‌شود.
   pnpmRun(
-    ['install', '--filter', `${service}...`, '--no-frozen-lockfile'],
+    ['install', ...targets.flatMap((t) => ['--filter', `${t}...`]), '--no-frozen-lockfile'],
     // devDependencies (nest cli، typescript، tailwind و ...) برای build لازم‌اند؛ اگر
-    // چابکان NODE_ENV=production را از قبل تنظیم کرده باشد pnpm آن‌ها را نصب نمی‌کند.
-    // CI=true: pnpm بدون ترمینال تعاملی (محیط build چابکان) منتظر تأیید نمی‌ماند.
+    // پلتفرم NODE_ENV=production را از قبل تنظیم کرده باشد pnpm آن‌ها را نصب نمی‌کند.
+    // CI=true: pnpm بدون ترمینال تعاملی (محیط build) منتظر تأیید نمی‌ماند.
     { env: { ...process.env, NODE_ENV: 'development', CI: 'true' } },
   );
 
-  if (service === 'api') {
-    pnpmRun(['--filter', '@arkan-gold/shared', 'run', 'build']);
-    pnpmRun(['--filter', 'api', 'exec', 'prisma', 'generate']);
+  for (const target of targets) {
+    if (target === 'api') {
+      pnpmRun(['--filter', '@arkan-gold/shared', 'run', 'build']);
+      pnpmRun(['--filter', 'api', 'exec', 'prisma', 'generate']);
+    }
+    pnpmRun(['--filter', target, 'run', 'build'], {
+      env: { ...process.env, NODE_ENV: 'production' },
+    });
+    log(`build سرویس ${target} کامل شد`);
   }
-  pnpmRun(['--filter', service, 'run', 'build'], {
-    env: { ...process.env, NODE_ENV: 'production' },
-  });
-  log(`build سرویس ${service} کامل شد`);
 }
 
-function isBuilt() {
-  if (service === 'api') return existsSync(join(serviceDir, 'dist', 'src', 'main.js'));
-  return existsSync(join(serviceDir, '.next', 'BUILD_ID'));
+function isBuilt(dir) {
+  if (service === 'api') return existsSync(join(dir, 'dist', 'src', 'main.js'));
+  return existsSync(join(dir, '.next', 'BUILD_ID'));
 }
 
 function start() {
-  if (!isBuilt()) {
-    // اگر سرویس چابکان مرحله‌ی build را اجرا نکرده باشد، پیش از start انجامش می‌دهیم
+  assertService();
+  const serviceDir = join(ROOT, service);
+  if (!isBuilt(serviceDir)) {
+    // اگر پلتفرم مرحله‌ی build را اجرا نکرده باشد، پیش از start انجامش می‌دهیم
     log('خروجی build پیدا نشد؛ ابتدا build اجرا می‌شود');
-    build();
+    build([service]);
   }
 
   const port = process.env.PORT || '3000';
@@ -115,6 +119,18 @@ function start() {
   child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
 }
 
-if (command === 'build') build();
-else if (command === 'start') start();
-else fail('استفاده: node scripts/chabokan/run.mjs <build|start>');
+if (command === 'build') {
+  if (service) {
+    assertService();
+    build([service]);
+  } else {
+    // برخی پلتفرم‌ها متغیرهای محیطی را در مرحله‌ی build در اختیار نمی‌گذارند؛ در این حالت هر سه
+    // سرویس ساخته می‌شوند و APP_SERVICE در زمان start تعیین می‌کند کدام اجرا شود.
+    log('APP_SERVICE در زمان build تنظیم نشده؛ هر سه سرویس ساخته می‌شوند');
+    build(SERVICES);
+  }
+} else if (command === 'start') {
+  start();
+} else {
+  fail('استفاده: node scripts/deploy/run.mjs <build|start>');
+}

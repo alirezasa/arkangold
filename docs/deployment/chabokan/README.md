@@ -108,5 +108,5 @@ chabok service domain add -s <نام-سرویس-admin> -d admin.arkan.gold
 - **حجم آپلود**: سقف `chabok deploy` صد مگابایت فشرده است. آرشیو فعلی حدود ۲ مگابایت است.
 - **فایل قفل**: `pnpm-lock.yaml` ریشه commit شده و آپلود می‌شود؛ pnpm با آن دیگر اطلاعات همه‌ی پکیج‌های
   مونوریپو را از registry نمی‌پرسد و فقط پکیج‌های همان سرویس را دانلود می‌کند. بعد از هر تغییر در
-  وابستگی‌ها `pnpm install` را در ریشه اجرا کنید و فایل قفل به‌روزشده را هم commit کنید.
+  وابستگی‌ها `pnpm install` و `pnpm run lockfile:sync` را در ریشه اجرا کنید و هر دو فایل قفل را commit کنید.
 - **اجرای محلی**: `APP_SERVICE=api npm run build && APP_SERVICE=api PORT=5000 npm start`

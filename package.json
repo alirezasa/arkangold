@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node scripts/deploy/run.mjs build",
     "start": "node scripts/deploy/run.mjs start",
+    "lockfile:sync": "node -e \"require('fs').copyFileSync('pnpm-lock.yaml','scripts/deploy/pnpm-lock.deploy.yaml')\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

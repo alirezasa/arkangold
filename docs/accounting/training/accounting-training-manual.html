@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>راهنمای جامع حسابداری آرکان گلد — ویژه‌ی حسابداران</title>
+<style>
+  @font-face { font-family: "IRANSansX"; src: url("../../../admin/public/fonts/iransansx-regular.woff2") format("woff2"); font-weight: 400; }
+  @font-face { font-family: "IRANSansX"; src: url("../../../admin/public/fonts/iransansx-medium.woff2") format("woff2"); font-weight: 500; }
+  @font-face { font-family: "IRANSansX"; src: url("../../../admin/public/fonts/iransansx-bold.woff2") format("woff2"); font-weight: 700; }
+  @font-face { font-family: "IRANSansX"; src: url("../../../admin/public/fonts/iransansx-black.woff2") format("woff2"); font-weight: 900; }
+  /* ارقام فارسی در سربرگ و پاورقی (با قالب header/footer چاپ استفاده می‌شود) */
+  @font-face { font-family: "DanaFaNum"; src: url("../../../admin/public/fonts/DanaFaNum-Regular.woff") format("woff"); }
+  .preload-fanum { font-family: "DanaFaNum"; font-size: 1pt; color: #fff; position: absolute; }
+
+  :root {
+    --gold: #b8860b;
+    --gold-soft: #fbf5e6;
+    --ink: #1f2430;
+    --muted: #5d6475;
+    --line: #e3e6ec;
+    --emerald: #0f766e;
+    --emerald-soft: #e8f5f3;
+    --blue: #1d4ed8;
+    --blue-soft: #eef3ff;
+    --red: #b42318;
+    --red-soft: #fdf0ee;
+    --amber: #a15c07;
+    --amber-soft: #fff7e8;
+  }
+  @page { size: A4; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "IRANSansX", Tahoma, sans-serif;
+    color: var(--ink);
+    font-size: 10.4pt;
+    line-height: 1.95;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    text-align: justify;
+    text-justify: inter-word;
+  }
+  .ltr { direction: ltr; unicode-bidi: embed; display: inline-block; }
+  .code { font-family: "IRANSansX", monospace; direction: ltr; unicode-bidi: embed; white-space: nowrap; background: #f3f4f7; border-radius: 4px; padding: 0 5px; font-size: 9.2pt; }
+  .chapter-head h1, h2 { position: relative; }
+  .marker { position: absolute; left: 0; top: 0; font-size: 8pt; line-height: 1; color: #fff; direction: ltr; unicode-bidi: isolate; font-family: Arial, sans-serif; font-weight: 400; }
+
+  /* ── جلد ── */
+  .cover {
+    height: 250mm;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 18mm 6mm 6mm;
+    page-break-after: always;
+    position: relative;
+  }
+  .cover .band { position: absolute; inset: 0 0 auto 0; height: 7mm; background: linear-gradient(90deg, var(--gold), #e6c35c, var(--gold)); border-radius: 3mm; }
+  .cover .brand { font-weight: 900; font-size: 15pt; color: var(--gold); letter-spacing: 0; margin-top: 8mm; }
+  .cover h1 { font-size: 30pt; line-height: 1.5; font-weight: 900; margin: 22mm 0 6mm; }
+  .cover .sub { font-size: 14pt; color: var(--muted); font-weight: 500; }
+  .cover .meta { border-top: 2px solid var(--gold); padding-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 10mm; font-size: 10pt; color: var(--muted); }
+  .cover .meta b { color: var(--ink); }
+  .cover .chips { display: flex; flex-wrap: wrap; gap: 3mm; margin-top: 10mm; }
+  .cover .chips span { border: 1px solid #e8d49a; background: var(--gold-soft); color: #7a5a07; border-radius: 20px; padding: 1.5mm 5mm; font-size: 9.5pt; font-weight: 700; }
+
+  /* ── فهرست ── */
+  .toc { page-break-after: always; }
+  .toc h2 { margin-top: 0; }
+  .toc ol { list-style: none; padding: 0; margin: 0; column-count: 2; column-gap: 9mm; column-fill: balance; }
+  .toc li { break-inside: avoid; }
+  .toc li { display: flex; align-items: baseline; gap: 2mm; padding: 0.2mm 0; line-height: 1.55; border-bottom: 1px dotted #d6d9e0; margin: 0; }
+  .toc li.ch { font-weight: 700; margin-top: 1.4mm; font-size: 9.8pt; }
+  .toc li.sec { padding-right: 5mm; font-size: 8.9pt; color: #3c4353; }
+  .toc li .t { flex: 1; }
+  .toc li .p { min-width: 9mm; text-align: left; font-weight: 700; color: var(--gold); }
+
+  /* ── فصل‌ها ── */
+  .chapter { page-break-before: always; }
+  .chapter-head {
+    display: flex; align-items: center; gap: 5mm;
+    border-bottom: 3px solid var(--gold); padding-bottom: 3mm; margin-bottom: 5mm;
+  }
+  .chapter-head .num {
+    width: 15mm; height: 15mm; border-radius: 4mm; background: var(--gold); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 17pt; flex-shrink: 0;
+  }
+  .chapter-head h1 { margin: 0; font-size: 19pt; font-weight: 900; line-height: 1.5; }
+  .chapter-head p { margin: 0; color: var(--muted); font-size: 9.6pt; line-height: 1.7; }
+  h2 { font-size: 13.5pt; font-weight: 900; color: #6d4f05; margin: 7mm 0 2.5mm; page-break-after: avoid; }
+  h3 { font-size: 11.2pt; font-weight: 700; margin: 5mm 0 1.5mm; page-break-after: avoid; }
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-right: 6mm; }
+  li { margin-bottom: 1mm; }
+
+  /* ── جدول‌ها ── */
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.3pt; line-height: 1.7; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  th { background: #f4f1e8; color: #4d3a06; font-weight: 700; text-align: right; padding: 1.8mm 2.4mm; border: 1px solid #e2dccb; }
+  td { padding: 1.6mm 2.4mm; border: 1px solid var(--line); vertical-align: top; }
+  tbody tr:nth-child(even) td { background: #fbfbfd; }
+  td.n, th.n { text-align: left; direction: ltr; white-space: nowrap; }
+  td.c { text-align: center; white-space: nowrap; }
+
+  /* سند حسابداری */
+  .je { border: 1px solid #d8dde6; border-radius: 3mm; overflow: hidden; margin: 2mm 0 4.5mm; page-break-inside: avoid; }
+  .je .je-title { background: #eef1f6; padding: 1.8mm 3mm; font-weight: 700; font-size: 9.6pt; display: flex; justify-content: space-between; gap: 4mm; }
+  .je .je-title span { color: var(--muted); font-weight: 500; }
+  .je table { margin: 0; font-size: 9.2pt; }
+  .je th { background: #fafbfc; color: var(--muted); border-left: 0; border-right: 0; }
+  .je td { border-left: 0; border-right: 0; }
+  .je td.cr { padding-right: 10mm; }
+  .je tfoot td { font-weight: 700; background: #fafbfc; }
+
+  /* ── کادرها ── */
+  .box { text-align: right; border-radius: 3mm; padding: 3mm 4mm; margin: 3mm 0 4mm; page-break-inside: avoid; border-right: 4px solid; }
+  .box .h { font-weight: 900; margin-bottom: 1mm; display: block; }
+  .box p:last-child, .box ul:last-child, .box ol:last-child { margin-bottom: 0; }
+  .tip { background: var(--emerald-soft); border-color: var(--emerald); }
+  .tip .h { color: var(--emerald); }
+  .warn { background: var(--red-soft); border-color: var(--red); }
+  .warn .h { color: var(--red); }
+  .note { background: var(--blue-soft); border-color: var(--blue); }
+  .note .h { color: var(--blue); }
+  .ex { background: var(--amber-soft); border-color: var(--amber); }
+  .ex .h { color: var(--amber); }
+
+  /* گام‌ها */
+  ol.steps { counter-reset: s; list-style: none; padding: 0; }
+  ol.steps > li { counter-increment: s; position: relative; padding: 1.2mm 11mm 1.2mm 0; margin-bottom: 1.5mm; page-break-inside: avoid; }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; right: 0; top: 1.4mm;
+    width: 7.5mm; height: 7.5mm; border-radius: 50%; background: var(--gold); color: #fff;
+    font-weight: 900; font-size: 9pt; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* نمودار جریان */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 1.5mm; margin: 3mm 0 4mm; page-break-inside: avoid; }
+  .flow .st { flex: 1 1 0; min-width: 28mm; border: 1.5px solid #e2cf93; background: var(--gold-soft); border-radius: 2.5mm; padding: 2mm 2.5mm; font-size: 8.8pt; line-height: 1.6; }
+  .flow .st b { display: block; font-size: 9.6pt; color: #6d4f05; }
+  .flow .ar { align-self: center; color: var(--gold); font-weight: 900; font-size: 13pt; }
+
+  .kv { display: grid; grid-template-columns: 38mm 1fr; gap: 1mm 4mm; margin: 2mm 0 4mm; font-size: 9.5pt; }
+  .kv div:nth-child(odd) { font-weight: 700; color: #4d3a06; }
+
+  .check li { list-style: none; position: relative; padding-right: 6mm; }
+  .check li::before { content: "☐"; position: absolute; right: 0; color: var(--gold); font-weight: 900; }
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+  .formula { background: #f6f7fa; border: 1px dashed #c9ceda; border-radius: 2.5mm; padding: 3mm 4mm; margin: 2mm 0 4mm; font-size: 9.6pt; line-height: 2.1; page-break-inside: avoid; }
+  .formula b { color: #6d4f05; }
+  .small { font-size: 8.8pt; color: var(--muted); }
+  .pill { display: inline-block; border-radius: 10px; padding: 0 2.5mm; font-size: 8.4pt; font-weight: 700; }
+  .p-green { background: #e3f4ea; color: #146c3a; }
+  .p-amber { background: #fdf0d8; color: #8a5300; }
+  .p-red { background: #fde6e3; color: #a1281b; }
+  .p-gray { background: #eef0f3; color: #4a5160; }
+  .p-blue { background: #e7eeff; color: #1b45b5; }
+</style>
+</head>
+<body>
+
+<!-- ═════════════════════════ جلد ═════════════════════════ -->
+<section class="cover">
+  <span class="preload-fanum">۰۱۲۳۴۵۶۷۸۹ صفحه</span>
+  <div class="band"></div>
+  <div>
+    <div class="brand">آرکان گلد — واحد مالی</div>
+    <h1>راهنمای جامع حسابداری<br />سامانه‌ی آرکان گلد</h1>
+    <div class="sub">آموزش حرفه‌ای ویژه‌ی حسابداران، مدیران مالی و کارشناسان خزانه</div>
+    <div class="chips">
+      <span>دفتر کل و اسناد</span><span>خزانه و خرید پوششی طلا</span><span>موجودی شمش</span>
+      <span>شرکای فروش اقساطی</span><span>صورت‌های مالی</span><span>بستن دوره</span>
+    </div>
+  </div>
+  <div class="meta">
+    <div>نسخه: <b>۱٫۰</b></div>
+    <div>تاریخ تنظیم: <b>۴ مهر ۱۴۰۵</b></div>
+    <div>مخاطب: <b>نقش‌های «حسابدار» و «مدیر مالی»</b></div>
+    <div>طبقه‌بندی: <b>داخلی — محرمانه</b></div>
+    <div style="grid-column: 1 / -1">مبنای این راهنما نسخه‌ی فعلی پنل مدیریت است. مبالغ در صفحات پنل به <b>تومان</b> نمایش داده می‌شوند و در پایگاه داده به ریال ذخیره می‌شوند؛ وزن‌ها به <b>گرم</b> است.</div>
+  </div>
+</section>
+
+<!-- ═════════════════════════ فهرست ═════════════════════════ -->
+<section class="toc">
+  <h2>فهرست مطالب</h2>
+  <ol id="toc-list"><!--TOC--></ol>
+</section>
+
+<!-- ═════════════════════════ فصل ۱ ═════════════════════════ -->
+<section class="chapter" data-toc="مقدمه، نقش‌ها و مفاهیم پایه">
+  <div class="chapter-head"><div class="num">۱</div><div><h1>مقدمه، نقش‌ها و مفاهیم پایه</h1><p>پیش از کار با سامانه، این مفاهیم را کامل بخوانید؛ بقیه‌ی راهنما بر همین پایه است.</p></div></div>
+
+  <h2 data-toc>۱-۱. هدف این راهنما</h2>
+  <p>سامانه‌ی آرکان گلد تمام عملیات مالی شرکت را به‌صورت خودکار و هم‌زمان با عملیات کاربران در <b>دفتر کل</b> ثبت می‌کند: خرید و فروش طلای آب‌شده، واریز و برداشت، فروشگاه، نمایندگان، شرکای فروش اقساطی، خزانه و پی‌رول. کار حسابدار در این سامانه به‌جای «ورود دستی همه‌چیز»، شامل <b>کنترل، تطبیق، ثبت رویدادهای خارج از سامانه</b> (هزینه‌ها، اصلاحیه‌ها، افتتاحیه)، <b>مدیریت خزانه</b> و <b>تهیه‌ی گزارش‌ها و بستن دوره</b> است. با این امکانات، به نرم‌افزار حسابداری جداگانه نیازی نیست.</p>
+  <p>پس از مطالعه‌ی این راهنما باید بتوانید:</p>
+  <ul>
+    <li>هر سند سیستمی را بخوانید و بدانید از کدام عملیات آمده است؛</li>
+    <li>هزینه‌ها، اصلاحیه‌ها و سند افتتاحیه را با کنترل دوگانه ثبت کنید؛</li>
+    <li>کسری طلای خزانه را تشخیص دهید و خرید پوششی را از درخواست تا پرداخت ثبت کنید؛</li>
+    <li>موجودی لحظه‌ای شمش را بخوانید و با دفاتر تطبیق دهید؛</li>
+    <li>سفارش‌ها و تسویه‌های شرکای اقساطی (اسنپ‌پی، دیجی‌پی، …) را مدیریت کنید؛</li>
+    <li>تراز آزمایشی، سود و زیان و ترازنامه تهیه و دوره‌ی مالی را ببندید.</li>
+  </ul>
+
+  <h2 data-toc>۱-۲. نقش‌ها و دسترسی‌ها</h2>
+  <p>هر کاربر پنل یک نقش دارد و منوهای هر بخش فقط برای دارندگان دسترسی مربوط نمایش داده می‌شود. اگر دکمه‌ای را نمی‌بینید، احتمالاً دسترسی آن را ندارید.</p>
+  <table>
+    <thead><tr><th>نقش</th><th>کاربرد</th><th>کارهای مجاز در حسابداری</th></tr></thead>
+    <tbody>
+      <tr><td><b>حسابدار</b><br /><span class="code">ACCOUNTANT</span></td><td>کارشناس ثبت و کنترل</td><td>مشاهده‌ی همه‌ی دفاتر و گزارش‌ها، ثبت سند دستی و هزینه (پیش‌نویس)، ثبت پرداخت به تأمین‌کننده، ثبت تسویه‌ی شرکا، مشاهده‌ی خزانه، شرکا، موجودی شمش، تراکنش‌ها، واریز و برداشت</td></tr>
+      <tr><td><b>مدیر مالی</b><br /><span class="code">FINANCE_ADMIN</span></td><td>تأییدکننده و مسئول دوره</td><td>همه‌ی کارهای حسابدار + تأیید/رد/برگشت سند دستی، تعریف حساب معین، ارزیابی طلا، سال مالی و قفل و قطعی‌سازی، سفارش‌های خزانه و شمارش، تعریف شریک و سفارش‌های شرکا، تأیید برداشت و واریز</td></tr>
+      <tr><td><b>مدیر فروشگاه</b></td><td>انبار شمش</td><td>مشاهده‌ی موجودی شمش و کدگذاری شمش‌های خزانه</td></tr>
+      <tr><td><b>مدیر ارشد</b></td><td>مدیریت کل</td><td>همه‌ی دسترسی‌ها</td></tr>
+    </tbody>
+  </table>
+  <table>
+    <thead><tr><th>کلید دسترسی</th><th>کار مجاز</th></tr></thead>
+    <tbody>
+      <tr><td class="code">accounting.view</td><td>مشاهده‌ی دفاتر، اسناد و همه‌ی گزارش‌های مالی</td></tr>
+      <tr><td class="code">accounting.voucher.create</td><td>ثبت و ویرایش سند دستی (پیش‌نویس) و ثبت هزینه</td></tr>
+      <tr><td class="code">accounting.voucher.approve</td><td>تأیید، رد و برگشت سند دستی</td></tr>
+      <tr><td class="code">accounting.manage</td><td>تعریف و ویرایش حساب معین، ثبت سند ارزیابی طلا</td></tr>
+      <tr><td class="code">accounting.period.manage</td><td>سال مالی، قفل دوره، قطعی‌سازی اسناد، بستن سال</td></tr>
+      <tr><td class="code">treasury.view / order.manage / payment.manage / vault_count</td><td>مشاهده‌ی خزانه / سفارش خرید و فروش و تأمین‌کننده / پرداخت / شمارش خزانه</td></tr>
+      <tr><td class="code">inventory.view / inventory.code</td><td>گزارش موجودی شمش / کدگذاری شمش</td></tr>
+      <tr><td class="code">partner.view / manage / order.manage / settlement.manage</td><td>شرکای فروش: مشاهده / تعریف و کلید API / سفارش‌ها / تسویه</td></tr>
+    </tbody>
+  </table>
+
+  <h2 data-toc>۱-۳. مفاهیم کلیدی</h2>
+  <h3>حسابداری دوطرفه با دو واحد: ریال و گرم</h3>
+  <p>هر سطر سند دو ستون دارد: <b>مبلغ ریالی</b> و <b>وزن (گرم)</b>. هر سند باید <b>هم از نظر ریال و هم از نظر گرم تراز</b> باشد؛ یعنی جمع ریال بدهکار = جمع ریال بستانکار و جمع گرم بدهکار = جمع گرم بستانکار. سامانه سند نامتوازن را اصلاً ثبت نمی‌کند. به همین دلیل حساب‌هایی مانند «واسط تأمین طلا (1090)» و «واسط مقداری شمش (1095)» وجود دارند که فقط طرف وزنی سند را نگه می‌دارند.</p>
+
+  <h3>گرم ۷۵۰ (معادل ۱۸ عیار)</h3>
+  <p>واحد وزن طلای آب‌شده در همه‌ی حساب‌ها و در کیف پول کاربران <b>گرم طلای ۱۸ عیار (عیار ۷۵۰)</b> است. طلایی که از بازار با عیار دیگری خریده می‌شود با این فرمول به معادل ۷۵۰ تبدیل می‌شود:</p>
+  <div class="formula"><b>وزن معادل ۷۵۰</b> = وزن ترازو × عیار (هزارم) ÷ ۷۵۰ &nbsp;&nbsp;— مثال: ۱۰۰ گرم با عیار ۷۴۰ = ۱۰۰ × ۷۴۰ ÷ ۷۵۰ = <b>۹۸٫۶۶۶۶ گرم</b></div>
+  <p>حساب‌های شمش (1025، 1030، 1095، 5050، 5060) با <b>وزن فیزیکی شمش</b> کار می‌کنند.</p>
+
+  <h3>ماهیت حساب</h3>
+  <p>ماهیت هر حساب از <b>رقم اول کد</b> تعیین می‌شود و ثابت است: کدهای ۱ (دارایی) و ۵ (هزینه) ماهیت <b>بدهکار</b> دارند؛ کدهای ۲ (بدهی)، ۳ (حقوق صاحبان سهام) و ۴ (درآمد) ماهیت <b>بستانکار</b>. در گزارش‌ها مانده‌ی خلاف ماهیت با پرانتز نمایش داده می‌شود؛ مثلاً <span class="ltr">(۱۲۰٬۰۰۰)</span>.</p>
+
+  <h3>حساب کنترلی</h3>
+  <p>حساب‌هایی که با یک «دفتر معین عملیاتی» تطبیق داده می‌شوند (کیف پول کاربران، نمایندگان، شرکا، تأمین‌کنندگان، طلای در راه، شمش امانی) <b>کنترلی</b>‌اند و فقط از مسیر عملیات سیستمی تغییر می‌کنند. در سرفصل حساب‌ها کنار نام آن‌ها نماد قفل 🔒 دیده می‌شود و سند دستی روی آن‌ها (جز سند افتتاحیه) ثبت نمی‌شود. این قاعده تضمین می‌کند دفتر کل با کیف پول‌ها و صورتحساب‌ها همیشه یکی بماند.</p>
+
+  <h3>شماره‌ی عطف و شماره‌ی قطعی</h3>
+  <ul>
+    <li><b>شماره‌ی عطف:</b> هر سند هنگام ثبت یک شماره‌ی ترتیبی یکتا می‌گیرد. برای پیگیری و ارجاع استفاده می‌شود.</li>
+    <li><b>شماره‌ی قطعی (دائم):</b> هنگام «قطعی‌سازی» به اسناد هر سال مالی به ترتیب تاریخ، شماره‌ی پیوسته و بدون فاصله داده می‌شود (مطابق الزام دفاتر قانونی) و دوره قفل می‌شود.</li>
+  </ul>
+
+  <h3>منبع سند</h3>
+  <table>
+    <thead><tr><th>برچسب</th><th>یعنی</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill p-gray">سیستمی</span></td><td>خودکار از عملیات کاربران: معامله، واریز، برداشت، فروشگاه، پاداش، پی‌رول، نمایندگان</td></tr>
+      <tr><td><span class="pill p-blue">دستی</span> / <span class="pill p-blue">افتتاحیه</span></td><td>اسناد دستی تأییدشده</td></tr>
+      <tr><td><span class="pill p-amber">خزانه</span></td><td>خرید/فروش طلا با بازار، پرداخت به تأمین‌کننده</td></tr>
+      <tr><td><span class="pill p-green">شرکای فروش</span></td><td>فروش، استرداد و تسویه‌ی شرکای اقساطی</td></tr>
+      <tr><td><span class="pill p-amber">موجودی شمش</span></td><td>بهای تمام‌شده‌ی فروش شمش، جابه‌جایی امانی، شمارش خزانه</td></tr>
+      <tr><td><span class="pill p-amber">ارزیابی طلا</span> / <span class="pill p-gray">اختتامیه</span> / <span class="pill p-red">برگشتی</span></td><td>تسعیر طلا / بستن سال / سند معکوس یک سند دیگر</td></tr>
+    </tbody>
+  </table>
+
+  <h3>تومان در صفحه، ریال در پایگاه داده</h3>
+  <p>همه‌ی مبالغ در صفحات پنل به <b>تومان</b> نمایش داده و وارد می‌شوند. سامانه هنگام ذخیره آن‌ها را به ریال تبدیل می‌کند. فایل‌های «خروجی اکسل» مبالغ را به <b>ریال</b> می‌دهند تا دقیق باشند؛ در عنوان ستون‌ها واحد ذکر شده است.</p>
+
+  <h2 data-toc>۱-۴. نقشه‌ی منوها</h2>
+  <table>
+    <thead><tr><th>بخش منو</th><th>صفحه</th><th>کاربرد</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="8"><b>حسابداری</b></td><td>داشبورد مالی</td><td>وضعیت لحظه‌ای نقد، بدهی‌ها، پوشش طلا، مطالبات و سود ماه</td></tr>
+      <tr><td>سرفصل حساب‌ها</td><td>حساب‌ها، مانده‌ها، تعریف حساب معین، دفتر معین هر حساب</td></tr>
+      <tr><td>دفتر روزنامه</td><td>همه‌ی اسناد با جست‌وجو و فیلتر</td></tr>
+      <tr><td>اسناد دستی و هزینه‌ها</td><td>ثبت هزینه، سند عمومی، اصلاحی و افتتاحیه؛ تأیید و برگشت</td></tr>
+      <tr><td>تراز آزمایشی</td><td>تراز چهارستونی دوره‌ای</td></tr>
+      <tr><td>صورت‌های مالی</td><td>سود و زیان، ترازنامه، موقعیت طلا، ارزیابی طلا</td></tr>
+      <tr><td>مغایرت‌گیری</td><td>تطبیق دفتر کل با دفاتر عملیاتی</td></tr>
+      <tr><td>سال مالی و قفل دوره</td><td>سال مالی، قفل، قطعی‌سازی، بستن سال</td></tr>
+      <tr><td rowspan="5"><b>خزانه و شمش</b></td><td>پوشش و خرید طلا</td><td>گزارش کسری و خرید پیشنهادی، ثبت درخواست خرید</td></tr>
+      <tr><td>سفارش‌های خزانه</td><td>خرید و فروش طلا با بازار، رسید خزانه، پرداخت</td></tr>
+      <tr><td>تأمین‌کنندگان</td><td>بنکداران و ضرابخانه‌ها و صورتحساب آن‌ها</td></tr>
+      <tr><td>شمارش خزانه</td><td>انبارگردانی و ثبت مغایرت</td></tr>
+      <tr><td>موجودی شمش</td><td>موجودی لحظه‌ای شمش به تفکیک وضعیت، کدگذاری</td></tr>
+      <tr><td rowspan="4"><b>شرکای فروش (اقساطی)</b></td><td>شرکا</td><td>تعریف شریک، قرارداد، کارمزد، کلید API، صورتحساب</td></tr>
+      <tr><td>سفارش‌ها و قراردادها</td><td>ثبت، تأیید، لغو، استرداد و فاکتور</td></tr>
+      <tr><td>تسویه‌ها</td><td>ثبت وجه دریافتی از شرکا</td></tr>
+      <tr><td>گزارش و مطالبات</td><td>عملکرد دوره‌ای و سنی مطالبات</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═════════════════════════ فصل ۲ ═════════════════════════ -->
+<section class="chapter" data-toc="سرفصل حساب‌ها">
+  <div class="chapter-head"><div class="num">۲</div><div><h1>سرفصل حساب‌ها</h1><p>حساب‌های پایه، کاربرد هر حساب و نحوه‌ی تعریف حساب معین</p></div></div>
+
+  <h2 data-toc>۲-۱. حساب‌های پایه‌ی سامانه</h2>
+  <p>حساب‌های زیر هنگام راه‌اندازی خودکار ساخته می‌شوند. <b>کد و نام این حساب‌ها ثابت است</b> و نباید تغییر کند؛ برای جزئیات بیشتر زیر آن‌ها «حساب معین» تعریف کنید. 🔒 = حساب کنترلی.</p>
+  <table>
+    <thead><tr><th class="n">کد</th><th>نام حساب</th><th>کاربرد و نکته</th></tr></thead>
+    <tbody>
+      <tr><td colspan="3"><b>دارایی‌ها (ماهیت بدهکار)</b></td></tr>
+      <tr><td class="n">1010</td><td>موجودی نقد و بانک</td><td>همه‌ی دریافت‌ها و پرداخت‌های سیستمی (درگاه، واریز، برداشت، تسویه‌ها) به این حساب می‌خورد. برای هر بانک/صندوق زیرحساب بسازید.</td></tr>
+      <tr><td class="n">1020</td><td>طلای آب‌شده‌ی خزانه (گرم ۷۵۰)</td><td>پشتوانه‌ی فیزیکی طلای کیف پول کاربران. فقط با خرید/فروش واقعی از بازار، تحویل فیزیکی و شمارش خزانه تغییر می‌کند.</td></tr>
+      <tr><td class="n">1025</td><td>شمش و مسکوکات خزانه</td><td>به بهای تمام‌شده (میانگین موزون)</td></tr>
+      <tr><td class="n">1030 🔒</td><td>شمش امانی نزد نمایندگان</td><td>با وزن شمش‌های «نزد نماینده» تطبیق می‌شود</td></tr>
+      <tr><td class="n">1040 🔒</td><td>دریافتنی از نمایندگان</td><td>با صورتحساب نمایندگان تطبیق می‌شود</td></tr>
+      <tr><td class="n">1050 🔒</td><td>دریافتنی از شرکای فروش</td><td>طلب از اسنپ‌پی، دیجی‌پی و …</td></tr>
+      <tr><td class="n">1060 🔒</td><td>طلای خریداری‌شده در راه</td><td>خرید قطعی از بازار که هنوز به خزانه نرسیده</td></tr>
+      <tr><td class="n">1070</td><td>پیش‌پرداخت‌ها و سایر دریافتنی‌ها</td><td>علی‌الحساب‌ها، ودیعه‌ها، تنخواه</td></tr>
+      <tr><td class="n">1080</td><td>اعتبار مالیات بر ارزش افزوده‌ی خرید</td><td>مالیات پرداختی در خریدها</td></tr>
+      <tr><td class="n">1090</td><td>واسط تأمین طلای آب‌شده (کسری پوشش)</td><td>فقط گرم. مانده‌ی مثبت = طلایی که هنوز باید از بازار خریده شود</td></tr>
+      <tr><td class="n">1095</td><td>واسط مقداری شمش</td><td>فقط گرم؛ طرف وزنی خرید/فروش شمش و موجودی افتتاحیه</td></tr>
+      <tr><td class="n">1110 / 1120</td><td>اموال و تجهیزات / استهلاک انباشته</td><td>1120 کاهنده‌ی دارایی است و مانده‌ی آن منفی دیده می‌شود</td></tr>
+      <tr><td colspan="3"><b>بدهی‌ها (ماهیت بستانکار)</b></td></tr>
+      <tr><td class="n">2010 🔒</td><td>بدهی ریالی به کاربران</td><td>= جمع موجودی ریالی کیف پول‌ها</td></tr>
+      <tr><td class="n">2020 🔒</td><td>بدهی طلایی به کاربران (گرم ۷۵۰)</td><td>= جمع طلای کیف پول‌ها</td></tr>
+      <tr><td class="n">2030</td><td>مالیات پرداختنی</td><td>مالیات معاملات و فروش</td></tr>
+      <tr><td class="n">2040 🔒</td><td>پرداختنی تأمین‌کنندگان طلا</td><td>با صورتحساب تأمین‌کنندگان تطبیق می‌شود</td></tr>
+      <tr><td class="n">2050 / 2060</td><td>حقوق پرداختنی / سایر پرداختنی‌ها</td><td></td></tr>
+      <tr><td colspan="3"><b>حقوق صاحبان سهام</b></td></tr>
+      <tr><td class="n">3010 / 3020</td><td>سرمایه / سود (زیان) انباشته</td><td>بستن سال مالی، نتیجه را به 3020 منتقل می‌کند</td></tr>
+      <tr><td colspan="3"><b>درآمدها</b></td></tr>
+      <tr><td class="n">4010</td><td>درآمد کارمزد معاملات</td><td>کارمزد خرید/فروش طلا، تحویل فیزیکی، خدمات شرکا</td></tr>
+      <tr><td class="n">4020 / 4030</td><td>فروش فروشگاه / بسته‌بندی</td><td></td></tr>
+      <tr><td class="n">4040 / 4050</td><td>فروش شمش (نمایندگان و شرکا) / اجرت و حق ضرب</td><td></td></tr>
+      <tr><td class="n">4060</td><td>متفرقه‌ی نمایندگان</td><td>جریمه، اصلاحیه‌ی افزایشی</td></tr>
+      <tr><td class="n">4070</td><td>سود ارزیابی و فروش طلا</td><td>تسعیر مثبت، سود فروش مازاد خزانه</td></tr>
+      <tr><td class="n">4080</td><td>سایر درآمدها</td><td>اضافی شمارش خزانه و …</td></tr>
+      <tr><td colspan="3"><b>هزینه‌ها</b></td></tr>
+      <tr><td class="n">5010 / 5020</td><td>پی‌رول طلایی / پاداش معرفی</td><td>به ارزش روز طلا ثبت می‌شوند</td></tr>
+      <tr><td class="n">5030 / 5040</td><td>تخفیف فروش / کمیسیون نمایندگان</td><td></td></tr>
+      <tr><td class="n">5050 / 5060</td><td>بهای تمام‌شده‌ی شمش (نمایندگان / فروشگاه و شرکا)</td><td>گرم + ریال به بهای میانگین</td></tr>
+      <tr><td class="n">5070</td><td>زیان ارزیابی و فروش طلا</td><td></td></tr>
+      <tr><td class="n">5080</td><td>کارمزد شرکای فروش اقساطی</td><td>کارمزد کسرشده توسط اسنپ‌پی، دیجی‌پی و …</td></tr>
+      <tr><td class="n">5090</td><td>کسری و ضایعات طلا</td><td>کسری شمارش خزانه</td></tr>
+      <tr><td class="n">5100 … 5180</td><td>هزینه‌های عملیاتی</td><td>اجاره، آب/برق/تلفن، تبلیغات، کارمزد بانکی و درگاه، حمل و بیمه، حقوق ریالی، استهلاک، اداری، سرور و نرم‌افزار</td></tr>
+    </tbody>
+  </table>
+
+  <h2 data-toc>۲-۲. تعریف حساب معین (زیرحساب)</h2>
+  <p>برای هر حساب بانکی، صندوق، نوع هزینه‌ی خاص یا دارایی، زیر حساب کل مربوط یک حساب معین بسازید.</p>
+  <ol class="steps">
+    <li>منوی <b>حسابداری ← سرفصل حساب‌ها</b> ← دکمه‌ی <b>«حساب معین جدید»</b>.</li>
+    <li><b>حساب والد</b> را انتخاب کنید (مثلاً <span class="code">1010 — موجودی نقد و بانک</span>). نوع حساب جدید خودکار همان نوع والد است.</li>
+    <li><b>کد</b> را وارد کنید. کد باید با کد والد شروع شود و طولانی‌تر از آن باشد؛ پیشنهاد: دو رقم اضافه، مثل <span class="code">101001</span>، <span class="code">101002</span>.</li>
+    <li><b>نام</b> گویا بنویسید؛ مثل «بانک ملت — جاری ۱۲۳۴۵۶۷۸۹۰».</li>
+    <li>اگر فقط سیستم باید روی آن ثبت کند، گزینه‌ی «ثبت سند دستی مجاز است» را بردارید. ذخیره کنید.</li>
+  </ol>
+  <div class="box tip"><span class="h">پیشنهاد ساختار حساب‌های معین</span>
+    <ul>
+      <li><span class="code">1010</span> ← <span class="code">101001</span> بانک ملت جاری، <span class="code">101002</span> بانک سامان (درگاه)، <span class="code">101003</span> صندوق دفتر، <span class="code">101004</span> تنخواه‌گردان</li>
+      <li><span class="code">5100</span> ← <span class="code">510001</span> اجاره‌ی دفتر مرکزی، <span class="code">510002</span> اجاره‌ی انبار/خزانه</li>
+      <li><span class="code">1110</span> ← <span class="code">111001</span> رایانه و سرور، <span class="code">111002</span> گاوصندوق و تجهیزات امنیتی</li>
+    </ul>
+  </div>
+  <div class="box warn"><span class="h">نکات مهم</span>
+    <ul>
+      <li>عملیات سیستمی همیشه روی حساب کل <span class="code">1010</span> ثبت می‌شود، نه زیرحساب‌ها. مانده‌ی خود 1010 را «حساب واسط دریافت و پرداخت سیستمی» در نظر بگیرید و پس از تطبیق با صورت‌حساب بانک، با سند دستی به زیرحساب بانک منتقل کنید (فصل ۴).</li>
+      <li>در سرفصل، ستون «مانده با زیرحساب‌ها» جمع حساب کل و همه‌ی زیرحساب‌هاست.</li>
+      <li>حساب دارای مانده را نمی‌توان غیرفعال کرد؛ ابتدا مانده را با سند منتقل کنید. حساب‌های پایه‌ی سیستم هرگز غیرفعال نمی‌شوند.</li>
+    </ul>
+  </div>
+
+  <h2 data-toc>۲-۳. دفتر معین هر حساب</h2>
+  <p>روی نام هر حساب در سرفصل کلیک کنید. صفحه‌ی دفتر معین همه‌ی گردش‌های حساب (به‌همراه زیرحساب‌ها) را به ترتیب تاریخ با <b>مانده‌ی جاری</b> ریالی و گرمی نشان می‌دهد. با انتخاب بازه‌ی تاریخ، <b>مانده‌ی ابتدای دوره</b> بالای جدول نمایش داده می‌شود. با کلیک روی شماره‌ی سند، سند کامل باز می‌شود. دکمه‌ی «خروجی اکسل» گردش همان صفحه را دانلود می‌کند.</p>
+</section>
+
+<!-- ═════════════════════════ فصل ۳ ═════════════════════════ -->
+<section class="chapter" data-toc="اسناد خودکار سیستم: از هر عملیات چه سندی صادر می‌شود">
+  <div class="chapter-head"><div class="num">۳</div><div><h1>اسناد خودکار سیستم</h1><p>مرجع کامل: هر عملیات در سامانه چه سندی در دفتر کل می‌زند</p></div></div>
+  <p>این فصل مرجع خواندن دفتر روزنامه است. همه‌ی مثال‌ها با قیمت فرضی <b>۵٬۲۰۰٬۰۰۰ تومان</b> برای هر گرم ۱۸ عیار است. «بد» = بدهکار، «بس» = بستانکار.</p>
+
+  <h2 data-toc>۳-۱. کیف پول: واریز، برداشت و تنظیم دستی</h2>
+  <div class="je"><div class="je-title">واریز ریال توسط کاربر (تأیید واریز / درگاه) <span>۱۰٬۰۰۰٬۰۰۰ تومان</span></div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th></tr></thead><tbody>
+      <tr><td>1010 موجودی نقد و بانک</td><td class="n">10,000,000</td><td class="n"></td></tr>
+      <tr><td class="cr">2010 بدهی ریالی به کاربران</td><td class="n"></td><td class="n">10,000,000</td></tr>
+    </tbody></table></div>
+  <div class="je"><div class="je-title">تأیید برداشت ریال <span>۴٬۰۰۰٬۰۰۰ تومان</span></div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th></tr></thead><tbody>
+      <tr><td>2010 بدهی ریالی به کاربران</td><td class="n">4,000,000</td><td class="n"></td></tr>
+      <tr><td class="cr">1010 موجودی نقد و بانک</td><td class="n"></td><td class="n">4,000,000</td></tr>
+    </tbody></table></div>
+  <div class="box warn"><span class="h">تنظیم دستی موجودی کیف پول (توسط ادمین)</span>
+    <p>افزایش ریالی: <b>بد 1010 / بس 2010</b> — یعنی فرض می‌شود وجه واقعاً به حساب شرکت آمده است. افزایش طلایی: <b>بد 1020 / بس 2020</b> — یعنی فرض می‌شود کاربر طلای فیزیکی به خزانه تحویل داده است. پس این ابزار فقط برای همین موارد است. برای جبران خسارت یا هدیه به کاربر، ابتدا با مدیر مالی هماهنگ کنید؛ این کار هزینه است و باید با سند اصلاحی (بد هزینه / بس 1010 یا 1020) ثبت شود.</p>
+  </div>
+
+  <h2 data-toc>۳-۲. خرید و فروش طلای آب‌شده توسط کاربر</h2>
+  <p>مهم‌ترین نکته‌ی این فصل: وقتی کاربر طلا می‌خرد، <b>طلا وارد خزانه نمی‌شود</b>؛ فقط شرکت به کاربر بدهکار طلا می‌شود و همان مقدار در حساب 1090 به‌عنوان «کسری پوشش» ثبت می‌شود تا واحد خزانه معادلش را از بازار بخرد (فصل ۶).</p>
+  <div class="je"><div class="je-title">کاربر ۱ گرم طلا می‌خرد — کارمزد ۱٪ <span>ارزش ۵٬۲۰۰٬۰۰۰ + کارمزد ۵۲٬۰۰۰</span></div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار (تومان)</th><th class="n">بستانکار (تومان)</th><th class="n">گرم</th></tr></thead><tbody>
+      <tr><td>2010 بدهی ریالی به کاربران</td><td class="n">5,252,000</td><td class="n"></td><td class="n"></td></tr>
+      <tr><td>1090 واسط تأمین طلا (کسری پوشش)</td><td class="n"></td><td class="n"></td><td class="n">بد 1</td></tr>
+      <tr><td class="cr">2020 بدهی طلایی به کاربران</td><td class="n"></td><td class="n">5,200,000</td><td class="n">بس 1</td></tr>
+      <tr><td class="cr">4010 درآمد کارمزد معاملات</td><td class="n"></td><td class="n">52,000</td><td class="n"></td></tr>
+    </tbody></table></div>
+  <p>فروش طلا توسط کاربر برعکس است: <b>بد 2020</b> (ارزش و گرم) / <b>بس 2010</b> (خالص پس از کارمزد و مالیات)، <b>بس 4010</b> کارمزد و <b>بس 1090</b> به گرم (کسری کم یا مازاد ایجاد می‌شود). مالیات در صورت تنظیم به <b>2030</b> می‌رود.</p>
+
+  <h2 data-toc>۳-۳. پاداش معرفی و پی‌رول طلایی</h2>
+  <div class="je"><div class="je-title">واریز ۰٫۵ گرم پاداش یا حقوق طلایی <span>به ارزش روز: ۲٬۶۰۰٬۰۰۰ تومان</span></div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th><th class="n">گرم</th></tr></thead><tbody>
+      <tr><td>5020 پاداش معرفی (یا 5010 پی‌رول)</td><td class="n">2,600,000</td><td class="n"></td><td class="n"></td></tr>
+      <tr><td>1090 کسری پوشش</td><td class="n"></td><td class="n"></td><td class="n">بد 0.5</td></tr>
+      <tr><td class="cr">2020 بدهی طلایی به کاربران</td><td class="n"></td><td class="n">2,600,000</td><td class="n">بس 0.5</td></tr>
+    </tbody></table></div>
+  <p>پاداش ریالی: <b>بد 5020 / بس 2010</b>.</p>
+
+  <h2 data-toc>۳-۴. تحویل فیزیکی طلا به کاربر</h2>
+  <p>با تأیید درخواست تحویل فیزیکی، طلا از کیف پول کاربر و از خزانه خارج می‌شود: <b>بد 2020 / بس 1020</b> (گرم). کارمزد تحویل: <b>بد 2010 / بس 4010</b>. با لغو، سند معکوس ثبت می‌شود.</p>
+
+  <h2 data-toc>۳-۵. فروشگاه آنلاین</h2>
+  <div class="je"><div class="je-title">فروش یک شمش ۱۰ گرمی در فروشگاه — ۵۵۰ میلیون تومان، ۱۰ میلیون تخفیف، پرداخت کامل از درگاه</div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th><th class="n">گرم</th></tr></thead><tbody>
+      <tr><td>1010 موجودی نقد و بانک (سهم درگاه)</td><td class="n">540,000,000</td><td class="n"></td><td class="n"></td></tr>
+      <tr><td>5030 هزینه‌ی تخفیف فروش</td><td class="n">10,000,000</td><td class="n"></td><td class="n"></td></tr>
+      <tr><td class="cr">4020 درآمد فروش فروشگاه</td><td class="n"></td><td class="n">550,000,000</td><td class="n"></td></tr>
+    </tbody></table></div>
+  <div class="je"><div class="je-title">بهای تمام‌شده‌ی همان شمش (سند جداگانه‌ی خودکار) <span>بهای میانگین موجودی: ۴۰ میلیون تومان/گرم</span></div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th><th class="n">گرم</th></tr></thead><tbody>
+      <tr><td>5060 بهای تمام‌شده‌ی شمش فروخته‌شده</td><td class="n">400,000,000</td><td class="n"></td><td class="n">بد 10</td></tr>
+      <tr><td class="cr">1025 موجودی شمش خزانه</td><td class="n"></td><td class="n">400,000,000</td><td class="n">بس 10</td></tr>
+    </tbody></table></div>
+  <p>پرداخت از کیف پول به‌جای 1010، <b>2010</b> را بدهکار می‌کند؛ هزینه‌ی بسته‌بندی به <b>4030</b> می‌رود. با لغو سفارش پرداخت‌شده هر دو سند برگشت می‌خورد و مبلغ به کیف پول کاربر برمی‌گردد.</p>
+  <div class="box note"><span class="h">چرا بهای تمام‌شده صفر است؟</span><p>بهای تمام‌شده از میانگین موزون موجودی 1025 محاسبه می‌شود. اگر موجودی افتتاحیه‌ی شمش یا خرید شمش ثبت نشده باشد، مبلغ صفر (فقط گرم) ثبت می‌شود. راه‌حل: سند افتتاحیه‌ی شمش (فصل ۴) و ثبت خریدهای شمش از «سفارش‌های خزانه».</p></div>
+
+  <h2 data-toc>۳-۶. نمایندگان فروش</h2>
+  <table>
+    <thead><tr><th>رویداد</th><th>بدهکار</th><th>بستانکار</th></tr></thead>
+    <tbody>
+      <tr><td>تحویل امانی شمش به نماینده</td><td>1030 (گرم + بهای میانگین)</td><td>1025</td></tr>
+      <tr><td>عودت شمش</td><td>1025</td><td>1030</td></tr>
+      <tr><td>فروش توسط نماینده</td><td>1040 (فروش − حق‌العمل)، 5040 حق‌العمل، 5050 بهای تمام‌شده</td><td>4040 ارزش طلا، 4050 اجرت، 1030</td></tr>
+      <tr><td>تسویه‌ی نماینده</td><td>1010</td><td>1040</td></tr>
+      <tr><td>اصلاحیه‌ی افزایش بدهی / کاهش بدهی</td><td>1040 / 5040</td><td>4060 / 1040</td></tr>
+      <tr><td>ابطال فروش</td><td colspan="2">معکوس کامل سند فروش (با همان بهای تمام‌شده)</td></tr>
+    </tbody>
+  </table>
+  <p class="small">شرح کامل فرایند نمایندگان در مستند «نمایندگان فروش شمش» آمده است.</p>
+
+  <h2 data-toc>۳-۷. جدول مرجع سریع</h2>
+  <table>
+    <thead><tr><th>عملیات</th><th>بدهکار</th><th>بستانکار</th><th>فصل</th></tr></thead>
+    <tbody>
+      <tr><td>خرید پوششی از بازار (قطعی)</td><td>1060، 1080</td><td>2040، 1090 (گرم)</td><td class="c">۶</td></tr>
+      <tr><td>رسید ورود به خزانه</td><td>1020 یا 1025</td><td>1060</td><td class="c">۶</td></tr>
+      <tr><td>پرداخت به تأمین‌کننده</td><td>2040</td><td>1010</td><td class="c">۶</td></tr>
+      <tr><td>فروش مازاد خزانه</td><td>2040، 1090 (گرم)، 5070</td><td>1020، 2030، 4070</td><td class="c">۶</td></tr>
+      <tr><td>کسری شمارش خزانه</td><td>5090، 1090 (گرم)</td><td>1020</td><td class="c">۶</td></tr>
+      <tr><td>فروش اقساطی طلای آب‌شده</td><td>1050، 5080، 1090 (گرم)</td><td>2020، 4010، 2030</td><td class="c">۸</td></tr>
+      <tr><td>تسویه‌ی شریک</td><td>1010</td><td>1050</td><td class="c">۸</td></tr>
+      <tr><td>ارزیابی طلا (افزایش قیمت)</td><td>1020، 5070</td><td>4070، 2020</td><td class="c">۹</td></tr>
+      <tr><td>بستن سال مالی</td><td>درآمدها</td><td>هزینه‌ها، 3020</td><td class="c">۱۰</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═════════════════════════ فصل ۴ ═════════════════════════ -->
+<section class="chapter" data-toc="اسناد دستی، هزینه‌ها و کنترل دوگانه">
+  <div class="chapter-head"><div class="num">۴</div><div><h1>اسناد دستی، هزینه‌ها و کنترل دوگانه</h1><p>ثبت رویدادهایی که خارج از عملیات کاربران رخ می‌دهد</p></div></div>
+
+  <h2 data-toc>۴-۱. چرخه‌ی سند دستی</h2>
+  <div class="flow">
+    <div class="st"><b>پیش‌نویس</b>حسابدار سند را ثبت می‌کند. هنوز اثری بر دفاتر ندارد.</div><div class="ar">←</div>
+    <div class="st"><b>بررسی</b>شخص دوم (مدیر مالی) مدارک و سطرها را کنترل می‌کند.</div><div class="ar">←</div>
+    <div class="st"><b>تأیید و ثبت</b>سند در دفتر کل ثبت و شماره‌ی عطف می‌گیرد.</div><div class="ar">←</div>
+    <div class="st"><b>برگشت (در صورت خطا)</b>سند حذف نمی‌شود؛ سند معکوس صادر می‌شود.</div>
+  </div>
+  <table>
+    <thead><tr><th>وضعیت</th><th>معنی</th><th>کارهای ممکن</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill p-amber">در انتظار تأیید</span></td><td>پیش‌نویس ثبت‌شده</td><td>ویرایش و ابطال (ثبت‌کننده)، تأیید و رد (تأییدکننده)</td></tr>
+      <tr><td><span class="pill p-green">ثبت‌شده</span></td><td>در دفتر کل ثبت شده</td><td>مشاهده‌ی سند، برگشت</td></tr>
+      <tr><td><span class="pill p-red">ردشده</span></td><td>تأییدکننده رد کرده (با دلیل)</td><td>سند جدید با اصلاحات ثبت کنید</td></tr>
+      <tr><td><span class="pill p-gray">ابطال‌شده</span></td><td>پیش‌نویس کنار گذاشته شده</td><td>—</td></tr>
+      <tr><td><span class="pill p-blue">برگشت‌خورده</span></td><td>سند معکوس آن صادر شده</td><td>—</td></tr>
+    </tbody>
+  </table>
+  <div class="box note"><span class="h">کنترل دوگانه (Maker–Checker)</span><p>سامانه اجازه نمی‌دهد ثبت‌کننده‌ی سند، همان سند را تأیید کند. هر کس سند را ویرایش کند، ثبت‌کننده‌ی جدید محسوب می‌شود. تنها در تیم‌های بسیار کوچک و با تصمیم مدیریت، تنظیم <span class="code">accounting.allow_self_approve</span> این محدودیت را برمی‌دارد (توصیه نمی‌شود).</p></div>
+
+  <h2 data-toc>۴-۲. ثبت سریع هزینه</h2>
+  <ol class="steps">
+    <li><b>حسابداری ← اسناد دستی و هزینه‌ها</b> ← دکمه‌ی <b>«ثبت هزینه»</b>.</li>
+    <li><b>نوع هزینه</b>: یکی از حساب‌های 5xxx (یا زیرحساب آن) را انتخاب کنید.</li>
+    <li><b>پرداخت از</b>: زیرحساب بانک/صندوق (1010…)، یا اگر هنوز پرداخت نشده «2050 حقوق پرداختنی» / «2060 سایر پرداختنی‌ها»، یا برای تسویه‌ی علی‌الحساب «1070».</li>
+    <li><b>مبلغ (تومان)</b>، <b>تاریخ</b> (تاریخ واقعی هزینه)، <b>شرح</b> دقیق و <b>شماره‌ی مدرک</b> (فاکتور، رسید بانکی).</li>
+    <li>«ثبت هزینه» را بزنید. سند در وضعیت «در انتظار تأیید» قرار می‌گیرد.</li>
+  </ol>
+  <div class="box ex"><span class="h">مثال: اجاره‌ی مهر ماه دفتر مرکزی</span>
+    <div class="je" style="margin-bottom:0"><table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th></tr></thead><tbody>
+      <tr><td>510001 اجاره‌ی دفتر مرکزی</td><td class="n">50,000,000</td><td class="n"></td></tr>
+      <tr><td class="cr">101001 بانک ملت جاری</td><td class="n"></td><td class="n">50,000,000</td></tr>
+    </tbody></table></div>
+  </div>
+
+  <h2 data-toc>۴-۳. سند عمومی چندسطری</h2>
+  <ol class="steps">
+    <li>دکمه‌ی <b>«سند جدید»</b> ← نوع سند: <b>عمومی</b> یا <b>اصلاحی</b>.</li>
+    <li>تاریخ، شرح و شماره‌ی مدرک پیوست را وارد کنید.</li>
+    <li>برای هر سطر: حساب، مبلغ <b>بدهکار یا بستانکار</b> (تومان)، در صورت نیاز <b>گرم بدهکار/بستانکار</b> و شرح سطر. با «سطر جدید» سطر اضافه کنید.</li>
+    <li>نوار پایین فرم جمع دو طرف را نشان می‌دهد؛ فقط وقتی سبز و «تراز است» باشد دکمه‌ی ثبت فعال می‌شود.</li>
+  </ol>
+
+  <h2 data-toc>۴-۴. الگوی اسناد رایج</h2>
+  <table>
+    <thead><tr><th>رویداد</th><th>بدهکار</th><th>بستانکار</th></tr></thead>
+    <tbody>
+      <tr><td>انتقال مانده‌ی تطبیق‌شده از 1010 به حساب بانک</td><td>101001 بانک</td><td>1010</td></tr>
+      <tr><td>انتقال بین دو بانک</td><td>بانک مقصد</td><td>بانک مبدأ</td></tr>
+      <tr><td>کارمزد بانکی یا درگاه (طبق صورت‌حساب)</td><td>5130</td><td>بانک</td></tr>
+      <tr><td>شناسایی حقوق ریالی کارکنان (پایان ماه)</td><td>5150</td><td>2050</td></tr>
+      <tr><td>پرداخت حقوق</td><td>2050</td><td>بانک</td></tr>
+      <tr><td>خرید رایانه، سرور یا گاوصندوق</td><td>1110 (زیرحساب)</td><td>بانک</td></tr>
+      <tr><td>استهلاک ماهانه</td><td>5160</td><td>1120</td></tr>
+      <tr><td>پرداخت علی‌الحساب / ودیعه</td><td>1070</td><td>بانک</td></tr>
+      <tr><td>واریز افزایش سرمایه</td><td>بانک</td><td>3010</td></tr>
+      <tr><td>پرداخت مالیات</td><td>2030</td><td>بانک</td></tr>
+      <tr><td>هزینه‌ی تبلیغات پرداخت‌نشده</td><td>5120</td><td>2060</td></tr>
+      <tr><td>حمل و بیمه‌ی خزانه</td><td>5140</td><td>بانک</td></tr>
+    </tbody>
+  </table>
+  <div class="box warn"><span class="h">حساب‌هایی که در سند دستی انتخاب نمی‌شوند</span><p>حساب‌های کنترلی (1030، 1040، 1050، 1060، 2010، 2020، 2040) در فهرست سند دستی نمی‌آیند. اصلاح این حساب‌ها فقط از صفحه‌ی عملیات خودشان انجام می‌شود: کیف پول ← تنظیم موجودی؛ نمایندگان ← اصلاحیه؛ شرکا ← استرداد/تسویه؛ تأمین‌کنندگان ← پرداخت/ابطال سفارش.</p></div>
+
+  <h2 data-toc>۴-۵. سند افتتاحیه</h2>
+  <p>نوع سند <b>افتتاحیه</b> فقط برای راه‌اندازی یا شروع سال مالی است و تنها نوعی است که حساب‌های کنترلی را هم می‌پذیرد. نمونه‌ی ثبت موجودی شمش اول دوره:</p>
+  <div class="je"><div class="je-title">موجودی افتتاحیه‌ی ۱۰۰ گرم شمش <span>بهای تمام‌شده: ۴۰۰ میلیون تومان</span></div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th><th class="n">گرم</th></tr></thead><tbody>
+      <tr><td>1025 موجودی شمش خزانه</td><td class="n">400,000,000</td><td class="n"></td><td class="n">بد 100</td></tr>
+      <tr><td class="cr">3010 سرمایه</td><td class="n"></td><td class="n">400,000,000</td><td class="n"></td></tr>
+      <tr><td class="cr">1095 واسط مقداری شمش</td><td class="n"></td><td class="n"></td><td class="n">بس 100</td></tr>
+    </tbody></table></div>
+
+  <h2 data-toc>۴-۶. برگشت سند</h2>
+  <p>اگر سند ثبت‌شده‌ای اشتباه بود، در فهرست اسناد دستی روی <b>«برگشت»</b> بزنید و دلیل را بنویسید. سامانه سندی دقیقاً معکوس با تاریخ روز صادر می‌کند و وضعیت سند اصلی «برگشت‌خورده» می‌شود. سپس سند صحیح را از نو ثبت کنید. در نمای سند، رابطه‌ی سند اصلی و برگشتی نمایش داده می‌شود.</p>
+  <div class="box tip"><span class="h">قواعد طلایی اسناد دستی</span>
+    <ul>
+      <li>هر سند باید مدرک داشته باشد؛ شماره‌ی آن را در «شماره‌ی مدرک پیوست» بنویسید و اصل مدرک را بایگانی کنید.</li>
+      <li>شرح را طوری بنویسید که شخص سوم بدون پرس‌وجو بفهمد: چه، برای چه دوره‌ای، به چه کسی.</li>
+      <li>تاریخ سند = تاریخ وقوع رویداد، نه تاریخ ثبت. تاریخ آینده مجاز نیست؛ تاریخ داخل دوره‌ی قفل هم مجاز نیست.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ═════════════════════════ فصل ۵ ═════════════════════════ -->
+<section class="chapter" data-toc="کارهای روزانه، هفتگی و ماهانه‌ی حسابدار">
+  <div class="chapter-head"><div class="num">۵</div><div><h1>روال کار روزانه، هفتگی و ماهانه</h1><p>فهرست‌های کنترلی آماده‌ی استفاده</p></div></div>
+
+  <h2 data-toc>۵-۱. هر روز (ابتدای روز کاری)</h2>
+  <ul class="check">
+    <li><b>داشبورد مالی</b> را باز کنید. هشدارهای بالای صفحه (کسری پوشش، سفارش‌های معوق شرکا، اسناد در انتظار تأیید) را پیگیری کنید.</li>
+    <li><b>پوشش و خرید طلا</b>: وضعیت پوشش را ببینید. اگر «کسری» یا «هشدار» است، درخواست خرید ثبت و به مدیر مالی اطلاع دهید.</li>
+    <li><b>سفارش‌های خزانه</b>: سفارش‌های «قطعی — در راه» را پیگیری کنید تا رسید ورود ثبت شود؛ مانده‌ی پرداخت‌ها را کنترل کنید.</li>
+    <li><b>اسناد دستی</b>: پیش‌نویس‌های روز قبل را برای تأیید ارسال یا پیگیری کنید.</li>
+    <li><b>واریزها و برداشت‌ها</b>: با صورت‌حساب بانک روز قبل تطبیق دهید.</li>
+  </ul>
+  <h2 data-toc>۵-۲. هر هفته</h2>
+  <ul class="check">
+    <li><b>مغایرت‌گیری</b> را اجرا کنید؛ هر ردیف قرمز را همان هفته ریشه‌یابی کنید.</li>
+    <li><b>گزارش و مطالبات شرکا</b>: مطالبات «۱ تا ۷ روز» و بیشتر را از شریک پیگیری کنید.</li>
+    <li>صورتحساب <b>تأمین‌کنندگان</b> را با صورت‌حساب آن‌ها تطبیق دهید.</li>
+    <li>مانده‌ی 1010 را با جمع صورت‌حساب بانک‌ها تطبیق و به زیرحساب‌ها منتقل کنید.</li>
+    <li><b>موجودی شمش</b>: ستون «فروخته — در انتظار کد» را با واحد ارسال پیگیری کنید.</li>
+  </ul>
+  <h2 data-toc>۵-۳. پایان هر ماه</h2>
+  <ul class="check">
+    <li>همه‌ی هزینه‌های ماه (اجاره، حقوق، قبوض، کارمزدهای بانکی، استهلاک) ثبت و تأیید شده باشد.</li>
+    <li><b>شمارش خزانه</b> (آب‌شده و شمش) با حضور دو نفر انجام و ثبت شود.</li>
+    <li><b>ارزیابی طلا</b> به قیمت پایان ماه ثبت شود (فصل ۹).</li>
+    <li><b>مغایرت‌گیری</b> بدون ردیف قرمز باشد و <b>تراز آزمایشی</b> متوازن.</li>
+    <li>سود و زیان ماه و ترازنامه‌ی پایان ماه تهیه و چاپ/بایگانی شود.</li>
+    <li>پس از تأیید مدیر مالی، <b>قطعی‌سازی اسناد</b> تا آخرین روز ماه (فصل ۱۰).</li>
+  </ul>
+</section>
+
+<!-- ═════════════════════════ فصل ۶ ═════════════════════════ -->
+<section class="chapter" data-toc="خزانه و خرید پوششی طلای آب‌شده">
+  <div class="chapter-head"><div class="num">۶</div><div><h1>خزانه و خرید پوششی طلای آب‌شده</h1><p>هر گرم طلایی که به کاربران فروخته می‌شود باید در خزانه موجود باشد</p></div></div>
+
+  <h2 data-toc>۶-۱. اصل پوشش</h2>
+  <p>طلای موجود در کیف پول کاربران بدهی شرکت است و باید با طلای فیزیکی پشتیبانی شود. هر بار که به کیف پول کاربران طلا اضافه می‌شود (خرید، پاداش، پی‌رول، خرید اقساطی) کسری پوشش ایجاد می‌شود و هر فروش کاربر یا تحویل فیزیکی آن را کم می‌کند. وظیفه‌ی خزانه این است که با خرید از بازار، کسری را صفر نگه دارد.</p>
+  <div class="flow">
+    <div class="st"><b>۱. گزارش پوشش</b>کسری و خرید پیشنهادی</div><div class="ar">←</div>
+    <div class="st"><b>۲. درخواست خرید</b>پیش‌نویس با snapshot گزارش</div><div class="ar">←</div>
+    <div class="st"><b>۳. قطعی‌سازی</b>قیمت نهایی، تعهد به فروشنده</div><div class="ar">←</div>
+    <div class="st"><b>۴. رسید خزانه</b>توزین، ری‌گیری، ورود به گاوصندوق</div><div class="ar">←</div>
+    <div class="st"><b>۵. پرداخت</b>تسویه با فروشنده</div>
+  </div>
+
+  <h2 data-toc>۶-۲. خواندن گزارش پوشش و خرید</h2>
+  <table>
+    <thead><tr><th>شاخص</th><th>معنی</th></tr></thead>
+    <tbody>
+      <tr><td>بدهی طلایی کاربران</td><td>جمع طلای همه‌ی کیف پول‌ها (گرم ۷۵۰)</td></tr>
+      <tr><td>موجودی خزانه</td><td>مانده‌ی حساب 1020 و بهای دفتری آن</td></tr>
+      <tr><td>خریداری‌شده در راه</td><td>خریدهای قطعی‌شده‌ای که هنوز رسید خزانه نخورده‌اند</td></tr>
+      <tr><td>نسبت پوشش</td><td>(موجودی + در راه) ÷ بدهی × ۱۰۰</td></tr>
+      <tr><td>طلای لازم (هدف)</td><td>بدهی × درصد هدف ÷ ۱۰۰ + ذخیره‌ی احتیاطی</td></tr>
+      <tr><td>کسری / مازاد</td><td>طلای لازم − (موجودی + در راه)</td></tr>
+      <tr><td>خرید پیشنهادی</td><td>کسری − درخواست‌های پیش‌نویس، گردشده به واحد خرید</td></tr>
+      <tr><td>درخواست‌های پیش‌نویس</td><td>خریدهایی که ثبت شده ولی هنوز قطعی نشده‌اند (از پیشنهاد کسر می‌شوند تا دوباره خرید نشود)</td></tr>
+    </tbody>
+  </table>
+  <p>وضعیت بالای صفحه یکی از سه حالت است: <span class="pill p-green">پوشش کامل</span>، <span class="pill p-amber">کسری</span>، <span class="pill p-red">هشدار</span> (نسبت پوشش کمتر از حد مجاز). در حالت هشدار هر ساعت بررسی و روزی یک پیامک برای مدیر ارشد و مدیر مالی ارسال می‌شود.</p>
+  <div class="box ex"><span class="h">مثال محاسبه</span>
+    <div class="formula" style="margin:0">
+      بدهی کاربران = <b>۱٬۲۵۰</b> گرم — موجودی خزانه = <b>۱٬۱۰۰</b> — در راه = <b>۸۰</b> — هدف ۱۰۰٪ — ذخیره ۲۰ گرم — واحد خرید ۱۰ گرم<br />
+      طلای لازم = ۱٬۲۵۰ + ۲۰ = <b>۱٬۲۷۰</b> — پوشش موجود = ۱٬۱۸۰ — کسری = <b>۹۰</b> گرم<br />
+      نسبت پوشش = ۱٬۱۸۰ ÷ ۱٬۲۵۰ = <b>۹۴٫۴٪</b> (کمتر از ۹۵٪ ← وضعیت «هشدار») — خرید پیشنهادی = <b>۹۰</b> گرم
+    </div>
+  </div>
+  <p>در پایین صفحه، <b>گردش روزانه</b> نشان می‌دهد هر روز چه مقدار به کیف پول‌ها اضافه شده (خرید کاربران، پاداش و حقوق، فروش شرکا)، چه مقدار کم شده (فروش کاربران، تحویل فیزیکی) و خزانه چقدر خریده یا فروخته است. ستون «اختلاف» نیاز به خرید همان روز است. بخش «از آخرین خرید» تقاضای خالص از زمان آخرین خرید را می‌دهد. بخش «کنترل‌ها» مغایرت کیف پول‌ها با حساب 2020 را نشان می‌دهد که باید صفر باشد.</p>
+
+  <h2 data-toc>۶-۳. ثبت درخواست خرید</h2>
+  <ol class="steps">
+    <li>در صفحه‌ی پوشش روی <b>«ثبت درخواست خرید»</b> بزنید.</li>
+    <li>تأمین‌کننده را انتخاب کنید (اگر نیست، ابتدا در «تأمین‌کنندگان» تعریف کنید).</li>
+    <li>مقدار (پیش‌فرض = خرید پیشنهادی) و قیمت تقریبی را کنترل کنید. ثبت کنید.</li>
+  </ol>
+  <p>درخواست به‌صورت «پیش‌نویس» در سفارش‌های خزانه ثبت می‌شود و یک نسخه‌ی کامل از گزارش پوشش همان لحظه ضمیمه‌ی آن است. این سابقه برای ممیزی اهمیت دارد: همیشه مشخص است خرید بر چه مبنایی انجام شده است.</p>
+
+  <h2 data-toc>۶-۴. قطعی‌سازی خرید</h2>
+  <p>پس از توافق نهایی با بنکدار، سفارش را از <b>سفارش‌های خزانه</b> باز کنید، با «ویرایش» مقادیر واقعی را وارد کنید و «قطعی کردن خرید» را بزنید:</p>
+  <div class="kv">
+    <div>وزن ترازو</div><div>وزن واقعی طلا (گرم)</div>
+    <div>عیار (هزارم)</div><div>طبق برگه‌ی ری‌گیری (مثلاً ۷۴۰)؛ برای شمش ۹۹۵ یا ۹۹۹</div>
+    <div>معادل ۷۵۰</div><div>خودکار محاسبه می‌شود؛ مبنای حساب‌ها و گزارش پوشش</div>
+    <div>قیمت هر گرم</div><div>قیمت توافقی هر گرم ۷۵۰ (تومان)</div>
+    <div>اجرت، کارمزد، مالیات</div><div>در صورت وجود</div>
+    <div>مدارک</div><div>شماره‌ی فاکتور فروشنده، شماره‌ی برگه‌ی ری‌گیری/انگ، محل نگهداری</div>
+  </div>
+  <div class="je"><div class="je-title">قطعی‌سازی خرید ۱۰۰ گرم آب‌شده با عیار ۷۴۰ به قیمت ۵٬۰۰۰٬۰۰۰ تومان + ۳۰۰٬۰۰۰ کارمزد <span>معادل ۷۵۰: ۹۸٫۶۶۶۶ گرم</span></div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th><th class="n">گرم</th></tr></thead><tbody>
+      <tr><td>1060 طلای خریداری‌شده در راه</td><td class="n">493,633,000</td><td class="n"></td><td class="n">بد 98.6666</td></tr>
+      <tr><td class="cr">2040 پرداختنی تأمین‌کنندگان</td><td class="n"></td><td class="n">493,633,000</td><td class="n"></td></tr>
+      <tr><td class="cr">1090 واسط تأمین طلا (کاهش کسری)</td><td class="n"></td><td class="n"></td><td class="n">بس 98.6666</td></tr>
+    </tbody></table></div>
+  <p>از همین لحظه کسری پوشش کم می‌شود؛ چون قیمت قفل شده و ریسک نوسان پوشش داده شده است. مالیات بر ارزش افزوده‌ی خرید (در صورت وجود) به <b>1080</b> می‌رود.</p>
+
+  <h2 data-toc>۶-۵. رسید ورود به خزانه</h2>
+  <p>پس از تحویل فیزیکی، توزین و تطبیق با برگه‌ی ری‌گیری، در جزئیات سفارش «محل نگهداری» را وارد و <b>«ثبت رسید ورود به خزانه»</b> را بزنید: <b>بد 1020 / بس 1060</b> با همان بها و وزن. برای شمش، 1025 بدهکار می‌شود.</p>
+  <div class="box warn"><span class="h">اگر وزن یا عیار تحویلی با قرارداد فرق دارد</span><p>رسید را ثبت نکنید. اگر اختلاف پیش از تحویل مشخص شد، سفارش را ابطال و سفارش جدید با مقادیر واقعی ثبت کنید. اگر پس از رسید مشخص شد، از شمارش خزانه برای ثبت کسری استفاده کنید و طلب را با فروشنده پیگیری کنید.</p></div>
+
+  <h2 data-toc>۶-۶. پرداخت به تأمین‌کننده</h2>
+  <ol class="steps">
+    <li>در جزئیات سفارش (بخش «ثبت پرداخت به فروشنده») یا از صورتحساب تأمین‌کننده.</li>
+    <li>مبلغ (پیش‌فرض = مانده)، روش پرداخت، <b>حساب بانکی مبدأ</b> (1010 یا زیرحساب آن) و شماره‌ی پیگیری را وارد کنید.</li>
+    <li>سند: <b>بد 2040 / بس بانک</b>. پرداخت می‌تواند در چند نوبت باشد؛ ستون «مانده پرداخت» سفارش به‌روز می‌شود.</li>
+  </ol>
+
+  <h2 data-toc>۶-۷. ابطال سفارش</h2>
+  <ul>
+    <li><b>پیش‌نویس:</b> بدون سند ابطال می‌شود.</li>
+    <li><b>قطعی (دریافت‌نشده):</b> سند برگشتی خودکار صادر می‌شود و کسری پوشش دوباره ظاهر می‌شود. اگر مبلغی پرداخت شده، به‌عنوان طلب از تأمین‌کننده در صورتحساب او می‌ماند و باید با «دریافت از او» تسویه شود.</li>
+    <li><b>تحویل‌شده:</b> ابطال ممکن نیست؛ برای برگشت، سفارش فروش ثبت کنید.</li>
+  </ul>
+
+  <h2 data-toc>۶-۸. فروش مازاد خزانه و خرید شمش</h2>
+  <p>اگر گزارش پوشش «مازاد» نشان داد و مدیریت تصمیم به فروش گرفت، سفارش <b>فروش به بازار</b> ثبت کنید. با «ثبت فروش و تحویل»، طلا به بهای میانگین از خزانه خارج و خالص دریافتی از خریدار به‌عنوان طلب ثبت می‌شود؛ اختلاف فروش و بهای تمام‌شده، سود (4070) یا زیان (5070) است. پیشنهاد می‌شود قبل از فروش، ارزیابی طلا انجام شود تا بهای دفتری به‌روز باشد. دریافت وجه از خریدار با «دریافت از او» ثبت می‌شود.</p>
+  <p>خرید <b>شمش</b> از ضرابخانه دقیقاً همین چرخه را دارد؛ فقط کالا را «شمش» انتخاب کنید (وزن فیزیکی، بدون تبدیل ۷۵۰). پس از رسید، شمش‌ها را در «موجودی شمش» کدگذاری کنید.</p>
+
+  <h2 data-toc>۶-۹. تأمین‌کنندگان و صورتحساب آن‌ها</h2>
+  <p>در <b>خزانه ← تأمین‌کنندگان</b> مشخصات هر بنکدار، ضرابخانه یا پالایشگاه را (نام، نوع، شناسه‌ی ملی، کد اقتصادی، رابط، تلفن، شبا) ثبت کنید. با کلیک روی نام، <b>صورتحساب</b> باز می‌شود: خریدها بستانکار (بدهی ما)، پرداخت‌ها بدهکار. مانده‌ی منفی (داخل پرانتز) یعنی بدهی ما به تأمین‌کننده. از همین صفحه پرداخت یا دریافت مستقل از سفارش هم ثبت می‌شود.</p>
+
+  <h2 data-toc>۶-۱۰. شمارش فیزیکی خزانه</h2>
+  <ol class="steps">
+    <li>طلا را با حضور حداقل دو نفر توزین کنید و وزن را برای آب‌شده به <b>معادل ۷۵۰</b> تبدیل کنید.</li>
+    <li><b>خزانه ← شمارش خزانه</b>: نوع موجودی، وزن شمارش‌شده و نام اعضای کمیته را وارد و ثبت کنید.</li>
+    <li>سامانه با دفتر مقایسه و مغایرت را خودکار سند می‌زند.</li>
+  </ol>
+  <table>
+    <thead><tr><th>نتیجه</th><th>سند</th><th>اثر</th></tr></thead>
+    <tbody>
+      <tr><td>کسری</td><td>بد 5090 (بهای میانگین) و 1090 (گرم) / بس 1020</td><td>هزینه‌ی کسری شناسایی و همان مقدار دوباره در گزارش خرید ظاهر می‌شود تا جبران شود</td></tr>
+      <tr><td>اضافی</td><td>بد 1020 / بس 4080 و 1090 (گرم)</td><td>درآمد متفرقه؛ نیاز به خرید کم می‌شود</td></tr>
+      <tr><td>برابر</td><td>—</td><td>فقط سابقه‌ی شمارش ثبت می‌شود</td></tr>
+    </tbody>
+  </table>
+  <div class="box warn"><span class="h">کسری شمارش یعنی رویداد امنیتی</span><p>هر کسری بدون توضیح (ضایعات مستند ذوب یا خطای ترازو) باید فوراً به مدیریت گزارش شود.</p></div>
+</section>
+
+<!-- ═════════════════════════ فصل ۷ ═════════════════════════ -->
+<section class="chapter" data-toc="موجودی لحظه‌ای شمش">
+  <div class="chapter-head"><div class="num">۷</div><div><h1>موجودی لحظه‌ای شمش</h1><p>هر شمش در هر لحظه کجاست: خزانه، نماینده، مشتری یا در راه</p></div></div>
+
+  <h2 data-toc>۷-۱. وضعیت‌های شمش</h2>
+  <table>
+    <thead><tr><th>سبد</th><th>تعریف</th><th>کاربرد برای حسابدار</th></tr></thead>
+    <tbody>
+      <tr><td><b>کد خام</b></td><td>کد هولوگرام چاپ‌شده که هنوز به شمشی متصل نیست</td><td>موجودی لیبل؛ دارایی مالی نیست</td></tr>
+      <tr><td><b>کددار در خزانه</b></td><td>شمش فیزیکی خزانه که کد خورده ولی نه فروخته و نه امانی است</td><td>باید با 1025 تطبیق شود</td></tr>
+      <tr><td><b>نزد نمایندگان</b></td><td>امانی نزد نماینده (با تفکیک هر نماینده)</td><td>باید با 1030 تطبیق شود</td></tr>
+      <tr><td><b>در انتظار تأیید گیرنده</b></td><td>خرید برای شخص دیگر؛ گیرنده هنوز تأیید نکرده</td><td>فروخته شده؛ دارایی شرکت نیست</td></tr>
+      <tr><td><b>فروخته‌شده</b></td><td>دارای مالک فعال؛ کانال فروش: فروشگاه، نماینده، شریک یا انتقال</td><td>با بهای تمام‌شده‌ی 5050 و 5060 مقایسه شود</td></tr>
+      <tr><td><b>فروخته — در انتظار کد</b></td><td>سفارش پرداخت‌شده‌ی فروشگاه که هنوز کد و ارسال نشده</td><td>تعهد تحویل؛ باید سریع ارسال شود</td></tr>
+      <tr><td><b>موجودی فروشگاه</b></td><td>تعداد قابل فروش تنوع‌های محصول در کاتالوگ (بدون کد)</td><td>جزء موجودی شرکت</td></tr>
+      <tr><td><b>باطل‌شده</b></td><td>کد ابطال‌شده (چاپ اشتباه و …)</td><td>—</td></tr>
+    </tbody>
+  </table>
+  <p>کارت «کل شمش متعلق به شرکت» = کددار خزانه + امانی نمایندگان + موجودی فروشگاه. صفحه هر ۳۰ ثانیه خودکار به‌روز می‌شود.</p>
+
+  <h2 data-toc>۷-۲. بخش‌های صفحه</h2>
+  <ul>
+    <li><b>فروش به تفکیک کانال</b> در بازه‌ی انتخابی: فروشگاه آنلاین، نمایندگان، شرکای فروش (تعداد، وزن، مبلغ).</li>
+    <li><b>موجودی به تفکیک محصول و وزن</b> و موجودی بدون کد فروشگاه به تفکیک تنوع.</li>
+    <li><b>امانی نزد نمایندگان</b> به تفکیک هر نماینده و شهر.</li>
+    <li><b>تطبیق با دفاتر</b>: مانده‌ی 1025 و 1030 در برابر شمارش فیزیکی و بهای تمام‌شده‌ی فروش‌ها.</li>
+    <li><b>فهرست شمش‌ها</b>: با زبانه‌ها هر سبد را با کد، محصول، وزن، عیار، سریال، نماینده یا مالک، کانال و مرجع فروش ببینید؛ جست‌وجو با کد یا سریال.</li>
+  </ul>
+
+  <h2 data-toc>۷-۳. کدگذاری شمش‌های خزانه</h2>
+  <ol class="steps">
+    <li><b>موجودی شمش ← کدگذاری شمش خزانه</b>.</li>
+    <li>هر خط یک شمش: <span class="code">کد هولوگرام  وزن  عیار(18 یا 24)  سریال</span> — مثال: <span class="code">12345678 10 24 AB-99812</span>.</li>
+    <li>کدها باید «خام» یا «کددار خزانه» باشند (نه فروخته یا امانی). ثبت کنید.</li>
+  </ol>
+  <p>کدگذاری سند حسابداری ندارد؛ فقط شمش فیزیکی را قابل ردیابی و آماده‌ی فروش (فروشگاه، شریک) یا تحویل امانی می‌کند.</p>
+  <div class="box tip"><span class="h">تطبیق ماهانه‌ی شمش</span><p>وزن «کددار در خزانه» + «موجودی فروشگاه» باید با مانده‌ی گرمی 1025 و نتیجه‌ی شمارش فیزیکی برابر باشد؛ وزن «نزد نمایندگان» با 1030. هر اختلاف را با شمارش خزانه (نوع شمش) یا بررسی حواله‌های نمایندگان رفع کنید.</p></div>
+</section>
+
+<!-- ═════════════════════════ فصل ۸ ═════════════════════════ -->
+<section class="chapter" data-toc="شرکای فروش اقساطی (اسنپ‌پی، دیجی‌پی و اپ‌های همکار)">
+  <div class="chapter-head"><div class="num">۸</div><div><h1>شرکای فروش اقساطی</h1><p>اسنپ‌پی، دیجی‌پی و اپلیکیشن‌های همکار</p></div></div>
+
+  <h2 data-toc>۸-۱. مدل همکاری</h2>
+  <p>مشتری طلا را از طریق شریک می‌خرد (اقساطی یا داخل اپ شریک). شریک پرداخت را <b>تضمین</b> می‌کند و مبلغ سفارش را <b>منهای کارمزد خود</b>، طبق قرارداد و پس از چند روز (T+N) به آرکان واریز می‌کند. وصول اقساط و ریسک عدم پرداخت مشتری با شریک است؛ برای آرکان فقط «طلب از شریک» مهم است.</p>
+  <div class="flow">
+    <div class="st"><b>در انتظار</b>ثبت قرارداد با قیمت قفل</div><div class="ar">←</div>
+    <div class="st"><b>تأییدشده</b>طلا به کیف پول مشتری؛ طلب از شریک؛ فاکتور</div><div class="ar">←</div>
+    <div class="st"><b>تسویه‌شده</b>وجه شریک به حساب بانک رسید</div>
+  </div>
+  <p>مسیرهای جانبی: <span class="pill p-gray">لغوشده</span> پیش از تأیید؛ <span class="pill p-red">مستردشده</span> پس از تأیید.</p>
+
+  <h2 data-toc>۸-۲. تعریف شریک</h2>
+  <table>
+    <thead><tr><th>فیلد</th><th>توضیح</th></tr></thead>
+    <tbody>
+      <tr><td>نوع همکاری و آداپتور</td><td>خرید اقساطی، اپ همکار، فروشگاه اینترنتی، سازمانی؛ آداپتور اتصال مستقیم (اسنپ‌پی، دیجی‌پی، …)</td></tr>
+      <tr><td>کارمزد شریک</td><td>درصد از مبلغ هر سفارش + مبلغ ثابت (اختیاری)</td></tr>
+      <tr><td>مهلت تسویه</td><td>تعداد روز پس از تأیید تا سررسید (T+N)</td></tr>
+      <tr><td>سقف طلب</td><td>اگر طلب تسویه‌نشده از این سقف بگذرد، سفارش جدید تأیید نمی‌شود</td></tr>
+      <tr><td>حداقل/حداکثر مبلغ سفارش</td><td>طبق قرارداد</td></tr>
+      <tr><td>کالاهای مجاز</td><td>طلای آب‌شده (واریز به کیف پول) و/یا شمش کددار</td></tr>
+      <tr><td>قرارداد</td><td>شماره، تاریخ شروع و پایان؛ پس از پایان، سفارش جدید پذیرفته نمی‌شود</td></tr>
+      <tr><td>API</td><td>فعال بودن، فهرست IPهای مجاز، ساخت/تعویض/ابطال کلید</td></tr>
+    </tbody>
+  </table>
+
+  <h2 data-toc>۸-۳. ثبت و تأیید سفارش</h2>
+  <p>سفارش‌ها معمولاً خودکار از API شریک می‌آیند. برای ثبت دستی (مثلاً از فایل گزارش شریک):</p>
+  <ol class="steps">
+    <li><b>شرکای فروش ← سفارش‌ها و قراردادها ← ثبت سفارش</b>.</li>
+    <li>شریک، <b>شناسه‌ی مرجع</b> (شماره‌ی قرارداد نزد شریک — یکتا؛ ثبت تکراری ممکن نیست)، موبایل و کد ملی مشتری.</li>
+    <li>کالا: آب‌شده (به گرم یا مبلغ کل به تومان) یا شمش (کد هولوگرام + اجرت).</li>
+    <li>در صورت وجود: تعداد اقساط و پیش‌پرداخت (اطلاعاتی).</li>
+    <li>اگر شریک پرداخت را تأیید کرده، گزینه‌ی «هم‌اکنون تأیید و طلا تحویل شود» را بزنید.</li>
+  </ol>
+  <div class="box warn"><span class="h">پیش‌نیاز مشتری</span><p>مشتری باید با همان شماره در آرکان گلد ثبت‌نام و احراز هویت کرده باشد و کد ملی با صاحب شماره یکی باشد.</p></div>
+  <div class="je"><div class="je-title">تأیید سفارش اسنپ‌پی: ۲ گرم به قیمت ۵٬۲۰۰٬۰۰۰ — کارمزد شریک ۳٪ <span>مبلغ ۱۰٬۴۰۰٬۰۰۰ — کارمزد ۳۱۲٬۰۰۰ — خالص ۱۰٬۰۸۸٬۰۰۰</span></div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th><th class="n">گرم</th></tr></thead><tbody>
+      <tr><td>1050 دریافتنی از شرکای فروش</td><td class="n">10,088,000</td><td class="n"></td><td class="n"></td></tr>
+      <tr><td>5080 کارمزد شرکای فروش</td><td class="n">312,000</td><td class="n"></td><td class="n"></td></tr>
+      <tr><td>1090 کسری پوشش</td><td class="n"></td><td class="n"></td><td class="n">بد 2</td></tr>
+      <tr><td class="cr">2020 بدهی طلایی به کاربران</td><td class="n"></td><td class="n">10,400,000</td><td class="n">بس 2</td></tr>
+    </tbody></table></div>
+  <p>برای <b>شمش</b>: بس 4040 (ارزش طلا) و 4050 (اجرت)؛ و بهای تمام‌شده بد 5060 / بس 1025؛ مالکیت شمش به نام مشتری ثبت می‌شود. کارمزد خدمات آرکان (در صورت تنظیم) به 4010 و مالیات به 2030 می‌رود. با تأیید، فاکتور فروش به نام مشتری صادر می‌شود.</p>
+
+  <h2 data-toc>۸-۴. ثبت تسویه‌ی شریک</h2>
+  <ol class="steps">
+    <li>واریز شریک را در صورت‌حساب بانک پیدا کنید.</li>
+    <li><b>شرکای فروش ← تسویه‌ها ← ثبت تسویه</b>: شریک، مبلغ، روش، حساب بانکی مقصد، شماره‌ی پیگیری و تاریخ واریز.</li>
+    <li>سفارش‌هایی را که این واریز بابت آن‌هاست تیک بزنید (بر اساس گزارش تسویه‌ی شریک)، یا «تخصیص خودکار» را بگذارید تا قدیمی‌ترین سررسیدها بسته شوند.</li>
+    <li>سند: <b>بد بانک / بس 1050</b>. سفارش‌های انتخابی «تسویه‌شده» می‌شوند.</li>
+  </ol>
+  <div class="box tip"><span class="h">اختلاف مبلغ واریزی</span><p>اگر مبلغ واریز با جمع سفارش‌ها برابر نیست، فقط سفارش‌هایی را انتخاب کنید که کامل پرداخت شده‌اند. مازاد یا کسر در مانده‌ی شریک باقی می‌ماند و در صورتحساب او دیده می‌شود. اگر شریک کارمزد متفاوتی کسر کرده، موضوع را با قرارداد تطبیق دهید و اصلاح را با مدیر مالی هماهنگ کنید.</p></div>
+
+  <h2 data-toc>۸-۵. لغو و استرداد</h2>
+  <ul>
+    <li><b>لغو</b> (فقط در انتظار): بدون اثر مالی.</li>
+    <li><b>استرداد</b> (تأییدشده یا تسویه‌شده): طلا از کیف پول مشتری کسر می‌شود (یا مالکیت شمش باطل و شمش به خزانه برمی‌گردد)، سند فروش برگشت می‌خورد و فاکتور باطل می‌شود. اگر مشتری طلا را فروخته یا منتقل کرده باشد، استرداد ممکن نیست.</li>
+    <li>اگر سفارش مستردشده قبلاً تسویه شده بود، مانده‌ی شریک منفی (بدهی ما به شریک) می‌شود و در تسویه‌ی بعدی کسر می‌گردد.</li>
+  </ul>
+
+  <h2 data-toc>۸-۶. گزارش عملکرد و سنی مطالبات</h2>
+  <p><b>گزارش و مطالبات</b> برای هر شریک در بازه‌ی انتخابی نشان می‌دهد: فروش آب‌شده و شمش، مبلغ کل، کارمزد، استرداد، تسویه‌ی دریافتی، مانده‌ی طلب و <b>سنی مطالبات</b>:</p>
+  <table>
+    <thead><tr><th>ستون</th><th>معنی</th><th>اقدام</th></tr></thead>
+    <tbody>
+      <tr><td>جاری</td><td>هنوز سررسید نشده</td><td>—</td></tr>
+      <tr><td>۱ تا ۷ روز</td><td>کمی گذشته از سررسید</td><td>یادآوری به شریک</td></tr>
+      <tr><td>۸ تا ۳۰ روز</td><td>معوق</td><td>پیگیری رسمی؛ گزارش به مدیر مالی</td></tr>
+      <tr><td>بیش از ۳۰ روز</td><td>معوق جدی</td><td>بررسی تعلیق شریک یا کاهش سقف طلب</td></tr>
+    </tbody>
+  </table>
+
+  <h2 data-toc>۸-۷. امنیت کلید API</h2>
+  <ul>
+    <li>کلید فقط <b>یک‌بار</b> هنگام ساخت نمایش داده می‌شود؛ آن را از کانال امن به مسئول فنی شریک بدهید و هرگز در ایمیل یا پیام‌رسان عمومی نفرستید.</li>
+    <li>برای هر شریک <b>سقف طلب</b> و <b>IP مجاز</b> تعیین کنید.</li>
+    <li>در صورت هر شک به افشا، فوراً «ابطال کلید» یا «تعویض کلید» را بزنید.</li>
+    <li>کل API شرکا با تنظیم <span class="code">partner.api.enabled</span> خاموش و روشن می‌شود.</li>
+  </ul>
+</section>
+
+<!-- ═════════════════════════ فصل ۹ ═════════════════════════ -->
+<section class="chapter" data-toc="گزارش‌ها و صورت‌های مالی">
+  <div class="chapter-head"><div class="num">۹</div><div><h1>گزارش‌ها و صورت‌های مالی</h1><p>تهیه، خواندن و تفسیر گزارش‌ها</p></div></div>
+
+  <h2 data-toc>۹-۱. داشبورد مالی</h2>
+  <p>سه ردیف شاخص: <b>طلای آب‌شده</b> (بدهی کاربران، موجودی خزانه، در راه، کسری/مازاد پوشش)، <b>نقدینگی و بدهی‌ها</b> (نقد و بانک، بدهی ریالی به کاربران، طلب از شرکا و نمایندگان، بدهی به تأمین‌کنندگان، مالیات، شمش خزانه و امانی) و <b>عملکرد ماه جاری</b> (فروش خالص، سود ناخالص، درآمد کارمزد، سود خالص). هشدارهای بالای صفحه مهم‌ترین کارهای امروز را نشان می‌دهند.</p>
+
+  <h2 data-toc>۹-۲. دفتر روزنامه</h2>
+  <p>همه‌ی اسناد به ترتیب تاریخ. فیلترها: بازه‌ی تاریخ، منبع سند، کد حساب (اسنادی که آن حساب را دارند)، شماره‌ی سند (عطف یا قطعی) و جست‌وجو در شرح. گزینه‌ی «نمایش سطرها» سطرهای هر سند را زیر آن نشان می‌دهد و خروجی اکسل را سطر به سطر می‌کند.</p>
+
+  <h2 data-toc>۹-۳. تراز آزمایشی چهارستونی</h2>
+  <table>
+    <thead><tr><th>ستون</th><th>محاسبه</th></tr></thead>
+    <tbody>
+      <tr><td>ابتدای دوره (بدهکار/بستانکار)</td><td>مانده‌ی حساب قبل از تاریخ شروع</td></tr>
+      <tr><td>گردش دوره (بدهکار/بستانکار)</td><td>جمع سطرهای بدهکار و بستانکار داخل بازه</td></tr>
+      <tr><td>مانده پایان دوره</td><td>ابتدای دوره + گردش</td></tr>
+      <tr><td>مانده گرم</td><td>مانده‌ی وزنی پایان دوره</td></tr>
+    </tbody>
+  </table>
+  <p>بدون تاریخ، کل تاریخچه نمایش داده می‌شود. نوار بالای جدول باید سبز و «تراز صحیح است» باشد. تراز نامتوازن در شرایط عادی ممکن نیست؛ اگر دیدید، فوراً به تیم فنی گزارش دهید.</p>
+
+  <h2 data-toc>۹-۴. صورت سود و زیان</h2>
+  <div class="formula">
+    <b>فروش</b> (4020، 4040، 4050) − <b>تخفیفات</b> (5030) = <b>فروش خالص</b><br />
+    فروش خالص − <b>بهای تمام‌شده</b> (5050، 5060) = <b>سود ناخالص</b><br />
+    سود ناخالص + <b>درآمدهای عملیاتی</b> (کارمزد، بسته‌بندی، سایر) − <b>هزینه‌های عملیاتی</b> = <b>سود عملیاتی</b><br />
+    سود عملیاتی ± <b>نتیجه‌ی ارزیابی و فروش طلا</b> (4070 − 5070) = <b>سود (زیان) خالص</b>
+  </div>
+  <p>سند اختتامیه در محاسبه لحاظ نمی‌شود؛ پس سود و زیان سال بسته‌شده هم قابل گزارش است. حساب‌های معینی که تعریف می‌کنید خودکار در بخش حساب کل خود قرار می‌گیرند.</p>
+
+  <h2 data-toc>۹-۵. ترازنامه</h2>
+  <p>در تاریخ انتخابی: دارایی‌ها، بدهی‌ها و حقوق صاحبان سهام (به‌همراه «سود (زیان) دوره‌ی جاری» که هنوز به سود انباشته منتقل نشده). شرط <b>دارایی‌ها = بدهی‌ها + حقوق صاحبان سهام</b> کنترل و نمایش داده می‌شود. وزن حساب‌های طلا کنار مبلغ آمده است.</p>
+
+  <h2 data-toc>۹-۶. موقعیت طلا</h2>
+  <p>برای هر حساب طلا: گرم، ارزش دفتری، ارزش روز و سود/زیان تحقق‌نیافته. سطر بالا «موقعیت خالص» = خزانه + در راه − کیف پول کاربران. موقعیت منفی یعنی شرکت در برابر افزایش قیمت طلا زیان‌پذیر است و باید خرید شود.</p>
+
+  <h2 data-toc>۹-۷. ارزیابی (تسعیر) طلا</h2>
+  <p>ارزش ریالی موجودی خزانه (1020) و بدهی طلایی کاربران (2020) در طول زمان با قیمت روز فاصله می‌گیرد. ارزیابی، هر دو را به قیمت روز می‌رساند و اختلاف را به سود یا زیان ارزیابی می‌برد. موجودی شمش به بهای تمام‌شده باقی می‌ماند.</p>
+  <ol class="steps">
+    <li><b>صورت‌های مالی ← ارزیابی طلا</b>. قیمت را خالی بگذارید (قیمت لحظه‌ای) یا قیمت رسمی پایان دوره را وارد کنید.</li>
+    <li>پیش‌نمایش را بررسی کنید: ارزش دفتری، ارزش روز، تعدیل و اثر بر سود هر حساب.</li>
+    <li>«ثبت سند ارزیابی» (نیازمند دسترسی مدیر مالی).</li>
+  </ol>
+  <div class="je"><div class="je-title">ارزیابی به قیمت ۵٬۲۰۰٬۰۰۰ <span>خزانه ۱٬۰۰۰ گرم با بهای ۴٬۹۰۰ میلیون — بدهی ۱٬۰۵۰ گرم با ارزش دفتری ۵٬۲۵۰ میلیون</span></div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th></tr></thead><tbody>
+      <tr><td>1020 طلای خزانه (رسیدن به ۵٬۲۰۰ میلیون)</td><td class="n">300,000,000</td><td class="n"></td></tr>
+      <tr><td class="cr">4070 سود ارزیابی طلا</td><td class="n"></td><td class="n">300,000,000</td></tr>
+      <tr><td>5070 زیان ارزیابی طلا</td><td class="n">210,000,000</td><td class="n"></td></tr>
+      <tr><td class="cr">2020 بدهی طلایی (رسیدن به ۵٬۴۶۰ میلیون)</td><td class="n"></td><td class="n">210,000,000</td></tr>
+    </tbody></table></div>
+  <p>اثر خالص بر سود: <b>+۹۰ میلیون تومان</b>. این نتیجه نشان می‌دهد پوشش ناقص (۵۰ گرم کسری) در دوره‌ی افزایش قیمت، بخشی از سود را از بین برده است.</p>
+
+  <h2 data-toc>۹-۸. مغایرت‌گیری</h2>
+  <table>
+    <thead><tr><th>کنترل</th><th>اگر قرمز بود</th></tr></thead>
+    <tbody>
+      <tr><td>تراز آزمایشی متوازن</td><td>فوری به تیم فنی گزارش شود</td></tr>
+      <tr><td>مانده‌ی ذخیره‌شده = جمع سطرها</td><td>فوری به تیم فنی گزارش شود</td></tr>
+      <tr><td>2010 ↔ جمع ریال کیف پول‌ها</td><td>معمولاً عملیات پیش از راه‌اندازی دفتر کل؛ با سند افتتاحیه/اصلاحی و تأیید مدیر مالی رفع شود</td></tr>
+      <tr><td>2020 ↔ جمع طلای کیف پول‌ها</td><td>باید صفر باشد؛ اختلاف یعنی تغییر کیف پول بدون سند — گزارش فوری</td></tr>
+      <tr><td>1040 ↔ صورتحساب نمایندگان</td><td>بررسی اصلاحیه‌ها و تسویه‌های نمایندگان</td></tr>
+      <tr><td>1030 ↔ شمش‌های نزد نمایندگان</td><td>بررسی حواله‌های تحویل و عودت؛ شمارش نزد نماینده</td></tr>
+      <tr><td>1050 ↔ مانده‌ی شرکا</td><td>بررسی تسویه‌ها و استردادها</td></tr>
+      <tr><td>2040 ↔ مانده‌ی تأمین‌کنندگان</td><td>بررسی پرداخت‌ها و ابطال‌ها</td></tr>
+      <tr><td>1060 ↔ خریدهای در راه</td><td>ثبت رسیدهای معوق</td></tr>
+    </tbody>
+  </table>
+
+  <h2 data-toc>۹-۹. خروجی اکسل و چاپ</h2>
+  <p>تقریباً همه‌ی صفحات دکمه‌ی <b>«خروجی اکسل»</b> دارند (فایل CSV با پشتیبانی کامل فارسی در اکسل؛ مبالغ به ریال). صورت‌های مالی و گزارش پوشش دکمه‌ی <b>«چاپ»</b> دارند؛ در پنجره‌ی چاپ مرورگر «ذخیره به PDF» را برای بایگانی انتخاب کنید.</p>
+</section>
+
+<!-- ═════════════════════════ فصل ۱۰ ═════════════════════════ -->
+<section class="chapter" data-toc="سال مالی، قفل دوره و بستن سال">
+  <div class="chapter-head"><div class="num">۱۰</div><div><h1>سال مالی، قفل دوره و بستن سال</h1><p>حفظ اعتبار اسناد گذشته و انتقال نتیجه‌ی سال</p></div></div>
+
+  <h2 data-toc>۱۰-۱. تعریف سال مالی</h2>
+  <p><b>حسابداری ← سال مالی و قفل دوره ← سال مالی جدید</b>: عنوان (مثل «سال مالی ۱۴۰۵»)، تاریخ شروع و پایان (میلادی در فرم؛ ۱ فروردین ۱۴۰۵ = 2026-03-21 و ۲۹ اسفند ۱۴۰۵ = 2027-03-20). سال‌ها نباید هم‌پوشانی داشته باشند. پس از تعریف اولین سال مالی، تاریخ هر سند دستی باید داخل یک سال مالی باز باشد.</p>
+
+  <h2 data-toc>۱۰-۲. قفل دوره</h2>
+  <p>با قفل کردن دوره تا یک تاریخ، ثبت، تأیید یا برگشت سند دستی با تاریخ تا آن روز ممنوع می‌شود. پس از بستن هر ماه، دوره را تا پایان آن ماه قفل کنید. برداشتن قفل فقط با تصمیم مدیر مالی و فقط تا جایی ممکن است که به سال بسته‌شده نرسد.</p>
+
+  <h2 data-toc>۱۰-۳. قطعی‌سازی اسناد</h2>
+  <p>قطعی‌سازی تا یک تاریخ، به همه‌ی اسناد قطعی‌نشده‌ی آن بازه به ترتیب تاریخ <b>شماره‌ی دائم پیوسته</b> در سال مالی مربوط می‌دهد و دوره را تا همان تاریخ قفل می‌کند. این عمل <b>برگشت‌پذیر نیست</b>؛ فقط پس از تکمیل مغایرت‌گیری انجام شود.</p>
+
+  <h2 data-toc>۱۰-۴. فهرست کنترلی بستن سال مالی</h2>
+  <ul class="check">
+    <li>همه‌ی هزینه‌ها، استهلاک و حقوق اسفند ثبت و تأیید شده است.</li>
+    <li>شمارش پایان سال خزانه (آب‌شده و شمش) و نمایندگان انجام و ثبت شده است.</li>
+    <li>مطالبات شرکا و نمایندگان و بدهی تأمین‌کنندگان با تأییدیه‌ی طرف مقابل تطبیق داده شده است.</li>
+    <li><b>ارزیابی طلا</b> به قیمت رسمی آخرین روز سال ثبت شده است.</li>
+    <li>مغایرت‌گیری بدون ردیف قرمز و تراز آزمایشی متوازن است.</li>
+    <li>سود و زیان، ترازنامه و تراز چهارستونی سال چاپ و به امضای مدیر مالی رسیده است.</li>
+    <li>قطعی‌سازی اسناد تا آخرین روز سال.</li>
+    <li><b>بستن سال</b> از فهرست سال‌ها و تعریف سال مالی جدید.</li>
+  </ul>
+  <p>بستن سال، درآمدها و هزینه‌ها را با <b>سند اختتامیه</b> (تاریخ آخرین روز سال) صفر و خالص را به <b>3020</b> منتقل و دوره را قفل می‌کند. مانده‌ی دارایی‌ها، بدهی‌ها و سرمایه خودکار به سال بعد می‌رود و سند افتتاحیه لازم نیست.</p>
+</section>
+
+<!-- ═════════════════════════ فصل ۱۱ ═════════════════════════ -->
+<section class="chapter" data-toc="راه‌اندازی اولیه روی داده‌های موجود">
+  <div class="chapter-head"><div class="num">۱۱</div><div><h1>راه‌اندازی اولیه</h1><p>یک‌بار، هنگام شروع استفاده از حسابداری پیشرفته</p></div></div>
+  <div class="box warn"><span class="h">چرا این مرحله مهم است؟</span><p>در نسخه‌های قبلی، هر خرید طلای کاربر به‌طور فرضی موجودی خزانه (1020) را افزایش و موجودی نقد (1010) را کاهش می‌داد، حتی اگر خریدی از بازار انجام نشده بود. همچنین پی‌رول طلایی از خزانه کم می‌کرد. بنابراین موجودی دفتری خزانه و نقد احتمالاً با واقعیت فرق دارد و باید یک‌بار اصلاح شود.</p></div>
+  <ol class="steps">
+    <li><b>سال مالی جاری</b> را تعریف کنید.</li>
+    <li><b>زیرحساب‌های بانک و صندوق</b> را زیر 1010 بسازید.</li>
+    <li><b>شمارش خزانه‌ی طلای آب‌شده</b>: وزن واقعی (معادل ۷۵۰) را ثبت کنید. کسری به 1090 (نیاز به خرید) و 5090 می‌رود و در گزارش پوشش ظاهر می‌شود.</li>
+    <li><b>اصلاح نقد</b>: موجودی 1010 و زیرحساب‌ها را با صورت‌حساب بانک‌ها مقایسه کنید. اختلافی که از «خریدهای فرضی» قبلی آمده، با سند اصلاحی <b>بد 1010 / بس 5090</b> (یا حساب مورد تأیید مدیر مالی) اصلاح شود.</li>
+    <li><b>سند افتتاحیه‌ی شمش</b>: بد 1025 (بها و گرم) / بس 3010 (بها) و 1095 (گرم). در صورت نیاز، بهای شمش‌های امانی نمایندگان (1030) هم با سند افتتاحیه اصلاح شود.</li>
+    <li>شمش‌های موجود خزانه را <b>کدگذاری</b> کنید.</li>
+    <li>سایر مانده‌های افتتاحیه (سرمایه، اموال، بدهی‌ها و پیش‌پرداخت‌ها) را با سند افتتاحیه ثبت کنید.</li>
+    <li><b>تأمین‌کنندگان</b> و <b>شرکای فروش</b> را تعریف کنید.</li>
+    <li>سیاست خزانه را در تنظیمات سیستم تعیین کنید (فصل ۱۳).</li>
+    <li><b>مغایرت‌گیری</b> را اجرا و موارد باقی‌مانده را با سند اصلاحی و تأیید مدیر مالی رفع کنید.</li>
+    <li>اولین خرید پوششی را طبق گزارش پوشش انجام دهید.</li>
+  </ol>
+</section>
+
+<!-- ═════════════════════════ فصل ۱۲ ═════════════════════════ -->
+<section class="chapter" data-toc="عیب‌یابی و پرسش‌های متداول">
+  <div class="chapter-head"><div class="num">۱۲</div><div><h1>عیب‌یابی و پرسش‌های متداول</h1><p>پیام‌های خطا و راه‌حل</p></div></div>
+
+  <h2 data-toc>۱۲-۱. پیام‌های خطای رایج</h2>
+  <table>
+    <thead><tr><th>پیام</th><th>علت و راه‌حل</th></tr></thead>
+    <tbody>
+      <tr><td>کنترل دوگانه: تأیید سند باید توسط شخصی غیر از ثبت‌کننده انجام شود</td><td>سند را برای تأیید به همکار دیگر بسپارید. ویرایش سند، شما را ثبت‌کننده می‌کند.</td></tr>
+      <tr><td>سند تراز نیست / سند از نظر وزن تراز نیست</td><td>جمع بدهکار و بستانکار ریال یا گرم برابر نیست؛ سطرها را کنترل کنید.</td></tr>
+      <tr><td>«…» حساب کنترلی است و فقط از مسیر عملیات سیستمی تغییر می‌کند</td><td>از صفحه‌ی عملیات همان حساب استفاده کنید (فصل ۴-۴).</td></tr>
+      <tr><td>دوره‌ی مالی تا تاریخ … قفل است</td><td>تاریخ سند داخل دوره‌ی قفل است. سند را با تاریخ جاری به‌عنوان اصلاحی ثبت کنید یا با مدیر مالی هماهنگ کنید.</td></tr>
+      <tr><td>تاریخ سند در هیچ سال مالی تعریف‌شده‌ای قرار ندارد</td><td>سال مالی مربوط را تعریف کنید.</td></tr>
+      <tr><td>تاریخ سند نمی‌تواند در آینده باشد</td><td>هزینه‌ی آینده را در تاریخ وقوع ثبت کنید (یا پیش‌پرداخت 1070).</td></tr>
+      <tr><td>حساب دارای مانده را نمی‌توان غیرفعال کرد</td><td>ابتدا مانده را با سند به حساب دیگر منتقل کنید.</td></tr>
+      <tr><td>موجودی دفتری … خزانه کمتر از مقدار فروش است</td><td>فروش بیش از موجودی دفتری؛ رسیدهای ثبت‌نشده یا شمارش را بررسی کنید.</td></tr>
+      <tr><td>فقط سفارش پیش‌نویس قابل ویرایش است</td><td>سفارش قطعی را ابطال و از نو ثبت کنید.</td></tr>
+      <tr><td>طلای این سفارش وارد خزانه شده؛ برای برگشت، سفارش فروش ثبت کنید</td><td>سفارش تحویل‌شده ابطال نمی‌شود.</td></tr>
+      <tr><td>ارزش دفتری طلا با قیمت روز برابر است؛ سندی لازم نیست</td><td>ارزیابی قبلاً با همین قیمت انجام شده است.</td></tr>
+      <tr><td>ابتدا سال مالی قبلی … را ببندید</td><td>سال‌ها به ترتیب بسته می‌شوند.</td></tr>
+      <tr><td>مشتری با این شماره در آرکان گلد ثبت‌نام نکرده است / احراز هویت مشتری تکمیل نشده است</td><td>مشتری باید ابتدا در اپلیکیشن ثبت‌نام و احراز هویت کند.</td></tr>
+      <tr><td>کد ملی با صاحب شماره موبایل مطابقت ندارد</td><td>اطلاعات ارسالی شریک را کنترل کنید.</td></tr>
+      <tr><td>سقف اعتبار شریک … با این سفارش رد می‌شود</td><td>طلب تسویه‌نشده به سقف رسیده؛ تسویه‌ها را ثبت یا سقف را با تصمیم مدیریت افزایش دهید.</td></tr>
+      <tr><td>اعتبار قیمت این سفارش منقضی شده است</td><td>سفارش API پس از مهلت قیمت تأیید نمی‌شود؛ شریک باید لغو و دوباره ثبت کند.</td></tr>
+      <tr><td>موجودی آزاد طلای مشتری برای استرداد کافی نیست</td><td>مشتری طلا را فروخته یا در حال تحویل است؛ با مدیر مالی و شریک تعیین تکلیف کنید.</td></tr>
+      <tr><td>این کدها آزاد نیستند (فروخته‌شده، امانی یا باطل)</td><td>در کدگذاری فقط کدهای خام یا کددار خزانه قابل استفاده‌اند.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 data-toc>۱۲-۲. پرسش‌های متداول</h2>
+  <h3>چرا با خرید کاربر، موجودی خزانه بالا نمی‌رود؟</h3>
+  <p>چون طلایی از بازار خریده نشده است. خرید کاربر فقط بدهی طلایی و کسری پوشش ایجاد می‌کند. خزانه با خرید واقعی (فصل ۶) پر می‌شود.</p>
+  <h3>حساب 1090 چه زمانی باید صفر باشد؟</h3>
+  <p>مانده‌ی 1090 تجمع «فروش به کاربران منهای خرید از بازار» از زمان راه‌اندازی است. معیار عملیاتی تصمیم خرید، <b>گزارش پوشش</b> است که مستقیماً از کیف پول‌ها و خزانه محاسبه می‌شود. 1090 کنترل دفتری همان جریان است.</p>
+  <h3>چرا مانده‌ی ریالی 2020 با «گرم × قیمت روز» برابر نیست؟</h3>
+  <p>چون خرید و فروش‌ها با قیمت‌های مختلف ثبت شده‌اند. ارزیابی طلا (۹-۷) آن را به قیمت روز می‌رساند.</p>
+  <h3>سند سیستمی را اشتباه می‌دانم؛ چطور اصلاح کنم؟</h3>
+  <p>اسناد سیستمی مستقیماً برگشت نمی‌خورند، چون با کیف پول‌ها و دفاتر معین گره خورده‌اند. عملیات مبدأ را از صفحه‌ی خودش اصلاح کنید (لغو سفارش، ابطال فروش نماینده، استرداد شریک، …) یا با مدیر مالی سند اصلاحی ثبت کنید.</p>
+  <h3>تسویه‌ی درگاه پرداخت بانک چطور ثبت شود؟</h3>
+  <p>دریافت‌های درگاه خودکار به 1010 می‌خورد. وقتی بانک مبلغ را (منهای کارمزد) به حساب شرکت واریز کرد: بد زیرحساب بانک و 5130 کارمزد / بس 1010.</p>
+</section>
+
+<!-- ═════════════════════════ فصل ۱۳ ═════════════════════════ -->
+<section class="chapter" data-toc="کنترل‌های داخلی، تنظیمات و واژه‌نامه">
+  <div class="chapter-head"><div class="num">۱۳</div><div><h1>کنترل‌های داخلی، تنظیمات و واژه‌نامه</h1><p>مرجع پایانی</p></div></div>
+
+  <h2 data-toc>۱۳-۱. اصول کنترل داخلی</h2>
+  <ul>
+    <li><b>تفکیک وظایف:</b> ثبت‌کننده‌ی سند، تأییدکننده‌ی آن، مسئول خزانه و مسئول پرداخت، افراد جدا باشند.</li>
+    <li><b>بدون حذف:</b> هیچ سند ثبت‌شده‌ای حذف نمی‌شود؛ هر اصلاح با سند برگشتی و سابقه‌ی کامل است.</li>
+    <li><b>ردپای ممیزی:</b> همه‌ی اقدامات حساس (تأیید سند، قطعی‌سازی خرید، پرداخت، تعریف حساب، کلید API) با نام کاربر و زمان در گزارش فعالیت‌ها ثبت می‌شود.</li>
+    <li><b>شمارش دوره‌ای:</b> شمارش خزانه حداقل ماهانه و با دو نفر.</li>
+    <li><b>قفل و قطعی‌سازی</b> منظم دوره‌ها پس از مغایرت‌گیری.</li>
+    <li><b>امنیت حساب کاربری:</b> رمز قوی، تأیید دومرحله‌ای و خروج از حساب پس از کار؛ حساب خود را در اختیار دیگری نگذارید.</li>
+  </ul>
+
+  <h2 data-toc>۱۳-۲. تنظیمات سیستمی مرتبط</h2>
+  <p>در <b>سیستم ← تنظیمات سیستم</b> (فقط با دسترسی مدیریت):</p>
+  <table>
+    <thead><tr><th>کلید</th><th>پیش‌فرض</th><th>توضیح</th></tr></thead>
+    <tbody>
+      <tr><td class="code">treasury.target_reserve_percent</td><td class="c">۱۰۰</td><td>درصد هدف پوشش طلای کاربران</td></tr>
+      <tr><td class="code">treasury.safety_buffer_grams</td><td class="c">۰</td><td>ذخیره‌ی احتیاطی مازاد بر بدهی (گرم)</td></tr>
+      <tr><td class="code">treasury.purchase_lot_grams</td><td class="c">۰</td><td>واحد گرد کردن خرید پیشنهادی</td></tr>
+      <tr><td class="code">treasury.alert_coverage_percent</td><td class="c">۹۵</td><td>مرز هشدار و پیامک کسری پوشش</td></tr>
+      <tr><td class="code">accounting.locked_until</td><td class="c">—</td><td>تاریخ قفل دوره (از صفحه‌ی سال مالی تنظیم شود)</td></tr>
+      <tr><td class="code">accounting.allow_self_approve</td><td class="c">false</td><td>اجازه‌ی تأیید سند توسط ثبت‌کننده (توصیه نمی‌شود)</td></tr>
+      <tr><td class="code">partner.api.enabled</td><td class="c">false</td><td>روشن/خاموش API شرکای فروش</td></tr>
+      <tr><td class="code">partner.quote_spread_percent</td><td class="c">۰</td><td>اسپرد قیمت فروش به مشتریان شرکا</td></tr>
+      <tr><td class="code">partner.fee_percent</td><td class="c">۰</td><td>کارمزد خدمات آرکان روی فروش شرکا</td></tr>
+      <tr><td class="code">partner.quote_ttl_minutes</td><td class="c">۳۰</td><td>مهلت اعتبار قیمت سفارش‌های API</td></tr>
+    </tbody>
+  </table>
+
+  <h2 data-toc>۱۳-۳. واژه‌نامه</h2>
+  <table>
+    <thead><tr><th>واژه</th><th>تعریف</th></tr></thead>
+    <tbody>
+      <tr><td>طلای آب‌شده</td><td>طلای ذوب‌شده‌ی غیرمسکوک؛ پشتوانه‌ی طلای کیف پول کاربران</td></tr>
+      <tr><td>گرم ۷۵۰</td><td>گرم طلای ۱۸ عیار؛ واحد مبنای حساب‌های طلای آب‌شده</td></tr>
+      <tr><td>ری‌گیری / انگ</td><td>آزمایش عیار طلا و برگه‌ی رسمی آن</td></tr>
+      <tr><td>پوشش (Coverage)</td><td>نسبت طلای فیزیکی شرکت به بدهی طلایی کاربران</td></tr>
+      <tr><td>خرید پوششی</td><td>خرید طلا از بازار معادل طلای فروخته‌شده به کاربران</td></tr>
+      <tr><td>در راه</td><td>خرید قطعی‌شده‌ای که هنوز فیزیکی تحویل خزانه نشده</td></tr>
+      <tr><td>بهای میانگین موزون</td><td>مانده‌ی ریالی حساب موجودی ÷ مانده‌ی گرمی آن</td></tr>
+      <tr><td>ارزیابی (تسعیر)</td><td>هم‌ارز کردن ارزش دفتری طلا با قیمت روز</td></tr>
+      <tr><td>حساب کنترلی</td><td>حسابی که با یک دفتر معین عملیاتی تطبیق دارد و سند دستی نمی‌پذیرد</td></tr>
+      <tr><td>کنترل دوگانه</td><td>الزام تأیید سند توسط شخصی غیر از ثبت‌کننده</td></tr>
+      <tr><td>شماره‌ی عطف / قطعی</td><td>شماره‌ی ترتیبی ثبت / شماره‌ی دائم پیوسته پس از قطعی‌سازی</td></tr>
+      <tr><td>سند برگشتی</td><td>سند معکوس یک سند دیگر برای خنثی کردن اثر آن</td></tr>
+      <tr><td>سند اختتامیه</td><td>سند صفر کردن درآمدها و هزینه‌ها در پایان سال</td></tr>
+      <tr><td>BNPL / خرید اقساطی</td><td>«اکنون بخر، بعداً بپرداز»؛ مدل اسنپ‌پی و دیجی‌پی</td></tr>
+      <tr><td>T+N</td><td>تسویه N روز پس از تاریخ معامله</td></tr>
+      <tr><td>سنی مطالبات (Aging)</td><td>دسته‌بندی طلب‌ها بر اساس روزهای گذشته از سررسید</td></tr>
+      <tr><td>امانی</td><td>شمشی که مالکیتش با شرکت است ولی نزد نماینده نگهداری می‌شود</td></tr>
+    </tbody>
+  </table>
+  <div class="box note" style="margin-top:8mm"><span class="h">پشتیبانی</span><p>برای خطاهای فنی (تراز نامتوازن، مغایرت مانده‌ی ذخیره‌شده، رفتار غیرمنتظره) با ذکر شماره‌ی عطف سند، زمان و تصویر صفحه، از طریق تیکت داخلی با تیم فنی تماس بگیرید. مستندات فنی: <span class="code">docs/accounting/advanced-accounting.md</span> و <span class="code">docs/partners/partner-api.md</span>.</p></div>
+</section>
+
+</body>
+</html>

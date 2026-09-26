@@ -5,7 +5,7 @@ import { newIdempotencyKey } from "../utils/idempotency";
 
 // ── آدرس سرور NestJS برای نمایش تصاویر محصولات (فایل‌های استاتیک) ──
 export const NEST_ORIGIN =
-  process.env.NEXT_PUBLIC_NEST_ORIGIN || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
+  process.env.NEXT_PUBLIC_NEST_ORIGIN || "http://localhost:5000";
 
 export function productImageUrl(url: string | null | undefined): string | null {
   if (!url) return null;

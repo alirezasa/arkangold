@@ -96,8 +96,7 @@ async function bootstrap() {
     }),
   );
 
-  // چابکان/Docker پورت را از طریق PORT تعیین می‌کند؛ پیش‌فرض محلی ۵۰۰۰
-  await app.listen(Number(process.env.PORT) || 5000, '0.0.0.0');
+  await app.listen(5000);
 }
 
 void bootstrap();

@@ -56,11 +56,9 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# pnpm (pnpm-lock.yaml ریشه عمداً commit می‌شود — بیلد Docker با --frozen-lockfile)
+# pnpm
+pnpm-lock.yaml
 .pnpm-store/
-
-# Dockerfile موقت ساخته‌شده توسط deploy/chabokan/prepare.sh
-/Dockerfile
 
 # build outputs
 api/dist/

@@ -1,14 +1,6 @@
 import type { NextConfig } from "next";
-import path from "node:path";
 
 const nextConfig: NextConfig = {
-  // ── Deployment (Docker / Chabokan) ───────────────────────────
-  // خروجی standalone فقط فایل‌های لازم برای اجرا را جمع می‌کند؛ ریشه‌ی ردیابی
-  // ریشه‌ی monorepo است تا packages/shared هم در بیلد لحاظ شود.
-  output: "standalone",
-  outputFileTracingRoot: path.join(__dirname, ".."),
-  turbopack: { root: path.join(__dirname, "..") },
-
   // ── PWA / Service Worker ─────────────────────────────────────
   // The sw.js is in /public so it's served at the root scope.
   // No extra config needed unless you use next-pwa package.

@@ -96,7 +96,8 @@ async function bootstrap() {
     }),
   );
 
-  await app.listen(5000);
+  // چابکان پورت را از طریق PORT مشخص می‌کند؛ پیش‌فرض توسعه‌ی محلی ۵۰۰۰ باقی می‌ماند
+  await app.listen(Number(process.env.PORT) || 5000);
 }
 
 void bootstrap();

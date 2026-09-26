@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios, { type AxiosRequestConfig } from "axios";
 
-export const NEST = process.env.NEST_ORIGIN ?? "http://localhost:5000";
+export const NEST = process.env.NEST_ORIGIN || process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 export async function getAccessToken() {
   return (await cookies()).get("accessToken")?.value;

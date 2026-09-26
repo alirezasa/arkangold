@@ -1,0 +1,120 @@
+#!/usr/bin/env node
+// اجراکننده‌ی استقرار روی چابکان برای مونوریپو.
+//
+// هر سه سرویس چابکان (api / app / admin) کل مونوریپو را دریافت می‌کنند و با متغیر
+// محیطی APP_SERVICE مشخص می‌شود کدام بسته ساخته و اجرا شود. چابکان به‌ترتیب
+// `npm install` → `npm run build` → `npm start` را در ریشه‌ی پروژه اجرا می‌کند؛
+// package.json ریشه این دو اسکریپت را به همین فایل می‌سپارد.
+//
+//   node scripts/chabokan/run.mjs build   ← نصب وابستگی‌های همان سرویس با pnpm و build
+//   node scripts/chabokan/run.mjs start   ← (api: اجرای migrationها) و بالا آوردن سرور
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const SERVICES = ['api', 'app', 'admin'];
+
+const command = process.argv[2];
+const service = (process.env.APP_SERVICE ?? '').trim();
+
+function fail(message) {
+  console.error(`[chabokan] ${message}`);
+  process.exit(1);
+}
+
+function log(message) {
+  console.log(`[chabokan] ${message}`);
+}
+
+if (!SERVICES.includes(service)) {
+  fail(
+    `متغیر محیطی APP_SERVICE باید یکی از ${SERVICES.join(' | ')} باشد (مقدار فعلی: "${service}"). ` +
+      'آن را در تنظیمات سرویس چابکان ← متغیرهای محیطی تعریف کنید.',
+  );
+}
+
+const serviceDir = join(ROOT, service);
+
+/** دستور اجرای pnpm: نسخه‌ی نصب‌شده روی سیستم، وگرنه همان نسخه‌ی packageManager از طریق npx */
+function pnpmCommand() {
+  const probe = spawnSync('pnpm', ['--version'], { stdio: 'ignore', shell: false });
+  if (probe.status === 0) return ['pnpm'];
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  const version = /^pnpm@([^+]+)/.exec(pkg.packageManager ?? '')?.[1] ?? 'latest';
+  return ['npx', '--yes', `pnpm@${version}`];
+}
+
+function run(cmd, args, options = {}) {
+  log(`$ ${[cmd, ...args].join(' ')}`);
+  const result = spawnSync(cmd, args, { cwd: ROOT, stdio: 'inherit', ...options });
+  if (result.status !== 0) {
+    fail(`دستور "${[cmd, ...args].join(' ')}" با کد ${result.status ?? result.signal} شکست خورد`);
+  }
+}
+
+function build() {
+  const [pnpm, ...pnpmArgs] = pnpmCommand();
+  const pnpmRun = (args, options) => run(pnpm, [...pnpmArgs, ...args], options);
+
+  // فقط همین سرویس و بسته‌های workspace که به آن وابسته‌اند (مثلاً @arkan-gold/shared برای api).
+  // اگر pnpm-lock.yaml آپلود شده باشد از آن استفاده می‌شود و در صورت ناهماهنگی به‌روز می‌شود.
+  pnpmRun(
+    ['install', '--filter', `${service}...`, '--no-frozen-lockfile'],
+    // devDependencies (nest cli، typescript، tailwind و ...) برای build لازم‌اند؛ اگر
+    // چابکان NODE_ENV=production را از قبل تنظیم کرده باشد pnpm آن‌ها را نصب نمی‌کند.
+    // CI=true: pnpm بدون ترمینال تعاملی (محیط build چابکان) منتظر تأیید نمی‌ماند.
+    { env: { ...process.env, NODE_ENV: 'development', CI: 'true' } },
+  );
+
+  if (service === 'api') {
+    pnpmRun(['--filter', '@arkan-gold/shared', 'run', 'build']);
+    pnpmRun(['--filter', 'api', 'exec', 'prisma', 'generate']);
+  }
+  pnpmRun(['--filter', service, 'run', 'build'], {
+    env: { ...process.env, NODE_ENV: 'production' },
+  });
+  log(`build سرویس ${service} کامل شد`);
+}
+
+function isBuilt() {
+  if (service === 'api') return existsSync(join(serviceDir, 'dist', 'src', 'main.js'));
+  return existsSync(join(serviceDir, '.next', 'BUILD_ID'));
+}
+
+function start() {
+  if (!isBuilt()) {
+    // اگر سرویس چابکان مرحله‌ی build را اجرا نکرده باشد، پیش از start انجامش می‌دهیم
+    log('خروجی build پیدا نشد؛ ابتدا build اجرا می‌شود');
+    build();
+  }
+
+  const port = process.env.PORT || '3000';
+  const env = { ...process.env, NODE_ENV: 'production', PORT: port };
+  let entry;
+
+  if (service === 'api') {
+    if (process.env.PRISMA_MIGRATE_ON_START !== 'false') {
+      run(process.execPath, [join(serviceDir, 'node_modules', 'prisma', 'build', 'index.js'), 'migrate', 'deploy'], {
+        cwd: serviceDir,
+        env,
+      });
+    }
+    entry = [join(serviceDir, 'dist', 'src', 'main.js')];
+  } else {
+    entry = [join(serviceDir, 'node_modules', 'next', 'dist', 'bin', 'next'), 'start', '-p', port, '-H', '0.0.0.0'];
+  }
+
+  log(`اجرای ${service} روی پورت ${port}`);
+  // cwd باید پوشه‌ی سرویس باشد: api فایل‌های آپلود را نسبت به process.cwd() در api/uploads می‌نویسد
+  const child = spawn(process.execPath, entry, { cwd: serviceDir, env, stdio: 'inherit' });
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => child.kill(signal));
+  }
+  child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
+}
+
+if (command === 'build') build();
+else if (command === 'start') start();
+else fail('استفاده: node scripts/chabokan/run.mjs <build|start>');

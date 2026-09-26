@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaClient } from '../src/generated/prisma/client';
-import { withAccelerate } from '@prisma/extension-accelerate';
+import { PrismaPg } from '@prisma/adapter-pg';
 import * as readline from 'readline/promises';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -10,11 +10,17 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL در فایل .env تنظیم نشده است');
 }
 
+// Prisma Accelerate (prisma+postgres://) یا اتصال مستقیم PostgreSQL (مثلاً دیتابیس چابکان)
+const isAccelerate =
+  databaseUrl.startsWith('prisma://') ||
+  databaseUrl.startsWith('prisma+postgres://');
 const basePrisma = new PrismaClient({
-  accelerateUrl: databaseUrl,
+  ...(isAccelerate
+    ? { accelerateUrl: databaseUrl }
+    : { adapter: new PrismaPg({ connectionString: databaseUrl }) }),
   log: ['error', 'warn'],
 });
-const prisma = basePrisma.$extends(withAccelerate());
+const prisma = basePrisma;
 
 function getErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;

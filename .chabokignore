@@ -1,0 +1,28 @@
+# فایل‌هایی که `chabok deploy` آپلود نمی‌کند (جایگزین .gitignore ریشه برای CLI چابکان).
+# وابستگی‌ها و خروجی build روی خود سرور چابکان ساخته می‌شوند.
+node_modules
+.pnpm-store
+dist
+.next
+out
+coverage
+*.tsbuildinfo
+next-env.d.ts
+api/src/generated/prisma
+
+# اسرار — در چابکان از «متغیرهای محیطی» سرویس استفاده کنید
+.env
+.env.*
+*.pem
+
+# فایل‌های آپلودی کاربران: در چابکان به‌عنوان «مسیر دائمی» (api/uploads) نگه داشته می‌شوند
+# و نباید با هر استقرار بازنویسی شوند
+api/uploads
+
+# موارد غیرضروری برای اجرا
+/docs
+.git
+.vscode
+.idea
+*.log
+.DS_Store

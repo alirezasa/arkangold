@@ -106,6 +106,7 @@ chabok service domain add -s <نام-سرویس-admin> -d admin.arkan.gold
 - **کمبود حافظه در build**: اگر `next build` با خطای heap متوقف شد، متغیر
   `NODE_OPTIONS=--max-old-space-size=2048` را اضافه کنید یا منابع سرویس را موقتاً بیشتر کنید.
 - **حجم آپلود**: سقف `chabok deploy` صد مگابایت فشرده است. آرشیو فعلی حدود ۲ مگابایت است.
-- **فایل قفل**: اگر `pnpm-lock.yaml` در ریشه باشد آپلود و استفاده می‌شود. برای نسخه‌های یکسان در هر build
-  بهتر است آن را از `.gitignore` خارج و commit کنید.
+- **فایل قفل**: `pnpm-lock.yaml` ریشه commit شده و آپلود می‌شود؛ pnpm با آن دیگر اطلاعات همه‌ی پکیج‌های
+  مونوریپو را از registry نمی‌پرسد و فقط پکیج‌های همان سرویس را دانلود می‌کند. بعد از هر تغییر در
+  وابستگی‌ها `pnpm install` را در ریشه اجرا کنید و فایل قفل به‌روزشده را هم commit کنید.
 - **اجرای محلی**: `APP_SERVICE=api npm run build && APP_SERVICE=api PORT=5000 npm start`

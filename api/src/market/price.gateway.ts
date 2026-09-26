@@ -17,7 +17,12 @@ import { PRICE_UPDATED_EVENT, CachedPricePayload } from './price.service';
 
 const DEFAULT_CORS_ORIGINS =
   process.env.NODE_ENV === 'production'
-    ? ['https://arkan.gold', 'https://admin.arkan.gold']
+    ? [
+        'https://arkan.gold',
+        'https://www.arkan.gold',
+        'https://app.arkan.gold',
+        'https://admin.arkan.gold',
+      ]
     : ['http://localhost:3000', 'http://localhost:3001'];
 
 @WebSocketGateway({

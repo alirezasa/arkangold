@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '../generated/prisma/client';
 import { withAccelerate } from '@prisma/extension-accelerate';
+import { prismaConnectionOptions } from './prisma-options';
 
 @Injectable()
 export class PrismaService
@@ -13,9 +14,9 @@ export class PrismaService
       throw new Error('DATABASE_URL is not set');
     }
 
-    // برای Accelerate (prisma+postgres://) حتماً accelerateUrl بدهید
+    // Accelerate (prisma+postgres://) یا اتصال مستقیم PostgreSQL (postgresql://)
     super({
-      accelerateUrl: url,
+      ...prismaConnectionOptions(url),
       log: ['error', 'warn'],
     });
 

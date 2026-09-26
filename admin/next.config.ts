@@ -1,7 +1,13 @@
 // admin/next.config.ts
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
+  // خروجی standalone برای استقرار Docker / چابکان (ریشه‌ی ردیابی = ریشه‌ی monorepo)
+  output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, ".."),
+  turbopack: { root: path.join(__dirname, "..") },
+
   async headers() {
     return [
       {

@@ -44,7 +44,7 @@
    ```
 8. **ساخت اولین ادمین** (کنسول برنامه‌ی api، یا `liara shell --app arkan-api`):
    ```bash
-   cd api && npx tsx scripts/create-first-admin.ts
+   cd api && ./node_modules/.bin/ts-node --transpile-only scripts/create-first-admin.ts
    ```
 9. **دامنه‌ها**: در هر برنامه ← دامنه‌ها ← افزودن دامنه (`api.arkan.gold` و ...) و ثبت رکوردهایی که لیارا
    نشان می‌دهد در DNS دامنه؛ سپس فعال‌سازی SSL.

@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { NEST } from "@/app/api/_lib/proxy";
+import { clientIdentityHeaders } from "@/lib/client-identity";
 
 export async function POST(
   req: NextRequest,
@@ -20,7 +21,7 @@ export async function POST(
     const form = await req.formData();
     const res = await fetch(`${NEST}/wallet/deposits/${id}/receipt`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...(await clientIdentityHeaders()) },
       body: form,
     });
     const data = await res.json();

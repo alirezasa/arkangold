@@ -2,6 +2,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // یک نمونه‌ی مشترک axios برای همه‌ی routeها تا interceptor ارسال IP کاربر به API
+  // (lib/client-identity.ts، نصب‌شده در instrumentation.ts) روی همه‌ی آن‌ها اعمال شود
+  serverExternalPackages: ["axios"],
+
   async headers() {
     return [
       {

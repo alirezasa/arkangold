@@ -6,6 +6,7 @@
 // و این فایل را فقط برای مسیر جدید /api/admin/tickets استفاده کنید.
 
 import { cookies } from 'next/headers';
+import { clientIdentityHeaders } from '@/lib/client-identity';
 
 const API_BASE_URL = process.env.API_BASE_URL || process.env.NEST_API_URL || (process.env.NODE_ENV === 'production' ? 'https://api.arkan.gold' : 'http://localhost:5000');
 
@@ -19,6 +20,7 @@ export async function proxyToApi(
   const headers: Record<string, string> = {
     ...(init.isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+    ...(await clientIdentityHeaders()),
   };
 
   return fetch(`${API_BASE_URL}${path}`, { ...init, headers, cache: 'no-store' });

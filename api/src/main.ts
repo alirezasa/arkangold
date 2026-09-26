@@ -12,6 +12,10 @@ import { PinoLoggerService } from './common/logging/pino-logger.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditService } from './common/audit/audit.service';
 import { loadSecrets } from './common/secrets/load-secrets';
+import {
+  clientIpMiddleware,
+  resolveTrustProxy,
+} from './common/network/client-ip';
 
 // دامنه‌های مجاز CORS — arkan.gold (سایت اصلی) و app.arkan.gold/admin هر دو باید
 // بتوانند مستقیماً از مرورگر به API عمومی هولوگرام (POST /public/hologram/verify)
@@ -48,10 +52,19 @@ async function bootstrap() {
   // خطاهای پیش‌بینی‌نشده/شکست کنترل‌های امنیتی به‌عنوان رویداد امنیتی
   app.useGlobalFilters(new AllExceptionsFilter(app.get(AuditService)));
 
-  // پشت یک reverse proxy/CDN (مثلاً Cloudflare یا Nginx) اجرا می‌شود — بدون این
-  // تنظیم، req.ip همیشه IP همان پراکسی را برمی‌گرداند، نه IP واقعی کلاینت که
-  // برای مسدودسازی هولوگرام (بند ۵.۲) لازم است.
-  app.set('trust proxy', true);
+  // پشت reverse proxy پلتفرم (لیارا/چابکان) اجرا می‌شود — بدون این تنظیم، req.ip همیشه IP
+  // همان پراکسی است، نه IP واقعی کلاینت که برای rate limit و مسدودسازی هولوگرام (بند ۵.۲) لازم است.
+  // مقدار true قبلی اولین مقدار X-Forwarded-For را می‌پذیرفت که کلاینت می‌تواند جعل کند؛ حالا فقط
+  // از روی پراکسی‌های مورد اعتماد (پیش‌فرض: شبکه‌ی داخلی، قابل تغییر با TRUST_PROXY) عبور می‌شود.
+  app.set('trust proxy', resolveTrustProxy());
+  // درخواست‌های سرور Next.js (app/admin): IP و User-Agent کاربر اصلی با راز مشترک
+  if (!process.env.INTERNAL_PROXY_SECRET) {
+    logger.warn(
+      'INTERNAL_PROXY_SECRET تنظیم نشده؛ درخواست‌های app/admin همه با IP سرور Next شمرده می‌شوند و rate limit بین کاربران مشترک است',
+      'Bootstrap',
+    );
+  }
+  app.use(clientIpMiddleware());
 
   // فایل‌های تصویر محصولات
   app.useStaticAssets(join(process.cwd(), 'uploads', 'products'), {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
+import { clientIdentityHeaders } from "@/lib/client-identity";
 const NEST = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 async function getToken() {
@@ -45,7 +46,7 @@ export async function POST(
 
     const res = await fetch(`${NEST}/admin/shop/products/${id}/images`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...(await clientIdentityHeaders()) },
       body: incomingForm,
     });
 

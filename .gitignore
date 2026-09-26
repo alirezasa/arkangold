@@ -57,7 +57,7 @@ ehthumbs.db
 Desktop.ini
 
 # pnpm
-pnpm-lock.yaml
+# pnpm-lock.yaml ریشه commit می‌شود: نسخه‌ی یکسان پکیج‌ها در هر build و نصب سریع روی سرور
 .pnpm-store/
 
 # build outputs

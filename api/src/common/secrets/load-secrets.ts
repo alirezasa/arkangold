@@ -30,6 +30,7 @@ export const MANAGED_SECRET_NAMES: readonly string[] = [
   'S3_ACCESS_KEY',
   'S3_SECRET_KEY',
   'FINOTECH_CLIENT_APP_ID',
+  'INTERNAL_PROXY_SECRET',
   'VAULT_TOKEN',
   'VAULT_SECRET_ID',
 ];

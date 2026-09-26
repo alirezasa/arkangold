@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // یک نمونه‌ی مشترک axios برای همه‌ی routeها تا interceptor ارسال IP کاربر به API
+  // (lib/client-identity.ts، نصب‌شده در instrumentation.ts) روی همه‌ی آن‌ها اعمال شود
+  serverExternalPackages: ["axios"],
+
   // ── PWA / Service Worker ─────────────────────────────────────
   // The sw.js is in /public so it's served at the root scope.
   // No extra config needed unless you use next-pwa package.

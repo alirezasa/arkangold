@@ -1,6 +1,7 @@
 // app/app/api/user/legal-profile/documents/[id]/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { clientIdentityHeaders } from "@/lib/client-identity";
 
 const NEST_API_URL = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
@@ -18,7 +19,7 @@ export async function DELETE(
       `${NEST_API_URL}/users/me/legal-profile/documents/${id}`,
       {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, ...(await clientIdentityHeaders()) },
       },
     );
     const data = await res.json();

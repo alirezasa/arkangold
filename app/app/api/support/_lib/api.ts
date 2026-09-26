@@ -6,6 +6,7 @@
 // مستقل و کارکننده است تا الگوی BFF فعلی شما (app/api/transactions و ...) حفظ شود.
 
 import { cookies } from 'next/headers';
+import { clientIdentityHeaders } from '@/lib/client-identity';
 
 const API_BASE_URL = process.env.API_BASE_URL || process.env.NEST_API_URL || (process.env.NODE_ENV === 'production' ? 'https://api.arkan.gold' : 'http://localhost:5000');
 
@@ -19,6 +20,7 @@ export async function proxyToApi(
   const headers: Record<string, string> = {
     ...(init.isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...(await clientIdentityHeaders()),
   };
 
   const res = await fetch(`${API_BASE_URL}${path}`, {

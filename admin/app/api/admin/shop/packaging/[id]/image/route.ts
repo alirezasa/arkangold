@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminProxy, NEST } from "@/app/lib/adminProxy";
+import { clientIdentityHeaders } from "@/lib/client-identity";
 
 // آپلود تصویر طرح — فرم بدون parse مجدد مستقیم به API عبور داده می‌شود
 export async function POST(
@@ -18,7 +19,7 @@ export async function POST(
       `${NEST}/admin/shop/packaging/${encodeURIComponent(id)}/image`,
       {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, ...(await clientIdentityHeaders()) },
         body: await req.formData(),
       },
     );

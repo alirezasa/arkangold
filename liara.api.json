@@ -1,0 +1,14 @@
+{
+  "app": "arkan-api",
+  "platform": "node",
+  "port": 3000,
+  "node": {
+    "version": "22"
+  },
+  "disks": [
+    {
+      "name": "uploads",
+      "mountTo": "api/uploads"
+    }
+  ]
+}

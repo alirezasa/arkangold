@@ -2,10 +2,7 @@ import { NextResponse } from "next/server";
 import axios from "axios";
 
 const NEST_API_URL =
-  process.env.NEST_API_URL ||
-  (process.env.NODE_ENV === "production"
-    ? "https://api.arkan.gold/auth"
-    : "http://localhost:5000/auth");
+  `${process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000")}/auth`;
 
 export async function POST(request: Request) {
   try {

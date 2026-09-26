@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaClient } from '../src/generated/prisma/client';
-import { withAccelerate } from '@prisma/extension-accelerate';
+import { prismaConnectionOptions } from '../src/prisma/prisma-options';
 import * as readline from 'readline/promises';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -10,11 +10,10 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL در فایل .env تنظیم نشده است');
 }
 
-const basePrisma = new PrismaClient({
-  accelerateUrl: databaseUrl,
+const prisma = new PrismaClient({
+  ...prismaConnectionOptions(databaseUrl),
   log: ['error', 'warn'],
 });
-const prisma = basePrisma.$extends(withAccelerate());
 
 function getErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
@@ -67,4 +66,4 @@ main()
     console.error('❌ خطا:', getErrorMessage(e));
     process.exit(1);
   })
-  .finally(() => basePrisma.$disconnect());
+  .finally(() => prisma.$disconnect());

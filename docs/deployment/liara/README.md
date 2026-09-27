@@ -51,6 +51,27 @@
 10. در پنل مدیریت ← تنظیمات سیستم، `payment.gateway.callback_base_url` را روی `https://api.arkan.gold`
     بگذارید.
 
+## استقرار خودکار با GitHub Actions
+
+workflow `.github/workflows/deploy-liara.yml` با هر push به `main` فقط سرویس‌هایی را deploy می‌کند که
+فایل‌هایشان تغییر کرده (هم‌زمان و هر کدام در یک job جدا):
+
+| تغییر در | deploy |
+| --- | --- |
+| `api/`، `packages/`، `liara.api.json` | api |
+| `app/`، `packages/`، `liara.app.json` | app |
+| `admin/`، `liara.admin.json` | admin |
+| `package.json`، `pnpm-lock.yaml`، `pnpm-workspace.yaml`، `scripts/deploy/`، `.liaraignore` | هر سه |
+
+راه‌اندازی (یک بار): در کنسول لیارا ← پروفایل ← **کلید دسترسی API** یک کلید بسازید و در گیت‌هاب در
+**Settings ← Secrets and variables ← Actions ← New repository secret** با نام `LIARA_API_TOKEN` ذخیره کنید.
+
+- **deploy دستی** (مثلاً بعد از تغییر متغیرهای محیطی بدون تغییر کد): تب **Actions ← Deploy to Liara ←
+  Run workflow** و نوشتن نام سرویس‌ها (مثلاً `api` یا `api,app,admin`).
+- وضعیت را در تب Actions و لاگ build را در کنسول لیارا ← تاریخچه‌ی استقرار ببینید.
+- workflow کپی فایل قفل (`scripts/deploy/pnpm-lock.deploy.yaml`) را خودش با `pnpm-lock.yaml` همگام
+  می‌کند؛ در این روش `pnpm run lockfile:sync` لازم نیست.
+
 ## نکات
 
 - **`INTERNAL_PROXY_SECRET`** را با یک مقدار یکسان در هر سه برنامه بگذارید. سرورهای Next.js با آن IP و

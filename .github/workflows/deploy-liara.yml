@@ -1,0 +1,118 @@
+# استقرار خودکار روی لیارا با هر push به main
+#
+# فقط سرویس‌هایی که فایل‌هایشان تغییر کرده deploy می‌شوند و هر کدام در یک job جدا و هم‌زمان.
+# برای deploy دستی (مثلاً بعد از تغییر متغیرهای محیطی): تب Actions ← Deploy to Liara ← Run workflow
+#
+# پیش‌نیاز: کلید دسترسی API لیارا (کنسول لیارا ← پروفایل ← کلید دسترسی API) در
+# Settings ← Secrets and variables ← Actions با نام LIARA_API_TOKEN
+name: Deploy to Liara
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "سرویس‌ها، جدا شده با کاما (api,app,admin)"
+        required: true
+        default: "api,app,admin"
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: تشخیص سرویس‌های تغییرکرده
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.pick.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'push'
+        with:
+          filters: |
+            common: &common
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - 'scripts/deploy/**'
+              - '.liaraignore'
+            api:
+              - *common
+              - 'api/**'
+              - 'packages/**'
+              - 'liara.api.json'
+            app:
+              - *common
+              - 'app/**'
+              - 'packages/**'
+              - 'liara.app.json'
+            admin:
+              - *common
+              - 'admin/**'
+              - 'liara.admin.json'
+
+      - name: انتخاب سرویس‌ها
+        id: pick
+        env:
+          EVENT: ${{ github.event_name }}
+          CHANGED: ${{ steps.filter.outputs.changes }}
+          REQUESTED: ${{ github.event.inputs.services }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            list="$REQUESTED"
+          else
+            list=$(echo "${CHANGED:-[]}" | jq -r 'join(",")')
+          fi
+          # فقط نام‌های مجاز؛ بقیه (از جمله common) کنار گذاشته می‌شوند
+          services=$(echo "$list" | jq -Rc 'split(",") | map(gsub("\\s"; "")) | map(select(. == "api" or . == "app" or . == "admin")) | unique')
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+          echo "سرویس‌های انتخاب‌شده: $services"
+
+  deploy:
+    name: deploy ${{ matrix.service }}
+    needs: changes
+    if: needs.changes.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # deployهای یک سرویس پشت سر هم اجرا می‌شوند. صف برای هر سرویس جداست: اگر deploy جدیدی از همان
+    # سرویس جای یک deploy منتظر را بگیرد، کد جدیدتر شامل تغییرات قبلی هم هست؛ اما pushی که سرویس
+    # دیگری را تغییر داده، deploy منتظر این سرویس را حذف نمی‌کند.
+    concurrency:
+      group: deploy-liara-${{ matrix.service }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: بررسی کلید لیارا
+        env:
+          LIARA_API_TOKEN: ${{ secrets.LIARA_API_TOKEN }}
+        run: |
+          if [ -z "$LIARA_API_TOKEN" ]; then
+            echo "::error::LIARA_API_TOKEN در Settings ← Secrets and variables ← Actions تعریف نشده است"
+            exit 1
+          fi
+
+      # کپی فایل قفل که به لیارا آپلود می‌شود همیشه با فایل اصلی یکسان باشد (scripts/deploy/run.mjs)
+      - name: همگام‌سازی فایل قفل
+        run: cp pnpm-lock.yaml scripts/deploy/pnpm-lock.deploy.yaml
+
+      - name: نصب Liara CLI
+        run: npm install -g @liara/cli@9
+
+      - name: استقرار
+        env:
+          LIARA_API_TOKEN: ${{ secrets.LIARA_API_TOKEN }}
+          SERVICE: ${{ matrix.service }}
+        run: liara deploy --liara-json "liara.$SERVICE.json" --api-token "$LIARA_API_TOKEN" --no-app-logs

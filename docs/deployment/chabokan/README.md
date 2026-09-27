@@ -90,7 +90,7 @@ chabok service domain add -s <نام-سرویس-admin> -d admin.arkan.gold
 
 - ساخت اولین ادمین (از **کنسول** سرویس api):
   ```bash
-  cd api && npx tsx scripts/create-first-admin.ts
+  cd api && ./node_modules/.bin/ts-node --transpile-only scripts/create-first-admin.ts
   ```
 - در پنل مدیریت ← تنظیمات سیستم، مقدار `payment.gateway.callback_base_url` را روی
   `https://api.arkan.gold` بگذارید (مقدار پیش‌فرض `http://localhost:5000` است و بازگشت از درگاه پرداخت را خراب می‌کند).

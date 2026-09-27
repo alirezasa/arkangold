@@ -10,5 +10,7 @@
       "name": "uploads",
       "mountTo": "api/uploads"
     }
-  ]
+  ],
+  "build": {
+   "location": "germany"}
 }

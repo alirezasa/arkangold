@@ -5,6 +5,7 @@ import {
   CLIENT_UA_HEADER,
   PROXY_SECRET_HEADER,
   clientIpMiddleware,
+  parseProxyRanges,
   resolveTrustProxy,
 } from './client-ip';
 
@@ -13,9 +14,12 @@ const SECRET = 'x'.repeat(48);
 type Echo = { ip: string; ua?: string; leaked: string[] };
 const body = (res: request.Response) => res.body as Echo;
 
-function buildApp(secret: string | undefined = SECRET) {
+function buildApp(
+  secret: string | undefined = SECRET,
+  cdnRanges: string | undefined = undefined,
+) {
   const app = express();
-  app.set('trust proxy', resolveTrustProxy(undefined));
+  app.set('trust proxy', resolveTrustProxy(undefined, cdnRanges));
   app.use(clientIpMiddleware(secret));
   app.get('/', (req, res) => {
     res.json({
@@ -86,11 +90,45 @@ describe('client IP resolution', () => {
   });
 
   it('parses TRUST_PROXY values', () => {
-    expect(resolveTrustProxy('2')).toBe(2);
-    expect(resolveTrustProxy('true')).toBe(true);
-    expect(resolveTrustProxy('false')).toBe(false);
-    expect(resolveTrustProxy('loopback, 173.245.48.0/20')).toBe(
+    expect(resolveTrustProxy('2', '')).toBe(2);
+    expect(resolveTrustProxy('true', '')).toBe(true);
+    expect(resolveTrustProxy('false', '')).toBe(false);
+    expect(resolveTrustProxy('loopback, 173.245.48.0/20', '')).toBe(
       'loopback, 173.245.48.0/20',
     );
+  });
+
+  it('appends CDN_PROXY_RANGES to the trusted proxy list', () => {
+    expect(resolveTrustProxy(undefined, '185.143.232.0/22\n2.146.0.0/28')).toBe(
+      'loopback, linklocal, uniquelocal, 100.64.0.0/10, 185.143.232.0/22, 2.146.0.0/28',
+    );
+    expect(resolveTrustProxy('loopback', '185.143.232.0/22')).toBe(
+      'loopback, 185.143.232.0/22',
+    );
+  });
+
+  it('separates invalid CDN_PROXY_RANGES entries', () => {
+    expect(
+      parseProxyRanges(
+        '185.143.232.0/22, 2a0b:4d80::/32 bad 1.2.3.4/40 1.2.3.4',
+      ),
+    ).toEqual({
+      valid: ['185.143.232.0/22', '2a0b:4d80::/32', '1.2.3.4'],
+      invalid: ['bad', '1.2.3.4/40'],
+    });
+  });
+
+  it('resolves the visitor IP behind a trusted CDN edge', async () => {
+    // مسیر: کاربر ← لبه‌ی آروان (185.143.232.10) ← پراکسی داخلی پلتفرم ← برنامه
+    const chain = '1.1.1.1, 8.8.8.8, 185.143.232.10';
+    const withoutCdn = await request(buildApp())
+      .get('/')
+      .set('X-Forwarded-For', chain);
+    expect(body(withoutCdn).ip).toBe('185.143.232.10');
+
+    const withCdn = await request(buildApp(SECRET, '185.143.232.0/22'))
+      .get('/')
+      .set('X-Forwarded-For', chain);
+    expect(body(withCdn).ip).toBe('8.8.8.8');
   });
 });

@@ -35,6 +35,8 @@ import { hashPassword } from '../common/crypto/password.util';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { ReferralService } from '../referral/referral.service';
 import type { ChangePasswordDto } from './dto/change-password.dto';
+// FAU_GEN_EXT.1.4: شرط چاپ کد OTP در لاگ (توضیح در همان فایل)
+import { isOtpDebugLogEnabled } from '../common/logging/otp-debug';
 
 const AUDIT_SOURCE = 'AuthService';
 
@@ -45,15 +47,6 @@ const OTP_ATTEMPTS_EXCEEDED_MSG = 'تعداد تلاش‌های مجاز به پ
 interface RequestContext {
   ip?: string;
   userAgent?: string;
-}
-
-// FAU_GEN_EXT.1.4: کد OTP هرگز در لاگ عملیاتی ثبت نمی‌شود؛ فقط برای توسعه‌ی محلی
-// با فعال‌سازی صریح OTP_DEBUG_LOG=true و هیچ‌وقت در production.
-function isOtpDebugLogEnabled(): boolean {
-  return (
-    process.env.NODE_ENV !== 'production' &&
-    process.env.OTP_DEBUG_LOG === 'true'
-  );
 }
 
 // ── رابط‌های payload توکن‌ها ──
@@ -103,7 +96,7 @@ export class AuthService {
     });
 
     if (isOtpDebugLogEnabled()) {
-      this.logger.debug(`[OTP] ${phone} (${purpose}): ${otp}`);
+      this.logger.warn(`[OTP] ${phone} (${purpose}): ${otp}`);
     }
     return { message: 'کد تایید ارسال شد', expiresIn: 180 };
   }
@@ -499,7 +492,7 @@ export class AuthService {
     });
 
     if (isOtpDebugLogEnabled()) {
-      this.logger.debug(`[Reset OTP] ${phone}: ${otp}`);
+      this.logger.warn(`[Reset OTP] ${phone}: ${otp}`);
     }
     return { message: 'در صورت وجود حساب کاربری، کد بازیابی ارسال خواهد شد' };
   }

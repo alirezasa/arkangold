@@ -14,8 +14,10 @@ import { AuditService } from './common/audit/audit.service';
 import { loadSecrets } from './common/secrets/load-secrets';
 import {
   clientIpMiddleware,
+  parseProxyRanges,
   resolveTrustProxy,
 } from './common/network/client-ip';
+import { isOtpDebugLogEnabledInProduction } from './common/logging/otp-debug';
 
 // دامنه‌های مجاز CORS — arkan.gold (سایت اصلی) و app.arkan.gold/admin هر دو باید
 // بتوانند مستقیماً از مرورگر به API عمومی هولوگرام (POST /public/hologram/verify)
@@ -57,6 +59,13 @@ async function bootstrap() {
   // مقدار true قبلی اولین مقدار X-Forwarded-For را می‌پذیرفت که کلاینت می‌تواند جعل کند؛ حالا فقط
   // از روی پراکسی‌های مورد اعتماد (پیش‌فرض: شبکه‌ی داخلی، قابل تغییر با TRUST_PROXY) عبور می‌شود.
   app.set('trust proxy', resolveTrustProxy());
+  const invalidCdnRanges = parseProxyRanges().invalid;
+  if (invalidCdnRanges.length) {
+    logger.warn(
+      `مقادیر نامعتبر در CDN_PROXY_RANGES نادیده گرفته شد: ${invalidCdnRanges.join(' ')}`,
+      'Bootstrap',
+    );
+  }
   // درخواست‌های سرور Next.js (app/admin): IP و User-Agent کاربر اصلی با راز مشترک
   if (!process.env.INTERNAL_PROXY_SECRET) {
     logger.warn(
@@ -65,6 +74,13 @@ async function bootstrap() {
     );
   }
   app.use(clientIpMiddleware());
+
+  if (isOtpDebugLogEnabledInProduction()) {
+    logger.warn(
+      'OTP_DEBUG_LOG در production روشن است و کد OTP در لاگ چاپ می‌شود؛ پس از اتصال سرویس پیامک واقعی OTP_DEBUG_LOG و OTP_DEBUG_LOG_ALLOW_PRODUCTION را حذف کنید',
+      'Bootstrap',
+    );
+  }
 
   // فایل‌های تصویر محصولات
   app.useStaticAssets(join(process.cwd(), 'uploads', 'products'), {

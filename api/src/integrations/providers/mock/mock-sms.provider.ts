@@ -5,6 +5,7 @@ import {
   SendSmsResult,
   SmsProvider,
 } from '../../interfaces/sms.interface';
+import { isOtpDebugLogEnabled } from '../../../common/logging/otp-debug';
 
 /**
  * پیاده‌سازی شبیه‌سازی‌شده برای dev/staging — فقط در لاگ سرور چاپ می‌کند.
@@ -17,10 +18,8 @@ export class MockSmsProvider implements SmsProvider {
   private readonly logger = new Logger(MockSmsProvider.name);
 
   async send(input: SendSmsInput): Promise<SendSmsResult> {
-    // FAU_GEN_EXT.1.4: متن پیامک معمولاً کد OTP دارد؛ فقط با OTP_DEBUG_LOG در محیط غیر production چاپ می‌شود
-    const showText =
-      process.env.NODE_ENV !== 'production' &&
-      process.env.OTP_DEBUG_LOG === 'true';
+    // FAU_GEN_EXT.1.4: متن پیامک معمولاً کد OTP دارد؛ فقط با OTP_DEBUG_LOG چاپ می‌شود (common/logging/otp-debug.ts)
+    const showText = isOtpDebugLogEnabled();
     this.logger.log(
       `[MOCK SMS] -> ${input.phone}: ${showText ? input.text : `[${input.text.length} chars]`}`,
     );

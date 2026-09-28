@@ -17,7 +17,7 @@ const CLIENT_IP_HEADER = "x-arkan-client-ip";
 const CLIENT_UA_HEADER = "x-arkan-client-ua";
 const PROXY_SECRET_HEADER = "x-arkan-proxy-secret";
 
-// پراکسی‌های داخلی پلتفرم (همان پیش‌فرض TRUST_PROXY در API)
+// پراکسی‌های مورد اعتماد: شبکه‌ی داخلی پلتفرم (همان پیش‌فرض TRUST_PROXY در API) و رنج‌های CDN
 const internal = new BlockList();
 internal.addSubnet("127.0.0.0", 8);
 internal.addSubnet("10.0.0.0", 8);
@@ -28,6 +28,20 @@ internal.addSubnet("100.64.0.0", 10);
 internal.addAddress("::1", "ipv6");
 internal.addSubnet("fc00::", 7, "ipv6");
 internal.addSubnet("fe80::", 10, "ipv6");
+
+// رنج‌های IP CDN (مثلاً آروان‌کلاد) از CDN_PROXY_RANGES — همان مقدار برنامه‌ی API: IP یا CIDR جداشده با
+// کاما/فاصله/خط جدید. بدون آن‌ها پشت CDN، IP سرور لبه‌ی CDN به‌جای IP کاربر به API فرستاده می‌شود.
+for (const entry of (process.env.CDN_PROXY_RANGES ?? "").split(/[\s,]+/).filter(Boolean)) {
+  const [addr, prefix, ...rest] = entry.split("/");
+  const family = isIP(addr);
+  const bits = Number(prefix);
+  if (!family || rest.length) continue;
+  const type = family === 6 ? "ipv6" : "ipv4";
+  if (prefix === undefined) internal.addAddress(addr, type);
+  else if (/^\d+$/.test(prefix) && bits <= (family === 6 ? 128 : 32)) {
+    internal.addSubnet(addr, bits, type);
+  }
+}
 
 function normalizeIp(value: string): string | undefined {
   let ip = value.trim();

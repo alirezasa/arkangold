@@ -23,18 +23,45 @@ export const DEFAULT_TRUST_PROXY =
   'loopback, linklocal, uniquelocal, 100.64.0.0/10';
 
 /**
+ * رنج‌های IP یک CDN (مثلاً آروان‌کلاد) از متغیر CDN_PROXY_RANGES: فهرست IP یا CIDR جداشده با کاما،
+ * فاصله یا خط جدید. مقادیر نامعتبر کنار گذاشته و جداگانه برگردانده می‌شوند تا در راه‌اندازی هشدار داده شود.
+ */
+export function parseProxyRanges(raw = process.env.CDN_PROXY_RANGES): {
+  valid: string[];
+  invalid: string[];
+} {
+  const valid: string[] = [];
+  const invalid: string[] = [];
+  for (const entry of (raw ?? '').split(/[\s,]+/).filter(Boolean)) {
+    const [addr, prefix, ...rest] = entry.split('/');
+    const family = isIP(addr);
+    const maxPrefix = family === 6 ? 128 : 32;
+    const prefixOk =
+      prefix === undefined ||
+      (/^\d+$/.test(prefix) && Number(prefix) <= maxPrefix);
+    if (family && prefixOk && rest.length === 0) valid.push(entry);
+    else invalid.push(entry);
+  }
+  return { valid, invalid };
+}
+
+/**
  * مقدار `trust proxy` در Express از متغیر TRUST_PROXY:
- * عدد = تعداد hop، true/false، یا فهرست آدرس/زیرشبکه (مثلاً افزودن رنج‌های Cloudflare).
+ * عدد = تعداد hop، true/false، یا فهرست آدرس/زیرشبکه.
+ * رنج‌های CDN_PROXY_RANGES (مثلاً IPهای آروان) به فهرست پیش‌فرض یا فهرست TRUST_PROXY اضافه می‌شوند؛
+ * بدون آن‌ها پشت CDN، IP سرور لبه‌ی CDN به‌جای IP کاربر شمرده می‌شود و همه‌ی کاربرانی که از یک
+ * سرور لبه می‌آیند rate limit و مسدودسازی مشترک پیدا می‌کنند.
  */
 export function resolveTrustProxy(
   raw = process.env.TRUST_PROXY,
+  cdnRaw = process.env.CDN_PROXY_RANGES,
 ): boolean | number | string {
   const value = raw?.trim();
-  if (!value) return DEFAULT_TRUST_PROXY;
-  if (/^\d+$/.test(value)) return Number(value);
+  if (value && /^\d+$/.test(value)) return Number(value);
   if (value === 'true') return true;
   if (value === 'false') return false;
-  return value;
+  const cdn = parseProxyRanges(cdnRaw).valid;
+  return [value || DEFAULT_TRUST_PROXY, ...cdn].join(', ');
 }
 
 function secretMatches(

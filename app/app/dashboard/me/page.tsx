@@ -25,6 +25,7 @@ import {
   Building2 as BuildingIcon,
   ArrowLeft as ArrowLeftIcon,
 } from "lucide-react";
+import { digitsOnly } from "@/app/utils/digits";
 
 // ─── کامپوننت نمایش یک فیلد اطلاعاتی ───
 function InfoField({
@@ -163,7 +164,7 @@ function LegalProfileForm({
           placeholder="10320000000"
           value={form.nationalId}
           onChange={(e) =>
-            setForm({ ...form, nationalId: e.target.value.replace(/\D/g, "") })
+            setForm({ ...form, nationalId: digitsOnly(e.target.value) })
           }
           className="w-full px-4 py-3 rounded-xl text-[14px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white transition-all text-left tracking-widest"
         />
@@ -183,7 +184,7 @@ function LegalProfileForm({
           onChange={(e) =>
             setForm({
               ...form,
-              economicCode: e.target.value.replace(/\D/g, ""),
+              economicCode: digitsOnly(e.target.value),
             })
           }
           className="w-full px-4 py-3 rounded-xl text-[14px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white transition-all text-left tracking-widest"

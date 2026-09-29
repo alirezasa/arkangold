@@ -33,6 +33,7 @@ import {
 } from "@/app/hooks/usePhysicalDelivery";
 import { useWallet } from "@/app/hooks/useWallet";
 import { openInvoicePrint } from "@/app/hooks/useInvoices";
+import { decimalOnly, digitsOnly } from "@/app/utils/digits";
 
 // ── نگاشت وضعیت‌ها ──
 const STATUS_META: Record<
@@ -201,7 +202,7 @@ function AddAddressForm({
           onChange={(e) =>
             setForm((f) => ({
               ...f,
-              postalCode: e.target.value.replace(/\D/g, ""),
+              postalCode: digitsOnly(e.target.value),
             }))
           }
           className="px-3 py-2.5 rounded-xl text-[13px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white text-left"
@@ -215,7 +216,7 @@ function AddAddressForm({
           onChange={(e) =>
             setForm((f) => ({
               ...f,
-              receiverPhone: e.target.value.replace(/\D/g, ""),
+              receiverPhone: digitsOnly(e.target.value),
             }))
           }
           className="px-3 py-2.5 rounded-xl text-[13px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white text-left"
@@ -491,12 +492,12 @@ function CreateRequestModal({
                     placeholder="0.0000"
                     value={amountGrams}
                     onChange={(e) => {
-                      setAmountGrams(e.target.value.replace(/[^0-9.]/g, ""));
+                      setAmountGrams(decimalOnly(e.target.value));
                       setError(null);
                     }}
-                    className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all"
+                    className="w-full py-4 pr-4 pl-14 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all"
                   />
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[12px] font-bold text-gray-400">
+                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[12px] font-bold text-gray-400">
                     گرم
                   </span>
                 </div>
@@ -909,7 +910,7 @@ export default function PhysicalDeliveryPage() {
   const { requests, loading, refresh } = usePhysicalDeliveryRequests();
 
   return (
-    <div className="max-w-lg mx-auto pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto" dir="rtl">
       <div className="flex items-center gap-3 mb-5">
         <Link
           href="/dashboard/wallet"

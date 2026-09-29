@@ -28,6 +28,7 @@ import {
   useRemoveLegalDocument,
   DOC_TYPES,
 } from "@/app/hooks/useLegalDocuments";
+import { digitsOnly } from "@/app/utils/digits";
 
 type LegalForm = {
   companyName: string;
@@ -389,7 +390,7 @@ export default function LegalProfileCompletionPage() {
             placeholder="10320000000"
             value={currentForm.nationalId}
             onChange={(e) =>
-              updateForm("nationalId", e.target.value.replace(/\D/g, ""))
+              updateForm("nationalId", digitsOnly(e.target.value))
             }
             className="w-full px-4 py-3 rounded-xl text-[14px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white transition-all text-left tracking-widest"
           />
@@ -407,7 +408,7 @@ export default function LegalProfileCompletionPage() {
             placeholder="123456789012"
             value={currentForm.economicCode}
             onChange={(e) =>
-              updateForm("economicCode", e.target.value.replace(/\D/g, ""))
+              updateForm("economicCode", digitsOnly(e.target.value))
             }
             className="w-full px-4 py-3 rounded-xl text-[14px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white transition-all text-left tracking-widest"
           />

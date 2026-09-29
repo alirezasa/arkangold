@@ -118,7 +118,7 @@ export default function MyInvoicesPage() {
   );
 
   return (
-    <div className="max-w-lg mx-auto pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto" dir="rtl">
       <div className="flex items-center gap-3 mb-5">
         <Link
           href="/dashboard/wallet"

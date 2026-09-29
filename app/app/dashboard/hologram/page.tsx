@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { jalaliToIsoDate } from '@/app/utils/jalali';
 import { newIdempotencyKey } from "../../utils/idempotency";
+import { digitsOnly } from "@/app/utils/digits";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -146,7 +147,7 @@ function TransferInitiateModal({
         dir="ltr"
         placeholder="شماره موبایل گیرنده"
         value={phone}
-        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+        onChange={(e) => setPhone(digitsOnly(e.target.value))}
         maxLength={11}
         className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none focus:border-gold-500 text-sm"
       />
@@ -272,7 +273,7 @@ function VerifyTab() {
           maxLength={8}
           placeholder="12345678"
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+          onChange={(e) => setCode(digitsOnly(e.target.value))}
           className="w-full px-4 py-3.5 rounded-xl text-center text-[18px] font-black tracking-[0.3em] border border-gray-200 outline-none focus:border-gold-500"
         />
         <button
@@ -350,7 +351,7 @@ function ConfirmTransferModal({
 
   const set = (key: keyof typeof form, value: string) => {
     const numeric = ['nationalCode', 'birthYear', 'birthMonth', 'birthDay'];
-    setForm((prev) => ({ ...prev, [key]: numeric.includes(key) ? value.replace(/\D/g, '') : value }));
+    setForm((prev) => ({ ...prev, [key]: numeric.includes(key) ? digitsOnly(value) : value }));
   };
 
   const submit = async () => {

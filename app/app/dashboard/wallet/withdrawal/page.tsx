@@ -131,7 +131,7 @@ export default function WithdrawalPage() {
   };
 
   return (
-    <div className="max-w-lg mx-auto pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto" dir="rtl">
       {/* هدر */}
       <div className="flex items-center gap-3 mb-5">
         <Link
@@ -336,7 +336,7 @@ export default function WithdrawalPage() {
               placeholder={`${toToman(config?.minAmount ?? 0)} ~ ${toToman(config?.maxAmount ?? 0)}`}
               value={amount ? Number(amount).toLocaleString("fa-IR") : ""}
               onChange={(e) => handleAmountChange(e.target.value)}
-              className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all"
+              className="w-full py-4 pr-4 pl-24 rounded-xl placeholder:text-[14px] placeholder:font-bold border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all"
             />
             <button
               onClick={() => {

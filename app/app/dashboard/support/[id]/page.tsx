@@ -4,8 +4,8 @@
 import { useParams, useRouter } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
-import { useRef, useState } from "react";
-import { ChevronRight, Loader2, Paperclip, Send, Lock, Unlock, Star } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronRight, Loader2, Paperclip, Send, Lock, Unlock, Star, AlertCircle } from "lucide-react";
 import { STATUS_META, PRIORITY_META } from "../ticket-meta";
 
 interface Attachment {
@@ -27,6 +27,7 @@ interface TicketDetail {
   id: string;
   ticketNumber: string;
   subject: string;
+  description: string;
   status: string;
   priority: string;
   category: { name: string };
@@ -38,6 +39,23 @@ interface TicketDetail {
 }
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
+
+function apiErrorMessage(err: unknown, fallback: string) {
+  if (axios.isAxiosError(err)) {
+    const msg = (err.response?.data as { message?: string | string[] } | undefined)?.message;
+    if (Array.isArray(msg)) return msg[0] ?? fallback;
+    if (typeof msg === "string" && msg) return msg;
+  }
+  return fallback;
+}
+
+function formatMessageTime(iso: string) {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("fa-IR")} · ${d.toLocaleTimeString("fa-IR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+}
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -51,11 +69,21 @@ export default function TicketDetailPage() {
   const [reply, setReply] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const conversationEndRef = useRef<HTMLDivElement>(null);
 
   const [ratingValue, setRatingValue] = useState(0);
   const [ratingComment, setRatingComment] = useState("");
   const [submittingRating, setSubmittingRating] = useState(false);
+
+  // با رسیدن پیام جدید (از جمله پیام خود کاربر) گفتگو تا آخرین پیام اسکرول می‌شود
+  const messageCount = data?.messages.length ?? 0;
+  useEffect(() => {
+    if (messageCount > 0) {
+      conversationEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messageCount]);
 
   if (isLoading || !data) {
     return (
@@ -70,22 +98,41 @@ export default function TicketDetailPage() {
   const priorityMeta = PRIORITY_META[data.priority] ?? PRIORITY_META.NORMAL;
 
   const sendReply = async () => {
-    if (!reply.trim() && !file) return;
+    const text = reply.trim();
+    if (!text && !file) return;
     setSending(true);
+    setSendError(null);
     try {
-      if (reply.trim()) {
-        await axios.post(`/api/support/tickets/${id}/messages`, { message: reply.trim() });
+      let createdMessage: Message | null = null;
+      if (text) {
+        const res = await axios.post<Message>(`/api/support/tickets/${id}/messages`, {
+          message: text,
+        });
+        createdMessage = { ...res.data, attachments: res.data.attachments ?? [] };
+        // پیام کاربر بلافاصله در گفتگو نمایش داده می‌شود (بدون انتظار برای رفرش دوره‌ای)
+        const sent = createdMessage;
+        await mutate(
+          (current) =>
+            current && !current.messages.some((m) => m.id === sent.id)
+              ? { ...current, messages: [...current.messages, sent] }
+              : current,
+          { revalidate: false },
+        );
+        setReply("");
       }
       if (file) {
         const formData = new FormData();
         formData.append("files", file);
+        // فایل به همان پیامی که همراهش ارسال شده متصل می‌شود
+        if (createdMessage) formData.append("messageId", createdMessage.id);
         await axios.post(`/api/support/tickets/${id}/attachments`, formData);
+        setFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
-      setReply("");
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      await mutate();
+    } catch (err) {
+      setSendError(apiErrorMessage(err, "ارسال پیام ناموفق بود، دوباره تلاش کنید"));
     } finally {
+      await mutate();
       setSending(false);
     }
   };
@@ -127,7 +174,7 @@ export default function TicketDetailPage() {
   };
 
   return (
-    <div dir="rtl" className="max-w-2xl mx-auto flex flex-col h-[calc(100vh-2rem)]">
+    <div dir="rtl" className="max-w-2xl mx-auto flex flex-col">
       {/* Header */}
       <div className="mb-4 pb-4 border-b" style={{ borderColor: "var(--color-border)" }}>
         <div className="flex items-center gap-3 mb-3">
@@ -168,20 +215,34 @@ export default function TicketDetailPage() {
       </div>
 
       {/* Conversation */}
-      <div className="flex-1 overflow-y-auto flex flex-col gap-3 pb-4">
+      <div className="flex flex-col gap-3 pb-4">
+        {/* شرح اولیه‌ی تیکت، اولین پیام کاربر در گفتگو است */}
+        {data.description && (
+          <div
+            className="max-w-[85%] px-4 py-2.5 rounded-2xl text-[13px] self-end text-white rounded-bl-md"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+          >
+            <p className="whitespace-pre-wrap wrap-break-word">{data.description}</p>
+            <p className="text-[10px] opacity-60 mt-1">{formatMessageTime(data.createdAt)}</p>
+          </div>
+        )}
         {data.messages.map((m) => (
           <div
             key={m.id}
-            className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-[13px] ${
+            className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-[13px] ${
               m.senderType === "USER" ? "self-end text-white rounded-bl-md" : "self-start rounded-br-md"
             }`}
             style={
               m.senderType === "USER"
                 ? { backgroundColor: "var(--color-emerald)" }
-                : { backgroundColor: "var(--color-bg-page)", color: "#111827" }
+                : {
+                    backgroundColor: "var(--color-surface)",
+                    color: "#111827",
+                    border: "1px solid var(--color-border)",
+                  }
             }
           >
-            <p className="whitespace-pre-wrap">{m.message}</p>
+            <p className="whitespace-pre-wrap wrap-break-word">{m.message}</p>
             {m.attachments?.length > 0 && (
               <div className="mt-2 flex flex-col gap-1">
                 {m.attachments.map((a) => (
@@ -196,11 +257,10 @@ export default function TicketDetailPage() {
                 ))}
               </div>
             )}
-            <p className="text-[10px] opacity-60 mt-1">
-              {new Date(m.createdAt).toLocaleTimeString("fa-IR")}
-            </p>
+            <p className="text-[10px] opacity-60 mt-1">{formatMessageTime(m.createdAt)}</p>
           </div>
         ))}
+        <div ref={conversationEndRef} />
       </div>
 
       {/* Standalone attachments (not attached to a specific message) */}
@@ -289,9 +349,18 @@ export default function TicketDetailPage() {
       {/* Reply box */}
       {!isClosed ? (
         <div className="border-t pt-3" style={{ borderColor: "var(--color-border)" }}>
+          {sendError && (
+            <div className="mb-2 flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 p-2.5 text-[12px] font-bold text-red-600">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>{sendError}</p>
+            </div>
+          )}
           <textarea
             value={reply}
-            onChange={(e) => setReply(e.target.value)}
+            onChange={(e) => {
+              setReply(e.target.value);
+              if (sendError) setSendError(null);
+            }}
             rows={3}
             placeholder="پاسخ خود را بنویسید..."
             className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-[13px] outline-none focus:border-gold-500 resize-none"

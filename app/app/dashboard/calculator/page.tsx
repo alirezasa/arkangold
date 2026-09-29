@@ -43,7 +43,7 @@ export default function GoldCalculatorPage() {
 
   return (
     <div
-      className="w-full max-w-3xl mx-auto space-y-5 pb-24 animate-in fade-in duration-500"
+      className="w-full max-w-3xl mx-auto space-y-5 animate-in fade-in duration-500"
       dir="rtl"
     >
       {/* ── هدر صفحه ── */}

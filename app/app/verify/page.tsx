@@ -11,6 +11,7 @@ import {
   Loader2,
   ArrowLeft,
 } from 'lucide-react';
+import { digitsOnly } from '@/app/utils/digits';
 
 interface VerifyResult {
   status: 'INVALID_CODE' | 'VALID_UNASSIGNED' | 'VALID_ASSIGNED';
@@ -59,7 +60,7 @@ export default function PublicHologramVerifyPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" dir="rtl">
+    <div className="min-h-app flex items-center justify-center p-4" dir="rtl">
       <div className="w-full max-w-md">
         <div className="flex items-center gap-3 mb-6 justify-center">
           <div
@@ -89,7 +90,7 @@ export default function PublicHologramVerifyPage() {
             maxLength={8}
             placeholder="12345678"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            onChange={(e) => setCode(digitsOnly(e.target.value))}
             className="w-full px-4 py-3.5 rounded-xl text-center text-[20px] font-black tracking-[0.3em] border border-gray-200 outline-none focus:border-gold-500 bg-white"
           />
           {error && (

@@ -11,6 +11,8 @@ import {
   ShieldAlert,
   Gift,
   UserPlus,
+  Fingerprint,
+  RefreshCw,
 } from "lucide-react";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
 
@@ -23,9 +25,29 @@ interface BankAccount {
   isDefault: boolean;
 }
 
+type IdentityStatus = "PENDING" | "VERIFIED" | "REJECTED" | "MANUAL_REVIEW";
+
 interface UserIdentity {
-  firstName: string;
-  lastName: string;
+  firstName: string | null;
+  lastName: string | null;
+  nationalCode: string | null;
+  birthDate: string | null;
+  fatherName: string | null;
+  gender: string | null;
+  deathStatus: string | null;
+  status: IdentityStatus;
+  verifiedAt: string | null;
+  verifiedByProvider: string | null;
+}
+
+interface ReinquireResult {
+  matched: boolean;
+  reason: string | null;
+  previousStatus: IdentityStatus;
+  status: IdentityStatus;
+  provider: string | null;
+  checkedAt: string;
+  message: string;
 }
 
 interface UserWallet {
@@ -83,6 +105,183 @@ const inviteesFetcher = (url: string) =>
 
 const faNum = (n: number | string) =>
   Number(n).toLocaleString("fa-IR", { maximumFractionDigits: 1 });
+
+const IDENTITY_STATUS_META: Record<
+  IdentityStatus,
+  { label: string; bg: string; color: string }
+> = {
+  VERIFIED: { label: "تایید شده", bg: "#dcfce7", color: "#16a34a" },
+  PENDING: { label: "در انتظار", bg: "#fef3c7", color: "#b45309" },
+  MANUAL_REVIEW: { label: "بررسی دستی", bg: "#fef3c7", color: "#b45309" },
+  REJECTED: { label: "رد شده", bg: "#fee2e2", color: "#dc2626" },
+};
+
+function apiError(err: unknown, fallback: string) {
+  if (axios.isAxiosError(err)) {
+    const msg = (err.response?.data as { message?: string } | undefined)?.message;
+    if (msg) return msg;
+  }
+  return fallback;
+}
+
+// ── بخش احراز هویت: اطلاعات ثبت احوال + استعلام مجدد ──
+function IdentitySection({
+  user,
+  onUpdated,
+}: {
+  user: UserDetail;
+  onUpdated: () => Promise<unknown>;
+}) {
+  const { me } = useAdminMe();
+  const canReinquire =
+    me?.permissions.includes("users.identity.reinquire") ?? false;
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ReinquireResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const identity = user.identity;
+  const meta = identity ? IDENTITY_STATUS_META[identity.status] : null;
+  const canInquire = !!identity?.nationalCode && !!identity?.birthDate;
+
+  const reinquire = async () => {
+    if (
+      !confirm(
+        "اطلاعات هویتی این کاربر دوباره از ثبت احوال استعلام شود؟ (هزینه‌ی وب‌سرویس استعلام محاسبه می‌شود)",
+      )
+    )
+      return;
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await axios.post<ReinquireResult>(
+        `/api/admin/users/${user.id}/identity/reinquire`,
+      );
+      setResult(res.data);
+      await onUpdated();
+    } catch (err) {
+      setError(apiError(err, "خطا در استعلام هویت"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rows: { label: string; value: string | null | undefined; ltr?: boolean }[] =
+    identity
+      ? [
+          {
+            label: "نام و نام خانوادگی",
+            value: [identity.firstName, identity.lastName].filter(Boolean).join(" "),
+          },
+          { label: "کد ملی", value: identity.nationalCode, ltr: true },
+          {
+            label: "تاریخ تولد",
+            value: identity.birthDate
+              ? new Date(identity.birthDate).toLocaleDateString("fa-IR")
+              : null,
+          },
+          { label: "نام پدر", value: identity.fatherName },
+          { label: "جنسیت", value: identity.gender },
+          { label: "وضعیت حیات", value: identity.deathStatus },
+          {
+            label: "تاریخ تایید",
+            value: identity.verifiedAt
+              ? new Date(identity.verifiedAt).toLocaleString("fa-IR")
+              : null,
+          },
+          { label: "سرویس استعلام", value: identity.verifiedByProvider, ltr: true },
+        ]
+      : [];
+
+  return (
+    <div
+      className="rounded-2xl p-5 mb-5"
+      style={{
+        backgroundColor: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+      }}
+    >
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <h2 className="text-[13px] font-black text-gray-700 flex items-center gap-2">
+          <Fingerprint className="w-4 h-4 text-gold-500" />
+          احراز هویت
+          {meta && (
+            <span className="badge" style={{ background: meta.bg, color: meta.color }}>
+              {meta.label}
+            </span>
+          )}
+        </h2>
+        {canReinquire && (
+          <button
+            type="button"
+            onClick={reinquire}
+            disabled={loading || !canInquire}
+            title={
+              canInquire
+                ? "استعلام مجدد از ثبت احوال"
+                : "کاربر هنوز کد ملی و تاریخ تولد ثبت نکرده است"
+            }
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold text-white disabled:opacity-50"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+          >
+            {loading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            استعلام مجدد هویت
+          </button>
+        )}
+      </div>
+
+      {!identity ? (
+        <p className="text-[12px] text-gray-400">
+          کاربر هنوز اطلاعات هویتی ثبت نکرده است
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+          {rows.map((r) => (
+            <div
+              key={r.label}
+              className="flex items-center justify-between gap-2 text-[12px] py-2 border-b border-gray-50"
+            >
+              <span className="text-gray-400">{r.label}</span>
+              <span
+                className="font-bold text-gray-700"
+                dir={r.ltr ? "ltr" : undefined}
+              >
+                {r.value || "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {error && (
+        <p className="mt-3 rounded-xl bg-red-50 border border-red-100 p-3 text-[12px] font-bold text-red-600">
+          {error}
+        </p>
+      )}
+      {result && (
+        <div
+          className="mt-3 rounded-xl p-3 text-[12px] font-bold border"
+          style={
+            result.matched
+              ? { background: "#f0fdf4", borderColor: "#bbf7d0", color: "#15803d" }
+              : { background: "#fffbeb", borderColor: "#fde68a", color: "#b45309" }
+          }
+        >
+          <p>{result.message}</p>
+          {result.reason && <p className="mt-1 font-medium">دلیل: {result.reason}</p>}
+          <p className="mt-1 font-medium text-[11px] opacity-80">
+            {new Date(result.checkedAt).toLocaleString("fa-IR")}
+            {result.provider ? ` · ${result.provider}` : ""}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── بخش دعوت از دوستان: کد دعوت، معرف کاربر، آمار و لیست دعوت‌شده‌ها ──
 function ReferralSection({ user }: { user: UserDetail }) {
@@ -277,9 +476,9 @@ export default function UserDetailPage() {
             {data.phone}
           </h1>
           <p className="text-[12px] text-gray-400 mt-0.5">
-            {data.identity
-              ? `${data.identity.firstName} ${data.identity.lastName}`
-              : "بدون احراز هویت"}
+            {[data.identity?.firstName, data.identity?.lastName]
+              .filter(Boolean)
+              .join(" ") || "بدون احراز هویت"}
           </p>
         </div>
         <button
@@ -328,6 +527,8 @@ export default function UserDetailPage() {
           </p>
         </div>
       </div>
+
+      <IdentitySection user={data} onUpdated={() => mutate()} />
 
       <ReferralSection user={data} />
 

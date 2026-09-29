@@ -179,7 +179,7 @@ export default function ShopOrdersPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto pb-24" dir="rtl">
+    <div className="max-w-2xl mx-auto" dir="rtl">
       {/* هدر */}
       <div className="flex items-center gap-3 mb-5">
         <Link

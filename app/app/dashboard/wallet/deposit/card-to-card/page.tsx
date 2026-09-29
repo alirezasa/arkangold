@@ -128,7 +128,7 @@ export default function CardToCardPage() {
   const stepLabels: Step[] = ["select-card", "enter-amount", "show-destination"];
 
   return (
-    <div className="max-w-lg mx-auto pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto" dir="rtl">
       {/* هدر */}
       <div className="flex items-center gap-3 mb-5">
         <Link href="/dashboard/wallet/deposit" className="w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 bg-white text-gray-500 hover:bg-gray-50">
@@ -224,9 +224,9 @@ export default function CardToCardPage() {
                 setAmountToman(raw ? Number(raw).toLocaleString("fa-IR") : "");
                 setError(null);
               }}
-              className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all pr-4 pl-20"
+              className="w-full py-4 pr-4 pl-20 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all placeholder:text-[14px] placeholder:font-bold"
             />
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-gray-400">تومان</span>
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[13px] font-bold text-gray-400">تومان</span>
           </div>
 
           <div className="grid grid-cols-4 gap-2">

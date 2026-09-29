@@ -224,7 +224,7 @@ export default function DashboardPage() {
 
   return (
     <div
-      className="w-full max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-700"
+      className="w-full max-w-7xl mx-auto space-y-6 animate-in fade-in duration-700"
       dir="rtl"
     >
       {/* ── ۱. نوار قیمت لحظه‌ای طلا (واقعی، از کش) ── */}

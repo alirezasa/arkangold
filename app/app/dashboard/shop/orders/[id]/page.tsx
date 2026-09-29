@@ -191,7 +191,7 @@ export default function ShopOrderDetailPage() {
     wallet.availableRial / 10 < Number(order.totalToman);
 
   return (
-    <div className="max-w-lg mx-auto pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto" dir="rtl">
       {/* هدر */}
       <div className="flex items-center gap-3 mb-5">
         <Link

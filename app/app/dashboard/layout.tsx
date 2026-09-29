@@ -51,7 +51,7 @@ function normalizeIdentityStatus(
 function FullScreenLoader({ text }: { text: string }) {
   return (
     <div
-      className="flex h-screen w-full flex-col items-center justify-center"
+      className="flex h-app w-full flex-col items-center justify-center"
       style={{ backgroundColor: "var(--color-bg-page)" }}
     >
       <svg
@@ -216,7 +216,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="flex h-screen overflow-hidden"
+      className="flex h-app overflow-hidden"
       dir="rtl"
       style={{ backgroundColor: "var(--color-bg-page)" }}
     >
@@ -238,7 +238,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
         <MobileHeader userName={displayName} identityStatus={identityStatus} />
 
-        <main className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 lg:p-8 lg:pb-8">
+        {/* فاصله‌ی پایین فقط به اندازه‌ی منوی پایین موبایل (+ ناحیه‌ی امن آیفون)؛
+            صفحات نباید pb اضافه بگذارند وگرنه اسکرول خالی زیادی ایجاد می‌شود */}
+        <main className="flex-1 overflow-y-auto overscroll-contain p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))] lg:p-8 lg:pb-8">
           {bannerNode}
           {children}
         </main>

@@ -63,7 +63,7 @@ export default function CertificatePage() {
   const loading = walletLoading || priceLoading;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 pb-24" dir="rtl">
+    <div className="mx-auto max-w-2xl space-y-5" dir="rtl">
       {/* فقط خود گواهی چاپ شود */}
       <style>{`
         @media print {

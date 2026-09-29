@@ -2,44 +2,65 @@
 <html lang="fa" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#330509" />
   <title>بدون اینترنت | آرکان گلد</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap');
+    /* فونت از خود سایت (در Service Worker کش شده) — بدون وابستگی به سرویس خارجی */
+    @font-face {
+      font-family: 'Dana';
+      src: url('/fonts/DanaFaNum-Regular.woff') format('woff');
+      font-weight: 400;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Dana';
+      src: url('/fonts/DanaFaNum-Bold.woff') format('woff');
+      font-weight: 700 900;
+      font-display: swap;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #330509; }
     body {
-      font-family: 'Vazirmatn', sans-serif;
-      background: #064e3b;
+      font-family: 'Dana', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #5a0d15 0%, #330509 55%, #1a0205 100%);
       color: #fff;
-      min-height: 100svh;
+      min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 24px;
+      padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
       text-align: center;
     }
-    .icon { font-size: 72px; margin-bottom: 24px; }
-    h1 { font-size: 24px; font-weight: 900; margin-bottom: 12px; }
-    p { font-size: 15px; color: rgba(255,255,255,.7); line-height: 1.7; max-width: 320px; }
+    .logo { width: 150px; height: auto; margin-bottom: 28px; }
+    h1 { font-size: 22px; font-weight: 900; margin-bottom: 12px; }
+    p { font-size: 14px; color: rgba(255,255,255,.7); line-height: 1.9; max-width: 320px; }
     button {
       margin-top: 32px;
-      padding: 14px 32px;
+      padding: 14px 36px;
       background: #c5a059;
-      color: #064e3b;
+      color: #330509;
       border: none;
-      border-radius: 12px;
-      font-family: 'Vazirmatn', sans-serif;
+      border-radius: 14px;
+      font-family: inherit;
       font-size: 15px;
-      font-weight: 700;
+      font-weight: 900;
       cursor: pointer;
+      box-shadow: 0 10px 24px rgba(0,0,0,.25);
     }
+    button:active { transform: scale(.97); }
   </style>
 </head>
 <body>
-  <div class="icon">📡</div>
+  <img class="logo" src="/logo.png" alt="آرکان گلد" />
   <h1>اتصال اینترنت برقرار نیست</h1>
-  <p>برای استفاده از آرکان گلد به اینترنت نیاز دارید. لطفاً اتصال خود را بررسی کنید.</p>
-  <button onclick="location.reload()">تلاش مجدد</button>
+  <p>برای استفاده از آرکان گلد به اینترنت نیاز دارید. لطفاً اتصال خود را بررسی کنید و دوباره تلاش کنید.</p>
+  <button type="button" onclick="location.reload()">تلاش مجدد</button>
+  <script>
+    // با برقراری مجدد اتصال، صفحه خودکار بارگذاری می‌شود
+    window.addEventListener('online', function () { location.reload(); });
+  </script>
 </body>
 </html>

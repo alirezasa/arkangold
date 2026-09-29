@@ -81,7 +81,7 @@ export default function ShopPage() {
 
   return (
     <div
-      className="w-full max-w-7xl mx-auto space-y-6 pb-24 animate-in fade-in duration-500"
+      className="w-full max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500"
       dir="rtl"
     >
       <div className="flex items-center gap-4 mb-2">

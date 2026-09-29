@@ -1,11 +1,29 @@
 // public/sw.js
 // آرکان گلد - Service Worker برای پشتیبانی آفلاین و PWA
+//
+// سیاست کش:
+// - پاسخ‌های /api هرگز کش نمی‌شوند (اطلاعات مالی/شخصی کاربر نباید روی دستگاه بماند
+//   و موجودی کهنه نباید به‌جای موجودی واقعی نمایش داده شود).
+// - صفحات HTML کش نمی‌شوند؛ HTML کهنه بعد از هر deploy به فایل‌های JS حذف‌شده اشاره
+//   می‌کند و اپ را خراب می‌کند. در نبود اینترنت صفحه‌ی offline.html نمایش داده می‌شود.
+// - فایل‌های استاتیک (با hash در نام) cache-first هستند.
 
-const STATIC_CACHE = "arkan-static-v3";
-const API_CACHE = "arkan-api-v3";
+const VERSION = "v4";
+const STATIC_CACHE = `arkan-static-${VERSION}`;
+const OFFLINE_URL = "/offline.html";
 
-// فایل‌هایی که در اولین بارگذاری کش می‌شوند
-const PRECACHE_URLS = ["/", "/dashboard", "/manifest.json", "/offline.html"];
+// فایل‌هایی که هنگام نصب کش می‌شوند (همه برای نمایش صفحه‌ی آفلاین لازم‌اند)
+const PRECACHE_URLS = [
+  OFFLINE_URL,
+  "/manifest.json",
+  "/logo.png",
+  "/icons/icon-192x192.png",
+  "/icons/icon-72x72.png",
+  "/fonts/DanaFaNum-Regular.woff",
+  "/fonts/DanaFaNum-Bold.woff",
+];
+
+const STATIC_ASSET_RE = /\.(?:js|css|png|jpg|jpeg|gif|svg|ico|woff2?|webp|avif)$/i;
 
 // ─── Install ────────────────────────────────────────────────
 self.addEventListener("install", (event) => {
@@ -30,20 +48,17 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
+      // حذف همه‌ی کش‌های قدیمی — از جمله arkan-api-* و صفحات کش‌شده‌ی نسخه‌های قبل
       const cacheNames = await caches.keys();
-
-      // حذف کش‌های قدیمی
       await Promise.all(
         cacheNames
-          .filter(
-            (cacheName) =>
-              cacheName !== STATIC_CACHE && cacheName !== API_CACHE,
-          )
+          .filter((cacheName) => cacheName !== STATIC_CACHE)
           .map((cacheName) => caches.delete(cacheName)),
       );
 
-      // حذف احتمالی صفحات فاکتور که قبلاً کش شده‌اند
-      await removeInvoiceEntries();
+      if (self.registration.navigationPreload) {
+        await self.registration.navigationPreload.enable().catch(() => {});
+      }
 
       // کنترل تمام تب‌های باز توسط نسخه جدید
       await self.clients.claim();
@@ -51,16 +66,22 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data === "SKIP_WAITING") self.skipWaiting();
+});
+
 // ─── Fetch strategy ─────────────────────────────────────────
 self.addEventListener("fetch", (event) => {
   const { request } = event;
+
+  if (request.method !== "GET") return;
+
   const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
 
-  if (request.method !== "GET") {
-    return;
-  }
-
-  if (url.origin !== self.location.origin) {
+  // API → فقط شبکه؛ در حالت آفلاین پاسخ JSON خطا
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(networkOnlyApi(request));
     return;
   }
 
@@ -70,40 +91,24 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // API calls → Network first, fallback to cache
-  if (url.pathname.startsWith("/api/")) {
-    event.respondWith(networkFirstStrategy(request));
+  // ناوبری صفحات → شبکه؛ در نبود اینترنت صفحه‌ی آفلاین
+  if (request.mode === "navigate") {
+    event.respondWith(navigationStrategy(event));
     return;
   }
 
-  // Static assets → Cache first, fallback to network
-  if (/\.(?:js|css|png|jpg|jpeg|svg|ico|woff2|webp)$/i.test(url.pathname)) {
+  // فایل‌های استاتیک → Cache first
+  if (url.pathname.startsWith("/_next/static/") || STATIC_ASSET_RE.test(url.pathname)) {
     event.respondWith(cacheFirstStrategy(request));
-    return;
   }
 
-  // Pages → Network first, fallback to cache, fallback to offline.html
-  event.respondWith(pageStrategy(request));
+  // بقیه (درخواست‌های RSC، _next/image و ...) بدون دخالت SW از شبکه
 });
 
-// ─── Network First Strategy ─────────────────────────────────
-async function networkFirstStrategy(request) {
+async function networkOnlyApi(request) {
   try {
-    const networkResponse = await fetch(request);
-
-    if (networkResponse.ok) {
-      const cache = await caches.open(API_CACHE);
-      await cache.put(request, networkResponse.clone());
-    }
-
-    return networkResponse;
+    return await fetch(request);
   } catch {
-    const cachedResponse = await caches.match(request);
-
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-
     return new Response(
       JSON.stringify({
         error: "offline",
@@ -111,99 +116,43 @@ async function networkFirstStrategy(request) {
       }),
       {
         status: 503,
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-        },
+        headers: { "Content-Type": "application/json; charset=utf-8" },
       },
     );
   }
 }
 
-// ─── Cache First Strategy ───────────────────────────────────
+async function navigationStrategy(event) {
+  try {
+    const preloaded = await event.preloadResponse;
+    if (preloaded) return preloaded;
+    return await fetch(event.request);
+  } catch {
+    const offline = await caches.match(OFFLINE_URL);
+    return (
+      offline ||
+      new Response("Offline", {
+        status: 503,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      })
+    );
+  }
+}
+
 async function cacheFirstStrategy(request) {
-  const cachedResponse = await caches.match(request);
-
-  if (cachedResponse) {
-    return cachedResponse;
-  }
+  const cached = await caches.match(request);
+  if (cached) return cached;
 
   try {
-    const networkResponse = await fetch(request);
-
-    if (networkResponse.ok) {
+    const response = await fetch(request);
+    if (response.ok && response.type === "basic") {
       const cache = await caches.open(STATIC_CACHE);
-      await cache.put(request, networkResponse.clone());
+      await cache.put(request, response.clone());
     }
-
-    return networkResponse;
+    return response;
   } catch {
-    return new Response("Not found", {
-      status: 404,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-      },
-    });
+    return new Response("", { status: 504 });
   }
-}
-
-// ─── Page Strategy ──────────────────────────────────────────
-async function pageStrategy(request) {
-  try {
-    const networkResponse = await fetch(request);
-
-    if (networkResponse.ok) {
-      const cache = await caches.open(STATIC_CACHE);
-      await cache.put(request, networkResponse.clone());
-    }
-
-    return networkResponse;
-  } catch {
-    const cachedResponse = await caches.match(request);
-
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-
-    const offlineResponse = await caches.match("/offline.html");
-
-    if (offlineResponse) {
-      return offlineResponse;
-    }
-
-    return new Response("Offline", {
-      status: 503,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-      },
-    });
-  }
-}
-
-// ─── حذف صفحات فاکتور از کش‌های قبلی ────────────────────────
-async function removeInvoiceEntries() {
-  const cacheNames = await caches.keys();
-
-  await Promise.all(
-    cacheNames.map(async (cacheName) => {
-      const cache = await caches.open(cacheName);
-      const requests = await cache.keys();
-
-      await Promise.all(
-        requests.map((cachedRequest) => {
-          const cachedUrl = new URL(cachedRequest.url);
-
-          if (
-            cachedUrl.origin === self.location.origin &&
-            cachedUrl.pathname.startsWith("/invoice/")
-          ) {
-            return cache.delete(cachedRequest);
-          }
-
-          return Promise.resolve(false);
-        }),
-      );
-    }),
-  );
 }
 
 // ─── Push notifications ─────────────────────────────────────

@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { useIdentity } from '@/app/hooks/useIdentity';
 import { useProfilePage } from '@/app/hooks/useProfilePage';
 import { jalaliToIsoDate } from '@/app/utils/jalali';
+import { digitsOnly } from "@/app/utils/digits";
 
 export default function IdentityPage() {
   const router = useRouter();
@@ -49,7 +50,7 @@ export default function IdentityPage() {
 
   const handleChange = (key: keyof typeof form, value: string) => {
     const numericFields = ['nationalCode', 'birthYear', 'birthMonth', 'birthDay'];
-    const val = numericFields.includes(key) ? value.replace(/\D/g, '') : value;
+    const val = numericFields.includes(key) ? digitsOnly(value) : value;
     setForm((prev) => ({ ...prev, [key]: val }));
     if (error) setError(null);
   };

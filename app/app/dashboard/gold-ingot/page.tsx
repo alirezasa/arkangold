@@ -48,7 +48,7 @@ export default function GoldIngotPage() {
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-6 pb-24 animate-in fade-in duration-500" dir="rtl">
+    <div className="w-full max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500" dir="rtl">
       {/* ── هدر صفحه ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">

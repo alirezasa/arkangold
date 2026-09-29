@@ -18,6 +18,7 @@ import {
   useBankAccounts,
   useAddBankAccount,
 } from "@/app/hooks/useBankAccounts";
+import { digitsOnly, toEnglishDigits } from "@/app/utils/digits";
 //import { BankInquiryService } from "@/app/utils/bankUtils";
 
 // ── کامپوننت کارت بانکی ──
@@ -180,7 +181,7 @@ function AddAccountForm({
 
   // تشخیص خودکار بانک از BIN
   const handleCardChange = (val: string) => {
-    const digits = val.replace(/\D/g, "").slice(0, 16);
+    const digits = digitsOnly(val).slice(0, 16);
     const detected =
       digits.length >= 6 ? detectBankFromBin(digits.slice(0, 6)) : "";
     setForm((f) => ({
@@ -193,7 +194,7 @@ function AddAccountForm({
 
   const handleShebaChange = (val: string) => {
     // اضافه کردن IR اگر نداره
-    let v = val.toUpperCase().replace(/[^IR\d]/g, "");
+    let v = toEnglishDigits(val).toUpperCase().replace(/[^IR\d]/g, "");
     if (v.length > 0 && !v.startsWith("IR")) v = "IR" + v.replace(/\D/g, "");
     setForm((f) => ({ ...f, sheba: v.slice(0, 26) }));
     if (error) setError(null);
@@ -300,7 +301,7 @@ function AddAccountForm({
           onChange={(e) =>
             setForm((f) => ({
               ...f,
-              accountNumber: e.target.value.replace(/\D/g, ""),
+              accountNumber: digitsOnly(e.target.value),
             }))
           }
           className="w-full px-4 py-3 rounded-xl text-[14px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white transition-all text-left"

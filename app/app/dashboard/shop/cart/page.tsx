@@ -41,6 +41,7 @@ import { useAddresses } from "@/app/hooks/usePhysicalDelivery";
 import { useWallet } from "@/app/hooks/useWallet";
 import { useActiveGateways } from "@/app/hooks/useShop";
 import { Suspense } from "react";
+import { decimalOnly, digitsOnly } from "@/app/utils/digits";
 
 function fmtToman(v: string | number) {
   return Math.round(Number(v)).toLocaleString("fa-IR");
@@ -124,11 +125,15 @@ function CartRow({
         {isWeightRange ? (
           <div className="flex items-center gap-1.5 shrink-0">
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               dir="ltr"
               defaultValue={item.weightGrams}
+              onChange={(e) => {
+                e.target.value = decimalOnly(e.target.value);
+              }}
               onBlur={(e) => {
-                const v = Number(e.target.value);
+                const v = Number(decimalOnly(e.target.value));
                 if (v > 0 && v !== Number(item.weightGrams)) {
                   onWeightChange(item.id, v);
                 }
@@ -469,7 +474,7 @@ function ShopCartPageInner() {
   }
 
   return (
-    <div className="max-w-lg mx-auto pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto" dir="rtl">
       <div className="flex items-center gap-3 mb-5">
         <Link
           href="/dashboard/shop"
@@ -974,7 +979,7 @@ function ShopCartPageInner() {
                           ...prev,
                           [item.id]: {
                             type: "OTHER",
-                            phone: e.target.value.replace(/\D/g, ""),
+                            phone: digitsOnly(e.target.value),
                           },
                         }))
                       }
@@ -1054,7 +1059,7 @@ function ShopCartPageInner() {
                     value={walletPortionToman}
                     onChange={(e) =>
                       setWalletPortionToman(
-                        e.target.value.replace(/[^0-9]/g, ""),
+                        digitsOnly(e.target.value),
                       )
                     }
                     dir="ltr"

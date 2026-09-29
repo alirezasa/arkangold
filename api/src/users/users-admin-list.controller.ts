@@ -11,8 +11,10 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { IsOptional, IsString, IsIn } from 'class-validator';
 import { UsersAdminService } from './users-admin.service';
+import { UsersService } from './users.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
@@ -40,7 +42,10 @@ interface AdminRequest extends Request {
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
 @Controller('admin/users')
 export class UsersAdminListController {
-  constructor(private readonly service: UsersAdminService) {}
+  constructor(
+    private readonly service: UsersAdminService,
+    private readonly usersService: UsersService,
+  ) {}
 
   @RequirePermission('users.view')
   @Get()
@@ -58,6 +63,16 @@ export class UsersAdminListController {
   @Get(':id')
   getOne(@Param('id') id: string) {
     return this.service.getOne(id);
+  }
+
+  // استعلام مجدد اطلاعات هویتی کاربر از ثبت احوال (هزینه‌ی وب‌سرویس دارد → دسترسی جدا)
+  @RequirePermission('users.identity.reinquire')
+  @AuditLog('user.identity_reinquire')
+  @UseInterceptors(AuditLogInterceptor)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @Post(':id/identity/reinquire')
+  reinquireIdentity(@Param('id') id: string) {
+    return this.usersService.reinquireIdentityByAdmin(id);
   }
 
   @RequirePermission('users.view')

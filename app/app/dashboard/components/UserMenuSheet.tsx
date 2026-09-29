@@ -116,7 +116,7 @@ export default function UserMenuSheet({
 
       {/* شیت اصلی */}
       <div
-        className="fixed inset-x-0 bottom-0 flex max-h-[92vh] flex-col rounded-t-[28px] shadow-[0_-10px_36px_rgba(51,5,9,0.2)] animate-slide-up"
+        className="fixed inset-x-0 bottom-0 flex max-h-app-sheet flex-col rounded-t-[28px] shadow-[0_-10px_36px_rgba(51,5,9,0.2)] animate-slide-up"
         style={{ backgroundColor: "var(--color-bg-page)" }}
       >
         {/* دستگیره و عنوان */}

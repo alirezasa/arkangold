@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { decimalOnly } from "@/app/utils/digits";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -54,6 +55,8 @@ export default function ProductDetailView({
 
   // ── حالت بازه‌وزنی (WEIGHT_RANGE) ──
   const [weightGrams, setWeightGrams] = useState<number | null>(null);
+  // متن خام ورودی وزن (تا تایپ «۱٫» یا «0.» در میانه‌ی ورود از بین نرود)
+  const [weightText, setWeightText] = useState<string | null>(null);
 
   const [quantity, setQuantity] = useState(1);
   // بسته‌بندی انتخابی؛ null = گزینه پیش‌فرض محصول
@@ -169,7 +172,7 @@ export default function ProductDetailView({
 
   return (
     <div
-      className="w-full max-w-4xl mx-auto space-y-6 pb-24 animate-in fade-in duration-500"
+      className="w-full max-w-4xl mx-auto space-y-6 animate-in fade-in duration-500"
       dir="rtl"
     >
       <div className="flex items-center gap-4">
@@ -238,19 +241,19 @@ export default function ProductDetailView({
               </label>
               <div className="relative">
                 <input
-                  type="number"
-                  step={product.weightRange.stepGrams}
-                  min={product.weightRange.minWeightGrams}
-                  max={product.weightRange.maxWeightGrams}
-                  value={effectiveWeight || ""}
+                  type="text"
+                  inputMode="decimal"
+                  value={weightText ?? (effectiveWeight ? String(effectiveWeight) : "")}
                   onChange={(e) => {
-                    setWeightGrams(Number(e.target.value));
+                    const v = decimalOnly(e.target.value);
+                    setWeightText(v);
+                    setWeightGrams(v ? Number(v) : 0);
                     if (error) setError(null);
                   }}
                   dir="ltr"
-                  className="w-full px-4 py-3.5 rounded-xl text-[16px] font-black border-2 border-gray-200 outline-none focus:border-rose-400 text-left"
+                  className="w-full py-3.5 pr-4 pl-14 rounded-xl text-[16px] font-black border-2 border-gray-200 outline-none focus:border-rose-400 text-left"
                 />
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[12px] font-bold text-gray-400">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[12px] font-bold text-gray-400">
                   گرم
                 </span>
               </div>

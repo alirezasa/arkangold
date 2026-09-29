@@ -67,7 +67,7 @@ export default function WalletPage() {
   return (
     // حداکثر عرض را روی دسکتاپ بزرگتر کردیم (max-w-4xl) تا فضا پر شود
     <div
-      className="max-w-md md:max-w-4xl mx-auto px-4 pt-2 pb-24 safe-bottom"
+      className="max-w-md md:max-w-4xl mx-auto px-4 pt-2"
       dir="rtl"
     >
       {/* هدر مینی‌مال بالای صفحه */}

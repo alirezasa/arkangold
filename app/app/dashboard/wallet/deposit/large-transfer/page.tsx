@@ -52,7 +52,7 @@ export default function LargeTransferPage() {
   // ── مرحله ۱: مبلغ ──
   if (!deposit) {
     return (
-      <div className="max-w-lg mx-auto pb-24" dir="rtl">
+      <div className="max-w-lg mx-auto" dir="rtl">
         <header className="flex items-center gap-3 mb-5">
           <Link
             href="/dashboard/wallet/deposit"
@@ -96,9 +96,9 @@ export default function LargeTransferPage() {
                 setAmountToman(raw ? Number(raw).toLocaleString("fa-IR") : "");
                 if (error) setError(null);
               }}
-              className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-gold-500 outline-none text-center text-[19px] font-black text-gray-800 bg-gray-50"
+              className="w-full px-16 py-4 rounded-xl border-2 border-gray-200 focus:border-gold-500 outline-none text-center text-[19px] font-black text-gray-800 bg-gray-50"
             />
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[11px] font-bold text-gray-400">
               تومان
             </span>
           </div>
@@ -151,7 +151,7 @@ export default function LargeTransferPage() {
   ];
 
   return (
-    <div className="max-w-lg mx-auto pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto" dir="rtl">
       <header className="flex items-center gap-3 mb-5">
         <CheckCircle2 className="w-9 h-9 text-green-600" />
         <div>

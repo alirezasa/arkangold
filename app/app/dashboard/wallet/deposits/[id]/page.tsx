@@ -106,7 +106,7 @@ export default function DepositDetailPage({
   ];
 
   return (
-    <div className="max-w-lg mx-auto px-4 pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto px-4" dir="rtl">
       <header className="flex items-center gap-3 mb-5">
         <Link
           href="/dashboard/wallet/deposits"

@@ -13,7 +13,7 @@ import {
 import UserMenuSheet from "./UserMenuSheet";
 
 const USER_MENU_KEY = "#user-menu";
-const CENTER_PATH = "/dashboard/trade";
+const CENTER_PATH = "/dashboard/melted-gold";
 
 const USER_MENU_PATHS = USER_MENU_GROUPS.flatMap((g) =>
   g.items.map((i) => i.path),

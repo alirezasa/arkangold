@@ -38,7 +38,7 @@ export default function DirectDepositPage() {
   };
 
   return (
-    <div className="max-w-lg mx-auto pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto" dir="rtl">
       <div className="flex items-center gap-3 mb-5">
         <Link href="/dashboard/wallet/deposit"
           className="w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 bg-white text-gray-500 hover:bg-gray-50">

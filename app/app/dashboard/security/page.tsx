@@ -133,7 +133,7 @@ export default function SecurityPage() {
   };
 
   return (
-    <div className="mx-auto max-w-lg space-y-5 pb-24" dir="rtl">
+    <div className="mx-auto max-w-lg space-y-5" dir="rtl">
       {/* هدر */}
       <div className="flex items-center gap-3">
         <div

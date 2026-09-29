@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { decimalOnly, digitsOnly } from "@/app/utils/digits";
 
 /**
  * هوک ماشین‌حساب دوطرفه معاملات طلا
@@ -14,11 +15,8 @@ export function useTradeCalculator(currentPrice: number | null) {
   // تغییر مبلغ تومان → محاسبه وزن
   const handleAmountChange = useCallback(
     (val: string) => {
-      // پشتیبانی از کیبورد فارسی
-      const normalized = val
-        .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
-        .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
-        .replace(/[^0-9.]/g, "");
+      // پشتیبانی از کیبورد فارسی — مبلغ تومان عدد صحیح است
+      const normalized = digitsOnly(val);
 
       setAmountToman(normalized);
 
@@ -35,10 +33,8 @@ export function useTradeCalculator(currentPrice: number | null) {
   // تغییر وزن → محاسبه مبلغ تومان
   const handleWeightChange = useCallback(
     (val: string) => {
-      const normalized = val
-        .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
-        .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
-        .replace(/[^0-9.]/g, "");
+      // پشتیبانی از کیبورد فارسی (ارقام و جداکننده اعشار «٫»)
+      const normalized = decimalOnly(val);
 
       setWeightGrams(normalized);
 

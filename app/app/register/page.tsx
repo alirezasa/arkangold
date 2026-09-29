@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useSyncExternalStore } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -14,6 +14,8 @@ import {
   Gift,
 } from "lucide-react";
 import { useRegister } from "../hooks/useRegister";
+import OtpInput from "../components/OtpInput";
+import { digitsOnly } from "../utils/digits";
 
 // کد دعوت دریافتی از لینک دعوت (/register?ref=CODE) — در sessionStorage نگه
 // داشته می‌شود تا با رفت‌وبرگشت بین صفحات ورود/ثبت‌نام از دست نرود
@@ -75,7 +77,6 @@ export default function RegisterPage() {
   const [displayedText, setDisplayedText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // کد دعوتی که از لینک دعوت آمده (برای نمایش بنر و پرکردن خودکار فیلد کد معرف)
   const inviteCode = useSyncExternalStore(
@@ -127,7 +128,7 @@ export default function RegisterPage() {
     value: string,
     maxLength: number,
   ) => {
-    const onlyDigits = value.replace(/\D/g, "");
+    const onlyDigits = digitsOnly(value);
     if (onlyDigits.length <= maxLength) {
       setFormData({ ...formData, [key]: onlyDigits });
       if (error) setError(null);
@@ -169,32 +170,25 @@ export default function RegisterPage() {
     }
   };
 
-  const handleOtpChange = (index: number, value: string) => {
-    if (isNaN(Number(value))) return;
-    const newOtp = [...formData.otp];
-    newOtp[index] = value;
-    setFormData({ ...formData, otp: newOtp });
-
+  const handleOtpChange = (next: string[]) => {
+    setFormData((prev) => ({ ...prev, otp: next }));
     if (error) setError(null);
-
-    if (value !== "" && index < 5) otpRefs.current[index + 1]?.focus();
   };
 
-  const handleOtpKeyDown = (
-    index: number,
-    e: React.KeyboardEvent<HTMLInputElement>,
-  ) => {
-    if (e.key === "Backspace" && formData.otp[index] === "" && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-    if (e.key === "Enter" && index === 5) {
-      handleSubmit();
-    }
+  const handleOtpComplete = async (code: string) => {
+    if (loading) return;
+    const activePhone = userType === "REAL" ? formData.phone : formData.repPhone;
+    await handleVerifyOtp(
+      activePhone,
+      code.split(""),
+      userType,
+      formData.companyNationalId,
+    );
   };
 
   return (
     <div
-      className="w-full min-h-screen flex flex-col lg:flex-row-reverse bg-[#fdfdfd]"
+      className="w-full min-h-app flex flex-col lg:flex-row-reverse bg-[#fdfdfd]"
       dir="rtl"
     >
       {/* پنل سمت راست (برندینگ دسکتاپ) */}
@@ -232,11 +226,11 @@ export default function RegisterPage() {
       </div>
 
       {/* پنل فرم */}
-      <div className="flex-1 flex flex-col justify-center px-6 sm:px-20 py-12">
+      <div className="flex-1 flex flex-col justify-center px-6 sm:px-20 py-6 sm:py-12">
         <div className="w-full max-w-sm mx-auto">
 
           {/* لوگو و برندینگ حالت موبایل */}
-          <div className="flex flex-col items-center justify-center mb-8 lg:hidden">
+          <div className="flex flex-col items-center justify-center mb-6 lg:hidden">
             <div className="mb-2">
               <Image
                 src="/logo.png"
@@ -257,7 +251,7 @@ export default function RegisterPage() {
             </p>
           </div>
 
-          <div className="mb-10">
+          <div className="mb-6 lg:mb-10">
             <h2 className="text-3xl font-black text-emerald mb-2">ثبت نام</h2>
             <div className="flex gap-2 mt-4">
               {[1, 2, 3].map((s) => (
@@ -360,21 +354,12 @@ export default function RegisterPage() {
                   ویرایش شماره
                 </button>
               </p>
-              <div className="flex justify-center gap-2" dir="ltr">
-                {formData.otp.map((digit, i) => (
-                  <input
-                    key={i}
-                    ref={(el) => {
-                      otpRefs.current[i] = el;
-                    }}
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
-                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    className="w-12 h-14 text-center border-2 border-gray-200 rounded-xl text-xl font-black focus:border-emerald outline-none transition-all focus:scale-105 bg-white"
-                  />
-                ))}
-              </div>
+              <OtpInput
+                value={formData.otp}
+                onChange={handleOtpChange}
+                onComplete={handleOtpComplete}
+                disabled={loading}
+              />
             </div>
           )}
 
@@ -420,7 +405,7 @@ export default function RegisterPage() {
             type="button"
             disabled={loading}
             onClick={handleSubmit}
-            className="w-full mt-8 py-4 bg-emerald text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-emerald/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full mt-6 lg:mt-8 py-4 bg-emerald text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-emerald/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {loading ? (
               <Loader2 className="w-6 h-6 animate-spin" />
@@ -488,6 +473,8 @@ function InputField({
       <div className="relative flex items-center">
         <input
           type={isPasswordField ? "password" : isNumeric ? "tel" : "text"}
+          inputMode={isNumeric ? "numeric" : undefined}
+          autoComplete={isPassword ? "new-password" : isNumeric ? "off" : undefined}
           placeholder={placeholder}
           dir={isNumeric || isPassword ? "ltr" : "rtl"}
           className={`w-full p-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 focus:ring-4 focus:ring-gold-500/10 transition-all text-lg font-medium ${isNumeric || isPassword ? "text-left" : "text-right"} ${isPassword ? "pl-12" : ""}`}

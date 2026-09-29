@@ -12,6 +12,7 @@ import {
   Banknote,
   Coins
 } from "lucide-react";
+import { decimalOnly, digitsOnly } from "@/app/utils/digits";
 
 export default function MeltedSilverPage() {
   // استیت‌های مدیریت فرم خرید و فروش
@@ -30,7 +31,7 @@ export default function MeltedSilverPage() {
 
   // هندلر تغییر مبلغ (محاسبه خودکار وزن)
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/[^0-9]/g, '');
+    const val = digitsOnly(e.target.value);
     setAmount(val);
     if (val && currentPrice) {
       const calculatedWeight = (Number(val) / currentPrice).toFixed(2);
@@ -42,7 +43,7 @@ export default function MeltedSilverPage() {
 
   // هندلر تغییر وزن (محاسبه خودکار مبلغ)
   const handleWeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/[^0-9.]/g, '');
+    const val = decimalOnly(e.target.value);
     setWeight(val);
     if (val && currentPrice) {
       const calculatedAmount = Math.floor(Number(val) * currentPrice).toString();
@@ -53,7 +54,7 @@ export default function MeltedSilverPage() {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-6 pb-24 animate-in fade-in duration-500" dir="rtl">
+    <div className="w-full max-w-5xl mx-auto space-y-6 animate-in fade-in duration-500" dir="rtl">
       
       {/* ── هدر صفحه ── */}
       <div className="flex items-center gap-4 mb-8">

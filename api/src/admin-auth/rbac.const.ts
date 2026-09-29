@@ -32,6 +32,11 @@ export const ADMIN_PERMISSIONS = [
     group: 'users',
     description: 'مشاهده لیست و جزئیات کاربران',
   },
+  {
+    key: 'users.identity.reinquire',
+    group: 'users',
+    description: 'استعلام مجدد اطلاعات هویتی کاربر از ثبت احوال',
+  },
 
   {
     key: 'physical_delivery.view',

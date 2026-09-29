@@ -19,8 +19,11 @@ interface PWAState {
 function detectIOS(): boolean {
   if (typeof window === "undefined") return false;
 
+  const ua = navigator.userAgent;
+  // iPadOS 13+ خود را «Macintosh» معرفی می‌کند؛ با صفحه‌ی لمسی تشخیص داده می‌شود
+  const isIPadOS = /macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
   return (
-    /iphone|ipad|ipod/i.test(navigator.userAgent) &&
+    (/iphone|ipad|ipod/i.test(ua) || isIPadOS) &&
     !(window as unknown as { MSStream?: unknown }).MSStream
   );
 }

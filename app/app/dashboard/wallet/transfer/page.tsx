@@ -15,16 +15,11 @@ import {
   Coins,
   Info,
 } from "lucide-react";
+import { decimalOnly } from "@/app/utils/digits";
 
 // تبدیل ارقام فارسی/عربی به انگلیسی؛ نقطه اعشار هم نگه داشته می‌شود
-function toEnglishDigits(str: string): string {
-  const persian = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
-  const arabic = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
-  return str
-    .replace(/[۰-۹]/g, (ch) => String(persian.indexOf(ch)))
-    .replace(/[٠-٩]/g, (ch) => String(arabic.indexOf(ch)))
-    .replace(/[^0-9.]/g, "");
-}
+// تبدیل ارقام فارسی/عربی (و اعشار «٫») به انگلیسی و حذف کاراکترهای غیرعددی
+const toEnglishDigits = decimalOnly;
 
 function LimitBar({
   used,
@@ -125,7 +120,7 @@ export default function TransferPage() {
   };
 
   return (
-    <div className="max-w-lg mx-auto pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto" dir="rtl">
       {/* هدر */}
       <div className="flex items-center gap-3 mb-5">
         <Link
@@ -249,7 +244,7 @@ export default function TransferPage() {
                 placeholder="0.0000"
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
-                className="w-full px-4 py-4 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all"
+                className="w-full py-4 pr-4 pl-20 rounded-xl border-2 border-gray-200 focus:border-emerald-500 outline-none text-left text-[20px] font-black text-gray-800 bg-gray-50 transition-all"
               />
               <button
                 onClick={() => handleAmountChange(String(maxPossible))}

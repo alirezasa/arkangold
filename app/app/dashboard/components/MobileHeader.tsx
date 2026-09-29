@@ -39,10 +39,8 @@ export default function MobileHeader({
         style={{ background: "rgba(197,160,89,.12)" }}
       />
 
-      <div
-        className="relative flex items-center justify-between gap-3 px-5 pb-5"
-        style={{ paddingTop: "max(env(safe-area-inset-top), 16px)" }}
-      >
+      {/* ناحیه‌ی safe-area بالای آیفون را body و نوار .pwa-status-bar پوشش می‌دهند */}
+      <div className="relative flex items-center justify-between gap-3 px-5 pt-4 pb-5">
         <h1 className="shrink-0 text-[20px] font-black text-white">
           آرکان <span style={{ color: "var(--color-gold-500)" }}>گلد</span>
         </h1>

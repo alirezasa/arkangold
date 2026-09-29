@@ -1,13 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-
-function normalizeDigits(val: string): string {
-  return val
-    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
-    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
-    .replace(/[^0-9.]/g, "");
-}
+import { decimalOnly as normalizeDigits } from "@/app/utils/digits";
 
 /**
  * ماشین‌حساب دوطرفه میلی‌گرم ↔ تومان

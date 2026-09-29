@@ -232,7 +232,7 @@ export default function PriceChartPage() {
   const isPositiveChange = periodChange >= 0;
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-6 pb-24 animate-in fade-in duration-700" dir="rtl">
+    <div className="w-full max-w-5xl mx-auto space-y-6 animate-in fade-in duration-700" dir="rtl">
       {/* ── هدر صفحه ── */}
       <div className="flex items-center justify-between">
         <div>
@@ -343,14 +343,14 @@ export default function PriceChartPage() {
       {/* ── دکمه‌های اقدام سریع ── */}
       <div className="grid grid-cols-2 gap-3">
         <Link
-          href="/dashboard/trade"
+          href="/dashboard/melted-gold?side=buy"
           className="flex items-center justify-center gap-2 rounded-2xl py-3.5 font-black text-[14px] text-white bg-linear-to-r from-emerald-600 to-emerald-700 shadow-sm hover:opacity-90 transition-opacity"
         >
           <ArrowDownCircle className="w-4.5 h-4.5" />
           خرید طلا
         </Link>
         <Link
-          href="/dashboard/trade"
+          href="/dashboard/melted-gold?side=sell"
           className="flex items-center justify-center gap-2 rounded-2xl py-3.5 font-black text-[14px] text-white bg-linear-to-r from-red-500 to-red-600 shadow-sm hover:opacity-90 transition-opacity"
         >
           <ArrowUpCircle className="w-4.5 h-4.5" />

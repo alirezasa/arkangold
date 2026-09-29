@@ -86,6 +86,50 @@ body {
 /* ── PWA: safe area helpers ───────────────────────────────── */
 
 /*
+  نوار وضعیت آیفون (ساعت/باتری):
+  با viewport-fit=cover و apple-mobile-web-app-status-bar-style=black-translucent
+  محتوای صفحه زیر نوار وضعیت می‌رود. body به اندازه‌ی safe-area از بالا فاصله
+  می‌گیرد و این نوار ثابت همان ناحیه را با رنگ اصلی برند پر می‌کند؛ بنابراین
+  زیر ساعت و باتری همیشه رنگ برند دیده می‌شود (در مرورگر عادی ارتفاعش صفر است).
+*/
+html {
+  background-color: var(--color-emerald);
+}
+body {
+  padding-top: env(safe-area-inset-top);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.pwa-status-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top);
+  background-color: var(--color-emerald);
+  z-index: 10000;
+  pointer-events: none;
+}
+
+/*
+  ارتفاع واقعی قابل مشاهده روی موبایل: 100vh در مرورگر گوشی از ناحیه‌ی دیده‌شده
+  بلندتر است (نوار آدرس/ابزار) و باعث اسکرول اضافه و پنهان شدن پایین/بالای صفحه
+  می‌شد. 100dvh همان ارتفاع دیده‌شده است؛ فاصله‌ی safe-area بالا هم کم می‌شود.
+*/
+.h-app {
+  height: 100vh;
+  height: calc(100dvh - env(safe-area-inset-top));
+}
+.min-h-app {
+  min-height: 100vh;
+  min-height: calc(100dvh - env(safe-area-inset-top));
+}
+.max-h-app-sheet {
+  max-height: 92vh;
+  max-height: calc(100dvh - env(safe-area-inset-top) - 12px);
+}
+
+/*
   iOS notch / Dynamic Island / home indicator:
   Use env() where Tailwind can't — e.g. in inline styles or here.
 */

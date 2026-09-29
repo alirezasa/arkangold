@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, KeyboardEvent } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -17,6 +17,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useForgotPassword } from "../hooks/useForgotPassword";
+import OtpInput from "../components/OtpInput";
+import { digitsOnly } from "../utils/digits";
 
 // آرایه متون اسلایدر برای افکت تایپی
 const SLIDES = ["خرید و فروش طلای آب شده", "خرید شمش طلا", "خرید مصنوعات طلا"];
@@ -46,7 +48,6 @@ export default function ForgotPasswordPage() {
   const [displayedText, setDisplayedText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // منطق افکت تایپی (Typewriter Effect)
   useEffect(() => {
@@ -96,30 +97,19 @@ export default function ForgotPasswordPage() {
   };
 
   const handlePhoneChange = (val: string) => {
-    const onlyDigits = val.replace(/\D/g, "");
+    const onlyDigits = digitsOnly(val);
     if (onlyDigits.length <= 11) setPhone(onlyDigits);
     if (error) setError(null);
   };
 
-  const handleOtpChange = (index: number, value: string) => {
-    if (isNaN(Number(value))) return;
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
+  const handleOtpChange = (next: string[]) => {
+    setOtp(next);
     if (error) setError(null);
-
-    if (value !== "" && index < 5) otpRefs.current[index + 1]?.focus();
-
-    // ارسال خودکار بعد از تایپ رقم آخر
-    if (value !== "" && index === 5) {
-      verifyOtp(phone, newOtp.join(""));
-    }
   };
 
-  const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && otp[index] === "" && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
+  // ارسال خودکار بعد از تایپ رقم آخر
+  const handleOtpComplete = (code: string) => {
+    if (!loading) verifyOtp(phone, code);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -147,7 +137,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div
-      className="w-full min-h-screen flex flex-col lg:flex-row-reverse bg-[#fdfdfd]"
+      className="w-full min-h-app flex flex-col lg:flex-row-reverse bg-[#fdfdfd]"
       dir="rtl"
     >
       {/* پنل سمت راست (برندینگ دسکتاپ) */}
@@ -188,10 +178,10 @@ export default function ForgotPasswordPage() {
       </div>
 
       {/* فرم مرکزی */}
-      <div className="flex-1 flex flex-col justify-center px-6 sm:px-20 py-12">
+      <div className="flex-1 flex flex-col justify-center px-6 sm:px-20 py-6 sm:py-12">
         <div className="w-full max-w-sm mx-auto">
           {/* لوگو و برندینگ حالت موبایل */}
-          <div className="flex flex-col items-center justify-center mb-8 lg:hidden">
+          <div className="flex flex-col items-center justify-center mb-6 lg:hidden">
             <div className="mb-2">
               <Image
                 src="/logo.png"
@@ -224,7 +214,7 @@ export default function ForgotPasswordPage() {
             </div>
           ) : (
             <>
-              <div className="mb-10">
+              <div className="mb-6 lg:mb-10">
                 <h2 className="text-3xl font-black text-emerald mb-2">
                   فراموشی رمز
                 </h2>
@@ -252,6 +242,7 @@ export default function ForgotPasswordPage() {
                       <Phone className="absolute right-4 top-4 text-emerald w-5 h-5" />
                       <input
                         type="tel"
+                        inputMode="numeric"
                         dir="ltr"
                         placeholder="0912..."
                         value={phone}
@@ -285,22 +276,12 @@ export default function ForgotPasswordPage() {
                       </button>
                     </div>
 
-                    <div className="flex justify-center gap-2" dir="ltr">
-                      {otp.map((digit, i) => (
-                        <input
-                          key={i}
-                          type="text"
-                          maxLength={1}
-                          ref={(el) => {
-                            otpRefs.current[i] = el;
-                          }}
-                          value={digit}
-                          onChange={(e) => handleOtpChange(i, e.target.value)}
-                          onKeyDown={(e) => handleKeyDown(i, e)}
-                          className="w-12 h-14 text-center text-xl font-black bg-white border-2 border-gray-200 rounded-xl focus:border-emerald outline-none transition-all focus:scale-105"
-                        />
-                      ))}
-                    </div>
+                    <OtpInput
+                      value={otp}
+                      onChange={handleOtpChange}
+                      onComplete={handleOtpComplete}
+                      disabled={loading}
+                    />
 
                     <div className="flex items-center justify-center gap-2 text-sm font-bold text-gray-500">
                       {timer > 0 ? (
@@ -359,7 +340,7 @@ export default function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-4 mt-8 bg-emerald text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-emerald/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="w-full py-4 mt-6 lg:mt-8 bg-emerald text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-emerald/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <Loader2 className="w-6 h-6 animate-spin" />

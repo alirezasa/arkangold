@@ -98,7 +98,7 @@ export default function DepositSelectPage() {
     : [];
 
   return (
-    <div className="max-w-lg mx-auto space-y-4 pb-24" dir="rtl">
+    <div className="max-w-lg mx-auto space-y-4" dir="rtl">
       {/* هدر */}
       <div className="flex items-center gap-3 mb-2">
         <Link

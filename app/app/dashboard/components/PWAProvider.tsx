@@ -1,7 +1,30 @@
 "use client";
 
 import { useSyncExternalStore, useState } from "react";
+import { usePathname } from "next/navigation";
 import { usePWA } from "@/app/hooks/usePWA";
+
+// پیشنهاد نصب پس از بستن، تا یک هفته دوباره نمایش داده نمی‌شود
+const DISMISS_KEY = "arkan-pwa-install-dismissed-at";
+const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function wasDismissedRecently(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const at = Number(window.localStorage.getItem(DISMISS_KEY));
+    return Number.isFinite(at) && at > 0 && Date.now() - at < DISMISS_TTL_MS;
+  } catch {
+    return false;
+  }
+}
+
+function rememberDismiss() {
+  try {
+    window.localStorage.setItem(DISMISS_KEY, String(Date.now()));
+  } catch {
+    // دسترسی به localStorage ممکن نیست (حالت خصوصی و ...)
+  }
+}
 
 function useHydrated() {
   return useSyncExternalStore(
@@ -20,8 +43,18 @@ export default function PWAProvider({
     usePWA();
 
   const hydrated = useHydrated();
-  const [iosDismissed, setIosDismissed] = useState(false);
-  const [installDismissed, setInstallDismissed] = useState(false);
+  // خواندن از localStorage فقط در کلاینت انجام می‌شود؛ رندر پیشنهاد نصب هم تا hydrate
+  // شدن صفحه انجام نمی‌شود، پس عدم تطابق hydration پیش نمی‌آید
+  const [dismissed, setDismissed] = useState(wasDismissedRecently);
+  const dismiss = () => {
+    rememberDismiss();
+    setDismissed(true);
+  };
+
+  // پیشنهاد نصب فقط داخل داشبورد نمایش داده می‌شود؛ در صفحات ورود/ثبت‌نام روی
+  // دکمه‌ی اصلی فرم قرار می‌گرفت و مانع ورود کاربر می‌شد
+  const pathname = usePathname();
+  const showInstallHint = !dismissed && (pathname?.startsWith("/dashboard") ?? false);
 
   return (
     <>
@@ -29,8 +62,8 @@ export default function PWAProvider({
 
       {hydrated && isOffline && (
         <div
-          className="fixed left-0 right-0 top-0 z-9999 flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-bold text-white"
-          style={{ background: "#dc2626" }}
+          className="fixed left-0 right-0 z-9999 flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-bold text-white"
+          style={{ background: "#dc2626", top: "env(safe-area-inset-top)" }}
           role="alert"
           aria-live="assertive"
         >
@@ -43,9 +76,9 @@ export default function PWAProvider({
         isInstallable &&
         !isIOS &&
         !isInstalled &&
-        !installDismissed && (
+        showInstallHint && (
           <div
-            className="fixed bottom-19 left-3 right-3 z-9998 rounded-[14px] p-4 shadow-xl lg:bottom-4 lg:left-auto lg:right-4 lg:w-85"
+            className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-3 right-3 z-9998 rounded-[14px] p-4 shadow-xl lg:bottom-4 lg:left-auto lg:right-4 lg:w-85"
             style={{
               backgroundColor: "var(--color-emerald)",
               border: "1px solid rgba(197,160,89,.3)",
@@ -54,15 +87,14 @@ export default function PWAProvider({
             aria-label="نصب اپلیکیشن"
           >
             <div className="flex items-start gap-3">
-              <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[20px] font-black"
-                style={{
-                  background: "var(--color-gold-500)",
-                  color: "var(--color-emerald)",
-                }}
-              >
-                گ
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/icons/icon-96x96.png"
+                alt=""
+                width={40}
+                height={40}
+                className="h-10 w-10 shrink-0 rounded-[10px] ring-1 ring-gold-500/40"
+              />
 
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-bold text-white">
@@ -75,7 +107,7 @@ export default function PWAProvider({
 
               <button
                 type="button"
-                onClick={() => setInstallDismissed(true)}
+                onClick={dismiss}
                 className="shrink-0 p-1 text-white/40 transition-colors hover:text-white/80"
                 aria-label="بستن"
               >
@@ -99,7 +131,7 @@ export default function PWAProvider({
 
               <button
                 type="button"
-                onClick={() => setInstallDismissed(true)}
+                onClick={dismiss}
                 className="rounded-[9px] px-4 py-2 text-[13px] font-bold text-white/70 transition-colors hover:text-white"
                 style={{
                   background: "rgba(255,255,255,.1)",
@@ -112,9 +144,9 @@ export default function PWAProvider({
           </div>
         )}
 
-      {hydrated && isIOS && !isInstalled && !iosDismissed && (
+      {hydrated && isIOS && !isInstalled && showInstallHint && (
         <div
-          className="fixed bottom-19 left-3 right-3 z-9998 rounded-[14px] p-4 shadow-xl"
+          className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-3 right-3 z-9998 rounded-[14px] p-4 shadow-xl"
           style={{
             backgroundColor: "var(--color-emerald)",
             border: "1px solid rgba(197,160,89,.3)",
@@ -124,7 +156,7 @@ export default function PWAProvider({
         >
           <button
             type="button"
-            onClick={() => setIosDismissed(true)}
+            onClick={dismiss}
             className="absolute left-3 top-3 p-1 text-white/40 transition-colors hover:text-white/80"
             aria-label="بستن"
           >

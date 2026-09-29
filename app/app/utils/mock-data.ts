@@ -176,7 +176,8 @@ export const SIDEBAR_NAV_GROUPS: NavGroup[] = [
 export const BOTTOM_NAV: NavItem[] = [
   { name: "پیشخوان", icon: "ti-layout-dashboard", path: "/dashboard" },
   { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
-  { name: "خرید/فروش", icon: "ti-arrows-exchange", path: "/dashboard/trade" },
+  // دکمه مرکزی مستقیم به خرید و فروش طلای آب‌شده می‌رود (صفحه جداگانه‌ی trade حذف شد)
+  { name: "خرید/فروش", icon: "ti-arrows-exchange", path: "/dashboard/melted-gold" },
   { name: "تراکنش‌ها", icon: "ti-history", path: "/dashboard/transactions" },
   { name: "کاربری", icon: "ti-user", path: "#user-menu" },
 ];

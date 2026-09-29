@@ -36,7 +36,7 @@ export default function DepositsListPage() {
   const { deposits, loading } = useDeposits(tab === "ALL" ? undefined : tab);
 
   return (
-    <div className="max-w-lg md:max-w-3xl mx-auto px-4 pb-24" dir="rtl">
+    <div className="max-w-lg md:max-w-3xl mx-auto px-4" dir="rtl">
       <header className="flex items-center gap-3 mb-5">
         <Link
           href="/dashboard/wallet"

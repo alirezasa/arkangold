@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useMarketPrice, usePriceHistory } from "@/app/hooks/useTrading";
 import { useWallet } from "@/app/hooks/useWallet";
@@ -75,7 +76,20 @@ const BUY_QUICK = [0.5, 1, 2, 5];
 const SELL_QUICK_TOMAN = [500_000, 1_000_000, 5_000_000, 10_000_000];
 
 export default function MeltedGoldPage() {
-  const [tradeType, setTradeType] = useState<"BUY" | "SELL">("BUY");
+  // useSearchParams در صفحه‌ی static نیازمند Suspense است
+  return (
+    <Suspense fallback={null}>
+      <MeltedGoldContent />
+    </Suspense>
+  );
+}
+
+function MeltedGoldContent() {
+  // لینک‌های «فروش طلا» (نمودار، میان‌بر PWA) با ?side=sell مستقیم تب فروش را باز می‌کنند
+  const side = useSearchParams().get("side");
+  const [tradeType, setTradeType] = useState<"BUY" | "SELL">(
+    side?.toLowerCase() === "sell" ? "SELL" : "BUY",
+  );
   const [inputMode, setInputMode] = useState<"gram" | "toman">("gram");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -139,7 +153,7 @@ export default function MeltedGoldPage() {
 
   return (
     <div
-      className="w-full max-w-5xl mx-auto space-y-5 pb-24 animate-in fade-in duration-500"
+      className="w-full max-w-5xl mx-auto space-y-5 animate-in fade-in duration-500"
       dir="rtl"
     >
       {/* ── هدر صفحه ── */}

@@ -149,6 +149,100 @@ export class UsersService {
   }
 
   // ══════════════════════════════════════════
+  // استعلام مجدد هویت توسط ادمین (دکمه «استعلام مجدد» در بخش کاربران)
+  // با همان کد ملی و تاریخ تولد ثبت‌شده، دوباره از وب‌سرویس ثبت احوال استعلام می‌گیرد.
+  // - تطابق: اطلاعات رسمی به‌روزرسانی و هویت «تایید» می‌شود
+  // - عدم تطابق: هویت تاییدشده خودکار لغو نمی‌شود (تصمیم با ادمین است)؛
+  //   هویت تاییدنشده به «بررسی دستی» می‌رود — همان رفتار ثبت هویت توسط کاربر
+  // ══════════════════════════════════════════
+  async reinquireIdentityByAdmin(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { identity: true },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+
+    const identity = user.identity;
+    if (!identity?.nationalCode || !identity.birthDate) {
+      throw new BadRequestException(
+        'کاربر هنوز کد ملی و تاریخ تولد ثبت نکرده است؛ استعلام ممکن نیست',
+      );
+    }
+
+    const input: SubmitIdentityDto = {
+      nationalCode: identity.nationalCode,
+      birthDate: identity.birthDate.toISOString().slice(0, 10),
+      firstName: identity.firstName ?? '',
+      lastName: identity.lastName ?? '',
+    };
+    const previousStatus = identity.status;
+
+    let civilResult: IdentityVerificationResult;
+    try {
+      civilResult = await this.identityVerification.verifyIdentity({
+        nationalCode: input.nationalCode,
+        birthDate: input.birthDate,
+        firstName: input.firstName || undefined,
+        lastName: input.lastName || undefined,
+      });
+    } catch (err) {
+      this.logger.error('خطا در استعلام مجدد هویت از وب‌سرویس ثبت احوال', err);
+      throw new ServiceUnavailableException(
+        'سرویس استعلام هویت موقتاً در دسترس نیست. اطلاعات کاربر تغییری نکرد.',
+      );
+    }
+
+    let updated = identity;
+    if (civilResult.matched) {
+      updated = await this.upsertIdentity(
+        userId,
+        input,
+        'VERIFIED',
+        civilResult,
+      );
+      if (previousStatus !== 'VERIFIED') {
+        await this.referralService.handleReferredUserEvent(
+          userId,
+          'IDENTITY_VERIFIED',
+        );
+      }
+    } else if (previousStatus !== 'VERIFIED') {
+      updated = await this.upsertIdentity(
+        userId,
+        input,
+        'MANUAL_REVIEW',
+        civilResult,
+      );
+    }
+
+    return {
+      matched: civilResult.matched,
+      reason: civilResult.reason ?? null,
+      previousStatus,
+      status: updated.status,
+      provider: civilResult.verifiedByProvider ?? null,
+      checkedAt: new Date().toISOString(),
+      message: civilResult.matched
+        ? 'استعلام انجام شد؛ اطلاعات هویتی کاربر با ثبت احوال تطابق دارد و به‌روزرسانی شد'
+        : previousStatus === 'VERIFIED'
+          ? 'اطلاعات با ثبت احوال تطابق ندارد. وضعیت «تایید شده» کاربر تغییری نکرد؛ لطفاً بررسی کنید'
+          : 'اطلاعات با ثبت احوال تطابق ندارد؛ هویت کاربر در وضعیت «بررسی دستی» قرار گرفت',
+      identity: {
+        firstName: updated.firstName,
+        lastName: updated.lastName,
+        nationalCode: updated.nationalCode,
+        birthDate: updated.birthDate,
+        fatherName: updated.fatherName,
+        gender: updated.gender,
+        deathStatus: updated.deathStatus,
+        status: updated.status,
+        verifiedAt: updated.verifiedAt,
+        verifiedByProvider: updated.verifiedByProvider,
+      },
+    };
+  }
+
+  // ══════════════════════════════════════════
   // پرونده هویتی بر اساس داده رسمی ثبت احوال (پاسخ Provider) ساخته می‌شود، نه صرفاً
   // اظهار کاربر؛ اظهار کاربر فقط وقتی fallback است که Provider آن فیلد را برنگردانده.
   private async upsertIdentity(

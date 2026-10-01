@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ShieldCheck,
@@ -18,6 +18,10 @@ import { useIdentity } from '@/app/hooks/useIdentity';
 import { useProfilePage } from '@/app/hooks/useProfilePage';
 import { jalaliToIsoDate } from '@/app/utils/jalali';
 import { digitsOnly } from "@/app/utils/digits";
+import { consumeReturnPath, peekReturnPath } from '@/app/utils/return-path';
+
+const subscribeNoop = () => () => {};
+const serverReturnPath = () => null;
 
 export default function IdentityPage() {
   const router = useRouter();
@@ -28,6 +32,18 @@ export default function IdentityPage() {
   const { data: profile, refetch } = useProfilePage();
   const currentStatus = profile?.identity?.status ?? null;
   const [showForm, setShowForm] = useState(false);
+  // صفحه‌ای که کاربر پیش از احراز هویت قصد داشت (مثلاً شمش انتخابی از سایت)
+  const returnPath = useSyncExternalStore(
+    subscribeNoop,
+    peekReturnPath,
+    serverReturnPath,
+  );
+  const continueLabel = returnPath
+    ? /^\/dashboard\/(gold-ingot|shop)\//.test(returnPath)
+      ? 'ادامه خرید'
+      : 'ادامه'
+    : 'ورود به پیشخوان';
+  const handleContinue = () => router.push(consumeReturnPath() ?? '/dashboard');
   const [refreshing, setRefreshing] = useState(false);
 
   const refreshStatus = async () => {
@@ -115,11 +131,11 @@ export default function IdentityPage() {
           </p>
           {resultStatus === 'VERIFIED' ? (
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={handleContinue}
               className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2"
               style={{ backgroundColor: 'var(--color-emerald)' }}
             >
-              ورود به پیشخوان
+              {continueLabel}
               <ArrowLeft className="w-4 h-4" />
             </button>
           ) : (
@@ -139,11 +155,11 @@ export default function IdentityPage() {
         message="دسترسی شما به تمامی بخش‌های سامانه فعال است."
       >
         <button
-          onClick={() => router.push('/dashboard')}
+          onClick={handleContinue}
           className="w-full py-3 rounded-xl font-bold text-white flex items-center justify-center gap-2"
           style={{ backgroundColor: 'var(--color-emerald)' }}
         >
-          ورود به پیشخوان
+          {continueLabel}
           <ArrowLeft className="w-4 h-4" />
         </button>
       </StatusCard>

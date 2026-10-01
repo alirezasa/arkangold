@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthService } from "../core/services/auth.service";
 import axios from "axios";
+import { consumeReturnPath } from "../utils/return-path";
 
 export const useLogin = () => {
   const [loading, setLoading] = useState(false);
@@ -28,7 +29,7 @@ export const useLogin = () => {
     setError(null);
     try {
       await AuthService.login(phone, password);
-      router.replace("/dashboard");
+      router.replace(consumeReturnPath() ?? "/dashboard");
     } catch (err) {
       handleError(err);
     } finally {
@@ -57,7 +58,7 @@ export const useLogin = () => {
     setError(null);
     try {
       await AuthService.verifyLoginOtp(phone, code);
-      router.replace("/dashboard");
+      router.replace(consumeReturnPath() ?? "/dashboard");
     } catch (err) {
       handleError(err);
     } finally {

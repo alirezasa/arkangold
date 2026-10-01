@@ -40,9 +40,12 @@ function fmtToman(v: string | number) {
 export default function ProductDetailView({
   slug,
   backHref,
+  initialVariantId = null,
 }: {
   slug: string;
   backHref: string;
+  /** تنوع پیش‌انتخاب (مثلاً وزنی که کاربر در سایت arkan.gold انتخاب کرده) */
+  initialVariantId?: string | null;
 }) {
   const router = useRouter();
   const { product, loading } = useProduct(slug);
@@ -50,7 +53,7 @@ export default function ProductDetailView({
 
   // ── حالت تنوع ثابت (FIXED) ──
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
-    null,
+    initialVariantId,
   );
 
   // ── حالت بازه‌وزنی (WEIGHT_RANGE) ──

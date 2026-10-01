@@ -18,6 +18,7 @@ import {
 import { useLogin } from "../hooks/useLogin";
 import OtpInput from "../components/OtpInput";
 import { digitsOnly } from "../utils/digits";
+import { captureReturnPathFromUrl } from "../utils/return-path";
 
 type LoginMethod = "password" | "otp";
 type OtpStep = "request" | "verify";
@@ -49,6 +50,11 @@ export default function LoginPage() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+
+  // مسیر بازگشت (?next=) — مثلاً صفحه شمشی که کاربر از سایت انتخاب کرده
+  useEffect(() => {
+    captureReturnPathFromUrl();
+  }, []);
 
   // مدیریت تایمر معکوس کد OTP
   useEffect(() => {

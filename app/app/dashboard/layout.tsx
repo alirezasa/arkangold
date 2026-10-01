@@ -11,6 +11,7 @@ import Topbar from "./components/Topbar";
 import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
 import IdentityBanner from "./components/IdentityBanner";
+import { saveReturnPath } from "@/app/utils/return-path";
 import LegalProfileBanner from "./components/LegalProfileBanner";
 
 const IDENTITY_PATH = "/dashboard/identity";
@@ -88,6 +89,10 @@ function FullScreenLoader({ text }: { text: string }) {
   );
 }
 
+function currentPathWithSearch() {
+  return window.location.pathname + window.location.search;
+}
+
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -102,6 +107,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
    */
   useEffect(() => {
     if (!isVerifying && error) {
+      saveReturnPath(currentPathWithSearch());
       router.replace("/login");
     }
   }, [isVerifying, error, router]);
@@ -172,6 +178,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }
 
     if (gateTargetPath && !allowedHere) {
+      // صفحه‌ای که کاربر قصد داشت (مثلاً شمش انتخابی از سایت) تا پس از
+      // تکمیل احراز هویت به آن برگردد
+      saveReturnPath(currentPathWithSearch());
       router.replace(gateTargetPath);
     }
   }, [isVerifying, error, gateTargetPath, allowedHere, router]);

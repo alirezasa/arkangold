@@ -16,6 +16,10 @@ import {
 import { useRegister } from "../hooks/useRegister";
 import OtpInput from "../components/OtpInput";
 import { digitsOnly } from "../utils/digits";
+import {
+  captureReturnPathFromUrl,
+  consumeReturnPath,
+} from "../utils/return-path";
 
 // کد دعوت دریافتی از لینک دعوت (/register?ref=CODE) — در sessionStorage نگه
 // داشته می‌شود تا با رفت‌وبرگشت بین صفحات ورود/ثبت‌نام از دست نرود
@@ -85,6 +89,11 @@ export default function RegisterPage() {
     serverInviteCode,
   );
   const referralCode = formData.referralCode ?? inviteCode;
+
+  // مسیر بازگشت (?next=) — مثلاً صفحه شمشی که کاربر از سایت انتخاب کرده
+  useEffect(() => {
+    captureReturnPathFromUrl();
+  }, []);
 
   useEffect(() => {
     if (!inviteCode) return;
@@ -165,7 +174,7 @@ export default function RegisterPage() {
         } catch {
           // دسترسی به sessionStorage ممکن نیست
         }
-        router.replace("/dashboard");
+        router.replace(consumeReturnPath() ?? "/dashboard");
       }
     }
   };

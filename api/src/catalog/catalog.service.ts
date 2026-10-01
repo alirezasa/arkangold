@@ -25,7 +25,7 @@ import {
 import { PRICING_COMPONENT_DEFAULTS } from './pricing-components.seed';
 import { PricingEngineService } from './pricing-engine.service';
 import { PackagingService } from '../packaging/packaging.service';
-const GOLD_INGOT_CATEGORY_SLUG = 'gold-ingot';
+export const GOLD_INGOT_CATEGORY_SLUG = 'gold-ingot';
 
 @Injectable()
 export class CatalogService implements OnModuleInit {

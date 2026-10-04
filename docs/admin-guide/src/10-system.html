@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>سیستم: تنظیمات، پیامک و یکپارچه‌سازی — راهنمای پنل مدیریت آرکان گلد</title>
+<meta name="guide-title" content="سیستم: تنظیمات، مرکز پیامک و یکپارچه‌سازی" />
+<meta name="guide-num" content="۱۰" />
+<link rel="stylesheet" href="../assets/guide.css" />
+</head>
+<body>
+<span class="preload">۰۱۲۳۴۵۶۷۸۹ صفحه آرکان</span>
+
+<section class="cover">
+  <div class="top">
+    <img class="logo" src="../../../app/public/logo.png" alt="آرکان گلد" />
+    <div class="series"><b>مجموعه‌ی راهنمای آموزشی</b>پنل مدیریت آرکان گلد<br />۱۲ ماژول — نسخه‌ی ۱٫۰</div>
+  </div>
+  <div class="mid">
+    <span class="modnum">ماژول ۱۰</span>
+    <h1>سیستم: تنظیمات،<br />مرکز پیامک و یکپارچه‌سازی</h1>
+    <div class="sub">مرجع همه‌ی کلیدهای تنظیمات سیستم با مقدار پیش‌فرض، راه‌اندازی قاصدک و sms.ir، متن پیامک هر رویداد، و اتصال فینوتک و سایر Providerها.</div>
+    <div class="chips"><span>مرجع کلیدها</span><span>سامانه‌های پیامک</span><span>قالب پیامک رویدادها</span><span>فینوتک</span><span>اولویت و فال‌بک</span></div>
+  </div>
+  <div class="meta">
+    <div>مخاطب: <b>مدیر ارشد</b></div>
+    <div>تاریخ تنظیم: <b>۱۲ مهر ۱۴۰۵</b></div>
+    <div>پیش‌نیاز: <b>ماژول ۰۰</b></div>
+    <div>طبقه‌بندی: <b>داخلی — محرمانه</b></div>
+  </div>
+</section>
+
+<section class="toc"><h2>فهرست مطالب</h2><ol id="toc-list"></ol></section>
+
+<section class="chapter" data-toc="مرجع کامل تنظیمات سیستم">
+  <div class="chapter-head"><div class="num">۱</div><div><h1>مرجع کامل تنظیمات سیستم</h1><p>مسیر: <span class="path">سیستم ← تنظیمات سیستم</span> — مشاهده <span class="code">system_config.view</span>، ویرایش <span class="code">system_config.edit</span></p></div></div>
+  <h2 data-toc>۱-۱. قواعد ویرایش</h2>
+  <ul>
+    <li>تایپ و خروج از کادر = ذخیره (پیام «ذخیره شد»). کلیدهای true/false دکمه‌ی «فعال/غیرفعال» دارند.</li>
+    <li>کلیدهای مبلغی <b>ریال</b> هستند؛ زیر کلیدهای <span class="code">*_rial</span> معادل تومان نمایش داده می‌شود.</li>
+    <li>مقادیر پیشنهادی شروع کار با توضیح در راهنمای ۰۰ فصل ۳ آمده است؛ این فصل مرجع کامل پیش‌فرض‌هاست.</li>
+  </ul>
+  <h2 data-toc>۱-۲. کلیدها و پیش‌فرض‌ها</h2>
+  <table>
+    <thead><tr><th>کلید</th><th>پیش‌فرض</th><th>معنی</th></tr></thead>
+    <tbody>
+      <tr><td colspan="3" class="grp">نشست‌ها و خدمات</td></tr>
+      <tr><td class="code">session.user.timeout_minutes / refresh_days</td><td><span class="ltr"><span class="code">15</span> / <span class="code">7</span></span></td><td>نشست کاربران (۵–۱۴۴۰ دقیقه / ۱–۹۰ روز)</td></tr>
+      <tr><td class="code">session.admin.timeout_minutes / refresh_hours</td><td><span class="ltr"><span class="code">30</span> / <span class="code">24</span></span></td><td>نشست ادمین (۵–۴۸۰ دقیقه / ۱–۱۶۸ ساعت)</td></tr>
+      <tr><td class="code">service.melted_gold / gold_ingot / jewelry .enabled</td><td><span class="code">true</span></td><td>نمایش خدمات در اپ</td></tr>
+      <tr><td colspan="3" class="grp">واریز (ریال)</td></tr>
+      <tr><td class="code">deposit.online.enabled / min / max / daily_limit</td><td><span class="ltr"><span class="code">false</span> / <span class="ltr"><span class="code">100000</span> / <span class="code">4000000000</span> / <span class="code">4000000000</span></span></span></td><td>درگاه آنلاین</td></tr>
+      <tr><td class="code">deposit.card_to_card.*</td><td>فعال؛ ۱۰۰ هزار تا ۱۵۰ میلیون؛ روزانه ۱۵۰ میلیون</td><td>کارت مقصد، صاحب کارت، زمان پردازش</td></tr>
+      <tr><td class="code">deposit.bank_transfer.*</td><td>فعال؛ سقف 0 = بی‌سقف</td><td>حساب، شبا، صاحب حساب، زمان پردازش</td></tr>
+      <tr><td class="code">deposit.tracking_id.*</td><td>فعال؛ روزانه 4000000000</td><td>واریز شناسه‌دار</td></tr>
+      <tr><td class="code">deposit.large_transfer.*</td><td>فعال؛ حداقل 4000000000</td><td>مبالغ بالا با پیش‌فاکتور؛ صاحب حساب و بانک</td></tr>
+      <tr><td class="code">deposit.direct.*</td><td>فعال؛ روزانه 150000000</td><td>واریز مستقیم</td></tr>
+      <tr><td class="code">deposit.default_cash_account</td><td><span class="code">1010</span></td><td>بانک سند واریز (← 101001)</td></tr>
+      <tr><td colspan="3" class="grp">برداشت و انتقال</td></tr>
+      <tr><td class="code">withdrawal.min / max / daily / monthly</td><td><span class="ltr"><span class="code">100000</span> / <span class="ltr"><span class="code">2000000000</span> / <span class="code">2000000000</span> / <span class="code">5000000000</span></span></span></td><td>سقف‌ها (ریال)</td></tr>
+      <tr><td class="code">withdrawal.fee_percent / fee_fixed_rial / fee_max_rial</td><td><span class="ltr"><span class="code">0</span> / <span class="ltr"><span class="code">0</span> / <span class="code">0</span></span></span></td><td>کارمزد ← 4090</td></tr>
+      <tr><td class="code">withdrawal.processing_time / default_source_account</td><td>متن پایا / 1010</td><td></td></tr>
+      <tr><td class="code">transfer.daily_limit_grams / monthly_limit_grams</td><td><span class="ltr"><span class="code">5</span> / <span class="code">20</span></span></td><td>انتقال طلا بین کاربران (ریالی مجاز نیست)</td></tr>
+      <tr><td colspan="3" class="grp">معاملات، کارمزد، مالیات</td></tr>
+      <tr><td class="code">trade.gold.min_grams / max_grams</td><td><span class="ltr"><span class="code">0.1</span> / <span class="code">1000</span></span></td><td>هر معامله</td></tr>
+      <tr><td class="code">trade.gold.daily_buy/sell_limit_grams</td><td><span class="ltr"><span class="code">50</span> / <span class="code">50</span></span></td><td>روزانه هر کاربر</td></tr>
+      <tr><td class="code">trade.gold.monthly_buy/sell_limit_grams</td><td><span class="ltr"><span class="code">500</span> / <span class="code">500</span></span></td><td>ماهانه</td></tr>
+      <tr><td class="code">trade.gold.spread_percent / trade.lock_duration_seconds</td><td><span class="ltr"><span class="code">0</span> / <span class="code">120</span></span></td><td>اسپرد / قفل قیمت</td></tr>
+      <tr><td class="code">fee.buy_gold / fee.sell_gold</td><td><span class="ltr"><span class="code">1.0</span> / <span class="code">1.0</span></span></td><td>درصد ← 4010</td></tr>
+      <tr><td class="code">tax.buy / tax.sell</td><td><span class="ltr"><span class="code">0</span> / <span class="code">0</span></span></td><td>درصد ← 2030</td></tr>
+      <tr><td colspan="3" class="grp">پرداخت و احراز هویت</td></tr>
+      <tr><td class="code">payment.zarinpal.enabled / merchant_id / sandbox</td><td><span class="ltr"><span class="code">false</span> / — / <span class="code">true</span></span></td><td>زرین‌پال</td></tr>
+      <tr><td class="code">payment.behpardakht.enabled / terminal_id / username / password</td><td><span class="ltr"><span class="code">false</span> / — / — / —</span></td><td>به‌پرداخت ملت</td></tr>
+      <tr><td class="code">payment.gateway.callback_base_url</td><td><span class="code">http://localhost:5000</span></td><td><b>حتماً</b> <span class="code">https://api.arkan.gold</span></td></tr>
+      <tr><td class="code">identity.finotech.sandbox</td><td><span class="code">true</span></td><td>در محیط واقعی false</td></tr>
+      <tr><td colspan="3" class="grp">پاداش، شرکت، اسناد، تقویم</td></tr>
+      <tr><td class="code">referral.enabled / reward_trigger / reward_amount_rial / reward_amount_mg</td><td><span class="ltr"><span class="code">true</span> / <span class="ltr"><span class="code">IDENTITY_VERIFIED</span> / <span class="code">0</span> / <span class="code">0</span></span></span></td><td>از صفحه‌ی دعوت تنظیم شود</td></tr>
+      <tr><td class="code">company.*</td><td>نام حقوقی و تجاری؛ بقیه خالی</td><td>الزامی برای فاکتور</td></tr>
+      <tr><td class="code">document.verify_base_url / invoice_orientation / proforma_orientation</td><td><span class="ltr"><span class="code">https://arkan.gold/verify</span> / <span class="ltr"><span class="code">landscape</span> / <span class="code">portrait</span></span></span></td><td></td></tr>
+      <tr><td class="code">proforma.validity_working_days / tracking_prefix</td><td><span class="ltr"><span class="code">2</span> / <span class="code">1023</span></span></td><td>پیش‌فاکتور واریز</td></tr>
+      <tr><td class="code">proforma.subject_text / legal_clauses</td><td>متن پیش‌فرض</td><td>بازبینی حقوقی</td></tr>
+      <tr><td class="code">calendar.holidays</td><td>خالی</td><td>تاریخ‌ها با ویرگول: 1405/01/01,1405/01/02</td></tr>
+      <tr><td colspan="3" class="grp">هولوگرام، نمایندگان، فروشگاه</td></tr>
+      <tr><td class="code">hologram.inquiry.rate_limit_per_minute</td><td><span class="code">5</span></td><td>استعلام در دقیقه هر IP</td></tr>
+      <tr><td class="code">hologram.inquiry.invalid_attempts_threshold / window_minutes</td><td><span class="ltr"><span class="code">5</span> / <span class="code">60</span></span></td><td>آستانه‌ی مسدودسازی</td></tr>
+      <tr><td class="code">hologram.inquiry.block_duration_minutes</td><td><span class="code">1440</span></td><td>مدت مسدودی</td></tr>
+      <tr><td class="code">hologram.transfer.expiry_hours</td><td><span class="code">72</span></td><td>مهلت انتقال مالکیت</td></tr>
+      <tr><td class="code">agent.sale.*</td><td><span class="ltr"><span class="code">true</span> / <span class="ltr"><span class="code">180</span> / <span class="code">true</span></span></span></td><td>استعلام هویت / اعتبار قیمت / پیامک خریدار</td></tr>
+      <tr><td class="code">shop.packaging.free_threshold_rial</td><td><span class="code">0</span></td><td>آستانه‌ی بسته‌بندی رایگان</td></tr>
+      <tr><td colspan="3" class="grp">حسابداری، خزانه، شرکا</td></tr>
+      <tr><td class="code">accounting.locked_until / allow_self_approve</td><td><span class="ltr">— / <span class="code">false</span></span></td><td>از صفحه‌ی سال مالی</td></tr>
+      <tr><td class="code">treasury.target_reserve_percent / safety_buffer_grams</td><td><span class="ltr"><span class="code">100</span> / <span class="code">0</span></span></td><td>سیاست پوشش (پیشنهاد ذخیره: 10)</td></tr>
+      <tr><td class="code">treasury.purchase_lot_grams / alert_coverage_percent</td><td><span class="ltr"><span class="code">0</span> / <span class="code">95</span></span></td><td>(پیشنهاد واحد خرید: 10)</td></tr>
+      <tr><td class="code">treasury.last_alert_date</td><td>—</td><td>سیستمی؛ دست نزنید</td></tr>
+      <tr><td class="code">partner.api.enabled / quote_ttl_minutes / quote_spread_percent / fee_percent</td><td><span class="ltr"><span class="code">false</span> / <span class="ltr"><span class="code">30</span> / <span class="code">0</span> / <span class="code">0</span></span></span></td><td>شرکای فروش</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="chapter" data-toc="یکپارچه‌سازی‌ها (KYC، پیامک، قیمت)">
+  <div class="chapter-head"><div class="num">۲</div><div><h1>یکپارچه‌سازی‌ها</h1><p>مسیر: <span class="path">سیستم ← یکپارچه‌سازی‌ها (KYC/فینوتک)</span> — مشاهده <span class="code">integrations.view</span>، مدیریت <span class="code">integrations.manage</span>، Credential <span class="code">integrations.credentials.manage</span></p></div></div>
+  <h2 data-toc>۲-۱. سرویس‌ها و Providerها</h2>
+  <p>هر <b>سرویس</b> (احراز هویت، تطبیق شبا و کد ملی، تطبیق کارت و کد ملی، استعلام شرکت، قیمت لحظه‌ای طلا، ارسال پیامک، درگاه پرداخت) یک یا چند <b>Provider</b> دارد. سامانه ابتدا Provider فعال با کمترین عدد اولویت را صدا می‌زند؛ اگر خطای فنی داد و Provider بعدی «فال‌بک» باشد، از آن استفاده می‌کند.</p>
+  <table class="values">
+    <thead><tr><th>سرویس</th><th>وضعیت نصب اولیه</th><th>تنظیم محیط واقعی</th></tr></thead>
+    <tbody>
+      <tr><td>احراز هویت</td><td>Mock (اولویت ۱، فعال) — فینوتک (۲، غیرفعال)</td><td>فینوتک: فعال، اولویت <span class="code">1</span> — Mock: <b>غیرفعال</b></td></tr>
+      <tr><td>ارسال پیامک</td><td>Mock (۱، فعال) — قاصدک (۲) — sms.ir (۳)، غیرفعال</td><td>قاصدک: فعال، <span class="code">1</span> — sms.ir: فعال، <span class="code">2</span>، فال‌بک — Mock: <b>غیرفعال</b></td></tr>
+    </tbody>
+  </table>
+  <div class="box warn"><span class="h">Mock در محیط واقعی خطرناک است</span><p>Provider «Mock (داخلی)» هر کد ملی با الگوی معتبر را بدون استعلام ثبت احوال تأیید می‌کند و پیامک را فقط در لاگ می‌نویسد. پیش از افتتاح حتماً غیرفعال شود.</p></div>
+  <h2 data-toc>۲-۲. فینوتک</h2>
+  <ol class="steps">
+    <li>بخش «Credential های فینوتک»: <b>CLIENT_ID</b>، <b>CLIENT_SECRET</b> و <b>کد ملی صاحب کلاینت (NID)</b> را وارد و ذخیره کنید. مقادیر رمزنگاری‌شده ذخیره می‌شوند و دیگر نمایش داده نمی‌شوند؛ برای تغییر مقدار جدید وارد کنید.</li>
+    <li>دکمه‌ی تست اتصال ← باید «موفق» شود.</li>
+    <li><span class="code">identity.finotech.sandbox</span> = false در تنظیمات سیستم.</li>
+    <li>با یک کاربر واقعی احراز هویت را آزمایش و نتیجه را در «آخرین رخدادهای Integration» ببینید.</li>
+  </ol>
+  <p>«رمزنگاری مجدد با کلید فعلی» فقط پس از چرخش کلید رمزنگاری و به درخواست تیم فنی استفاده شود.</p>
+</section>
+
+<section class="chapter" data-toc="مرکز پیامک">
+  <div class="chapter-head"><div class="num">۳</div><div><h1>مرکز پیامک</h1><p>مسیر: <span class="path">سیستم ← مرکز پیامک</span> — مشاهده <span class="code">sms.view</span>، مدیریت <span class="code">sms.manage</span></p></div></div>
+  <h2 data-toc>۳-۱. سامانه‌های ارسال</h2>
+  <table>
+    <thead><tr><th>سامانه</th><th>فیلد اتصال</th><th>از کجا</th><th>مقدار نمونه</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="2">قاصدک</td><td>API_KEY</td><td>پنل قاصدک ← تنظیمات ← وب‌سرویس</td><td>کلید طولانی</td></tr>
+      <tr><td>LINE_NUMBER</td><td>خط اختصاصی/عمومی</td><td><span class="en">30005006009009</span></td></tr>
+      <tr><td rowspan="2">sms.ir</td><td>API_KEY</td><td>پنل sms.ir ← برنامه‌نویسان ← لیست کلیدهای API</td><td>کلید</td></tr>
+      <tr><td>LINE_NUMBER</td><td>خط ارسال</td><td><span class="en">30007732000000</span></td></tr>
+    </tbody>
+  </table>
+  <ol class="steps">
+    <li>روی کارت سامانه ← <span class="btn">تنظیمات اتصال</span> ← کلید و خط ← ذخیره.</li>
+    <li><b>اولویت</b> (۱ تا ۹۹): قاصدک <span class="en">1</span>، sms.ir <span class="en">2</span>. پیامک از سامانه‌ی فعال با کمترین عدد ارسال و در خطای فنی خودکار از بعدی ارسال می‌شود.</li>
+    <li><span class="btn">فعال‌سازی</span> ← <span class="btn">استعلام اعتبار حساب</span> ← <span class="btn">ارسال آزمایشی</span> به موبایل خود («پیامک آزمایشی مرکز پیامک آرکان گلد»).</li>
+    <li>«شبیه‌ساز (لاگ)» را غیرفعال کنید.</li>
+  </ol>
+  <p>هشدار بالای صفحه: اگر محیط «عملیاتی (production)» نباشد، هیچ پیامکی واقعاً ارسال نمی‌شود و فقط «آزمایشی» ثبت می‌شود؛ اگر سرویس SMS در یکپارچه‌سازی‌ها غیرفعال باشد، هیچ پیامکی ارسال نمی‌شود.</p>
+  <h2 data-toc>۳-۲. متن پیامک رویدادها</h2>
+  <p>تب «متن پیامک رویدادها»: برای هر رویداد <b>متن</b> (با متغیرها)، <b>سامانه‌ی ارسال</b> (طبق اولویت / قاصدک / sms.ir / شبیه‌ساز)، <b>نحوه‌ی ارسال</b> (متن آزاد از خط اختصاصی / قالب تأییدشده‌ی سامانه — Verify/OTP) و <b>وضعیت</b> (فعال — ارسال شود / غیرفعال). پیش‌نمایش با داده‌ی نمونه کنار فرم است.</p>
+  <table>
+    <thead><tr><th>گروه</th><th>رویدادها</th><th>نحوه‌ی ارسال پیشنهادی</th></tr></thead>
+    <tbody>
+      <tr><td>احراز هویت</td><td>کد ورود، کد ثبت‌نام، کد بازیابی رمز</td><td><b>قالب تأییدشده</b> (نام قالب قاصدک مثل <span class="en">arkanLoginOtp</span> یا شناسه‌ی عددی قالب sms.ir)</td></tr>
+      <tr><td>سفارش فروشگاه</td><td>ثبت، پرداخت موفق، شروع آماده‌سازی، ارسال، آماده‌ی تحویل حضوری، ارسال مجدد کد تحویل، اطلاعات مرسوله برای پیک، تحویل، لغو</td><td>متن آزاد از خط اختصاصی</td></tr>
+      <tr><td>مالی</td><td>تأیید واریز، رد واریز، ثبت/تأیید/پرداخت/رد/برگشت برداشت</td><td>متن آزاد</td></tr>
+      <tr><td>نمایندگان</td><td>صدور قرارداد، کد امضای قرارداد، تأیید امضا</td><td>کد امضا: قالب تأییدشده؛ بقیه متن آزاد</td></tr>
+    </tbody>
+  </table>
+  <div class="box ex"><span class="h">نمونه متن «تأیید واریز و شارژ کیف پول»</span><div class="formula" style="margin:0">{brand}<br />{name} عزیز، واریز {amount} تومان تأیید و کیف پول شما شارژ شد.<br />شماره درخواست: {requestNumber}</div><p class="small">متغیرهای مجاز هر رویداد زیر فرم فهرست شده‌اند (مثل {brand}، {name}، {code}، {orderNumber}، {amount}، {trackingCode}، {deliveryCode}، {reason}، {bankRef}). متغیر نامجاز با خطای «متغیر نامعتبر در متن» رد می‌شود؛ حداکثر طول متن ۶۰۰ کاراکتر است. متن کدهای یکبارمصرف باید {code} داشته باشد و این رویدادها غیرفعال نمی‌شوند.</p></div>
+  <h2 data-toc>۳-۳. گزارش ارسال</h2>
+  <p>تب «گزارش ارسال»: هر پیامک با زمان، رویداد، گیرنده، سامانه، متن و وضعیت (ارسال‌شده / ناموفق / آزمایشی). برای شکایت «پیامک نرسید» ابتدا اینجا را ببینید؛ کدهای یکبارمصرف در گزارش پوشانده می‌شوند.</p>
+</section>
+
+</body>
+</html>

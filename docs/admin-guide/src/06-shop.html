@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>فروشگاه، سفارش‌ها و کد تخفیف — راهنمای پنل مدیریت آرکان گلد</title>
+<meta name="guide-title" content="فروشگاه، سفارش‌ها و کد تخفیف" />
+<meta name="guide-num" content="۰۶" />
+<link rel="stylesheet" href="../assets/guide.css" />
+</head>
+<body>
+<span class="preload">۰۱۲۳۴۵۶۷۸۹ صفحه آرکان</span>
+
+<section class="cover">
+  <div class="top">
+    <img class="logo" src="../../../app/public/logo.png" alt="آرکان گلد" />
+    <div class="series"><b>مجموعه‌ی راهنمای آموزشی</b>پنل مدیریت آرکان گلد<br />۱۲ ماژول — نسخه‌ی ۱٫۰</div>
+  </div>
+  <div class="mid">
+    <span class="modnum">ماژول ۰۶</span>
+    <h1>فروشگاه، سفارش‌ها<br />و کد تخفیف</h1>
+    <div class="sub">ساخت کاتالوگ (دسته‌بندی، محصول، فرمول قیمت، تنوع وزنی، تصاویر)، بسته‌بندی، مراجع ارسال، چرخه‌ی کامل سفارش با کد تحویل مشتری و کمپین‌های تخفیف.</div>
+    <div class="chips"><span>فرمول قیمت با عدد</span><span>محصول شمش</span><span>بسته‌بندی رایگان</span><span>ارسال و کد تحویل</span><span>کد تخفیف</span></div>
+  </div>
+  <div class="meta">
+    <div>مخاطب: <b>مدیر فروشگاه، پشتیبانی</b></div>
+    <div>تاریخ تنظیم: <b>۱۲ مهر ۱۴۰۵</b></div>
+    <div>پیش‌نیاز: <b>ماژول ۰۰</b> — مرتبط: ۰۷ (هولوگرام)</div>
+    <div>طبقه‌بندی: <b>داخلی</b></div>
+  </div>
+</section>
+
+<section class="toc"><h2>فهرست مطالب</h2><ol id="toc-list"></ol></section>
+
+<section class="chapter" data-toc="ترتیب راه‌اندازی فروشگاه">
+  <div class="chapter-head"><div class="num">۱</div><div><h1>ترتیب راه‌اندازی فروشگاه</h1><p>دسترسی‌ها: <span class="code">shop.manage</span> (مدیر فروشگاه)، <span class="code">shop.view</span> (پشتیبانی)</p></div></div>
+  <h2 data-toc>۱-۱. ترتیب درست</h2>
+  <div class="flow">
+    <div class="st"><b>۱. دسته‌بندی</b>gold-ingot و سایر</div><div class="ar">←</div>
+    <div class="st"><b>۲. محصول</b>اطلاعات پایه</div><div class="ar">←</div>
+    <div class="st"><b>۳. فرمول قیمت</b>عیار و اجزا</div><div class="ar">←</div>
+    <div class="st"><b>۴. تنوع و موجودی</b>وزن‌ها</div><div class="ar">←</div>
+    <div class="st"><b>۵. بسته‌بندی و تصویر</b>سپس «فعال»</div>
+  </div>
+  <p>پیش از افتتاح: مراجع ارسال (فصل ۵) و متن پیامک‌های سفارش (راهنمای ۱۰) را هم بازبینی کنید. اگر فروش زیورآلات هنوز آماده نیست، <span class="code">service.jewelry.enabled</span> را غیرفعال کنید.</p>
+</section>
+
+<section class="chapter" data-toc="دسته‌بندی‌ها">
+  <div class="chapter-head"><div class="num">۲</div><div><h1>دسته‌بندی‌ها</h1><p>مسیر: <span class="path">فروشگاه ← دسته‌بندی‌ها</span></p></div></div>
+  <h2 data-toc>۲-۱. ساخت دسته</h2>
+  <div class="form">
+    <div class="fh">دسته‌بندی جدید<span>نمونه</span></div>
+    <div class="row"><div>نام دسته‌بندی</div><div>انگشتر طلا</div></div>
+    <div class="row"><div>اسلاگ</div><div><span class="en">gold-ring</span><small>حروف کوچک انگلیسی، ارقام، حروف فارسی و خط تیره؛ خالی = ساخت خودکار از نام</small></div></div>
+    <div class="row"><div>توضیحات</div><div>اختیاری</div></div>
+    <div class="row"><div>دسته‌ی والد</div><div>«زیورآلات» یا «بدون دسته والد (سطح اول)»</div></div>
+    <div class="row"><div>وضعیت</div><div>فعال — در فروشگاه نمایش داده می‌شود</div></div>
+  </div>
+  <table>
+    <thead><tr><th>نام</th><th>اسلاگ دقیق</th><th>نکته</th></tr></thead>
+    <tbody>
+      <tr><td>شمش طلا</td><td><span class="code">gold-ingot</span></td><td><b>الزامی و رزروشده</b>: صفحه‌ی خرید شمش اپ و API سایت از همین اسلاگ استفاده می‌کنند؛ قابل تغییر نیست</td></tr>
+      <tr><td>زیورآلات</td><td><span class="code">jewelry</span></td><td>والد سطح اول</td></tr>
+      <tr><td>انگشتر / دستبند / گردنبند</td><td><span class="ltr"><span class="code">gold-ring</span> / <span class="code">gold-bracelet</span> / <span class="code">gold-necklace</span></span></td><td>والد: زیورآلات</td></tr>
+    </tbody>
+  </table>
+  <p>دسته‌ی دارای محصول یا زیردسته حذف نمی‌شود؛ آن را غیرفعال کنید یا محصولات را منتقل کنید.</p>
+</section>
+
+<section class="chapter" data-toc="محصول و فرمول قیمت">
+  <div class="chapter-head"><div class="num">۳</div><div><h1>محصول و فرمول قیمت</h1><p>مسیر: <span class="path">فروشگاه ← محصولات</span> ← محصول جدید — تب‌ها: اطلاعات پایه، سئو، فرمول قیمت، بسته‌بندی، گالری تصاویر</p></div></div>
+  <h2 data-toc>۳-۱. تب «اطلاعات پایه»</h2>
+  <div class="form">
+    <div class="fh">اطلاعات پایه — نمونه‌ی انگشتر<span>مقدار</span></div>
+    <div class="row"><div>نام محصول</div><div>انگشتر طلای ۱۸ عیار طرح ونیزی</div></div>
+    <div class="row"><div>دسته‌بندی</div><div>انگشتر طلا</div></div>
+    <div class="row"><div>وضعیت</div><div>غیرفعال (پیش‌نویس)<small>تا تکمیل همه‌ی تب‌ها؛ سپس «فعال». «ناموجود» = نمایش بدون امکان خرید</small></div></div>
+    <div class="row"><div>توضیح کوتاه</div><div>حداکثر ۲۰۰ کاراکتر؛ در کارت محصول و نتیجه‌ی جست‌وجو</div></div>
+    <div class="row"><div>توضیحات کامل</div><div>هر خط جدا؛ خط «عنوان: مقدار» (مثل «کشور سازنده: ایران») جدول مشخصات می‌شود</div></div>
+    <div class="row"><div>مشخصات</div><div>عنوان/مقدار؛ مثل «ابعاد: ۲۰×۳۰ میلی‌متر»</div></div>
+    <div class="row"><div>قیمت پایه (تومان)</div><div>برای محصول طلایی نادیده گرفته می‌شود<small>فقط برای محصولات غیرطلایی (مثلاً جعبه یا نقره) مبنای فرمول است</small></div></div>
+    <div class="row"><div>نوع قیمت‌گذاری</div><div>«تنوع‌های ثابت»<small>«بازه‌وزنی (اسلایدر)»: حداقل، حداکثر، گام و قیمت هر گرم — برای طلای وزنی دلخواه</small></div></div>
+  </div>
+  <p>دکمه‌ی <span class="btn">ایجاد محصول و ادامه</span>؛ سپس تب‌های بعدی باز می‌شوند.</p>
+
+  <h2 data-toc>۳-۲. تب «فرمول قیمت»</h2>
+  <p><b>عیار طلا</b>: «۱۸ عیار»، «۲۴ عیار» یا «محصول غیرطلایی (قیمت پایه)». قیمت هر گرم از قیمت لحظه‌ای طلای ۱۸ عیار بازار گرفته می‌شود؛ برای ۲۴ عیار × ۲۴÷۱۸.</p>
+  <p><b>ارزش طلا</b> = وزن تنوع × قیمت هر گرم عیار انتخابی. سپس اجزا به ترتیب ردیف اضافه می‌شوند:</p>
+  <table>
+    <thead><tr><th>ستون ردیف</th><th>گزینه‌ها</th></tr></thead>
+    <tbody>
+      <tr><td>جزء</td><td>اجرت ساخت، سود فروشنده، کارمزد، مالیات بر ارزش افزوده، قیمت سنگ/نگین، هزینه بسته‌بندی</td></tr>
+      <tr><td>مبنا</td><td><b>روی ارزش طلا</b> / <b>روی جمع تا این مرحله</b> / <b>مقدار مستقل</b> (فقط با مبلغ ثابت معنا دارد)</td></tr>
+      <tr><td>نوع مقدار</td><td><b>درصد</b> / <b>مبلغ ثابت (ریال)</b> — دقت کنید: ریال</td></tr>
+    </tbody>
+  </table>
+  <div class="box ex"><span class="h">مثال: انگشتر ۱۸ عیار ۳٫۵ گرمی — قیمت هر گرم ۵٬۲۰۰٬۰۰۰ تومان</span>
+    <table>
+      <thead><tr><th class="c">ردیف</th><th>جزء</th><th>مبنا</th><th>نوع / مقدار</th><th class="n">مبلغ (تومان)</th></tr></thead>
+      <tbody>
+        <tr><td class="c">—</td><td>ارزش طلا</td><td>۳٫۵ × ۵٬۲۰۰٬۰۰۰</td><td></td><td class="n">18,200,000</td></tr>
+        <tr><td class="c">۱</td><td>اجرت ساخت</td><td>روی ارزش طلا</td><td>درصد / <span class="en">18</span></td><td class="n">3,276,000</td></tr>
+        <tr><td class="c">۲</td><td>سود فروشنده</td><td>روی جمع تا این مرحله</td><td>درصد / <span class="en">7</span></td><td class="n">1,503,320</td></tr>
+        <tr><td class="c">۳</td><td>قیمت سنگ/نگین</td><td>مقدار مستقل</td><td>مبلغ ثابت (ریال) / <span class="en">4500000</span></td><td class="n">450,000</td></tr>
+        <tr><td colspan="4"><b>قیمت نهایی هر واحد</b></td><td class="n"><b>23,429,320</b></td></tr>
+      </tbody>
+    </table>
+    <p>پیش‌نمایش زنده‌ی همین محاسبه کنار فرمول نمایش داده می‌شود؛ قبل از ذخیره با آن مقایسه کنید. نرخ‌ها نمونه‌اند؛ نرخ مالیات و نحوه‌ی محاسبه‌ی آن را با مشاور مالیاتی تعیین کنید.</p>
+  </div>
+  <div class="box ex"><span class="h">نمونه‌ی محصول شمش (دسته‌ی gold-ingot)</span><p>عیار: ۲۴؛ اجزا: «اجرت ساخت — روی ارزش طلا — درصد <span class="en">3</span>» و «سود فروشنده — روی جمع تا این مرحله — درصد <span class="en">2</span>». تنوع‌ها: ۱، ۲٫۵، ۵ و ۱۰ گرم. با قیمت ۱۸ عیار ۵٬۲۰۰٬۰۰۰، قیمت هر گرم ۲۴ عیار ۶٬۹۳۳٬۳۳۳ و قیمت شمش ۱۰ گرمی ≈ ۷۲٬۸۴۱٬۶۰۰ تومان می‌شود.</p></div>
+
+  <h2 data-toc>۳-۳. تنوع‌ها، موجودی، سئو و تصاویر</h2>
+  <ul>
+    <li><b>تنوع‌های وزنی ثابت</b> ← <span class="btn">افزودن تنوع</span>: وزن (گرم) مثل <span class="en">3.5</span>، اختلاف قیمت (تومان، مثبت یا منفی روی قیمت فرمول؛ معمولاً <span class="en">0</span>)، <b>موجودی</b> (تعداد قابل فروش، مثل <span class="en">4</span>)، SKU اختیاری مثل <span class="en">RING-VEN-35</span>. موجودی صفر = ناموجود.</li>
+    <li><b>سئو</b>: عنوان شامل کلمه‌ی کلیدی اصلی، توضیح متا دو خطی، کلمات کلیدی با ویرگول؛ پیش‌نمایش گوگل زنده است.</li>
+    <li><b>گالری</b>: JPEG، PNG یا WEBP، حداکثر ۵ مگابایت هر فایل؛ اولین تصویر تصویر اصلی است (قابل تغییر و جابه‌جایی). پیشنهاد: زمینه‌ی سفید، ۱۲۰۰×۱۲۰۰ پیکسل.</li>
+  </ul>
+</section>
+
+<section class="chapter" data-toc="بسته‌بندی ارسال">
+  <div class="chapter-head"><div class="num">۴</div><div><h1>بسته‌بندی ارسال</h1><p>مسیر: <span class="path">فروشگاه ← بسته‌بندی ارسال</span></p></div></div>
+  <h2 data-toc>۴-۱. طرح بسته‌بندی</h2>
+  <div class="form">
+    <div class="fh">طرح بسته‌بندی جدید<span>نمونه</span></div>
+    <div class="row"><div>تصویر</div><div>JPEG/PNG/WEBP، حداکثر ۳ مگابایت</div></div>
+    <div class="row"><div>نام طرح</div><div>جعبه‌ی چوبی لوکس</div></div>
+    <div class="row"><div>کد انبار</div><div><span class="en">BOX-WOOD</span> (اختیاری)</div></div>
+    <div class="row"><div>توضیحات (نمایش به کاربر)</div><div>جعبه‌ی چوب گردو با کارت اصالت</div></div>
+    <div class="row"><div>قیمت (تومان)</div><div><span class="en">350000</span><small>صفر = رایگان</small></div></div>
+    <div class="row"><div>نحوه‌ی محاسبه‌ی قیمت</div><div>هر عدد کالا<small>یا «هر ردیف سفارش»</small></div></div>
+    <div class="row"><div>رایگان شدن در خریدهای بزرگ</div><div>آستانه‌ی عمومی<small>یا «آستانه‌ی اختصاصی» (مبلغ تومان) یا «هرگز رایگان نشود»</small></div></div>
+  </div>
+  <p>سپس با دکمه‌ی <b>همه محصولات</b> طرح را به همه‌ی محصولات وصل کنید، یا از تب «بسته‌بندی» هر محصول طرح‌ها و «پیش‌فرض» را تعیین کنید. درآمد بسته‌بندی در حساب 4030 ثبت می‌شود.</p>
+  <h2 data-toc>۴-۲. آستانه‌ی عمومی رایگان</h2>
+  <p>کادر «بسته‌بندی رایگان برای خریدهای بزرگ» ← <b>آستانه‌ی عمومی (تومان)</b>: مثلاً <span class="en">200000000</span>. اگر جمع اقلام (پیش از کد تخفیف) به این مبلغ برسد، طرح‌های مشمول رایگان و در فاکتور «رایگان — هدیه‌ی خرید» درج می‌شوند. خالی یا صفر = غیرفعال.</p>
+</section>
+
+<section class="chapter" data-toc="مراجع ارسال">
+  <div class="chapter-head"><div class="num">۵</div><div><h1>مراجع ارسال</h1><p>مسیر: <span class="path">فروشگاه ← مراجع ارسال</span></p></div></div>
+  <h2 data-toc>۵-۱. مراجع پیش‌فرض و مقادیر</h2>
+  <table>
+    <thead><tr><th>نام (کد)</th><th>نوع</th><th>کد رهگیری الزامی</th><th>کد تحویل مشتری</th><th>لینک پیک</th><th>روز</th></tr></thead>
+    <tbody>
+      <tr><td>پست پیشتاز (<span class="code">POST_PISHTAZ</span>)</td><td>پست</td><td class="c">✓</td><td class="c">✓</td><td class="c">—</td><td class="c">۳</td></tr>
+      <tr><td>پیک اختصاصی (<span class="code">COURIER</span>)</td><td>پیک</td><td class="c">—</td><td class="c">✓</td><td class="c">✓</td><td class="c">۱</td></tr>
+      <tr><td>پست خصوصی — تیپاکس (<span class="code">EXPRESS</span>)</td><td>پست خصوصی / باربری</td><td class="c">✓</td><td class="c">✓</td><td class="c">—</td><td class="c">۲</td></tr>
+      <tr><td>تحویل حضوری در دفتر (<span class="code">PICKUP</span>)</td><td>تحویل حضوری</td><td class="c">—</td><td class="c">✓</td><td class="c">—</td><td class="c">—</td></tr>
+    </tbody>
+  </table>
+  <p>برای هر مرجع: <b>نشانی رهگیری</b> با <span class="code">{code}</span> به‌جای کد، مثل <span class="code">https://tracking.post.ir/?id={code}</span>؛ تلفن پشتیبانی مرجع؛ ترتیب نمایش. برای طلا، گزینه‌ی <b>«تحویل فقط با کد تحویل مشتری»</b> را همیشه روشن نگه دارید.</p>
+</section>
+
+<section class="chapter" data-toc="چرخه‌ی سفارش فروشگاه">
+  <div class="chapter-head"><div class="num">۶</div><div><h1>چرخه‌ی سفارش فروشگاه</h1><p>مسیر: <span class="path">فروشگاه ← سفارشات فروشگاه</span></p></div></div>
+  <h2 data-toc>۶-۱. وضعیت‌ها</h2>
+  <div class="flow">
+    <div class="st"><b>پرداخت‌شده — در صف</b>پرداخت موفق</div><div class="ar">←</div>
+    <div class="st"><b>در حال آماده‌سازی</b>شروع آماده‌سازی</div><div class="ar">←</div>
+    <div class="st"><b>ارسال‌شده</b>مرجع و کد رهگیری</div><div class="ar">←</div>
+    <div class="st"><b>تحویل‌شده</b>با کد تحویل مشتری</div>
+  </div>
+  <p>در هر مرحله پیامک مطابق متن «مرکز پیامک» ارسال و در «روند سفارش» و «پیامک‌های این سفارش» ثبت می‌شود.</p>
+  <h2 data-toc>۶-۲. آماده‌سازی و ارسال</h2>
+  <ol class="steps">
+    <li>سفارش «پرداخت‌شده — در صف» ← <span class="btn">شروع آماده‌سازی</span>.</li>
+    <li>برای شمش: کد هولوگرام را به آیتم سفارش تخصیص دهید (شناسه‌ی آیتم با دکمه‌ی کپی کنار آیتم؛ راهنمای ۰۷).</li>
+    <li><span class="btn">ثبت ارسال</span>: مرجع ارسال، کد رهگیری مرسوله (اگر الزامی)، نام و موبایل پیک (برای پیک)، زمان تخمینی تحویل و یادداشت.</li>
+  </ol>
+  <div class="form">
+    <div class="fh">ثبت ارسال — پیک<span>نمونه</span></div>
+    <div class="row"><div>مرجع ارسال</div><div>پیک اختصاصی</div></div>
+    <div class="row"><div>نام پیک</div><div>محمد احمدی</div></div>
+    <div class="row"><div>موبایل پیک (الزامی)</div><div><span class="en">09129998877</span><small>لینک ثبت تحویل برای پیک پیامک می‌شود</small></div></div>
+    <div class="row"><div>زمان تخمینی تحویل</div><div>۱۴۰۵/۰۷/۱۳</div></div>
+  </div>
+  <p>با ثبت ارسال، کد تحویل ۶ رقمی برای مشتری پیامک و در اپ او نمایش داده می‌شود.</p>
+  <h2 data-toc>۶-۳. ثبت تحویل</h2>
+  <ul>
+    <li><span class="btn">ثبت تحویل با کد مشتری</span>: کدی را که مشتری به پیک/نامه‌رسان داده وارد کنید (+ نام تحویل‌گیرنده‌ی اختیاری). پیک هم می‌تواند از لینک پیامک‌شده خودش ثبت کند.</li>
+    <li>مشتری کد را گم کرده: <span class="btn">ارسال مجدد کد</span> (همان کد) یا <span class="btn">صدور کد جدید</span> (کد قبلی باطل).</li>
+    <li><b>تأیید تحویل بدون کد</b> فقط با دسترسی ویژه‌ی <span class="code">shop.delivery.override</span> و با دلیل و مستند حداقل ۱۰ کاراکتر؛ مثل «تحویل حضوری با ارائه‌ی کارت ملی، صورت‌جلسه‌ی شماره ۱۲».</li>
+  </ul>
+  <h2 data-toc>۶-۴. لغو سفارش</h2>
+  <p>فقط در وضعیت‌های در انتظار پرداخت، پرداخت‌شده یا در حال آماده‌سازی. دلیل برای مشتری پیامک می‌شود. اگر پرداخت شده بود، مبلغ به کیف پول مشتری برمی‌گردد و سند برگشت فروش و بهای تمام‌شده ثبت می‌شود. «یادداشت داخلی» فقط در پنل دیده می‌شود.</p>
+</section>
+
+<section class="chapter" data-toc="کدهای تخفیف">
+  <div class="chapter-head"><div class="num">۷</div><div><h1>کدهای تخفیف</h1><p>مسیر: <span class="path">فروشگاه ← کدهای تخفیف</span> — دسترسی <span class="code">discount.manage</span></p></div></div>
+  <h2 data-toc>۷-۱. ساخت کد — نمونه‌ی کمپین نوروز</h2>
+  <div class="form">
+    <div class="fh">کد تخفیف جدید<span>مقدار دقیق</span></div>
+    <div class="row"><div>کد</div><div><span class="en">NOWRUZ-1405</span><small>خالی = تولید خودکار با پیشوند (مثلاً ARKAN-482915)؛ حروف بزرگ انگلیسی، عدد و خط تیره</small></div></div>
+    <div class="row"><div>نوع</div><div>درصدی<small>یا «مبلغ ثابت» (تومان)</small></div></div>
+    <div class="row"><div>درصد تخفیف</div><div><span class="en">5</span></div></div>
+    <div class="row"><div>سقف مبلغ تخفیف (تومان)</div><div><span class="en">2000000</span></div></div>
+    <div class="row"><div>حداقل مبلغ خرید (تومان)</div><div><span class="en">20000000</span></div></div>
+    <div class="row"><div>زمان شروع / انقضا</div><div>۱۴۰۵/۰۱/۰۱ ۰۰:۰۰ — ۱۴۰۵/۰۱/۱۳ ۲۳:۵۹<small>خالی = بدون انقضا</small></div></div>
+    <div class="row"><div>سقف کل استفاده / هر کاربر</div><div><span class="ltr"><span class="en">500</span> / <span class="en">1</span></span><small>خالی = نامحدود</small></div></div>
+    <div class="row"><div>قابل استفاده برای</div><div>همه کاربران<small>«کاربر خاص» + گزینه‌ی ارسال پیامک کد به کاربر</small></div></div>
+    <div class="row"><div>توضیحات</div><div>کمپین نوروز ۱۴۰۵</div></div>
+  </div>
+  <p>تخفیف در حساب 5030 هزینه ثبت می‌شود. وضعیت‌ها: فعال، غیرفعال، زمان‌بندی‌شده، منقضی، ظرفیت تکمیل. «گزارش استفاده» هر کد سفارش‌ها و کاربران را نشان می‌دهد. کد استفاده‌شده حذف نمی‌شود؛ غیرفعالش کنید.</p>
+  <div class="box tip"><span class="h">جبران خسارت برای یک مشتری</span><p>کد «مبلغ ثابت» با مخاطب «کاربر خاص»، سقف هر کاربر <span class="en">1</span>، انقضای ۳۰ روزه و تیک ارسال پیامک.</p></div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>شرکای فروش اقساطی — راهنمای پنل مدیریت آرکان گلد</title>
+<meta name="guide-title" content="شرکای فروش اقساطی" />
+<meta name="guide-num" content="۰۵" />
+<link rel="stylesheet" href="../assets/guide.css" />
+</head>
+<body>
+<span class="preload">۰۱۲۳۴۵۶۷۸۹ صفحه آرکان</span>
+
+<section class="cover">
+  <div class="top">
+    <img class="logo" src="../../../app/public/logo.png" alt="آرکان گلد" />
+    <div class="series"><b>مجموعه‌ی راهنمای آموزشی</b>پنل مدیریت آرکان گلد<br />۱۲ ماژول — نسخه‌ی ۱٫۰</div>
+  </div>
+  <div class="mid">
+    <span class="modnum">ماژول ۰۵</span>
+    <h1>شرکای فروش اقساطی</h1>
+    <div class="sub">اسنپ‌پی، دیجی‌پی و اپلیکیشن‌های همکار: تعریف شریک با مقادیر قرارداد، کلید API، سفارش‌ها، تسویه، استرداد و سنی مطالبات.</div>
+    <div class="chips"><span>تعریف شریک</span><span>کلید API</span><span>تأیید سفارش</span><span>تسویه و تخصیص</span><span>سنی مطالبات</span></div>
+  </div>
+  <div class="meta">
+    <div>مخاطب: <b>مدیر مالی، حسابدار</b></div>
+    <div>تاریخ تنظیم: <b>۱۲ مهر ۱۴۰۵</b></div>
+    <div>پیش‌نیاز: <b>ماژول‌های ۰۰ و ۰۳</b></div>
+    <div>طبقه‌بندی: <b>داخلی — محرمانه</b></div>
+  </div>
+</section>
+
+<section class="toc">
+  <h2>فهرست مطالب</h2>
+  <ol id="toc-list"></ol>
+</section>
+
+<section class="chapter" data-toc="مدل همکاری و دسترسی‌ها">
+  <div class="chapter-head"><div class="num">۱</div><div><h1>مدل همکاری و دسترسی‌ها</h1><p>منوی <span class="path">شرکای فروش (اقساطی)</span></p></div></div>
+  <h2 data-toc>۱-۱. مدل همکاری</h2>
+  <p>مشتری طلا را از طریق شریک می‌خرد (اقساطی یا داخل اپ شریک). شریک پرداخت را <b>تضمین</b> و مبلغ را <b>منهای کارمزد خود</b> طبق قرارداد، چند روز بعد (T+N) به آرکان واریز می‌کند. وصول اقساط و ریسک مشتری با شریک است؛ برای آرکان فقط «طلب از شریک» (حساب 1050) مهم است.</p>
+  <div class="flow">
+    <div class="st"><b>در انتظار تأیید شریک</b>قیمت قفل؛ بدون اثر مالی</div><div class="ar">←</div>
+    <div class="st"><b>تأییدشده — تسویه‌نشده</b>طلا به مشتری؛ طلب از شریک؛ فاکتور</div><div class="ar">←</div>
+    <div class="st"><b>تسویه‌شده</b>وجه شریک به بانک رسید</div>
+  </div>
+  <p>مسیرهای جانبی: <span class="pill p-gray">لغوشده</span> (پیش از تأیید)، <span class="pill p-red">مستردشده</span> (پس از تأیید).</p>
+  <h2 data-toc>۱-۲. دسترسی‌ها</h2>
+  <table>
+    <thead><tr><th>کلید</th><th>کار</th><th>نقش‌ها</th></tr></thead>
+    <tbody>
+      <tr><td class="code">partner.view</td><td>مشاهده‌ی همه‌ی صفحه‌ها</td><td>مدیر مالی، حسابدار</td></tr>
+      <tr><td class="code">partner.manage</td><td>تعریف شریک، قرارداد، کارمزد، کلید API</td><td>مدیر مالی</td></tr>
+      <tr><td class="code">partner.order.manage</td><td>ثبت، تأیید، لغو، استرداد سفارش</td><td>مدیر مالی</td></tr>
+      <tr><td class="code">partner.settlement.manage</td><td>ثبت تسویه</td><td>مدیر مالی، حسابدار</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="chapter" data-toc="تعریف شریک با مقادیر دقیق">
+  <div class="chapter-head"><div class="num">۲</div><div><h1>تعریف شریک با مقادیر دقیق</h1><p>مسیر: <span class="path">شرکای فروش ← شرکا</span> ← شریک جدید</p></div></div>
+  <h2 data-toc>۲-۱. تنظیمات سراسری (یک‌بار)</h2>
+  <table class="values">
+    <thead><tr><th>کلید</th><th>معنی</th><th>مقدار</th></tr></thead>
+    <tbody>
+      <tr><td class="code">partner.api.enabled</td><td>روشن بودن API شرکا</td><td><span class="code">true</span> پس از امضای اولین قرارداد و تحویل کلید</td></tr>
+      <tr><td class="code">partner.quote_ttl_minutes</td><td>اعتبار قیمت سفارش API</td><td><span class="code">30</span></td></tr>
+      <tr><td class="code">partner.quote_spread_percent</td><td>اسپرد قیمت فروش به مشتریان شرکا</td><td><span class="code">0</span> (یا مثلاً <span class="code">0.5</span> برای پوشش نوسان)</td></tr>
+      <tr><td class="code">partner.fee_percent</td><td>کارمزد خدمات آرکان روی فروش شرکا (← 4010)</td><td><span class="code">0</span></td></tr>
+    </tbody>
+  </table>
+  <h2 data-toc>۲-۲. فرم شریک — نمونه‌ی اسنپ‌پی</h2>
+  <div class="form">
+    <div class="fh">فرم شریک فروش<span>نمونه؛ اعداد را از قرارداد بردارید</span></div>
+    <div class="row"><div>نام شریک</div><div>اسنپ‌پی</div></div>
+    <div class="row"><div>نوع همکاری</div><div>خرید اقساطی (BNPL)<small>سایر: اپلیکیشن همکار، فروشگاه اینترنتی، سازمانی، سایر</small></div></div>
+    <div class="row"><div>آداپتور یکپارچه‌سازی</div><div>اسنپ‌پی<small>«بدون اتصال مستقیم» = فقط ثبت دستی یا API عمومی؛ «(در انتظار مستندات)» یعنی آداپتور هنوز پیکربندی نشده</small></div></div>
+    <div class="row"><div>کارمزد شریک (درصد)</div><div><span class="en">3</span><small>از مبلغ هر سفارش کسر می‌شود ← 5080</small></div></div>
+    <div class="row"><div>کارمزد ثابت هر سفارش (تومان)</div><div><span class="en">0</span></div></div>
+    <div class="row"><div>مهلت تسویه (روز)</div><div><span class="en">7</span><small>سررسید = تاریخ تأیید + ۷ روز</small></div></div>
+    <div class="row"><div>سقف طلب از شریک (تومان)</div><div><span class="en">5000000000</span><small>خالی = بی‌سقف؛ با رسیدن طلب تسویه‌نشده به سقف، سفارش جدید تأیید نمی‌شود</small></div></div>
+    <div class="row"><div>حداقل / حداکثر مبلغ سفارش (تومان)</div><div><span class="ltr"><span class="en">1000000</span> / <span class="en">200000000</span></span></div></div>
+    <div class="row"><div>شماره قرارداد / شروع / پایان</div><div>SP-1405-017 — ۱۴۰۵/۰۷/۰۱ — ۱۴۰۶/۰۶/۳۱<small>پس از پایان، سفارش جدید پذیرفته نمی‌شود</small></div></div>
+    <div class="row"><div>رابط، تلفن، ایمیل، وب‌سایت</div><div>اطلاعات مسئول فنی و مالی شریک</div></div>
+    <div class="row"><div>شبا، شناسه‌ی ملی، کد اقتصادی</div><div>اطلاعات حقوقی شریک (برای تطبیق واریزها)</div></div>
+    <div class="row"><div>وضعیت</div><div>فعال<small>تعلیق = سفارش جدید پذیرفته نمی‌شود؛ خاتمه همکاری</small></div></div>
+    <div class="row"><div>کالاهای مجاز</div><div>✓ فروش طلای آب‌شده (واریز به کیف پول) — شمش کددار طبق قرارداد</div></div>
+    <div class="row"><div>دسترسی API فعال</div><div>✓</div></div>
+    <div class="row"><div>IPهای مجاز API</div><div>هر IP در یک خط، مثل <span class="en">185.12.34.56</span><small>خالی = بدون محدودیت (توصیه نمی‌شود)</small></div></div>
+  </div>
+  <h2 data-toc>۲-۳. کلید API</h2>
+  <ol class="steps">
+    <li>در کارت شریک ← <span class="btn">ساخت کلید API</span>.</li>
+    <li>کلید <b>فقط همین یک‌بار</b> نمایش داده می‌شود؛ کپی کنید و از کانال امن به مسئول فنی شریک بدهید (نه ایمیل یا پیام‌رسان عمومی). نشانی: <span class="code">/partner-api/v1</span> با هدر <span class="code">x-api-key</span>؛ مستند فنی: <span class="code">docs/partners/partner-api.md</span>.</li>
+    <li>در صورت هر شک به افشا: <span class="btn">تعویض کلید API</span> (کلید قبلی باطل می‌شود) یا <span class="btn">ابطال کلید</span>.</li>
+  </ol>
+</section>
+
+<section class="chapter" data-toc="سفارش‌ها: ثبت، تأیید، لغو و استرداد">
+  <div class="chapter-head"><div class="num">۳</div><div><h1>سفارش‌ها: ثبت، تأیید، لغو و استرداد</h1><p>مسیر: <span class="path">شرکای فروش ← سفارش‌ها و قراردادها</span></p></div></div>
+  <h2 data-toc>۳-۱. ثبت دستی سفارش</h2>
+  <p>سفارش‌ها معمولاً خودکار از API می‌آیند. برای ثبت دستی (مثلاً از فایل گزارش شریک):</p>
+  <div class="form">
+    <div class="fh">ثبت سفارش شریک<span>نمونه</span></div>
+    <div class="row"><div>شریک فروش</div><div>اسنپ‌پی</div></div>
+    <div class="row"><div>شناسه قرارداد/سفارش نزد شریک</div><div><span class="en">SNP-77812345</span><small>یکتا برای هر شریک؛ ثبت تکراری ممکن نیست</small></div></div>
+    <div class="row"><div>موبایل مشتری</div><div><span class="en">09351234567</span><small>باید در آرکان ثبت‌نام و احراز هویت کرده باشد</small></div></div>
+    <div class="row"><div>کد ملی مشتری (کنترل تطابق)</div><div>۱۰ رقم؛ باید با صاحب شماره یکی باشد</div></div>
+    <div class="row"><div>کالا</div><div>طلای آب‌شده (واریز به کیف پول)</div></div>
+    <div class="row"><div>مقدار (گرم ۷۵۰) یا مبلغ کل خرید (تومان)</div><div><span class="en">2</span> گرم — یا <span class="en">10400000</span> تومان</div></div>
+    <div class="row"><div>تعداد اقساط / پیش‌پرداخت</div><div><span class="ltr"><span class="en">4</span> / <span class="en">2600000</span></span> (فقط اطلاعاتی)</div></div>
+    <div class="row"><div>برای شمش</div><div>کد هولوگرام شمش کددار خزانه + اجرت/حق ضرب (تومان)</div></div>
+  </div>
+  <p>اگر شریک پرداخت را تضمین کرده، تأیید کنید: «شریک پرداخت را تضمین کرده است؟ با تأیید، طلا به مشتری تحویل و سند فروش صادر می‌شود.»</p>
+  <div class="je"><div class="je-title">تأیید: ۲ گرم × ۵٬۲۰۰٬۰۰۰ — کارمزد شریک ۳٪ <span>مبلغ ۱۰٬۴۰۰٬۰۰۰ — کارمزد ۳۱۲٬۰۰۰ — خالص ۱۰٬۰۸۸٬۰۰۰</span></div>
+    <table><thead><tr><th>حساب</th><th class="n">بدهکار</th><th class="n">بستانکار</th><th class="n">گرم</th></tr></thead><tbody>
+      <tr><td>1050 دریافتنی از شرکای فروش</td><td class="n">10,088,000</td><td></td><td></td></tr>
+      <tr><td>5080 کارمزد شرکای فروش</td><td class="n">312,000</td><td></td><td></td></tr>
+      <tr><td>1090 کسری پوشش</td><td></td><td></td><td class="n">بد 2</td></tr>
+      <tr><td class="cr">2020 بدهی طلایی به کاربران</td><td></td><td class="n">10,400,000</td><td class="n">بس 2</td></tr>
+    </tbody></table></div>
+  <p>برای <b>شمش</b>: بس 4040 (ارزش طلا) و 4050 (اجرت)؛ بهای تمام‌شده بد 5060 / بس 1025؛ مالکیت شمش به نام مشتری. کارمزد آرکان (در صورت تنظیم) ← 4010 و مالیات ← 2030. فاکتور فروش به نام مشتری صادر می‌شود. فروش آب‌شده کسری پوشش ایجاد می‌کند؛ خزانه را چک کنید (راهنمای ۰۴).</p>
+  <h2 data-toc>۳-۲. لغو و استرداد</h2>
+  <ul>
+    <li><b>لغو</b> (فقط «در انتظار»): بدون اثر مالی.</li>
+    <li><b>استرداد</b> (تأییدشده یا تسویه‌شده): طلا از کیف پول مشتری کسر (یا مالکیت شمش باطل و شمش به خزانه برمی‌گردد)، سند برگشت و فاکتور باطل می‌شود. اگر مشتری طلا را فروخته یا منتقل کرده، ممکن نیست.</li>
+    <li>استرداد سفارش تسویه‌شده، مانده‌ی شریک را منفی (بدهی ما) می‌کند و در تسویه‌ی بعدی کسر می‌شود.</li>
+  </ul>
+</section>
+
+<section class="chapter" data-toc="تسویه و سنی مطالبات">
+  <div class="chapter-head"><div class="num">۴</div><div><h1>تسویه و سنی مطالبات</h1><p>مسیر: <span class="path">شرکای فروش ← تسویه‌ها</span> و <span class="path">گزارش و مطالبات</span></p></div></div>
+  <h2 data-toc>۴-۱. ثبت تسویه</h2>
+  <ol class="steps">
+    <li>واریز شریک را در صورت‌حساب بانک پیدا کنید (و گزارش تسویه‌ی شریک را بگیرید).</li>
+    <li><span class="btn">ثبت تسویه</span> و فرم:</li>
+  </ol>
+  <div class="form">
+    <div class="fh">ثبت تسویه<span>نمونه</span></div>
+    <div class="row"><div>شریک</div><div>اسنپ‌پی</div></div>
+    <div class="row"><div>مبلغ واریزی (تومان)</div><div><span class="en">151320000</span></div></div>
+    <div class="row"><div>روش</div><div>واریز بانکی (پایا/ساتنا)</div></div>
+    <div class="row"><div>حساب بانکی مقصد</div><div><span class="en">101001</span><small>1010 یا زیرحساب بانکی آن</small></div></div>
+    <div class="row"><div>شماره پیگیری / تاریخ واریز</div><div>شماره‌ی پایا — ۱۴۰۵/۰۷/۱۹</div></div>
+    <div class="row"><div>سفارش‌های تسویه‌نشده</div><div>تیک سفارش‌هایی که در گزارش شریک آمده‌اند<small>یا هیچ‌کدام را انتخاب نکنید و تیک «تخصیص خودکار به قدیمی‌ترین سررسیدها» (پیش‌فرض روشن) را نگه دارید</small></div></div>
+  </div>
+  <p>سند: <b>بد بانک / بس 1050</b>. اگر مبلغ با جمع سفارش‌ها برابر نیست، فقط سفارش‌های کامل پرداخت‌شده را انتخاب کنید؛ مازاد یا کسر در مانده‌ی شریک می‌ماند. اختلاف کارمزد را با قرارداد تطبیق و اصلاح را با مدیر مالی هماهنگ کنید.</p>
+  <h2 data-toc>۴-۲. سنی مطالبات</h2>
+  <table>
+    <thead><tr><th>ستون</th><th>معنی</th><th>اقدام</th></tr></thead>
+    <tbody>
+      <tr><td>جاری</td><td>هنوز سررسید نشده</td><td>—</td></tr>
+      <tr><td>۱ تا ۷ روز</td><td>کمی گذشته از سررسید</td><td>یادآوری به شریک</td></tr>
+      <tr><td>۸ تا ۳۰ روز</td><td>معوق</td><td>پیگیری رسمی؛ گزارش به مدیر مالی</td></tr>
+      <tr><td>بیش از ۳۰ روز</td><td>معوق جدی</td><td>تعلیق شریک یا کاهش سقف طلب</td></tr>
+    </tbody>
+  </table>
+  <h2 data-toc>۴-۳. پیام‌های خطا</h2>
+  <table>
+    <thead><tr><th>پیام</th><th>راه‌حل</th></tr></thead>
+    <tbody>
+      <tr><td>مشتری با این شماره ثبت‌نام نکرده / احراز هویت تکمیل نشده</td><td>مشتری ابتدا در اپ ثبت‌نام و احراز هویت کند</td></tr>
+      <tr><td>کد ملی با صاحب شماره مطابقت ندارد</td><td>اطلاعات ارسالی شریک را کنترل کنید</td></tr>
+      <tr><td>سقف اعتبار شریک … رد می‌شود</td><td>تسویه‌ها را ثبت یا سقف را با تصمیم مدیریت افزایش دهید</td></tr>
+      <tr><td>اعتبار قیمت این سفارش منقضی شده است</td><td>شریک لغو و دوباره ثبت کند (مهلت: partner.quote_ttl_minutes)</td></tr>
+      <tr><td>موجودی آزاد طلای مشتری برای استرداد کافی نیست</td><td>مشتری طلا را فروخته/در حال تحویل است؛ با شریک تعیین تکلیف</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</body>
+</html>

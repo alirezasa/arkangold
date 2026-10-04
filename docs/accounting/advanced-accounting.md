@@ -5,6 +5,7 @@
 
 > راهنمای آموزشی کاربران حسابدار (PDF، ۳۵ صفحه): [training/accounting-training-manual.pdf](training/accounting-training-manual.pdf)
 > — منبع قابل ویرایش: `training/accounting-training-manual.html` و ساخت مجدد با `training/build-pdf.mjs`.
+> مجموعه‌ی کامل راهنماهای پنل (۱۲ ماژول، با رنگ سازمانی و مقادیر دقیق شروع کار): [../admin-guide/README.md](../admin-guide/README.md)
 
 ## ۱. خلاصه‌ی قابلیت‌ها
 

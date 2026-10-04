@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<title>داشبورد و کاربران — راهنمای پنل مدیریت آرکان گلد</title>
+<meta name="guide-title" content="داشبورد، کاربران، اعلان‌ها و دعوت از دوستان" />
+<meta name="guide-num" content="۰۱" />
+<link rel="stylesheet" href="../assets/guide.css" />
+</head>
+<body>
+<span class="preload">۰۱۲۳۴۵۶۷۸۹ صفحه آرکان</span>
+
+<section class="cover">
+  <div class="top">
+    <img class="logo" src="../../../app/public/logo.png" alt="آرکان گلد" />
+    <div class="series"><b>مجموعه‌ی راهنمای آموزشی</b>پنل مدیریت آرکان گلد<br />۱۲ ماژول — نسخه‌ی ۱٫۰</div>
+  </div>
+  <div class="mid">
+    <span class="modnum">ماژول ۰۱</span>
+    <h1>داشبورد، کاربران،<br />اعلان‌ها و دعوت از دوستان</h1>
+    <div class="sub">داشبورد مدیریتی، جست‌وجو و پرونده‌ی کاربر، احراز هویت و استعلام مجدد، مسدودسازی، پروفایل‌های حقوقی، اعلان‌های درون‌برنامه‌ای و تنظیم پاداش دعوت.</div>
+    <div class="chips"><span>پرونده‌ی کاربر</span><span>احراز هویت</span><span>پروفایل حقوقی</span><span>اعلان</span><span>پاداش دعوت</span></div>
+  </div>
+  <div class="meta">
+    <div>مخاطب: <b>پشتیبانی، مدیر ارشد</b></div>
+    <div>تاریخ تنظیم: <b>۱۲ مهر ۱۴۰۵</b></div>
+    <div>پیش‌نیاز: <b>ماژول ۰۰</b></div>
+    <div>طبقه‌بندی: <b>داخلی</b></div>
+  </div>
+</section>
+
+<section class="toc"><h2>فهرست مطالب</h2><ol id="toc-list"></ol></section>
+
+<section class="chapter" data-toc="داشبورد">
+  <div class="chapter-head"><div class="num">۱</div><div><h1>داشبورد</h1><p>اولین صفحه پس از ورود (برای حساب‌های غیرنماینده)</p></div></div>
+  <h2 data-toc>۱-۱. کارت‌ها و میان‌برها</h2>
+  <p>داشبورد شاخص‌های کلیدی را نشان می‌دهد: درخواست‌های برداشت در انتظار، پروفایل‌های حقوقی در انتظار تأیید، نمایندگان فعال، شمش امانی و مطالبات از نمایندگان، تعداد محصولات و دسته‌بندی‌ها و تعداد ادمین‌ها؛ و میان‌بر به بخش‌هایی که نقش شما دسترسی دارد. هر روز کار را از کارت‌های «در انتظار» شروع کنید.</p>
+</section>
+
+<section class="chapter" data-toc="کاربران و پرونده‌ی کاربر">
+  <div class="chapter-head"><div class="num">۲</div><div><h1>کاربران و پرونده‌ی کاربر</h1><p>مسیر: <span class="path">کاربران ← لیست کاربران</span> — دسترسی <span class="code">users.view</span></p></div></div>
+  <h2 data-toc>۲-۱. جست‌وجو و وضعیت‌ها</h2>
+  <p>با شماره‌ی موبایل یا نام جست‌وجو کنید (مثل <span class="en">0912123</span>). وضعیت‌ها: <span class="pill p-green">فعال</span>، <span class="pill p-amber">در انتظار فعال‌سازی</span>، <span class="pill p-gray">غیرفعال</span>، <span class="pill p-red">مسدود</span>.</p>
+  <h2 data-toc>۲-۲. پرونده‌ی کاربر</h2>
+  <table>
+    <thead><tr><th>بخش</th><th>محتوا</th></tr></thead>
+    <tbody>
+      <tr><td>سربرگ</td><td>موبایل، نام، دکمه‌ی <b>مسدودسازی / رفع مسدودیت</b></td></tr>
+      <tr><td>موجودی</td><td>موجودی ریالی (تومان) و طلا (گرم، ۴ رقم اعشار)</td></tr>
+      <tr><td>احراز هویت</td><td>وضعیت (تأیید شده / در انتظار / بررسی دستی / رد شده)، نام، کد ملی، تاریخ تولد، نام پدر، جنسیت، وضعیت حیات، تاریخ تأیید، سرویس استعلام</td></tr>
+      <tr><td>دعوت از دوستان</td><td>کد دعوت کاربر، تعداد دعوت، دعوت‌شده‌های احرازشده، پاداش ریالی و طلایی دریافتی</td></tr>
+      <tr><td>حساب‌های بانکی</td><td>بانک، کارت/شبا و وضعیت تأیید</td></tr>
+    </tbody>
+  </table>
+  <h2 data-toc>۲-۳. استعلام مجدد هویت</h2>
+  <p>اگر اطلاعات هویتی ناقص یا نادرست است (مثلاً نام خالی)، در بخش احراز هویت دکمه‌ی استعلام مجدد را بزنید (دسترسی <span class="code">users.identity.reinquire</span>). پیام «… هزینه‌ی وب‌سرویس استعلام محاسبه می‌شود» را تأیید کنید. شرط: کد ملی و تاریخ تولد ثبت شده باشد.</p>
+  <h2 data-toc>۲-۴. مسدودسازی</h2>
+  <p>فقط در موارد تقلب، درخواست مراجع یا درخواست خود کاربر؛ دلیل را در تیکت یا یادداشت داخلی ثبت کنید. رفع مسدودیت با همان دکمه. کاربر مسدود نمی‌تواند وارد شود؛ موجودی او دست‌نخورده می‌ماند.</p>
+</section>
+
+<section class="chapter" data-toc="پروفایل‌های حقوقی">
+  <div class="chapter-head"><div class="num">۳</div><div><h1>پروفایل‌های حقوقی</h1><p>مسیر: <span class="path">کاربران ← پروفایل‌های حقوقی</span> — مشاهده <span class="code">legal_profile.view</span>، تأیید <span class="code">legal_profile.approve</span></p></div></div>
+  <h2 data-toc>۳-۱. بررسی و تأیید</h2>
+  <ol class="steps">
+    <li>پروفایل‌های «در انتظار» را باز کنید: شناسه‌ی ملی، شماره‌ی ثبت، کد اقتصادی، نماینده و مدارک بارگذاری‌شده (مثلاً روزنامه‌ی رسمی و آگهی آخرین تغییرات).</li>
+    <li>کنترل: شناسه‌ی ملی ۱۱ رقمی با روزنامه‌ی رسمی یکی باشد؛ صاحب امضای مجاز همان کاربر باشد؛ مدارک خوانا و معتبر.</li>
+    <li>تأیید؛ یا رد با <b>علت (الزامی — برای کاربر نمایش داده می‌شود)</b>، مثل «آخرین آگهی تغییرات صاحبان امضای مجاز بارگذاری نشده است».</li>
+  </ol>
+</section>
+
+<section class="chapter" data-toc="اعلان‌های کاربران">
+  <div class="chapter-head"><div class="num">۴</div><div><h1>اعلان‌های کاربران</h1><p>مسیر: <span class="path">کاربران ← اعلان‌های کاربران</span> — درج: <span class="code">notifications.manage</span></p></div></div>
+  <h2 data-toc>۴-۱. درج اعلان — مقادیر دقیق</h2>
+  <div class="form">
+    <div class="fh">درج اعلان جدید<span>نمونه</span></div>
+    <div class="row"><div>عنوان</div><div>کاهش کارمزد خرید طلا<small>حداکثر ۱۵۰ کاراکتر</small></div></div>
+    <div class="row"><div>متن اعلان</div><div>از ۱۵ مهر تا پایان ماه، کارمزد خرید طلا ۰٫۵٪ است.<small>حداکثر ۲۰۰۰ کاراکتر</small></div></div>
+    <div class="row"><div>لینک (اختیاری)</div><div><span class="en">/dashboard/wallet</span><small>مسیر داخل اپ یا نشانی کامل https://…</small></div></div>
+    <div class="row"><div>نوع</div><div>پیشنهاد ویژه<small>سایر: اطلاع‌رسانی، خبر خوب، هشدار</small></div></div>
+    <div class="row"><div>تاریخ انقضا (اختیاری)</div><div>۱۴۰۵/۰۷/۳۰</div></div>
+    <div class="row"><div>مخاطبان</div><div>همه کاربران<small>یا «کاربران انتخابی» (حداقل یک کاربر)</small></div></div>
+  </div>
+  <p><span class="btn">انتشار اعلان</span>. اعلان را می‌توان غیرفعال یا حذف کرد. اعلان پیامک نیست؛ برای پیامک به راهنمای ۱۰ مراجعه کنید.</p>
+</section>
+
+<section class="chapter" data-toc="دعوت از دوستان (Referral)">
+  <div class="chapter-head"><div class="num">۵</div><div><h1>دعوت از دوستان</h1><p>مسیر: <span class="path">کاربران ← دعوت از دوستان</span> — مدیریت <span class="code">referral.manage</span></p></div></div>
+  <h2 data-toc>۵-۱. تنظیم پاداش — مقادیر دقیق</h2>
+  <div class="form">
+    <div class="fh">تنظیمات پاداش دعوت<span>نمونه</span></div>
+    <div class="row"><div>وضعیت</div><div>پاداش فعال<small>غیرفعال = دعوت‌ها فقط شمرده می‌شوند</small></div></div>
+    <div class="row"><div>زمان پرداخت</div><div>پس از احراز هویت دوست دعوت‌شده (پیشنهادی)<small>گزینه‌ی دیگر: بلافاصله پس از ثبت‌نام — خطر حساب‌های جعلی</small></div></div>
+    <div class="row"><div>پاداش ریالی (تومان)</div><div><span class="en">0</span></div></div>
+    <div class="row"><div>پاداش طلایی (میلی‌گرم)</div><div><span class="en">50</span><small>۵۰ میلی‌گرم = ۰٫۰۵ گرم طلا به کیف پول معرف</small></div></div>
+  </div>
+  <p>پاداش طلایی هزینه‌ی 5020 به ارزش روز و کسری پوشش ایجاد می‌کند؛ ریالی: بد 5020 / بس 2010. جدول دعوت‌ها: معرف، دوست دعوت‌شده، تاریخ ثبت‌نام، احراز هویت، وضعیت و پاداش. برای موارد «در انتظار پاداش» پرداخت دستی هم ممکن است. کارت‌های بالا: کل دعوت‌ها، پاداش پرداخت‌شده، مجموع پاداش ریالی و طلایی.</p>
+  <div class="box tip"><span class="h">پیشنهاد بودجه</span><p>با قیمت هر گرم ۵٬۲۰۰٬۰۰۰ تومان، پاداش ۵۰ میلی‌گرمی ≈ ۲۶۰ هزار تومان هزینه برای هر کاربر احرازشده است. سقف ماهانه‌ی بودجه را با مدیریت تعیین و ماهانه گزارش این صفحه را مرور کنید.</p></div>
+</section>
+
+</body>
+</html>

@@ -22,6 +22,7 @@ import {
   IsPhoneNumber,
   IsArray,
   ArrayNotEmpty,
+  ArrayMaxSize,
   Matches,
 } from 'class-validator';
 import { AdminManagementService, AdminActor } from './admin-management.service';
@@ -43,8 +44,18 @@ class CreateAdminDto {
   @IsString()
   fullName!: string;
 
+  // یک ادمین می‌تواند هم‌زمان چند نقش داشته باشد (مثلاً حسابدار + مدیر مالی + پشتیبانی)
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty({ message: 'حداقل یک نقش برای ادمین انتخاب کنید' })
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  roleKeys?: string[];
+
+  /** @deprecated از roleKeys استفاده کنید */
+  @IsOptional()
   @IsString()
-  roleKey!: string;
+  roleKey?: string;
 
   // مقصد پیامک اطلاع‌رسانی تیکت‌هایی که به این ادمین Assign می‌شوند
   @IsOptional()
@@ -57,6 +68,14 @@ class UpdateAdminDto {
   @IsString()
   fullName?: string;
 
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty({ message: 'حداقل یک نقش برای ادمین انتخاب کنید' })
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  roleKeys?: string[];
+
+  /** @deprecated از roleKeys استفاده کنید */
   @IsOptional()
   @IsString()
   roleKey?: string;
@@ -125,7 +144,7 @@ interface AdminRequest extends Request {
 function actorOf(req: AdminRequest): AdminActor {
   return {
     adminUserId: req.user.adminUserId,
-    roleKey: req.user.roleKey,
+    roleKeys: req.user.roleKeys,
     permissions: req.user.permissions,
   };
 }

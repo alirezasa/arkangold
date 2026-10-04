@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Menu, LogOut, UserCircle, Loader2 } from "lucide-react";
-import type { AdminMe } from "@/app/hooks/useAdminMe";
+import { roleNamesOf, type AdminMe } from "@/app/hooks/useAdminMe";
 import { useLogout } from "@/app/hooks/useLogout";
 
 export default function MobileHeader({ onMenuOpen, me }: { onMenuOpen: () => void; me: AdminMe }) {
@@ -51,7 +51,7 @@ export default function MobileHeader({ onMenuOpen, me }: { onMenuOpen: () => voi
             <div className="px-4 py-3 border-b" style={{ borderColor: "var(--color-border)" }}>
               <p className="text-[13px] font-black text-gray-900 truncate">{me.fullName}</p>
               <p className="text-[11px] text-gray-400 truncate">
-                {me.agent ? `${me.agent.name} (${me.agent.code})` : me.role.name}
+                {me.agent ? `${me.agent.name} (${me.agent.code})` : roleNamesOf(me)}
               </p>
             </div>
             <Link

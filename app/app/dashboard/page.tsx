@@ -10,8 +10,6 @@ import { useWallet } from "@/app/hooks/useWallet";
 import { useAppServices, type AppServiceKey } from "@/app/hooks/useAppServices";
 import type { TransactionItem } from "@/app/hooks/useTransactions";
 import {
-  TrendingUp,
-  TrendingDown,
   Flame,
   GripHorizontal,
   Gem,
@@ -22,11 +20,11 @@ import {
   Percent,
   Package,
   Gift,
-  RefreshCw,
   Loader2,
   Coins,
 } from "lucide-react";
 import { rialToTomanNum } from "./wallet/_helpers";
+import LivePriceBar from "./components/gold/LivePriceBar";
 
 // ─── نگاشت دسته‌بندی تراکنش به آیکون/رنگ ───
 const CATEGORY_STYLE: Record<
@@ -143,6 +141,7 @@ export default function DashboardPage() {
   const {
     price: marketPrice,
     loading: priceLoading,
+    error: priceError,
     refresh: refreshPrice,
   } = useMarketPrice();
   const { history } = usePriceHistory(24);
@@ -178,8 +177,6 @@ export default function DashboardPage() {
     ? cachedChange
     : historyChange;
   const change24h = Number.isFinite(change24hRaw) ? change24hRaw : 0;
-  const change24hLabel = change24h.toFixed(2);
-  const isPositiveChange = change24h >= 0;
 
   const goldValueToman = wallet
     ? wallet.goldBalanceGrams * currentPriceToman
@@ -228,68 +225,16 @@ export default function DashboardPage() {
       dir="rtl"
     >
       {/* ── ۱. نوار قیمت لحظه‌ای طلا (واقعی، از کش) ── */}
-      <div className="rounded-3xl p-1 shadow-[0_8px_30px_rgba(251,191,36,0.15)] bg-white border border-amber-100 flex items-center justify-between">
-        <div className="flex items-center gap-4 bg-linear-to-r from-amber-400 via-amber-300 to-yellow-400 rounded-[20px] px-5 py-4 w-full relative overflow-hidden">
-          <div className="absolute inset-0 bg-white/10 opacity-50 mix-blend-overlay pointer-events-none" />
-          <div className="absolute -left-10 top-1/2 -translate-y-1/2 w-32 h-32 bg-white/20 blur-2xl rounded-full" />
-
-          <div className="w-12 h-12 rounded-full bg-white/30 backdrop-blur-md shadow-inner flex items-center justify-center shrink-0 relative z-10 border border-white/40">
-            <span className="live-dot absolute w-2.5 h-2.5 bg-red-500 rounded-full animate-ping opacity-75" />
-            <span className="relative w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
-          </div>
-
-          <div className="flex flex-col relative z-10">
-            <span className="text-[13px] font-bold text-amber-900/80 drop-shadow-sm">
-              قیمت لحظه‌ای طلا (۱۸ عیار)
-            </span>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[18px] sm:text-[22px] font-black text-amber-950 drop-shadow-sm tracking-tight">
-                {priceLoading
-                  ? "درحال دریافت..."
-                  : currentPriceToman.toLocaleString("fa-IR")}
-                <span className="text-[12px] text-amber-900/80 mr-1.5 font-bold">
-                  تومان
-                </span>
-              </span>
-            </div>
-            {marketPrice && (
-              <span className="text-[10px] text-amber-900/50 font-medium mt-0.5">
-                {marketPrice.fromCache ? "از کش" : "زنده"} · بروزرسانی:{" "}
-                {new Date(marketPrice.fetchedAt).toLocaleTimeString("fa-IR")}
-              </span>
-            )}
-          </div>
-
-          {!priceLoading && marketPrice && (
-            <div
-              className={`mr-auto relative z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[13px] font-black backdrop-blur-md shadow-sm border ${
-                isPositiveChange
-                  ? "bg-emerald-500/20 text-emerald-900 border-emerald-500/30"
-                  : "bg-red-500/20 text-red-900 border-red-500/30"
-              }`}
-              dir="ltr"
-            >
-              {isPositiveChange ? (
-                <TrendingUp className="w-4 h-4" />
-              ) : (
-                <TrendingDown className="w-4 h-4" />
-              )}
-              {isPositiveChange ? "+" : ""}
-              {change24hLabel}٪
-            </div>
-          )}
-
-          <button
-            onClick={() => refreshPrice()}
-            className="relative z-10 mr-2 w-9 h-9 rounded-xl flex items-center justify-center text-amber-900/60 hover:text-amber-900 hover:bg-white/20 transition-colors"
-            aria-label="بروزرسانی قیمت"
-          >
-            <RefreshCw
-              className={`w-4 h-4 ${priceLoading ? "animate-spin" : ""}`}
-            />
-          </button>
-        </div>
-      </div>
+      <LivePriceBar
+        priceToman={currentPriceToman}
+        loading={priceLoading}
+        error={priceError}
+        fetchedAt={marketPrice?.fetchedAt}
+        fromCache={marketPrice?.fromCache}
+        changePercent={marketPrice ? change24h : null}
+        changeLabel="۲۴ ساعت گذشته"
+        onRefresh={() => void refreshPrice()}
+      />
 
       {/* ── ۲. کارت‌های آماری کیف پول (دیتای واقعی) ── */}
       {/* <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

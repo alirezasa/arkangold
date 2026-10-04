@@ -246,6 +246,14 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
 
   // ─────────────────────────── نمایندگان ───────────────────────────
   {
+    key: 'AGENT_LOGIN_OTP',
+    title: 'کد ورود به پنل نمایندگان',
+    category: 'AGENT',
+    body: '{brand}\nکد ورود به پنل نمایندگان: {code}\nاین کد را در اختیار دیگران قرار ندهید.',
+    variables: [V.code, V.brand],
+    sensitive: true,
+  },
+  {
     key: 'AGENT_CONTRACT_ISSUED',
     title: 'صدور قرارداد نمایندگی برای امضا',
     category: 'AGENT',

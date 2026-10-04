@@ -9,7 +9,8 @@ export interface AdminAuthenticatedUser {
   adminUserId: string;
   username: string;
   sessionId: string;
-  roleKey: string;
+  /** کلید همه‌ی نقش‌های ادمین (یک ادمین می‌تواند چند نقش داشته باشد) */
+  roleKeys: string[];
   permissions: string[];
   /** اگر این حساب متعلق به یک نماینده فروش باشد، شناسه‌ی همان نماینده */
   agentId: string | null;

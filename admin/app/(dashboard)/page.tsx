@@ -28,7 +28,8 @@ const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 interface AdminMe {
   username: string;
   fullName: string;
-  role: { key: string; name: string };
+  role: { key: string; name: string } | null;
+  roles?: { key: string; name: string }[];
   permissions: string[];
   lastLoginAt: string | null;
   agent: { id: string } | null;
@@ -205,7 +206,9 @@ export default function DashboardHomePage() {
                   color: "var(--color-gold-500)",
                 }}
               >
-                {me.role.name}
+                {(me.roles?.length ? me.roles : me.role ? [me.role] : [])
+                  .map((r) => r.name)
+                  .join("، ")}
               </span>
             )}
           </div>

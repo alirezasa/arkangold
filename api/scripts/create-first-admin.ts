@@ -62,7 +62,12 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(password, 12);
   const admin = await prisma.adminUser.create({
-    data: { username, passwordHash, fullName, roleId: role.id },
+    data: {
+      username,
+      passwordHash,
+      fullName,
+      roles: { create: { roleId: role.id } },
+    },
   });
 
   console.log(`✅ ادمین "${admin.username}" با نقش ${role.name} ایجاد شد.`);

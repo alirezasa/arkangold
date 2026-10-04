@@ -17,7 +17,10 @@ export interface AdminMe {
   createdBy: string | null;
   activeSessions: number;
   currentSessionId: string | null;
-  role: { key: string; name: string; description?: string | null };
+  /** نقش اصلی (برای سازگاری) */
+  role: { key: string; name: string; description?: string | null } | null;
+  /** همه‌ی نقش‌های ادمین — دسترسی‌ها اجتماع دسترسی‌های همین نقش‌هاست */
+  roles: { key: string; name: string; description?: string | null }[];
   permissions: string[];
   permissionDetails: { key: string; group: string; description: string | null }[];
   /** اگر حساب متعلق به یک نماینده فروش باشد */
@@ -28,6 +31,12 @@ export interface AdminMe {
     status: "ACTIVE" | "SUSPENDED" | "TERMINATED";
   } | null;
 }
+
+/** نام نقش‌های ادمین به‌صورت متن (مثلاً «حسابدار، کارشناس پشتیبانی») */
+export const roleNamesOf = (me: Pick<AdminMe, "role" | "roles">) =>
+  (me.roles?.length ? me.roles : me.role ? [me.role] : [])
+    .map((r) => r.name)
+    .join("، ");
 
 export const ADMIN_ME_KEY = "/api/admin-auth/me";
 

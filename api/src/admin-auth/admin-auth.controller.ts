@@ -17,6 +17,7 @@ import { Request } from 'express';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -27,7 +28,8 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { AdminAuthService } from './admin-auth.service';
+import { AdminAuthService, AdminLoginPortal } from './admin-auth.service';
+import { AgentOtpLoginService } from './agent-otp-login.service';
 import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 import { AdminPublic } from './decorators/admin-public.decorator';
 import { AdminAuthenticatedUser } from './interfaces/admin-jwt-payload.interface';
@@ -39,6 +41,27 @@ class AdminLoginDto {
   @IsString()
   @MinLength(1)
   password!: string;
+
+  // درگاه ورود (از روی دامنه در BFF پنل تعیین می‌شود)
+  @IsOptional()
+  @IsIn(['admin', 'agent'])
+  portal?: AdminLoginPortal;
+}
+
+class AgentOtpRequestDto {
+  @IsString()
+  @MaxLength(20)
+  phone!: string;
+}
+
+class AgentOtpVerifyDto {
+  @IsString()
+  @MaxLength(20)
+  phone!: string;
+
+  @IsString()
+  @MaxLength(12)
+  code!: string;
 }
 
 class AdminRefreshDto {
@@ -96,13 +119,37 @@ interface AuthenticatedAdminRequest extends Request {
 
 @Controller('admin-auth')
 export class AdminAuthController {
-  constructor(private readonly adminAuthService: AdminAuthService) {}
+  constructor(
+    private readonly adminAuthService: AdminAuthService,
+    private readonly agentOtpLogin: AgentOtpLoginService,
+  ) {}
 
   @AdminPublic()
   @Post('login')
   @Throttle({ default: { limit: 5, ttl: 900_000 } }) // ۵ تلاش در ۱۵ دقیقه
   async login(@Body() dto: AdminLoginDto, @Req() req: Request) {
     return this.adminAuthService.login(dto, req.ip, req.headers['user-agent']);
+  }
+
+  // ── ورود نمایندگان با کد یکبارمصرف (فقط شماره‌های ثبت‌شده توسط مدیر؛ بدون ثبت‌نام) ──
+  @AdminPublic()
+  @Post('agent-otp/request')
+  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  async requestAgentOtp(@Body() dto: AgentOtpRequestDto, @Req() req: Request) {
+    return this.agentOtpLogin.requestCode(dto.phone, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+  }
+
+  @AdminPublic()
+  @Post('agent-otp/verify')
+  @Throttle({ default: { limit: 10, ttl: 900_000 } })
+  async verifyAgentOtp(@Body() dto: AgentOtpVerifyDto, @Req() req: Request) {
+    return this.agentOtpLogin.verifyCode(dto.phone, dto.code, {
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   @AdminPublic()

@@ -14,20 +14,39 @@ import { AuditService } from '../common/audit/audit.service';
 import { maskUsername } from '../common/audit/mask.util';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
 import { jwtSignOptions } from '../common/secrets/jwt-keyring';
 import { hashPassword } from '../common/crypto/password.util';
 import { SystemConfigService } from '../system-config/system-config.service';
+import {
+  ADMIN_ROLES_INCLUDE,
+  ADMIN_ROLES_WITH_PERMISSIONS_INCLUDE,
+  mergePermissions,
+  summarizeRoles,
+} from './admin-roles.util';
 
 const AUDIT_SOURCE = 'AdminAuthService';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000; // ۱۵ دقیقه
 
+/** درگاه ورود: admin.arkan.gold (کارشناسان) یا panel.arkan.gold (نمایندگان فروش) */
+export type AdminLoginPortal = 'admin' | 'agent';
+
 interface LoginDto {
   username: string;
   password: string;
+  portal?: AdminLoginPortal;
 }
+
+const ADMIN_PANEL_URL = process.env.ADMIN_PANEL_URL || 'admin.arkan.gold';
+const AGENT_PANEL_URL = process.env.AGENT_PANEL_URL || 'panel.arkan.gold';
+
+type LoginAdmin = {
+  id: string;
+  username: string;
+  fullName: string;
+  roles: { role: { key: string; name: string } }[];
+};
 
 @Injectable()
 export class AdminAuthService {
@@ -44,7 +63,7 @@ export class AdminAuthService {
   async login(dto: LoginDto, ip?: string, userAgent?: string) {
     const admin = await this.prisma.adminUser.findUnique({
       where: { username: dto.username },
-      include: { role: true },
+      include: ADMIN_ROLES_INCLUDE,
     });
 
     // پیام یکسان برای عدم افشای وجود/عدم وجود نام کاربری
@@ -117,7 +136,51 @@ export class AdminAuthService {
       throw new UnauthorizedException(invalidCredsMsg);
     }
 
-    // ── ورود موفق: ریست شمارنده تلاش ناموفق ──
+    // حساب نماینده فقط از پنل نمایندگان و کارشناسان فقط از پنل مدیریت وارد می‌شوند
+    // (بررسی پس از تأیید رمز تا وجود نام کاربری یا نوع حساب افشا نشود)
+    this.assertPortal(dto.portal, !!admin.agentId, {
+      adminUserId: admin.id,
+      ip,
+      userAgent,
+    });
+
+    return this.completeLogin(admin, ip, userAgent, 'admin_auth.login');
+  }
+
+  /** درگاه ورود باید با نوع حساب بخواند؛ portal خالی (کلاینت قدیمی) بررسی نمی‌شود */
+  assertPortal(
+    portal: AdminLoginPortal | undefined,
+    isAgentAccount: boolean,
+    ctx: { adminUserId: string; ip?: string; userAgent?: string },
+  ) {
+    if (!portal) return;
+    const mismatch =
+      (portal === 'admin' && isAgentAccount) ||
+      (portal === 'agent' && !isAgentAccount);
+    if (!mismatch) return;
+    void this.auditService.logAdmin({
+      adminUserId: ctx.adminUserId,
+      action: 'admin_auth.login',
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      source: AUDIT_SOURCE,
+      success: false,
+      newValue: { reason: 'wrong_portal', portal },
+    });
+    throw new ForbiddenException(
+      isAgentAccount
+        ? `حساب نمایندگی از نشانی ${AGENT_PANEL_URL} وارد شوید`
+        : `این نشانی مخصوص نمایندگان فروش است؛ کارشناسان از ${ADMIN_PANEL_URL} وارد شوند`,
+    );
+  }
+
+  /** ورود موفق (رمز یا کد یکبارمصرف): ریست شمارنده، ثبت آخرین ورود، صدور نشست و لاگ */
+  async completeLogin(
+    admin: LoginAdmin,
+    ip: string | undefined,
+    userAgent: string | undefined,
+    action: 'admin_auth.login' | 'admin_auth.login_otp',
+  ) {
     await this.prisma.adminUser.update({
       where: { id: admin.id },
       data: {
@@ -131,13 +194,12 @@ export class AdminAuthService {
     // TODO(2FA): وقتی totpEnabled فعال شد، اینجا باید به‌جای صدور مستقیم session
     // یک tempToken کوتاه‌مدت صادر شود و کاربر به verify-2fa هدایت شود.
     // فعلاً چون admin.totpEnabled همیشه false است، مستقیم session کامل صادر می‌شود.
-
     const tokens = await this.createSession(admin.id, ip, userAgent);
 
     this.logger.log(`[AdminAuth] ورود موفق: ${admin.username} از IP ${ip}`);
     await this.auditService.logAdmin({
       adminUserId: admin.id,
-      action: 'admin_auth.login',
+      action,
       ip,
       userAgent,
       source: AUDIT_SOURCE,
@@ -150,7 +212,11 @@ export class AdminAuthService {
         id: admin.id,
         username: admin.username,
         fullName: admin.fullName,
-        role: { key: admin.role.key, name: admin.role.name },
+        ...summarizeRoles(
+          admin.roles.map((r) => ({
+            role: { key: r.role.key, name: r.role.name },
+          })),
+        ),
       },
     };
   }
@@ -251,7 +317,7 @@ export class AdminAuthService {
     const admin = await this.prisma.adminUser.findUnique({
       where: { id: adminUserId },
       include: {
-        role: { include: { permissions: { include: { permission: true } } } },
+        ...ADMIN_ROLES_WITH_PERMISSIONS_INCLUDE,
         agent: {
           select: { id: true, code: true, name: true, status: true },
         },
@@ -262,6 +328,7 @@ export class AdminAuthService {
       },
     });
     if (!admin) throw new NotFoundException('ادمین یافت نشد');
+    const permissionDetails = mergePermissions(admin.roles);
 
     return {
       id: admin.id,
@@ -275,17 +342,17 @@ export class AdminAuthService {
       createdBy: admin.createdBy?.fullName ?? null,
       activeSessions: admin._count.sessions,
       currentSessionId: currentSessionId ?? null,
-      role: {
-        key: admin.role.key,
-        name: admin.role.name,
-        description: admin.role.description,
-      },
-      permissions: admin.role.permissions.map((rp) => rp.permission.key),
-      permissionDetails: admin.role.permissions.map((rp) => ({
-        key: rp.permission.key,
-        group: rp.permission.group,
-        description: rp.permission.description,
-      })),
+      ...summarizeRoles(
+        admin.roles.map((r) => ({
+          role: {
+            key: r.role.key,
+            name: r.role.name,
+            description: r.role.description,
+          },
+        })),
+      ),
+      permissions: permissionDetails.map((p) => p.key),
+      permissionDetails,
       // حساب ورود نماینده فروش — پنل بر اساس این فیلد پرتال نماینده را نشان می‌دهد
       agent: admin.agent,
     };
@@ -462,7 +529,7 @@ export class AdminAuthService {
     ip?: string,
     userAgent?: string,
   ) {
-    const sessionId = uuidv4();
+    const sessionId = crypto.randomUUID();
     // عمر نشست از تنظیمات سیستم (session.admin.*) — expiresIn پاسخ مبنای maxAge کوکی در BFF است
     const { accessTtlSeconds, refreshTtlSeconds } =
       await this.systemConfig.getSessionPolicy('admin');

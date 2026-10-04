@@ -523,6 +523,7 @@ export class AgentService {
     });
     if (exists)
       throw new ConflictException('این نام کاربری قبلاً استفاده شده است');
+    if (dto.phone) await this.assertAgentPhoneAvailable(dto.phone);
 
     const account = await this.prisma.adminUser.create({
       data: {
@@ -530,7 +531,7 @@ export class AgentService {
         passwordHash: await hashPassword(dto.password),
         fullName: dto.fullName.trim(),
         phone: dto.phone,
-        roleId: role.id,
+        roles: { create: { roleId: role.id } },
         agentId,
         createdById: adminId,
       },
@@ -542,6 +543,26 @@ export class AgentService {
       phone: account.phone,
       isActive: account.isActive,
     };
+  }
+
+  /**
+   * شماره‌ی هر حساب ورود نماینده باید یکتا باشد؛ ورود با کد یکبارمصرف
+   * از روی همین شماره حساب را پیدا می‌کند.
+   */
+  private async assertAgentPhoneAvailable(phone: string, exceptId?: string) {
+    const taken = await this.prisma.adminUser.findFirst({
+      where: {
+        phone,
+        agentId: { not: null },
+        ...(exceptId ? { id: { not: exceptId } } : {}),
+      },
+      select: { username: true },
+    });
+    if (taken) {
+      throw new ConflictException(
+        `این شماره قبلاً برای حساب ورود «${taken.username}» ثبت شده است`,
+      );
+    }
   }
 
   async updateAccount(
@@ -557,6 +578,11 @@ export class AgentService {
     }
     const data: Prisma.AdminUserUpdateInput = {};
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
+    if (dto.phone !== undefined) {
+      const phone = dto.phone.trim();
+      if (phone) await this.assertAgentPhoneAvailable(phone, accountId);
+      data.phone = phone || null;
+    }
     if (dto.newPassword) {
       if (!/[A-Za-z]/.test(dto.newPassword) || !/\d/.test(dto.newPassword)) {
         throw new BadRequestException(

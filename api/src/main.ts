@@ -30,6 +30,8 @@ const DEFAULT_CORS_ORIGINS = [
   'https://www.arkan.gold',
   'https://app.arkan.gold',
   'https://admin.arkan.gold',
+  // پنل نمایندگان فروش (همان برنامه‌ی admin روی دامنه‌ی جدا)
+  'https://panel.arkan.gold',
 ];
 
 function resolveCorsOrigins(): string[] {

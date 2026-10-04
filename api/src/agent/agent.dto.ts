@@ -20,6 +20,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -290,6 +291,12 @@ export class UpdateAgentAccountDto {
   @IsString()
   @MinLength(12, { message: 'رمز عبور باید حداقل ۱۲ کاراکتر باشد' })
   newPassword?: string;
+
+  // شماره‌ی ورود با کد یکبارمصرف در panel.arkan.gold — رشته‌ی خالی یعنی حذف شماره
+  @IsOptional()
+  @ValidateIf((o: UpdateAgentAccountDto) => !!o.phone)
+  @Matches(IRAN_MOBILE, { message: 'شماره موبایل معتبر نیست' })
+  phone?: string;
 }
 
 // ─────────────────────────── تحویل امانی / عودت ───────────────────────────

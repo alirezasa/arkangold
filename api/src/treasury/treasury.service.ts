@@ -1371,7 +1371,9 @@ export class TreasuryService {
         where: {
           isActive: true,
           phone: { not: null },
-          role: { key: { in: ['SUPER_ADMIN', 'FINANCE_ADMIN'] } },
+          roles: {
+            some: { role: { key: { in: ['SUPER_ADMIN', 'FINANCE_ADMIN'] } } },
+          },
         },
         select: { phone: true },
       });

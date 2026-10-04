@@ -26,7 +26,7 @@ import {
   ChevronRight,
   ChevronLeft,
 } from "lucide-react";
-import { useAdminMe } from "@/app/hooks/useAdminMe";
+import { roleNamesOf, useAdminMe } from "@/app/hooks/useAdminMe";
 import { useLogout } from "@/app/hooks/useLogout";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -113,9 +113,15 @@ export default function ProfilePage() {
             @{me.username}
           </p>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span className="badge" style={{ background: "var(--color-emerald-light)", color: "var(--color-emerald)" }}>
-              {me.role.name}
-            </span>
+            {(me.roles ?? []).map((r) => (
+              <span
+                key={r.key}
+                className="badge"
+                style={{ background: "var(--color-emerald-light)", color: "var(--color-emerald)" }}
+              >
+                {r.name}
+              </span>
+            ))}
             {me.agent && (
               <span className="badge bg-amber-50 text-amber-700">
                 <Store className="w-3 h-3" /> {me.agent.name} ({me.agent.code})
@@ -232,8 +238,8 @@ function InfoTab() {
       </label>
       <div className="grid grid-cols-2 gap-3 text-[12px]">
         <div className="rounded-xl bg-gray-50 p-3">
-          <p className="text-gray-400 mb-1">نقش</p>
-          <p className="font-black text-gray-700">{me.role.name}</p>
+          <p className="text-gray-400 mb-1">نقش‌ها</p>
+          <p className="font-black text-gray-700">{roleNamesOf(me) || "—"}</p>
         </div>
         <div className="rounded-xl bg-gray-50 p-3">
           <p className="text-gray-400 mb-1">ایجادشده توسط</p>
@@ -715,8 +721,16 @@ function PermissionsTab() {
   return (
     <div className="rounded-2xl p-6 space-y-4" style={cardStyle}>
       <div>
-        <h2 className="text-[14px] font-black text-gray-800">دسترسی‌های نقش «{me.role.name}»</h2>
-        {me.role.description && <p className="text-[12px] text-gray-400 mt-1">{me.role.description}</p>}
+        <h2 className="text-[14px] font-black text-gray-800">
+          {(me.roles ?? []).length > 1 ? "دسترسی‌های نقش‌های" : "دسترسی‌های نقش"} «{roleNamesOf(me)}»
+        </h2>
+        {(me.roles ?? []).length > 1 ? (
+          <p className="text-[12px] text-gray-400 mt-1">
+            دسترسی‌های زیر مجموع دسترسی‌های همه‌ی نقش‌های شماست.
+          </p>
+        ) : (
+          me.role?.description && <p className="text-[12px] text-gray-400 mt-1">{me.role.description}</p>
+        )}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {groups.map(([group, perms]) => (
@@ -736,7 +750,7 @@ function PermissionsTab() {
       <p className="text-[11px] text-gray-400">
         برای تغییر دسترسی‌ها با مدیر ارشد پنل هماهنگ کنید. کد نقش:{" "}
         <span dir="ltr" className="font-mono">
-          {me.role.key}
+          {(me.roles ?? []).map((r) => r.key).join(", ")}
         </span>
       </p>
     </div>

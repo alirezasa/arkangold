@@ -1,6 +1,8 @@
 // admin/app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { headers } from "next/headers";
+import { PORTAL_LABEL, portalFromHeaders } from "@/lib/portal";
 import "./globals.css";
 
 const dana = localFont({
@@ -29,11 +31,15 @@ const dana = localFont({
   variable: "--font-dana",
 });
 
-export const metadata: Metadata = {
-  title: "پنل مدیریت | آرکان گلد",
-  description: "پنل مدیریت پلتفرم آرکان گلد",
-  manifest: "/manifest.json",
-};
+// عنوان بر اساس دامنه: admin.arkan.gold → پنل مدیریت، panel.arkan.gold → پنل نمایندگان
+export async function generateMetadata(): Promise<Metadata> {
+  const label = PORTAL_LABEL[portalFromHeaders(await headers())];
+  return {
+    title: `${label} | آرکان گلد`,
+    description: `${label} پلتفرم آرکان گلد`,
+    manifest: "/manifest.json",
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#330509",

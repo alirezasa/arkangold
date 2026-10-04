@@ -60,9 +60,19 @@ const PROVIDERS: ProviderDefinition[] = [
     name: 'فینوتک',
     description: 'ارائه‌دهنده KYC/بانکی فینوتک',
   },
+  {
+    code: 'GHASEDAK',
+    name: 'قاصدک',
+    description: 'سامانه‌ی پیامک قاصدک (ghasedak.me) — ارسال متن و قالب OTP',
+  },
+  {
+    code: 'SMSIR',
+    name: 'sms.ir',
+    description: 'سامانه‌ی پیامک sms.ir — ارسال متن و قالب Verify',
+  },
 ];
 
-// فقط سرویس‌هایی که همین الان Adapter دارند این‌جا Link می‌شوند (SMS فعلاً فقط Mock/Log دارد).
+// فقط سرویس‌هایی که همین الان Adapter دارند این‌جا Link می‌شوند (SMS: Mock، قاصدک، sms.ir).
 // بقیه سرویس‌ها (IBAN/CARD/COMPANY/GOLD_PRICE/PAYMENT_GATEWAY) عمداً بدون لینک باقی می‌مانند
 // تا وقتی Adapter واقعی‌شان نوشته شود؛ صدا زدن آن‌ها فعلاً به‌درستی CONFIGURATION_ERROR می‌دهد.
 const INITIAL_LINKS: InitialLink[] = [
@@ -86,6 +96,22 @@ const INITIAL_LINKS: InitialLink[] = [
     priority: 1,
     isActive: true,
     isFallback: false,
+  },
+  // سامانه‌های واقعی پیامک غیرفعال ساخته می‌شوند؛ پس از ثبت کلید API و شماره خط در
+  // «مرکز پیامک» ادمین آن‌ها را فعال و اولویت را تنظیم می‌کند (ارسال واقعی فقط در production)
+  {
+    serviceCode: 'SMS',
+    providerCode: 'GHASEDAK',
+    priority: 2,
+    isActive: false,
+    isFallback: false,
+  },
+  {
+    serviceCode: 'SMS',
+    providerCode: 'SMSIR',
+    priority: 3,
+    isActive: false,
+    isFallback: true,
   },
 ];
 

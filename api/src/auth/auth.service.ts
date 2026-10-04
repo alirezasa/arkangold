@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Logger,
   Inject,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -37,6 +38,7 @@ import { ReferralService } from '../referral/referral.service';
 import type { ChangePasswordDto } from './dto/change-password.dto';
 // FAU_GEN_EXT.1.4: شرط چاپ کد OTP در لاگ (توضیح در همان فایل)
 import { isOtpDebugLogEnabled } from '../common/logging/otp-debug';
+import { SmsTemplateService } from '../notifications/sms-template.service';
 
 const AUDIT_SOURCE = 'AuthService';
 
@@ -75,7 +77,37 @@ export class AuthService {
     @Inject('REDIS_CLIENT') private redis: Redis,
     private systemConfig: SystemConfigService,
     private referralService: ReferralService,
+    private smsTemplates: SmsTemplateService,
   ) {}
+
+  /** ارسال کد یکبارمصرف با قالب پیامک رویداد؛ شکست ارسال به کاربر گزارش می‌شود */
+  private async deliverOtp(
+    phone: string,
+    purpose: OtpPurpose,
+    code: string,
+  ): Promise<void> {
+    const key =
+      purpose === OtpPurpose.LOGIN
+        ? 'AUTH_LOGIN_OTP'
+        : purpose === OtpPurpose.RESET_PASSWORD
+          ? 'AUTH_RESET_PASSWORD_OTP'
+          : 'AUTH_REGISTER_OTP';
+    try {
+      await this.smsTemplates.send(
+        key,
+        phone,
+        { code },
+        { throwOnFailure: true, referenceType: 'AUTH_OTP' },
+      );
+    } catch (err) {
+      this.logger.error(
+        `ارسال پیامک کد تأیید به ${maskPhone(phone)} ناموفق بود: ${(err as Error).message}`,
+      );
+      throw new ServiceUnavailableException(
+        'ارسال پیامک کد تأیید ناموفق بود؛ لحظاتی دیگر دوباره تلاش کنید',
+      );
+    }
+  }
 
   // ═══════════════════════════════════════════
   async sendOtp(dto: SendOtpDto, purpose: OtpPurpose = OtpPurpose.REGISTER) {
@@ -98,6 +130,7 @@ export class AuthService {
     if (isOtpDebugLogEnabled()) {
       this.logger.warn(`[OTP] ${phone} (${purpose}): ${otp}`);
     }
+    await this.deliverOtp(phone, purpose, otp);
     return { message: 'کد تایید ارسال شد', expiresIn: 180 };
   }
 
@@ -494,6 +527,7 @@ export class AuthService {
     if (isOtpDebugLogEnabled()) {
       this.logger.warn(`[Reset OTP] ${phone}: ${otp}`);
     }
+    await this.deliverOtp(phone, OtpPurpose.RESET_PASSWORD, otp);
     return { message: 'در صورت وجود حساب کاربری، کد بازیابی ارسال خواهد شد' };
   }
 

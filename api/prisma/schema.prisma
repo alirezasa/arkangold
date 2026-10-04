@@ -2741,3 +2741,76 @@ enum PartnerOrderStatus {
   CANCELLED
   REFUNDED
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// مرکز پیامک — قالب متن هر رویداد سیستم و لاگ ارسال (قاصدک / sms.ir / Mock)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// قالب پیامک یک رویداد (سفارش، واریز/برداشت، OTP، قرارداد نماینده و ...).
+/// ردیف‌های پیش‌فرض هنگام استارت ساخته می‌شوند و متن/وضعیت/سامانه‌ی ارسال از پنل ادمین تغییر می‌کند.
+model SmsTemplate {
+  id                   String      @id @default(uuid()) @db.Uuid
+  /// کد یکتای رویداد، مثلاً SHOP_ORDER_SHIPPED
+  key                  String      @unique
+  title                String
+  /// AUTH | ORDER | FINANCE | AGENT | GENERAL
+  category             String
+  /// متن پیامک با متغیرهای {name}
+  body                 String
+  isActive             Boolean     @default(true) @map("is_active")
+  /// سامانه‌ی اختصاصی این رویداد (GHASEDAK / SMSIR / MOCK)؛ null = طبق اولویت سرویس SMS
+  providerCode         String?     @map("provider_code")
+  /// TEXT: ارسال متن از خط اختصاصی — PATTERN: قالب تأییدشده‌ی سامانه (Verify / OTP)
+  sendMode             SmsSendMode @default(TEXT) @map("send_mode")
+  /// شناسه‌ی قالب در sms.ir (templateId عددی) برای حالت PATTERN
+  smsirTemplateId      String?     @map("smsir_template_id")
+  /// نام قالب در قاصدک (templateName) برای حالت PATTERN
+  ghasedakTemplateName String?     @map("ghasedak_template_name")
+  updatedById          String?     @map("updated_by_id") @db.Uuid
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@map("sms_templates")
+}
+
+/// لاگ هر پیامک ارسالی — برای پیگیری، گزارش هزینه و رفع اشکال.
+/// متن پیامک‌های حاوی کد یکبارمصرف به‌صورت ماسک‌شده ذخیره می‌شود (FAU_GEN_EXT.1.4).
+model SmsLog {
+  id                String       @id @default(uuid()) @db.Uuid
+  phone             String
+  userId            String?      @map("user_id") @db.Uuid
+  templateKey       String?      @map("template_key")
+  providerCode      String?      @map("provider_code")
+  sendMode          SmsSendMode  @default(TEXT) @map("send_mode")
+  text              String
+  status            SmsLogStatus
+  providerMessageId String?      @map("provider_message_id")
+  /// هزینه‌ی اعلام‌شده توسط سامانه (واحد همان سامانه)
+  cost              Decimal?     @db.Decimal(18, 2)
+  errorMessage      String?      @map("error_message")
+  referenceType     String?      @map("reference_type")
+  referenceId       String?      @map("reference_id")
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([phone, createdAt])
+  @@index([templateKey, createdAt])
+  @@index([status, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("sms_logs")
+}
+
+enum SmsSendMode {
+  TEXT
+  PATTERN
+}
+
+enum SmsLogStatus {
+  SENT
+  FAILED
+  /// محیط غیرعملیاتی: ارسال واقعی انجام نشد و فقط لاگ شد
+  DRY_RUN
+  /// قالب غیرفعال یا شماره نامعتبر — ارسالی انجام نشد
+  SKIPPED
+}

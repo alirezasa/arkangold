@@ -7,6 +7,11 @@ import {
   UnknownIntegrationError,
 } from '../errors/integration-error';
 
+export interface ResolveOptions {
+  /** این Provider (اگر فعال باشد) اول امتحان می‌شود؛ بقیه به ترتیب Priority پشتیبان می‌مانند */
+  preferredProviderCode?: string | null;
+}
+
 export interface ResolvedExecution<TResult> {
   result: TResult;
   providerCode: string;
@@ -38,8 +43,20 @@ export class ProviderResolverService {
     providerMap: Map<string, TProvider>,
     execute: (provider: TProvider, providerCode: string) => Promise<TResult>,
     requestId: string = randomUUID(),
+    options: ResolveOptions = {},
   ): Promise<ResolvedExecution<TResult>> {
-    const candidates = await this.registry.resolveActiveProviders(serviceCode);
+    let candidates = await this.registry.resolveActiveProviders(serviceCode);
+    const preferred = options.preferredProviderCode;
+    if (preferred) {
+      const hit = candidates.find((c) => c.providerCode === preferred);
+      if (hit) {
+        candidates = [hit, ...candidates.filter((c) => c !== hit)];
+      } else {
+        this.logger.warn(
+          `Provider ترجیحی «${preferred}» برای سرویس «${serviceCode}» فعال نیست — ارسال طبق اولویت پیش‌فرض انجام می‌شود.`,
+        );
+      }
+    }
 
     let lastError: unknown = null;
 

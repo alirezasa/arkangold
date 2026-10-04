@@ -360,6 +360,19 @@ export const ADMIN_PERMISSIONS = [
     description: 'پرتال نماینده: اعلام واریز/تسویه به شرکت',
   },
 
+  // ── مرکز پیامک ──
+  {
+    key: 'sms.view',
+    group: 'sms',
+    description: 'مشاهده قالب‌ها، سامانه‌ها و گزارش ارسال پیامک',
+  },
+  {
+    key: 'sms.manage',
+    group: 'sms',
+    description:
+      'ویرایش متن پیامک رویدادها، انتخاب سامانه‌ی ارسال (قاصدک / sms.ir) و ارسال آزمایشی',
+  },
+
   {
     key: 'security.crypto.view',
     group: 'security',

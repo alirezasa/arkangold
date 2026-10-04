@@ -41,6 +41,10 @@ import {
   ShieldCheck as ShieldCheck2,
   LineChart,
   Warehouse,
+  MessageSquareText,
+  Truck,
+  FileSignature,
+  Landmark as BankIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -165,6 +169,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "سیستم",
     items: [
       { label: "تنظیمات سیستم", href: "/system-config", icon: Settings2, perm: "system_config.view" },
+      { label: "مرکز پیامک", href: "/sms", icon: MessageSquareText, perm: "sms.view" },
       { label: "یکپارچه‌سازی‌ها (KYC/فینوتک)", href: "/integrations", icon: Plug, perm: "integrations.view" },
     ],
   },

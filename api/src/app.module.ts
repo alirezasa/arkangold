@@ -40,12 +40,14 @@ import { PackagingModule } from './packaging/packaging.module';
 import { AgentModule } from './agent/agent.module';
 import { TreasuryModule } from './treasury/treasury.module';
 import { PartnersModule } from './partners/partners.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60000, limit: 30 }]),
     PrismaModule,
+    NotificationsModule, // Global — مرکز پیامک
     AuditModule,
     RetentionModule,
     SecurityModule,

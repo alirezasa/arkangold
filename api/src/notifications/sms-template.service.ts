@@ -176,7 +176,8 @@ export class SmsTemplateService implements OnModuleInit {
     const allVars = await this.buildVars(vars);
     const body = tpl?.body ?? def?.body ?? '';
     const text = this.render(body, allVars);
-    const logText = def?.sensitive ? this.mask(text, allVars) : text;
+    // کدهای یکبارمصرف و کد تحویل هرگز به‌صورت خوانا در لاگ ذخیره نمی‌شوند
+    const logText = this.mask(text, allVars);
 
     // قالب‌های حساس (کد یکبارمصرف) قابل غیرفعال‌سازی نیستند — ورود و امضا بدون آن‌ها ممکن نیست
     const active = !!tpl && (tpl.isActive || !!def?.sensitive);
@@ -292,7 +293,7 @@ export class SmsTemplateService implements OnModuleInit {
     let out = text;
     for (const k of ['code', 'deliveryCode']) {
       const v = vars[k];
-      if (v !== null && v !== undefined && String(v).length > 0) {
+      if (v !== null && v !== undefined && /^\d{4,}$/.test(String(v))) {
         out = out.split(String(v)).join('*'.repeat(String(v).length));
       }
     }

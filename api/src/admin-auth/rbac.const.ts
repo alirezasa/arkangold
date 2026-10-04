@@ -56,6 +56,12 @@ export const ADMIN_PERMISSIONS = [
   },
   { key: 'shop.view', group: 'shop', description: 'مشاهده سفارشات فروشگاه' },
   {
+    key: 'shop.delivery.override',
+    group: 'shop',
+    description:
+      'تأیید تحویل سفارش بدون کد تحویل مشتری (با ثبت دلیل) — فقط برای موارد استثنایی',
+  },
+  {
     key: 'discount.view',
     group: 'shop',
     description: 'مشاهده کدهای تخفیف و گزارش استفاده از آن‌ها',

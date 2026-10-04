@@ -138,6 +138,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "دسته‌بندی‌ها", href: "/shop/categories", icon: FolderTree, perm: "shop.manage" },
       { label: "بسته‌بندی ارسال", href: "/shop/packaging", icon: Box, perm: "shop.manage" },
       { label: "سفارشات فروشگاه", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
+      { label: "مراجع ارسال", href: "/shop/shipping-methods", icon: Truck, perm: "shop.view" },
       { label: "کدهای تخفیف", href: "/discount-codes", icon: TicketPercent, perm: "discount.view" },
     ],
   },

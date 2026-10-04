@@ -525,37 +525,49 @@ model CartItem {
 }
 
 model ShopOrder {
-  status              ShopOrderStatus     @default(PENDING_PAYMENT)
+  status              ShopOrderStatus          @default(PENDING_PAYMENT)
   // جمع اقلام قبل از تخفیف
-  subtotalRial        Decimal             @map("subtotal_rial") @db.Decimal(18, 0)
+  subtotalRial        Decimal                  @map("subtotal_rial") @db.Decimal(18, 0)
   // مبلغ تخفیف کد تخفیف (ریال)؛ totalRial = subtotalRial - discountRial = مبلغ قابل پرداخت
-  discountRial        Decimal             @default(0) @map("discount_rial") @db.Decimal(18, 0)
-  totalRial           Decimal             @map("total_rial") @db.Decimal(18, 0)
+  discountRial        Decimal                  @default(0) @map("discount_rial") @db.Decimal(18, 0)
+  totalRial           Decimal                  @map("total_rial") @db.Decimal(18, 0)
   // snapshot متن کد تخفیف در لحظه ثبت سفارش (حتی اگر کد بعداً حذف شود)
-  discountCodeText    String?             @map("discount_code_text")
-  discountCodeId      String?             @map("discount_code_id") @db.Uuid
-  discountCode        DiscountCode?       @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
+  discountCodeText    String?                  @map("discount_code_text")
+  discountCodeId      String?                  @map("discount_code_id") @db.Uuid
+  discountCode        DiscountCode?            @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
   // هزینه بسته‌بندی دریافت‌شده از کاربر (ریال) — خارج از subtotal و مشمول کد تخفیف نیست؛
   // totalRial = subtotalRial - discountRial + packagingRial
-  packagingRial       Decimal             @default(0) @map("packaging_rial") @db.Decimal(18, 0)
+  packagingRial       Decimal                  @default(0) @map("packaging_rial") @db.Decimal(18, 0)
   // هزینه بسته‌بندی‌ای که به‌دلیل رسیدن خرید به آستانه، رایگان شد (ریال)
-  packagingWaivedRial Decimal             @default(0) @map("packaging_waived_rial") @db.Decimal(18, 0)
-  trackingCode        String?             @map("tracking_code")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
-  id                  String              @id @default(uuid()) @db.Uuid
-  userId              String              @map("user_id") @db.Uuid
-  addressId           String              @map("address_id") @db.Uuid
+  packagingWaivedRial Decimal                  @default(0) @map("packaging_waived_rial") @db.Decimal(18, 0)
+  trackingCode        String?                  @map("tracking_code")
+  /// شماره سفارش قابل ارائه به مشتری (AG-1405-SHO-000128)
+  orderNumber         String?                  @unique @map("order_number")
+  /// یادداشت داخلی انبار/پشتیبانی
+  adminNote           String?                  @map("admin_note")
+  cancelReason        String?                  @map("cancel_reason")
+  paidAt              DateTime?                @map("paid_at")
+  processingAt        DateTime?                @map("processing_at")
+  shippedAt           DateTime?                @map("shipped_at")
+  deliveredAt         DateTime?                @map("delivered_at")
+  cancelledAt         DateTime?                @map("cancelled_at")
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
+  id                  String                   @id @default(uuid()) @db.Uuid
+  userId              String                   @map("user_id") @db.Uuid
+  addressId           String                   @map("address_id") @db.Uuid
+  statusHistory       ShopOrderStatusHistory[]
   payments            Payment[]
   items               ShopOrderItem[]
-  address             Address             @relation(fields: [addressId], references: [id], onDelete: Cascade)
-  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address             Address                  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  user                User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions        Transaction[]
   shippings           Shipping[]
   hologramOwnerships  HologramOwnership[]
 
   @@index([userId])
   @@index([discountCodeId])
+  @@index([status, createdAt])
   @@map("shop_orders")
 }
 
@@ -851,19 +863,94 @@ model PhysicalDeliveryRequest {
 }
 
 model Shipping {
-  carrierName       String?                  @map("carrier_name")
-  trackingCode      String?                  @map("tracking_code")
-  estimatedDelivery DateTime?                @map("estimated_delivery")
-  deliveredAt       DateTime?                @map("delivered_at")
-  status            ShippingStatus           @default(IN_TRANSIT)
-  createdAt         DateTime                 @default(now()) @map("created_at")
-  id                String                   @id @default(uuid()) @db.Uuid
-  deliveryRequestId String?                  @map("delivery_request_id") @db.Uuid
-  shopOrderId       String?                  @map("shop_order_id") @db.Uuid
-  deliveryRequest   PhysicalDeliveryRequest? @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
-  shopOrder         ShopOrder?               @relation(fields: [shopOrderId], references: [id], onDelete: Cascade)
+  carrierName           String?                  @map("carrier_name")
+  trackingCode          String?                  @map("tracking_code")
+  estimatedDelivery     DateTime?                @map("estimated_delivery")
+  deliveredAt           DateTime?                @map("delivered_at")
+  status                ShippingStatus           @default(IN_TRANSIT)
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  id                    String                   @id @default(uuid()) @db.Uuid
+  deliveryRequestId     String?                  @map("delivery_request_id") @db.Uuid
+  shopOrderId           String?                  @map("shop_order_id") @db.Uuid
+  deliveryRequest       PhysicalDeliveryRequest? @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  shopOrder             ShopOrder?               @relation(fields: [shopOrderId], references: [id], onDelete: Cascade)
+  /// مرجع ارسال انتخاب‌شده (پست، پیک، تیپاکس، تحویل حضوری)
+  shippingMethodId      String?                  @map("shipping_method_id") @db.Uuid
+  shippingMethod        ShippingMethod?          @relation(fields: [shippingMethodId], references: [id])
+  courierName           String?                  @map("courier_name")
+  courierPhone          String?                  @map("courier_phone")
+  /// کد تحویل مشتری — رمزنگاری‌شده (AES-GCM) تا در اپ کاربر نمایش داده شود
+  deliveryCodeEnc       String?                  @map("delivery_code_enc")
+  deliveryCodeSentAt    DateTime?                @map("delivery_code_sent_at")
+  /// تلاش‌های ناموفق ورود کد تحویل — پس از سقف، کد قفل و باید کد جدید صادر شود
+  deliveryCodeAttempts  Int                      @default(0) @map("delivery_code_attempts")
+  /// hash توکن لینک ثبت تحویل پیک (خود توکن فقط در پیامک پیک است)
+  courierTokenHash      String?                  @unique @map("courier_token_hash")
+  courierTokenExpiresAt DateTime?                @map("courier_token_expires_at")
+  /// DELIVERY_CODE (ادمین با کد) | COURIER_LINK (پیک با کد) | ADMIN_OVERRIDE (بدون کد، با دلیل)
+  deliveryConfirmedVia  String?                  @map("delivery_confirmed_via")
+  receivedByName        String?                  @map("received_by_name")
+  deliveryNote          String?                  @map("delivery_note")
+  shippedByAdminId      String?                  @map("shipped_by_admin_id") @db.Uuid
+  deliveredByAdminId    String?                  @map("delivered_by_admin_id") @db.Uuid
 
+  @@index([shopOrderId])
   @@map("shippings")
+}
+
+/// مرجع/روش ارسال سفارش فروشگاه — از پنل ادمین تعریف و هنگام ارسال سفارش انتخاب می‌شود
+model ShippingMethod {
+  id                   String             @id @default(uuid()) @db.Uuid
+  /// کد یکتا (مثلاً POST_PISHTAZ)
+  code                 String             @unique
+  name                 String
+  type                 ShippingMethodType
+  description          String?
+  /// نشانی رهگیری با {code}، مثلاً https://example.com/track?id={code}
+  trackingUrlTemplate  String?            @map("tracking_url_template")
+  requiresTrackingCode Boolean            @default(false) @map("requires_tracking_code")
+  /// تحویل فقط با کد تحویل مشتری تأیید می‌شود (پیامک کد به مشتری هنگام ارسال)
+  requiresDeliveryCode Boolean            @default(true) @map("requires_delivery_code")
+  /// ارسال لینک ثبت تحویل برای پیک با پیامک (پیک کد مشتری را در لینک وارد می‌کند)
+  courierLinkEnabled   Boolean            @default(false) @map("courier_link_enabled")
+  estimatedDays        Int?               @map("estimated_days")
+  contactPhone         String?            @map("contact_phone")
+  isActive             Boolean            @default(true) @map("is_active")
+  sortOrder            Int                @default(0) @map("sort_order")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  shippings            Shipping[]
+
+  @@index([isActive, sortOrder])
+  @@map("shipping_methods")
+}
+
+/// تاریخچه‌ی وضعیت سفارش فروشگاه (Timeline برای ادمین و کاربر)
+model ShopOrderStatusHistory {
+  id         String           @id @default(uuid()) @db.Uuid
+  orderId    String           @map("order_id") @db.Uuid
+  order      ShopOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus ShopOrderStatus? @map("from_status")
+  toStatus   ShopOrderStatus  @map("to_status")
+  /// USER | ADMIN | SYSTEM | COURIER
+  actorType  String           @map("actor_type")
+  actorId    String?          @map("actor_id")
+  note       String?
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  @@index([orderId, createdAt])
+  @@map("shop_order_status_history")
+}
+
+enum ShippingMethodType {
+  /// پست (پیشتاز / سفارشی)
+  POST
+  /// پیک اختصاصی / درون‌شهری
+  COURIER
+  /// باربری / پست خصوصی (تیپاکس، چاپار و ...)
+  EXPRESS
+  /// تحویل حضوری در دفتر
+  PICKUP
 }
 
 model PayrollPlan {

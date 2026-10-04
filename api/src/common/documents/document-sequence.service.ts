@@ -23,7 +23,11 @@ export type DocumentPrefix =
   | 'SPY'
   | 'VCT'
   | 'PTO'
-  | 'PTS';
+  | 'PTS'
+  // سفارش فروشگاه، درخواست برداشت، قرارداد نماینده
+  | 'SHO'
+  | 'WDR'
+  | 'CTR';
 
 const PREFIX_LABEL: Record<DocumentPrefix, string> = {
   INV: 'INV',
@@ -41,6 +45,9 @@ const PREFIX_LABEL: Record<DocumentPrefix, string> = {
   VCT: 'VCT',
   PTO: 'PTO',
   PTS: 'PTS',
+  SHO: 'SHO',
+  WDR: 'WDR',
+  CTR: 'CTR',
 };
 
 @Injectable()

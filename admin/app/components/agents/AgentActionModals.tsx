@@ -5,7 +5,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import axios from "axios";
-import { Loader2, PackagePlus, Trash2, Undo2, HandCoins, Scale, Power, UserPlus, KeyRound } from "lucide-react";
+import { Loader2, PackagePlus, Trash2, Undo2, HandCoins, Scale, Power, UserPlus, KeyRound, Smartphone } from "lucide-react";
 import {
   Alert,
   Field,
@@ -605,7 +605,7 @@ export function AccountModal({
         <Field label="نام و نام خانوادگی کاربر">
           <input value={f.fullName} onChange={(e) => setF((p) => ({ ...p, fullName: e.target.value }))} className={inputCls} />
         </Field>
-        <Field label="موبایل (اختیاری)">
+        <Field label="موبایل (برای ورود با کد یکبارمصرف — اختیاری)">
           <input
             value={f.phone}
             onChange={(e) => setF((p) => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 11) }))}
@@ -617,6 +617,61 @@ export function AccountModal({
       <button type="button" onClick={() => void submit()} disabled={busy} className={`${primaryBtn} w-full py-3`} style={primaryBtnStyle}>
         {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserPlus className="w-4 h-4" />}
         ساخت حساب ورود
+      </button>
+    </Modal>
+  );
+}
+
+/** شماره‌ی ورود با کد یکبارمصرف در panel.arkan.gold — فقط شماره‌ی ثبت‌شده توسط مدیر کد دریافت می‌کند */
+export function AccountPhoneModal({
+  agentId,
+  account,
+  onClose,
+  onDone,
+}: {
+  agentId: string;
+  account: { id: string; username: string; phone: string | null };
+  onClose: () => void;
+  onDone: (msg: string) => void | Promise<void>;
+}) {
+  const [phone, setPhone] = useState(account.phone ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async () => {
+    if (phone && !/^09\d{9}$/.test(phone)) return setError("شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود");
+    setBusy(true);
+    try {
+      await axios.patch(`/api/admin/agents/${agentId}/accounts/${account.id}`, { phone });
+      await onDone(
+        phone
+          ? `شماره‌ی ورود «${account.username}» ثبت شد؛ نماینده می‌تواند با کد یکبارمصرف وارد شود`
+          : `شماره‌ی ورود «${account.username}» حذف شد`,
+      );
+    } catch (err) {
+      setError(getErrorMessage(err, "ثبت شماره ممکن نشد"));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title={`شماره‌ی ورود ${account.username}`} onClose={onClose}>
+      {error && <Alert kind="error" text={error} />}
+      <Field label="شماره موبایل">
+        <input
+          value={phone}
+          onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 11))}
+          placeholder="09xxxxxxxxx"
+          className={`${inputCls} text-left`}
+          dir="ltr"
+        />
+      </Field>
+      <p className="text-[11px] text-gray-400 leading-relaxed">
+        نماینده در پنل نمایندگان می‌تواند با همین شماره و کد پیامکی وارد شود. خالی گذاشتن، ورود با کد را برای این حساب
+        غیرفعال می‌کند (ورود با رمز عبور برقرار می‌ماند).
+      </p>
+      <button type="button" onClick={() => void submit()} disabled={busy} className={`${primaryBtn} w-full py-3`} style={primaryBtnStyle}>
+        {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Smartphone className="w-4 h-4" />}
+        ذخیره شماره
       </button>
     </Modal>
   );

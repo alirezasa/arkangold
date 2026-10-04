@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminAuthController } from './admin-auth.controller';
 import { AdminAuthService } from './admin-auth.service';
+import { AgentOtpLoginService } from './agent-otp-login.service';
 import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
 import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 import { RbacModule } from './rbac.module';
@@ -34,6 +35,7 @@ import { JWT_ALGORITHM } from '../common/secrets/jwt-keyring';
   ],
   providers: [
     AdminAuthService,
+    AgentOtpLoginService,
     AdminManagementService,
     AdminJwtStrategy,
     AdminJwtAuthGuard,

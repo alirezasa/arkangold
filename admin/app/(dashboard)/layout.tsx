@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
+import { portalFromHost } from "@/lib/portal";
 import Sidebar from "@/app/components/Sidebar";
 import MobileHeader from "@/app/components/MobileHeader";
 import MobileDrawer from "@/app/components/MobileDrawer";
@@ -24,6 +25,19 @@ export default function DashboardLayout({
     if (error) router.replace("/login");
   }, [error, router]);
 
+  // نشست باید با دامنه بخواند (کارشناس در admin.arkan.gold، نماینده در panel.arkan.gold)؛
+  // در غیر این صورت نشست بسته و کاربر به صفحه‌ی ورود همین دامنه هدایت می‌شود
+  const wrongPortal =
+    !!me &&
+    typeof window !== "undefined" &&
+    (portalFromHost(window.location.host) === "agent") !== !!me.agent;
+  useEffect(() => {
+    if (!wrongPortal) return;
+    void fetch("/api/admin-auth/logout", { method: "POST" }).finally(() =>
+      router.replace("/login"),
+    );
+  }, [wrongPortal, router]);
+
   // حساب نماینده فقط پرتال نمایندگی و پروفایل خودش را دارد؛ مسیرهای مدیریتی به پرتال هدایت می‌شوند
   const agentBlocked =
     !!me?.agent && !pathname.startsWith("/agent-portal") && !pathname.startsWith("/profile");
@@ -31,7 +45,7 @@ export default function DashboardLayout({
     if (agentBlocked) router.replace("/agent-portal");
   }, [agentBlocked, router]);
 
-  if (loading || !me || agentBlocked) {
+  if (loading || !me || agentBlocked || wrongPortal) {
     return (
       <div
         className="min-h-screen flex items-center justify-center"

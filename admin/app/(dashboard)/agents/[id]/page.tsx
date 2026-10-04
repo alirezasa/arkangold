@@ -16,6 +16,7 @@ import {
   Undo2,
   UserPlus,
   KeyRound,
+  Smartphone,
   Store,
   Phone,
   MapPin,
@@ -49,6 +50,7 @@ import SettlementsTable from "@/app/components/agents/SettlementsTable";
 import { JournalsView, MovementsView, StatementView } from "@/app/components/agents/LedgerViews";
 import {
   AccountModal,
+  AccountPhoneModal,
   AdjustmentModal,
   AllocateModal,
   ResetPasswordModal,
@@ -98,7 +100,8 @@ type ModalState =
   | "settlement"
   | "adjust"
   | "account"
-  | { reset: { id: string; username: string } };
+  | { reset: { id: string; username: string } }
+  | { phone: { id: string; username: string; phone: string | null } };
 
 export default function AgentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -340,7 +343,8 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
               </button>
             )}
             <p className="text-[11px] text-gray-400">
-              نماینده با این حساب‌ها از همان صفحه‌ی ورود پنل وارد می‌شود و فقط پرتال نمایندگی خودش را می‌بیند.
+              نماینده با این حساب‌ها از پنل نمایندگان (panel.arkan.gold) با نام کاربری و رمز، یا با شماره‌ی ثبت‌شده و کد
+              پیامکی وارد می‌شود و فقط پرتال نمایندگی خودش را می‌بیند. ورود با کد فقط برای شماره‌ای که اینجا ثبت شده ممکن است.
             </p>
             {!data.accounts.length ? (
               <Empty text="هنوز حساب ورودی برای این نماینده ساخته نشده است" />
@@ -400,6 +404,15 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-gray-100 text-gray-700"
                               >
                                 <KeyRound className="w-3.5 h-3.5" /> رمز جدید
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setModal({ phone: { id: acc.id, username: acc.username, phone: acc.phone } })
+                                }
+                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-gray-100 text-gray-700"
+                              >
+                                <Smartphone className="w-3.5 h-3.5" /> شماره ورود
                               </button>
                             </div>
                           </td>
@@ -475,6 +488,9 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
       {modal === "account" && <AccountModal agent={lite} onClose={() => setModal(null)} onDone={done} />}
       {modal && typeof modal === "object" && "reset" in modal && (
         <ResetPasswordModal agentId={id} account={modal.reset} onClose={() => setModal(null)} onDone={done} />
+      )}
+      {modal && typeof modal === "object" && "phone" in modal && (
+        <AccountPhoneModal agentId={id} account={modal.phone} onClose={() => setModal(null)} onDone={done} />
       )}
     </div>
   );

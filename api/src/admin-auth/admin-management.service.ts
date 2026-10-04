@@ -8,17 +8,26 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword } from '../common/crypto/password.util';
-import { ADMIN_ROLES } from './rbac.const';
+import { ADMIN_ROLES, AGENT_ROLE_KEY } from './rbac.const';
+import {
+  ADMIN_ROLES_INCLUDE,
+  SUPER_ADMIN_ROLE_KEY as SUPER_ADMIN,
+  adminHasAnyRole,
+  roleKeysOf,
+  summarizeRoles,
+} from './admin-roles.util';
 
-const SUPER_ADMIN = 'SUPER_ADMIN';
 const SYSTEM_ROLE_KEYS = new Set<string>(ADMIN_ROLES.map((r) => r.key));
 
 /** ادمینی که عملیات را انجام می‌دهد (برای جلوگیری از ارتقای سطح دسترسی) */
 export interface AdminActor {
   adminUserId: string;
-  roleKey: string;
+  roleKeys: string[];
   permissions: string[];
 }
+
+const isSuperAdmin = (actor: AdminActor) =>
+  actor.roleKeys.includes(SUPER_ADMIN);
 
 interface RoleInput {
   key?: string;
@@ -31,12 +40,15 @@ interface CreateAdminDto {
   username: string;
   password: string;
   fullName: string;
-  roleKey: string;
+  /** یک یا چند نقش؛ roleKey برای سازگاری با کلاینت‌های قدیمی پذیرفته می‌شود */
+  roleKeys?: string[];
+  roleKey?: string;
   phone?: string;
 }
 
 interface UpdateAdminDto {
   fullName?: string;
+  roleKeys?: string[];
   roleKey?: string;
   isActive?: boolean;
   phone?: string;
@@ -50,7 +62,7 @@ export class AdminManagementService {
     const now = new Date();
     const admins = await this.prisma.adminUser.findMany({
       include: {
-        role: true,
+        ...ADMIN_ROLES_INCLUDE,
         createdBy: { select: { fullName: true } },
         _count: { select: { sessions: { where: { expiresAt: { gt: now } } } } },
       },
@@ -63,7 +75,7 @@ export class AdminManagementService {
       phone: a.phone,
       isActive: a.isActive,
       totpEnabled: a.totpEnabled,
-      role: { id: a.roleId, key: a.role.key, name: a.role.name },
+      ...summarizeRoles(a.roles),
       lastLoginAt: a.lastLoginAt,
       lastLoginIp: a.lastLoginIp,
       isLocked: !!a.lockedUntil && a.lockedUntil > now,
@@ -108,7 +120,7 @@ export class AdminManagementService {
 
   /** ادمین غیر مدیر ارشد نمی‌تواند دسترسی‌ای بدهد که خودش ندارد */
   private assertCanGrant(actor: AdminActor, permissionKeys: string[]) {
-    if (actor.roleKey === SUPER_ADMIN) return;
+    if (isSuperAdmin(actor)) return;
     const missing = permissionKeys.filter(
       (k) => !actor.permissions.includes(k),
     );
@@ -226,36 +238,58 @@ export class AdminManagementService {
   }
 
   /** ادمین غیر مدیر ارشد نمی‌تواند حساب مدیر ارشد را تغییر دهد (رمز، نقش، وضعیت، نشست) */
-  private assertCanManageTarget(actor: AdminActor, targetRoleKey: string) {
-    if (targetRoleKey === SUPER_ADMIN && actor.roleKey !== SUPER_ADMIN) {
+  private assertCanManageTarget(actor: AdminActor, targetRoleKeys: string[]) {
+    if (targetRoleKeys.includes(SUPER_ADMIN) && !isSuperAdmin(actor)) {
       throw new ForbiddenException(
         'فقط مدیر ارشد می‌تواند حساب مدیر ارشد را مدیریت کند',
       );
     }
   }
 
-  /** فقط مدیر ارشد می‌تواند نقش مدیر ارشد را اختصاص دهد */
-  private assertCanAssignRole(actor: AdminActor, roleKey: string) {
-    if (roleKey === SUPER_ADMIN && actor.roleKey !== SUPER_ADMIN) {
+  /** لیست نقش‌های درخواستی (roleKeys یا roleKey قدیمی) بدون تکرار */
+  private normalizeRoleKeys(dto: {
+    roleKeys?: string[];
+    roleKey?: string;
+  }): string[] | undefined {
+    const raw = dto.roleKeys ?? (dto.roleKey ? [dto.roleKey] : undefined);
+    if (!raw) return undefined;
+    const keys = [...new Set(raw.map((k) => k.trim()).filter(Boolean))];
+    if (keys.length === 0) {
+      throw new BadRequestException('حداقل یک نقش برای ادمین انتخاب کنید');
+    }
+    return keys;
+  }
+
+  /**
+   * نقش‌ها را پیدا و مجوز اختصاصشان را بررسی می‌کند:
+   * - فقط مدیر ارشد می‌تواند نقش مدیر ارشد را اختصاص دهد
+   * - ادمین غیر مدیر ارشد نمی‌تواند (با مجموع نقش‌ها) دسترسی‌ای بدهد که خودش ندارد
+   * - نقش «نماینده فروش» مخصوص حساب‌های نماینده است و با نقش دیگری ترکیب نمی‌شود
+   */
+  private async resolveAssignableRoles(actor: AdminActor, roleKeys: string[]) {
+    const roles = await this.prisma.adminRole.findMany({
+      where: { key: { in: roleKeys } },
+      include: { permissions: { include: { permission: true } } },
+    });
+    if (roles.length !== roleKeys.length) {
+      throw new NotFoundException('برخی از نقش‌های انتخاب‌شده یافت نشدند');
+    }
+    if (roleKeys.includes(AGENT_ROLE_KEY)) {
+      throw new BadRequestException(
+        'نقش «نماینده فروش» فقط از بخش نمایندگان و برای حساب نماینده قابل تعریف است',
+      );
+    }
+    if (roleKeys.includes(SUPER_ADMIN) && !isSuperAdmin(actor)) {
       throw new ForbiddenException(
         'فقط مدیر ارشد می‌تواند نقش مدیر ارشد را اختصاص دهد',
       );
     }
-  }
-
-  private async assertCanAssignRolePermissions(
-    actor: AdminActor,
-    roleId: string,
-  ) {
-    if (actor.roleKey === SUPER_ADMIN) return;
-    const rolePermissions = await this.prisma.adminRolePermission.findMany({
-      where: { roleId },
-      include: { permission: { select: { key: true } } },
-    });
     this.assertCanGrant(
       actor,
-      rolePermissions.map((rp) => rp.permission.key),
+      roles.flatMap((r) => r.permissions.map((rp) => rp.permission.key)),
     );
+    // ترتیب نقش‌ها مطابق انتخاب کاربر حفظ می‌شود
+    return roleKeys.map((k) => roles.find((r) => r.key === k));
   }
 
   // ══════════════════════════════════════════
@@ -264,10 +298,10 @@ export class AdminManagementService {
   async revokeSessions(actor: AdminActor, targetId: string) {
     const target = await this.prisma.adminUser.findUnique({
       where: { id: targetId },
-      include: { role: { select: { key: true } } },
+      include: ADMIN_ROLES_INCLUDE,
     });
     if (!target) throw new NotFoundException('ادمین یافت نشد');
-    this.assertCanManageTarget(actor, target.role.key);
+    this.assertCanManageTarget(actor, roleKeysOf(target.roles));
     if (actor.adminUserId === targetId) {
       throw new BadRequestException(
         'برای خروج از نشست‌های خودتان از بخش پروفایل استفاده کنید',
@@ -282,10 +316,10 @@ export class AdminManagementService {
   async unlock(actor: AdminActor, targetId: string) {
     const target = await this.prisma.adminUser.findUnique({
       where: { id: targetId },
-      include: { role: { select: { key: true } } },
+      include: ADMIN_ROLES_INCLUDE,
     });
     if (!target) throw new NotFoundException('ادمین یافت نشد');
-    this.assertCanManageTarget(actor, target.role.key);
+    this.assertCanManageTarget(actor, roleKeysOf(target.roles));
     await this.prisma.adminUser.update({
       where: { id: targetId },
       data: { failedLoginCount: 0, lockedUntil: null },
@@ -305,12 +339,11 @@ export class AdminManagementService {
     if (existing)
       throw new ConflictException('این نام کاربری قبلاً استفاده شده است');
 
-    const role = await this.prisma.adminRole.findUnique({
-      where: { key: dto.roleKey },
-    });
-    if (!role) throw new NotFoundException('نقش انتخاب‌شده یافت نشد');
-    this.assertCanAssignRole(actor, role.key);
-    await this.assertCanAssignRolePermissions(actor, role.id);
+    const roleKeys = this.normalizeRoleKeys(dto);
+    if (!roleKeys) {
+      throw new BadRequestException('حداقل یک نقش برای ادمین انتخاب کنید');
+    }
+    const roles = await this.resolveAssignableRoles(actor, roleKeys);
 
     const passwordHash = await hashPassword(dto.password);
     const admin = await this.prisma.adminUser.create({
@@ -319,10 +352,10 @@ export class AdminManagementService {
         passwordHash,
         fullName: dto.fullName,
         phone: dto.phone,
-        roleId: role.id,
         createdById: creatorId,
+        roles: { create: roles.map((r) => ({ roleId: r.id })) },
       },
-      include: { role: true },
+      include: ADMIN_ROLES_INCLUDE,
     });
 
     return {
@@ -330,7 +363,7 @@ export class AdminManagementService {
       username: admin.username,
       fullName: admin.fullName,
       phone: admin.phone,
-      role: { key: admin.role.key, name: admin.role.name },
+      ...summarizeRoles(admin.roles),
     };
   }
 
@@ -338,37 +371,60 @@ export class AdminManagementService {
     const actorId = actor.adminUserId;
     const target = await this.prisma.adminUser.findUnique({
       where: { id: targetId },
-      include: { role: true },
+      include: ADMIN_ROLES_INCLUDE,
     });
     if (!target) throw new NotFoundException('ادمین یافت نشد');
 
-    this.assertCanManageTarget(actor, target.role.key);
+    const currentKeys = roleKeysOf(target.roles);
+    this.assertCanManageTarget(actor, currentKeys);
 
-    // جلوگیری از غیرفعال کردن یا تنزل نقش خودِ فرد (باید یک SUPER_ADMIN دیگر این کار را بکند)
-    if (actorId === targetId && (dto.isActive === false || dto.roleKey)) {
+    const requestedKeys = this.normalizeRoleKeys(dto);
+    const rolesChanged =
+      !!requestedKeys &&
+      (requestedKeys.length !== currentKeys.length ||
+        requestedKeys.some((k) => !currentKeys.includes(k)));
+
+    // جلوگیری از غیرفعال کردن یا تغییر نقش‌های خودِ فرد (باید یک SUPER_ADMIN دیگر این کار را بکند)
+    if (actorId === targetId && (dto.isActive === false || rolesChanged)) {
       throw new ForbiddenException(
         'امکان تغییر نقش یا غیرفعال کردن حساب خودتان وجود ندارد',
       );
     }
 
-    let roleId: string | undefined;
-    if (dto.roleKey) {
-      const role = await this.prisma.adminRole.findUnique({
-        where: { key: dto.roleKey },
-      });
-      if (!role) throw new NotFoundException('نقش انتخاب‌شده یافت نشد');
-      this.assertCanAssignRole(actor, role.key);
-      await this.assertCanAssignRolePermissions(actor, role.id);
-      roleId = role.id;
+    // حساب ورود نماینده فقط نقش «نماینده فروش» دارد و از اینجا تغییر نمی‌کند
+    if (
+      rolesChanged &&
+      (target.agentId || currentKeys.includes(AGENT_ROLE_KEY))
+    ) {
+      throw new BadRequestException(
+        'نقش حساب ورود نماینده قابل تغییر نیست؛ از بخش نمایندگان استفاده کنید',
+      );
     }
 
-    // اگر آخرین SUPER_ADMIN فعال است، اجازه غیرفعال‌سازی یا تغییر نقشش را نده
+    let newRoles: { id: string; key: string }[] | undefined;
+    if (rolesChanged && requestedKeys) {
+      // فقط نقش‌های تازه افزوده‌شده نیاز به بررسی مجوز اعطا دارند
+      const addedKeys = requestedKeys.filter((k) => !currentKeys.includes(k));
+      if (addedKeys.length > 0) {
+        await this.resolveAssignableRoles(actor, addedKeys);
+      }
+      newRoles = await this.prisma.adminRole.findMany({
+        where: { key: { in: requestedKeys } },
+        select: { id: true, key: true },
+      });
+      if (newRoles.length !== requestedKeys.length) {
+        throw new NotFoundException('برخی از نقش‌های انتخاب‌شده یافت نشدند');
+      }
+    }
+
+    // اگر آخرین SUPER_ADMIN فعال است، اجازه غیرفعال‌سازی یا حذف نقش مدیر ارشد را نده
     if (
-      target.role.key === 'SUPER_ADMIN' &&
-      (dto.isActive === false || (dto.roleKey && dto.roleKey !== 'SUPER_ADMIN'))
+      currentKeys.includes(SUPER_ADMIN) &&
+      (dto.isActive === false ||
+        (rolesChanged && !requestedKeys.includes(SUPER_ADMIN)))
     ) {
       const activeSuperAdmins = await this.prisma.adminUser.count({
-        where: { role: { key: 'SUPER_ADMIN' }, isActive: true },
+        where: { ...adminHasAnyRole([SUPER_ADMIN]), isActive: true },
       });
       if (activeSuperAdmins <= 1) {
         throw new ForbiddenException(
@@ -377,19 +433,30 @@ export class AdminManagementService {
       }
     }
 
-    const updated = await this.prisma.adminUser.update({
-      where: { id: targetId },
-      data: {
-        fullName: dto.fullName,
-        phone: dto.phone,
-        roleId,
-        isActive: dto.isActive,
-      },
-      include: { role: true },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (newRoles) {
+        await tx.adminUserRole.deleteMany({ where: { adminUserId: targetId } });
+        await tx.adminUserRole.createMany({
+          data: requestedKeys.map((key, i) => ({
+            adminUserId: targetId,
+            roleId: newRoles.find((r) => r.key === key).id,
+            assignedAt: new Date(Date.now() + i),
+          })),
+        });
+      }
+      return tx.adminUser.update({
+        where: { id: targetId },
+        data: {
+          fullName: dto.fullName,
+          phone: dto.phone,
+          isActive: dto.isActive,
+        },
+        include: ADMIN_ROLES_INCLUDE,
+      });
     });
 
-    // اگر غیرفعال شد یا نقشش عوض شد، همه نشست‌هایش را باطل کن
-    if (dto.isActive === false || dto.roleKey) {
+    // اگر غیرفعال شد یا نقش‌هایش عوض شد، همه نشست‌هایش را باطل کن
+    if (dto.isActive === false || rolesChanged) {
       await this.prisma.adminSession.deleteMany({
         where: { adminUserId: targetId },
       });
@@ -401,7 +468,7 @@ export class AdminManagementService {
       fullName: updated.fullName,
       phone: updated.phone,
       isActive: updated.isActive,
-      role: { key: updated.role.key, name: updated.role.name },
+      ...summarizeRoles(updated.roles),
     };
   }
 
@@ -415,10 +482,10 @@ export class AdminManagementService {
     }
     const target = await this.prisma.adminUser.findUnique({
       where: { id: targetId },
-      include: { role: { select: { key: true } } },
+      include: ADMIN_ROLES_INCLUDE,
     });
     if (!target) throw new NotFoundException('ادمین یافت نشد');
-    this.assertCanManageTarget(actor, target.role.key);
+    this.assertCanManageTarget(actor, roleKeysOf(target.roles));
 
     const passwordHash = await hashPassword(newPassword);
     await this.prisma.adminUser.update({

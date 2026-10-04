@@ -8,6 +8,11 @@ import {
   AdminJwtPayload,
   AdminAuthenticatedUser,
 } from '../interfaces/admin-jwt-payload.interface';
+import {
+  ADMIN_ROLES_WITH_PERMISSIONS_INCLUDE,
+  mergePermissions,
+  roleKeysOf,
+} from '../admin-roles.util';
 import { JWT_ALGORITHM, jwtVerificationSecret } from '../../common/secrets/jwt-keyring';
 
 // نام استراتژی جدا از JwtStrategy کاربران - جلوگیری از تداخل passport
@@ -50,11 +55,7 @@ export class AdminJwtStrategy extends PassportStrategy(
 
     const admin = await this.prisma.adminUser.findUnique({
       where: { id: payload.sub },
-      include: {
-        role: {
-          include: { permissions: { include: { permission: true } } },
-        },
-      },
+      include: ADMIN_ROLES_WITH_PERMISSIONS_INCLUDE,
     });
 
     if (!admin || !admin.isActive) {
@@ -65,8 +66,8 @@ export class AdminJwtStrategy extends PassportStrategy(
       adminUserId: admin.id,
       username: admin.username,
       sessionId: payload.sessionId,
-      roleKey: admin.role.key,
-      permissions: admin.role.permissions.map((rp) => rp.permission.key),
+      roleKeys: roleKeysOf(admin.roles),
+      permissions: mergePermissions(admin.roles).map((p) => p.key),
       agentId: admin.agentId ?? null,
     };
   }

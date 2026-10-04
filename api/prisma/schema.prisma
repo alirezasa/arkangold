@@ -1196,8 +1196,8 @@ model AdminUser {
   lastLoginAt      DateTime? @map("last_login_at")
   lastLoginIp      String?   @map("last_login_ip")
 
-  roleId String    @map("role_id") @db.Uuid
-  role   AdminRole @relation(fields: [roleId], references: [id])
+  // یک ادمین می‌تواند هم‌زمان چند نقش داشته باشد؛ دسترسی نهایی = اجتماع دسترسی‌های همه‌ی نقش‌ها
+  roles AdminUserRole[]
 
   // حساب ورود نماینده فروش: اگر پر باشد این کاربر فقط در محدوده‌ی همان نماینده عمل می‌کند
   agentId String? @map("agent_id") @db.Uuid
@@ -1242,10 +1242,22 @@ model AdminRole {
   description String?
   isSystem    Boolean               @default(false) @map("is_system")
   permissions AdminRolePermission[]
-  users       AdminUser[]
+  users       AdminUserRole[]
   createdAt   DateTime              @default(now()) @map("created_at")
 
   @@map("admin_roles")
+}
+
+model AdminUserRole {
+  adminUserId String    @map("admin_user_id") @db.Uuid
+  roleId      String    @map("role_id") @db.Uuid
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  role        AdminRole @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  assignedAt  DateTime  @default(now()) @map("assigned_at")
+
+  @@id([adminUserId, roleId])
+  @@index([roleId])
+  @@map("admin_user_roles")
 }
 
 model AdminPermission {

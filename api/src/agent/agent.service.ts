@@ -530,7 +530,7 @@ export class AgentService {
         passwordHash: await hashPassword(dto.password),
         fullName: dto.fullName.trim(),
         phone: dto.phone,
-        roleId: role.id,
+        roles: { create: { roleId: role.id } },
         agentId,
         createdById: adminId,
       },

@@ -18,6 +18,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { jwtSignOptions } from '../common/secrets/jwt-keyring';
 import { hashPassword } from '../common/crypto/password.util';
 import { SystemConfigService } from '../system-config/system-config.service';
+import {
+  ADMIN_ROLES_INCLUDE,
+  ADMIN_ROLES_WITH_PERMISSIONS_INCLUDE,
+  mergePermissions,
+  summarizeRoles,
+} from './admin-roles.util';
 
 const AUDIT_SOURCE = 'AdminAuthService';
 
@@ -44,7 +50,7 @@ export class AdminAuthService {
   async login(dto: LoginDto, ip?: string, userAgent?: string) {
     const admin = await this.prisma.adminUser.findUnique({
       where: { username: dto.username },
-      include: { role: true },
+      include: ADMIN_ROLES_INCLUDE,
     });
 
     // پیام یکسان برای عدم افشای وجود/عدم وجود نام کاربری
@@ -150,7 +156,11 @@ export class AdminAuthService {
         id: admin.id,
         username: admin.username,
         fullName: admin.fullName,
-        role: { key: admin.role.key, name: admin.role.name },
+        ...summarizeRoles(
+          admin.roles.map((r) => ({
+            role: { key: r.role.key, name: r.role.name },
+          })),
+        ),
       },
     };
   }
@@ -251,7 +261,7 @@ export class AdminAuthService {
     const admin = await this.prisma.adminUser.findUnique({
       where: { id: adminUserId },
       include: {
-        role: { include: { permissions: { include: { permission: true } } } },
+        ...ADMIN_ROLES_WITH_PERMISSIONS_INCLUDE,
         agent: {
           select: { id: true, code: true, name: true, status: true },
         },
@@ -262,6 +272,7 @@ export class AdminAuthService {
       },
     });
     if (!admin) throw new NotFoundException('ادمین یافت نشد');
+    const permissionDetails = mergePermissions(admin.roles);
 
     return {
       id: admin.id,
@@ -275,17 +286,17 @@ export class AdminAuthService {
       createdBy: admin.createdBy?.fullName ?? null,
       activeSessions: admin._count.sessions,
       currentSessionId: currentSessionId ?? null,
-      role: {
-        key: admin.role.key,
-        name: admin.role.name,
-        description: admin.role.description,
-      },
-      permissions: admin.role.permissions.map((rp) => rp.permission.key),
-      permissionDetails: admin.role.permissions.map((rp) => ({
-        key: rp.permission.key,
-        group: rp.permission.group,
-        description: rp.permission.description,
-      })),
+      ...summarizeRoles(
+        admin.roles.map((r) => ({
+          role: {
+            key: r.role.key,
+            name: r.role.name,
+            description: r.role.description,
+          },
+        })),
+      ),
+      permissions: permissionDetails.map((p) => p.key),
+      permissionDetails,
       // حساب ورود نماینده فروش — پنل بر اساس این فیلد پرتال نماینده را نشان می‌دهد
       agent: admin.agent,
     };

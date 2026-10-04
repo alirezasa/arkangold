@@ -38,7 +38,10 @@ interface AdminItem {
   phone: string | null;
   isActive: boolean;
   totpEnabled: boolean;
-  role: { id: string; key: string; name: string };
+  /** نقش اصلی (برای سازگاری) */
+  role: { id: string; key: string; name: string } | null;
+  /** همه‌ی نقش‌های ادمین — یک ادمین می‌تواند هم‌زمان چند نقش داشته باشد */
+  roles: { id: string; key: string; name: string }[];
   lastLoginAt: string | null;
   lastLoginIp: string | null;
   isLocked: boolean;
@@ -57,8 +60,10 @@ interface RoleItem {
 
 interface Me {
   id: string;
-  role: { key: string };
 }
+
+/** نقش حساب‌های ورود نماینده — فقط از بخش نمایندگان تعریف می‌شود */
+const AGENT_ROLE_KEY = "AGENT";
 
 function Modal({
   title,
@@ -73,7 +78,7 @@ function Modal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div
-        className="relative w-full max-w-md rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-lg rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto"
         style={{ backgroundColor: "var(--color-surface)" }}
       >
         <div className="flex items-center justify-between">
@@ -101,30 +106,72 @@ function ErrorBox({ message }: { message: string | null }) {
 const inputClass =
   "w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500";
 
-function RoleSelect({
+function RoleMultiSelect({
   roles,
   value,
   onChange,
 }: {
   roles: RoleItem[];
-  value: string;
-  onChange: (key: string) => void;
+  value: string[];
+  onChange: (keys: string[]) => void;
 }) {
+  const options = roles.filter((r) => r.key !== AGENT_ROLE_KEY);
+  const toggle = (key: string) =>
+    onChange(value.includes(key) ? value.filter((k) => k !== key) : [...value, key]);
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`${inputClass} bg-white`}
-    >
-      {roles.map((r) => (
-        <option key={r.key} value={r.key}>
-          {r.name}
-          {r.isSystem ? "" : " (سفارشی)"}
-        </option>
-      ))}
-    </select>
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {options.map((r) => {
+          const checked = value.includes(r.key);
+          return (
+            <label
+              key={r.key}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer text-[13px] font-bold transition-colors ${
+                checked
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggle(r.key)}
+                className="accent-emerald-600 w-4 h-4 shrink-0"
+              />
+              <span className="truncate">
+                {r.name}
+                {r.isSystem ? "" : " (سفارشی)"}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-gray-400">
+        می‌توانید چند نقش را هم‌زمان انتخاب کنید؛ دسترسی‌های ادمین مجموع دسترسی‌های همه‌ی نقش‌هاست.
+      </p>
+    </div>
   );
 }
+
+function RoleBadges({ roles }: { roles: AdminItem["roles"] }) {
+  if (roles.length === 0) return <span className="text-gray-400">—</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {roles.map((r) => (
+        <span
+          key={r.key}
+          className="badge"
+          style={{ background: "#ecfdf5", color: "#047857" }}
+        >
+          {r.name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+const sameKeys = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((k) => b.includes(k));
 
 function CreateAdminModal({
   roles,
@@ -140,7 +187,7 @@ function CreateAdminModal({
     password: "",
     fullName: "",
     phone: "",
-    roleKey: roles.find((r) => r.key !== "SUPER_ADMIN")?.key ?? roles[0]?.key ?? "",
+    roleKeys: [] as string[],
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,7 +198,7 @@ function CreateAdminModal({
     if (!form.fullName.trim()) return setError("نام کامل را وارد کنید");
     if (form.password.length < 12)
       return setError("رمز عبور باید حداقل ۱۲ کاراکتر باشد");
-    if (!form.roleKey) return setError("نقش ادمین را انتخاب کنید");
+    if (form.roleKeys.length === 0) return setError("حداقل یک نقش برای ادمین انتخاب کنید");
     setLoading(true);
     setError(null);
     try {
@@ -218,11 +265,11 @@ function CreateAdminModal({
           />
         </div>
         <div>
-          <label className="text-[12px] font-bold text-gray-500 mb-1 block">نقش</label>
-          <RoleSelect
+          <label className="text-[12px] font-bold text-gray-500 mb-1 block">نقش‌ها</label>
+          <RoleMultiSelect
             roles={roles}
-            value={form.roleKey}
-            onChange={(roleKey) => setForm({ ...form, roleKey })}
+            value={form.roleKeys}
+            onChange={(roleKeys) => setForm({ ...form, roleKeys })}
           />
         </div>
         <button
@@ -254,22 +301,26 @@ function EditAdminModal({
   const [form, setForm] = useState({
     fullName: admin.fullName,
     phone: admin.phone ?? "",
-    roleKey: admin.role.key,
+    roleKeys: admin.roles.map((r) => r.key),
   });
+  const currentKeys = admin.roles.map((r) => r.key);
+  const rolesChanged = !sameKeys(form.roleKeys, currentKeys);
+  const isAgentAccount = currentKeys.includes(AGENT_ROLE_KEY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullName.trim()) return setError("نام کامل را وارد کنید");
+    if (form.roleKeys.length === 0) return setError("حداقل یک نقش برای ادمین انتخاب کنید");
     setLoading(true);
     setError(null);
     try {
       await axios.patch(`/api/admin/admins/${admin.id}`, {
         fullName: form.fullName.trim(),
         phone: form.phone.trim() || undefined,
-        // نقش فقط در صورت تغییر ارسال می‌شود (تغییر نقش، نشست‌های ادمین را می‌بندد)
-        roleKey: form.roleKey !== admin.role.key ? form.roleKey : undefined,
+        // نقش‌ها فقط در صورت تغییر ارسال می‌شوند (تغییر نقش، نشست‌های ادمین را می‌بندد)
+        roleKeys: rolesChanged ? form.roleKeys : undefined,
       });
       onSaved();
       onClose();
@@ -302,19 +353,24 @@ function EditAdminModal({
           />
         </div>
         <div>
-          <label className="text-[12px] font-bold text-gray-500 mb-1 block">نقش</label>
-          {isSelf ? (
-            <p className="text-[12px] text-gray-400">
-              {admin.role.name} — امکان تغییر نقش حساب خودتان وجود ندارد
-            </p>
+          <label className="text-[12px] font-bold text-gray-500 mb-1 block">نقش‌ها</label>
+          {isSelf || isAgentAccount ? (
+            <div className="space-y-1.5">
+              <RoleBadges roles={admin.roles} />
+              <p className="text-[12px] text-gray-400">
+                {isSelf
+                  ? "امکان تغییر نقش حساب خودتان وجود ندارد"
+                  : "نقش حساب ورود نماینده از بخش نمایندگان مدیریت می‌شود"}
+              </p>
+            </div>
           ) : (
             <>
-              <RoleSelect
+              <RoleMultiSelect
                 roles={roles}
-                value={form.roleKey}
-                onChange={(roleKey) => setForm({ ...form, roleKey })}
+                value={form.roleKeys}
+                onChange={(roleKeys) => setForm({ ...form, roleKeys })}
               />
-              {form.roleKey !== admin.role.key && (
+              {rolesChanged && (
                 <p className="text-[11px] text-amber-600 mt-1">
                   با تغییر نقش، همه نشست‌های فعال این ادمین بسته می‌شود.
                 </p>
@@ -517,7 +573,7 @@ export default function AdminsPage() {
         </div>
       </div>
       <p className="text-[12px] text-gray-400 mb-5">
-        ایجاد ادمین با نقش مشخص، ویرایش، غیرفعال‌سازی، بازنشانی رمز و بستن نشست‌ها
+        ایجاد ادمین با یک یا چند نقش، ویرایش، غیرفعال‌سازی، بازنشانی رمز و بستن نشست‌ها
       </p>
 
       {(actionError || listError || rolesError) && (
@@ -572,7 +628,9 @@ export default function AdminsPage() {
                   <td dir="ltr" className="text-left">
                     {a.phone ?? "—"}
                   </td>
-                  <td>{a.role.name}</td>
+                  <td>
+                    <RoleBadges roles={a.roles} />
+                  </td>
                   <td>
                     <span
                       className="badge"

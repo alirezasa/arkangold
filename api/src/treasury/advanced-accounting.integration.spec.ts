@@ -131,7 +131,7 @@ run('حسابداری پیشرفته (یکپارچه با PostgreSQL)', () => {
         username: `it-${admin1.slice(0, 8)}`,
         passwordHash: 'x',
         fullName: 'حسابدار آزمون',
-        roleId: role.id,
+        roles: { create: { roleId: role.id } },
       },
     });
   });

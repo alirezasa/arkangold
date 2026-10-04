@@ -2,7 +2,7 @@
 "use client";
 import Link from "next/link";
 import { LogOut, Loader2, UserCircle, Store } from "lucide-react";
-import type { AdminMe } from "@/app/hooks/useAdminMe";
+import { roleNamesOf, type AdminMe } from "@/app/hooks/useAdminMe";
 import { useLogout } from "@/app/hooks/useLogout";
 
 /** کارت کاربر در پایین منوی کناری/کشویی: پروفایل + خروج */
@@ -32,7 +32,7 @@ export default function UserMenuCard({
           <p className="text-white! text-[12px] font-black truncate">{me.fullName}</p>
           <p className="text-white/50! text-[10px] truncate flex items-center gap-1">
             {me.agent ? <Store className="w-3 h-3 shrink-0" /> : null}
-            {me.agent ? `${me.agent.name} (${me.agent.code})` : me.role.name}
+            {me.agent ? `${me.agent.name} (${me.agent.code})` : roleNamesOf(me)}
           </p>
         </div>
         <UserCircle className="w-4 h-4 text-white/60! shrink-0" />

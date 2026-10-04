@@ -28,6 +28,7 @@ import {
   secondaryBtn,
   toman,
 } from "./ui";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
 
 export interface SaleRow {
   id: string;
@@ -177,27 +178,21 @@ export default function SalesTable({
           <option value="COMPLETED">قطعی</option>
           <option value="VOIDED">ابطال‌شده</option>
         </select>
-        <input
-          type="date"
+        <JalaliDateInput
           value={from}
-          onChange={(e) => {
-            setFrom(e.target.value);
+          onChange={(v) => {
+            setFrom(v);
             setPage(1);
           }}
           className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white"
-          dir="ltr"
-          title="از تاریخ"
         />
-        <input
-          type="date"
+        <JalaliDateInput
           value={to}
-          onChange={(e) => {
-            setTo(e.target.value);
+          onChange={(v) => {
+            setTo(v);
             setPage(1);
           }}
           className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white"
-          dir="ltr"
-          title="تا تاریخ"
         />
         <div className="flex gap-2">
           <button type="submit" className={primaryBtn} style={primaryBtnStyle}>

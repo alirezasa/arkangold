@@ -12,6 +12,12 @@ export const ADMIN_PERMISSIONS = [
     description: 'تایید/رد درخواست برداشت',
   },
   {
+    key: 'withdrawal.pay',
+    group: 'wallet',
+    description:
+      'ثبت پرداخت بانکی برداشت (شماره پیگیری، حساب مبدأ، پرداخت گروهی) و ثبت برگشت وجه از بانک',
+  },
+  {
     key: 'wallet.adjust',
     group: 'wallet',
     description: 'شارژ یا کسر دستی موجودی کیف پول کاربر',
@@ -55,6 +61,12 @@ export const ADMIN_PERMISSIONS = [
     description: 'مدیریت محصولات، دسته‌بندی‌ها و سفارشات فروشگاه',
   },
   { key: 'shop.view', group: 'shop', description: 'مشاهده سفارشات فروشگاه' },
+  {
+    key: 'shop.delivery.override',
+    group: 'shop',
+    description:
+      'تأیید تحویل سفارش بدون کد تحویل مشتری (با ثبت دلیل) — فقط برای موارد استثنایی',
+  },
   {
     key: 'discount.view',
     group: 'shop',
@@ -152,6 +164,11 @@ export const ADMIN_PERMISSIONS = [
     key: 'accounting.period.manage',
     group: 'accounting',
     description: 'تعریف و بستن سال مالی، قفل دوره‌ی مالی و قطعی‌سازی اسناد',
+  },
+  {
+    key: 'accounting.bank_reconcile',
+    group: 'accounting',
+    description: 'مغایرت‌گیری بانکی: تطبیق سطرهای حساب بانک با صورتحساب بانک',
   },
   {
     key: 'treasury.view',
@@ -338,6 +355,12 @@ export const ADMIN_PERMISSIONS = [
     description: 'ثبت، تأیید و رد تسویه نماینده و ثبت اصلاحیه حساب نماینده',
   },
   {
+    key: 'agent.contract.manage',
+    group: 'agent',
+    description:
+      'تعریف قالب قرارداد، صدور، ویرایش پیش‌نویس و ابطال قرارداد الکترونیک نمایندگان',
+  },
+  {
     key: 'agent.sale.void',
     group: 'agent',
     description: 'ابطال فروش ثبت‌شده توسط نماینده (برگشت مالکیت و سند)',
@@ -355,9 +378,28 @@ export const ADMIN_PERMISSIONS = [
     description: 'پرتال نماینده: ثبت فروش شمش و ثبت مالک نهایی',
   },
   {
+    key: 'agent_portal.contract.sign',
+    group: 'agent_portal',
+    description:
+      'پرتال نماینده: امضای الکترونیک قرارداد با کد یکبارمصرف پیامکی',
+  },
+  {
     key: 'agent_portal.settle',
     group: 'agent_portal',
     description: 'پرتال نماینده: اعلام واریز/تسویه به شرکت',
+  },
+
+  // ── مرکز پیامک ──
+  {
+    key: 'sms.view',
+    group: 'sms',
+    description: 'مشاهده قالب‌ها، سامانه‌ها و گزارش ارسال پیامک',
+  },
+  {
+    key: 'sms.manage',
+    group: 'sms',
+    description:
+      'ویرایش متن پیامک رویدادها، انتخاب سامانه‌ی ارسال (قاصدک / sms.ir) و ارسال آزمایشی',
   },
 
   {
@@ -391,6 +433,7 @@ export const ADMIN_ROLES = [
     permissions: [
       'withdrawal.view',
       'withdrawal.approve',
+      'withdrawal.pay',
       'transactions.view',
       'physical_delivery.view',
       'physical_delivery.approve',
@@ -411,6 +454,7 @@ export const ADMIN_ROLES = [
       'accounting.voucher.create',
       'accounting.voucher.approve',
       'accounting.period.manage',
+      'accounting.bank_reconcile',
       'treasury.view',
       'treasury.order.manage',
       'treasury.payment.manage',
@@ -431,6 +475,7 @@ export const ADMIN_ROLES = [
     permissions: [
       'accounting.view',
       'accounting.voucher.create',
+      'accounting.bank_reconcile',
       'invoice.view',
       'transactions.view',
       'deposit.view',
@@ -521,6 +566,7 @@ export const ADMIN_ROLES = [
       'agent.stock.manage',
       'agent.settlement.manage',
       'agent.sale.void',
+      'agent.contract.manage',
       'hologram.code.view',
       'hologram.transfer.view',
       'users.view',
@@ -538,6 +584,7 @@ export const ADMIN_ROLES = [
       'agent_portal.view',
       'agent_portal.sell',
       'agent_portal.settle',
+      'agent_portal.contract.sign',
     ] as PermissionKey[],
   },
 ] as const;

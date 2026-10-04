@@ -25,6 +25,85 @@ import {
 } from "@/app/hooks/useShop";
 import { useWallet } from "@/app/hooks/useWallet";
 import { openInvoicePrint } from "@/app/hooks/useInvoices";
+import type { ShopOrderDeliveryDto } from "@/app/hooks/useShop";
+
+const METHOD_HINT: Record<string, string> = {
+  POST: "هنگام تحویل مرسوله، این کد را به نامه‌رسان بگویید.",
+  EXPRESS: "هنگام تحویل مرسوله، این کد را به مأمور تحویل بگویید.",
+  COURIER: "هنگام تحویل، این کد را به پیک بگویید تا تحویل ثبت شود.",
+  PICKUP: "هنگام مراجعه حضوری همراه با کارت ملی این کد را ارائه کنید.",
+};
+
+function DeliveryBox({ delivery }: { delivery: ShopOrderDeliveryDto }) {
+  const s = delivery.shipping!;
+  return (
+    <div className="space-y-3">
+      {s.deliveryCode && !s.deliveredAt && (
+        <div className="rounded-xl p-4 text-center" style={{ backgroundColor: "#ecfdf5", border: "1px dashed var(--color-emerald)" }}>
+          <p className="text-[12px] font-bold text-gray-600">کد تحویل سفارش</p>
+          <p className="text-[28px] font-black tracking-[0.4em] mt-1" dir="ltr" style={{ color: "var(--color-emerald)" }}>
+            {s.deliveryCode}
+          </p>
+          <p className="text-[11px] text-gray-500 mt-1">
+            {METHOD_HINT[s.method?.type ?? "POST"]} این کد را پیش از دریافت مرسوله در اختیار هیچ‌کس قرار ندهید.
+          </p>
+        </div>
+      )}
+      <div className="px-3 py-2.5 rounded-xl bg-gray-50 space-y-1.5 text-[12px] text-gray-600">
+        <div className="flex justify-between">
+          <span>روش ارسال</span>
+          <span className="font-bold text-gray-800">{s.method?.name ?? s.carrierName}</span>
+        </div>
+        {s.trackingCode && (
+          <div className="flex justify-between items-center">
+            <span>کد رهگیری مرسوله</span>
+            <span className="flex items-center gap-1.5">
+              <span className="font-black text-gray-800" dir="ltr">
+                {s.trackingCode}
+              </span>
+              <CopyBtn text={s.trackingCode} />
+            </span>
+          </div>
+        )}
+        {s.trackingUrl && (
+          <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer" className="block text-left font-bold" style={{ color: "var(--color-emerald)" }}>
+            رهگیری مرسوله ←
+          </a>
+        )}
+        {s.courierName && (
+          <div className="flex justify-between">
+            <span>پیک</span>
+            <span className="font-bold text-gray-800">
+              {s.courierName} {s.courierPhone && <span dir="ltr">{s.courierPhone}</span>}
+            </span>
+          </div>
+        )}
+        {s.estimatedDelivery && !s.deliveredAt && (
+          <div className="flex justify-between">
+            <span>تحویل تخمینی</span>
+            <span className="font-bold text-gray-800">{formatDate(s.estimatedDelivery)}</span>
+          </div>
+        )}
+        {s.deliveredAt && (
+          <div className="flex justify-between text-emerald-700 font-bold">
+            <span>تحویل شد</span>
+            <span>{formatDate(s.deliveredAt)}</span>
+          </div>
+        )}
+      </div>
+      {delivery.timeline.length > 0 && (
+        <ol className="space-y-1.5 text-[11px] text-gray-500">
+          {delivery.timeline.map((t) => (
+            <li key={t.id} className="flex justify-between gap-2">
+              <span className="font-bold text-gray-700">{t.toStatusLabel}</span>
+              <span>{new Date(t.createdAt).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" })}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
 
 function fmtToman(v: string | number) {
   return Math.round(Number(v)).toLocaleString("fa-IR");
@@ -203,7 +282,7 @@ export default function ShopOrderDetailPage() {
         <div className="flex-1">
           <h1 className="text-[17px] font-black text-gray-900">جزئیات سفارش</h1>
           <p className="text-[11px] text-gray-400 mt-0.5" dir="ltr">
-            {order.id.slice(0, 8)}…
+            {order.orderNumber ?? `${order.id.slice(0, 8)}…`}
           </p>
         </div>
         {order.invoiceId && (
@@ -287,7 +366,13 @@ export default function ShopOrderDetailPage() {
           </div>
         )}
 
-        {order.trackingCode && (
+        {order.delivery?.cancelReason && isCancelled && (
+          <p className="text-[12px] text-gray-500">دلیل لغو: {order.delivery.cancelReason}</p>
+        )}
+
+        {order.delivery?.shipping && <DeliveryBox delivery={order.delivery} />}
+
+        {order.trackingCode && !order.delivery?.shipping && (
           <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50">
             <span className="text-[12px] text-gray-500 font-medium">
               کد رهگیری مرسوله

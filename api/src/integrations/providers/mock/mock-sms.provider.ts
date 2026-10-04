@@ -21,7 +21,7 @@ export class MockSmsProvider implements SmsProvider {
     // FAU_GEN_EXT.1.4: متن پیامک معمولاً کد OTP دارد؛ فقط با OTP_DEBUG_LOG چاپ می‌شود (common/logging/otp-debug.ts)
     const showText = isOtpDebugLogEnabled();
     this.logger.log(
-      `[MOCK SMS] -> ${input.phone}: ${showText ? input.text : `[${input.text.length} chars]`}`,
+      `[MOCK SMS] -> ${input.phone}${input.pattern ? ' (قالب)' : ''}: ${showText ? input.text : `[${input.text.length} chars]`}`,
     );
     await this.delay(150); // شبیه‌سازی تاخیر شبکه، مثل MockIdentityProvider
     return { sent: true, providerRequestId: `mock-${randomUUID()}` };

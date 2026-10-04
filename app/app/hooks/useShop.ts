@@ -176,7 +176,10 @@ export interface ShopOrderDto {
   packagingWaivedToman: string;
   totalToman: string;
   trackingCode: string | null;
+  orderNumber?: string | null;
   invoiceId: string | null;
+  // اطلاعات ارسال و تحویل (فقط در جزئیات سفارش)
+  delivery?: ShopOrderDeliveryDto | null;
   address?: {
     id: string;
     title?: string | null;
@@ -187,6 +190,33 @@ export interface ShopOrderDto {
   items: ShopOrderItemDto[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ShopOrderDeliveryDto {
+  orderNumber: string | null;
+  cancelReason: string | null;
+  shipping: {
+    method: { id: string; name: string; type: "POST" | "COURIER" | "EXPRESS" | "PICKUP" } | null;
+    carrierName: string | null;
+    trackingCode: string | null;
+    trackingUrl: string | null;
+    estimatedDelivery: string | null;
+    courierName: string | null;
+    courierPhone: string | null;
+    contactPhone: string | null;
+    deliveryCodeRequired: boolean;
+    // فقط تا زمان تحویل و فقط برای مالک سفارش
+    deliveryCode: string | null;
+    deliveredAt: string | null;
+    receivedByName: string | null;
+  } | null;
+  timeline: {
+    id: string;
+    toStatus: string;
+    toStatusLabel: string;
+    note: string | null;
+    createdAt: string;
+  }[];
 }
 
 export interface PricingPreviewLine {

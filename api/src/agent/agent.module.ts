@@ -11,6 +11,11 @@ import { AgentService } from './agent.service';
 import { AgentSaleService } from './agent-sale.service';
 import { AgentAccountingService } from './agent-accounting.service';
 import { AgentScopeGuard } from './agent-scope.guard';
+import { AgentContractService } from './agent-contract.service';
+import {
+  AgentContractAdminController,
+  AgentContractPortalController,
+} from './agent-contract.controller';
 
 @Module({
   imports: [
@@ -20,12 +25,18 @@ import { AgentScopeGuard } from './agent-scope.guard';
     NotificationsModule,
     IdentityVerificationModule,
   ],
-  controllers: [AgentAdminController, AgentPortalController],
+  controllers: [
+    AgentAdminController,
+    AgentPortalController,
+    AgentContractAdminController,
+    AgentContractPortalController,
+  ],
   providers: [
     AgentService,
     AgentSaleService,
     AgentAccountingService,
     AgentScopeGuard,
+    AgentContractService,
   ],
 })
 export class AgentModule {}

@@ -20,6 +20,8 @@ import {
   toman,
   tomanToRial,
 } from "./ui";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
+import { todayIsoLocal } from "@/app/utils/jalali";
 
 interface AgentLite {
   id: string;
@@ -149,12 +151,10 @@ export function AllocateModal({
           />
         </Field>
         <Field label="تاریخ ضرب (اختیاری)">
-          <input
-            type="date"
+          <JalaliDateInput
             value={defaults.mintedAt}
-            onChange={(e) => setDefaults((d) => ({ ...d, mintedAt: e.target.value }))}
+            onChange={(v) => setDefaults((d) => ({ ...d, mintedAt: v }))}
             className={inputCls}
-            dir="ltr"
           />
         </Field>
       </div>
@@ -335,7 +335,7 @@ export function SettlementModal({
   );
   const [method, setMethod] = useState("BANK_TRANSFER");
   const [referenceNumber, setReferenceNumber] = useState("");
-  const [paidAt, setPaidAt] = useState(new Date().toISOString().slice(0, 10));
+  const [paidAt, setPaidAt] = useState(todayIsoLocal());
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -396,7 +396,7 @@ export function SettlementModal({
           <input value={referenceNumber} onChange={(e) => setReferenceNumber(e.target.value)} className={`${inputCls} text-left`} dir="ltr" />
         </Field>
         <Field label="تاریخ پرداخت">
-          <input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} className={inputCls} dir="ltr" />
+          <JalaliDateInput value={paidAt} onChange={(v) => setPaidAt(v)} className={inputCls} />
         </Field>
       </div>
       {amountToman && <p className="text-[11px] text-gray-500">معادل {faNum(tomanToRial(amountToman))} ریال</p>}

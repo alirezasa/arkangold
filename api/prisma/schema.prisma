@@ -105,7 +105,8 @@ model UserIdentity {
   fatherName                String?        @map("father_name")
   gender                    String?        @map("gender")
   deathStatus               String?        @map("death_status")
-  identityNo                Int?           @map("identity_no")
+  // شماره شناسنامه — برای متولدین جدید برابر کد ملی ۱۰ رقمی (بزرگ‌تر از Int32) و گاهی با صفر ابتدایی؛ پس رشته
+  identityNo                String?        @map("identity_no")
   identitySeri              String?        @map("identity_seri")
   identitySerial            String?        @map("identity_serial")
   officeName                String?        @map("office_name")
@@ -299,18 +300,23 @@ model JournalEntry {
 }
 
 model LedgerEntry {
-  side           LedgerSide
-  amountRial     Decimal      @default(0) @map("amount_rial") @db.Decimal(18, 0)
-  amountGrams    Decimal      @default(0) @map("amount_grams") @db.Decimal(18, 4)
+  side             LedgerSide
+  amountRial       Decimal             @default(0) @map("amount_rial") @db.Decimal(18, 0)
+  amountGrams      Decimal             @default(0) @map("amount_grams") @db.Decimal(18, 4)
   /// شرح اختصاصی سطر (اسناد دستی)
-  description    String?
-  createdAt      DateTime     @default(now()) @map("created_at")
-  id             String       @id @default(uuid()) @db.Uuid
-  journalEntryId String       @map("journal_entry_id") @db.Uuid
-  accountId      String       @map("account_id") @db.Uuid
-  account        Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  description      String?
+  createdAt        DateTime            @default(now()) @map("created_at")
+  id               String              @id @default(uuid()) @db.Uuid
+  journalEntryId   String              @map("journal_entry_id") @db.Uuid
+  accountId        String              @map("account_id") @db.Uuid
+  account          Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  journalEntry     JournalEntry        @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  /// مغایرت‌گیری بانکی: زمان تطبیق این سطر با صورتحساب بانک
+  reconciledAt     DateTime?           @map("reconciled_at")
+  reconciliationId String?             @map("reconciliation_id") @db.Uuid
+  reconciliation   BankReconciliation? @relation(fields: [reconciliationId], references: [id], onDelete: SetNull)
 
+  @@index([reconciliationId])
   @@index([accountId])
   @@index([accountId, createdAt])
   @@index([journalEntryId])
@@ -524,37 +530,49 @@ model CartItem {
 }
 
 model ShopOrder {
-  status              ShopOrderStatus     @default(PENDING_PAYMENT)
+  status              ShopOrderStatus          @default(PENDING_PAYMENT)
   // جمع اقلام قبل از تخفیف
-  subtotalRial        Decimal             @map("subtotal_rial") @db.Decimal(18, 0)
+  subtotalRial        Decimal                  @map("subtotal_rial") @db.Decimal(18, 0)
   // مبلغ تخفیف کد تخفیف (ریال)؛ totalRial = subtotalRial - discountRial = مبلغ قابل پرداخت
-  discountRial        Decimal             @default(0) @map("discount_rial") @db.Decimal(18, 0)
-  totalRial           Decimal             @map("total_rial") @db.Decimal(18, 0)
+  discountRial        Decimal                  @default(0) @map("discount_rial") @db.Decimal(18, 0)
+  totalRial           Decimal                  @map("total_rial") @db.Decimal(18, 0)
   // snapshot متن کد تخفیف در لحظه ثبت سفارش (حتی اگر کد بعداً حذف شود)
-  discountCodeText    String?             @map("discount_code_text")
-  discountCodeId      String?             @map("discount_code_id") @db.Uuid
-  discountCode        DiscountCode?       @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
+  discountCodeText    String?                  @map("discount_code_text")
+  discountCodeId      String?                  @map("discount_code_id") @db.Uuid
+  discountCode        DiscountCode?            @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
   // هزینه بسته‌بندی دریافت‌شده از کاربر (ریال) — خارج از subtotal و مشمول کد تخفیف نیست؛
   // totalRial = subtotalRial - discountRial + packagingRial
-  packagingRial       Decimal             @default(0) @map("packaging_rial") @db.Decimal(18, 0)
+  packagingRial       Decimal                  @default(0) @map("packaging_rial") @db.Decimal(18, 0)
   // هزینه بسته‌بندی‌ای که به‌دلیل رسیدن خرید به آستانه، رایگان شد (ریال)
-  packagingWaivedRial Decimal             @default(0) @map("packaging_waived_rial") @db.Decimal(18, 0)
-  trackingCode        String?             @map("tracking_code")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
-  id                  String              @id @default(uuid()) @db.Uuid
-  userId              String              @map("user_id") @db.Uuid
-  addressId           String              @map("address_id") @db.Uuid
+  packagingWaivedRial Decimal                  @default(0) @map("packaging_waived_rial") @db.Decimal(18, 0)
+  trackingCode        String?                  @map("tracking_code")
+  /// شماره سفارش قابل ارائه به مشتری (AG-1405-SHO-000128)
+  orderNumber         String?                  @unique @map("order_number")
+  /// یادداشت داخلی انبار/پشتیبانی
+  adminNote           String?                  @map("admin_note")
+  cancelReason        String?                  @map("cancel_reason")
+  paidAt              DateTime?                @map("paid_at")
+  processingAt        DateTime?                @map("processing_at")
+  shippedAt           DateTime?                @map("shipped_at")
+  deliveredAt         DateTime?                @map("delivered_at")
+  cancelledAt         DateTime?                @map("cancelled_at")
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
+  id                  String                   @id @default(uuid()) @db.Uuid
+  userId              String                   @map("user_id") @db.Uuid
+  addressId           String                   @map("address_id") @db.Uuid
+  statusHistory       ShopOrderStatusHistory[]
   payments            Payment[]
   items               ShopOrderItem[]
-  address             Address             @relation(fields: [addressId], references: [id], onDelete: Cascade)
-  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  address             Address                  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  user                User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions        Transaction[]
   shippings           Shipping[]
   hologramOwnerships  HologramOwnership[]
 
   @@index([userId])
   @@index([discountCodeId])
+  @@index([status, createdAt])
   @@map("shop_orders")
 }
 
@@ -695,21 +713,54 @@ model Payment {
 }
 
 model WithdrawalRequest {
-  amountRial    Decimal          @map("amount_rial") @db.Decimal(18, 0)
-  status        WithdrawalStatus @default(PENDING)
-  adminNotes    String?          @map("admin_notes")
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
-  id            String           @id @default(uuid()) @db.Uuid
-  userId        String           @map("user_id") @db.Uuid
-  bankAccountId String           @map("bank_account_id") @db.Uuid
-  processedById String?          @map("processed_by_id") @db.Uuid
-  approvals     Approval[]
-  bankAccount   BankAccount      @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  processedBy   AdminUser?       @relation("ProcessedBy", fields: [processedById], references: [id])
-  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountRial          Decimal          @map("amount_rial") @db.Decimal(18, 0)
+  status              WithdrawalStatus @default(PENDING)
+  adminNotes          String?          @map("admin_notes")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  id                  String           @id @default(uuid()) @db.Uuid
+  userId              String           @map("user_id") @db.Uuid
+  bankAccountId       String           @map("bank_account_id") @db.Uuid
+  processedById       String?          @map("processed_by_id") @db.Uuid
+  /// شماره درخواست قابل ارائه به کاربر (AG-1405-WDR-000045)
+  requestNumber       String?          @unique @map("request_number")
+  /// کارمزد برداشت (ریال) — هنگام ثبت محاسبه و از مبلغ واریزی کسر می‌شود
+  feeRial             Decimal          @default(0) @map("fee_rial") @db.Decimal(18, 0)
+  /// مبلغ قابل واریز به حساب کاربر = مبلغ − کارمزد
+  netAmountRial       Decimal?         @map("net_amount_rial") @db.Decimal(18, 0)
+  /// رزرو موجودی کیف پول تا زمان پرداخت/رد
+  holdId              String?          @map("hold_id") @db.Uuid
+  /// تراکنش کیف پول این برداشت (PENDING ← COMPLETED / FAILED)
+  transactionId       String?          @unique @map("transaction_id") @db.Uuid
+  /// snapshot حساب مقصد در لحظه‌ی ثبت (بانک، شبا، کارت، صاحب حساب)
+  destinationSnapshot Json?            @map("destination_snapshot")
+  reviewedById        String?          @map("reviewed_by_id") @db.Uuid
+  reviewedAt          DateTime?        @map("reviewed_at")
+  paidById            String?          @map("paid_by_id") @db.Uuid
+  paidAt              DateTime?        @map("paid_at")
+  /// روش پرداخت بانکی: PAYA | SATNA | POL | CARD_TO_CARD | INTERNAL
+  payoutMethod        String?          @map("payout_method")
+  /// شماره پیگیری / مرجع تراکنش بانکی پرداخت
+  bankReference       String?          @map("bank_reference")
+  /// شناسه دسته‌ی پرداخت گروهی (فایل پایا)
+  payoutBatchId       String?          @map("payout_batch_id")
+  /// حساب نقد/بانک شرکت که برداشت از آن پرداخت شد (کد معین زیر 1010)
+  sourceAccountCode   String?          @map("source_account_code")
+  journalEntryId      String?          @map("journal_entry_id") @db.Uuid
+  rejectionReason     String?          @map("rejection_reason")
+  cancelledAt         DateTime?        @map("cancelled_at")
+  /// برگشت وجه از بانک پس از پرداخت (شبای نامعتبر و ...)
+  returnedAt          DateTime?        @map("returned_at")
+  returnReason        String?          @map("return_reason")
+  returnJournalId     String?          @map("return_journal_id") @db.Uuid
+  approvals           Approval[]
+  bankAccount         BankAccount      @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  processedBy         AdminUser?       @relation("ProcessedBy", fields: [processedById], references: [id])
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
+  @@index([status, createdAt])
+  @@index([payoutBatchId])
   @@map("withdrawal_requests")
 }
 
@@ -850,19 +901,94 @@ model PhysicalDeliveryRequest {
 }
 
 model Shipping {
-  carrierName       String?                  @map("carrier_name")
-  trackingCode      String?                  @map("tracking_code")
-  estimatedDelivery DateTime?                @map("estimated_delivery")
-  deliveredAt       DateTime?                @map("delivered_at")
-  status            ShippingStatus           @default(IN_TRANSIT)
-  createdAt         DateTime                 @default(now()) @map("created_at")
-  id                String                   @id @default(uuid()) @db.Uuid
-  deliveryRequestId String?                  @map("delivery_request_id") @db.Uuid
-  shopOrderId       String?                  @map("shop_order_id") @db.Uuid
-  deliveryRequest   PhysicalDeliveryRequest? @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
-  shopOrder         ShopOrder?               @relation(fields: [shopOrderId], references: [id], onDelete: Cascade)
+  carrierName           String?                  @map("carrier_name")
+  trackingCode          String?                  @map("tracking_code")
+  estimatedDelivery     DateTime?                @map("estimated_delivery")
+  deliveredAt           DateTime?                @map("delivered_at")
+  status                ShippingStatus           @default(IN_TRANSIT)
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  id                    String                   @id @default(uuid()) @db.Uuid
+  deliveryRequestId     String?                  @map("delivery_request_id") @db.Uuid
+  shopOrderId           String?                  @map("shop_order_id") @db.Uuid
+  deliveryRequest       PhysicalDeliveryRequest? @relation(fields: [deliveryRequestId], references: [id], onDelete: Cascade)
+  shopOrder             ShopOrder?               @relation(fields: [shopOrderId], references: [id], onDelete: Cascade)
+  /// مرجع ارسال انتخاب‌شده (پست، پیک، تیپاکس، تحویل حضوری)
+  shippingMethodId      String?                  @map("shipping_method_id") @db.Uuid
+  shippingMethod        ShippingMethod?          @relation(fields: [shippingMethodId], references: [id])
+  courierName           String?                  @map("courier_name")
+  courierPhone          String?                  @map("courier_phone")
+  /// کد تحویل مشتری — رمزنگاری‌شده (AES-GCM) تا در اپ کاربر نمایش داده شود
+  deliveryCodeEnc       String?                  @map("delivery_code_enc")
+  deliveryCodeSentAt    DateTime?                @map("delivery_code_sent_at")
+  /// تلاش‌های ناموفق ورود کد تحویل — پس از سقف، کد قفل و باید کد جدید صادر شود
+  deliveryCodeAttempts  Int                      @default(0) @map("delivery_code_attempts")
+  /// hash توکن لینک ثبت تحویل پیک (خود توکن فقط در پیامک پیک است)
+  courierTokenHash      String?                  @unique @map("courier_token_hash")
+  courierTokenExpiresAt DateTime?                @map("courier_token_expires_at")
+  /// DELIVERY_CODE (ادمین با کد) | COURIER_LINK (پیک با کد) | ADMIN_OVERRIDE (بدون کد، با دلیل)
+  deliveryConfirmedVia  String?                  @map("delivery_confirmed_via")
+  receivedByName        String?                  @map("received_by_name")
+  deliveryNote          String?                  @map("delivery_note")
+  shippedByAdminId      String?                  @map("shipped_by_admin_id") @db.Uuid
+  deliveredByAdminId    String?                  @map("delivered_by_admin_id") @db.Uuid
 
+  @@index([shopOrderId])
   @@map("shippings")
+}
+
+/// مرجع/روش ارسال سفارش فروشگاه — از پنل ادمین تعریف و هنگام ارسال سفارش انتخاب می‌شود
+model ShippingMethod {
+  id                   String             @id @default(uuid()) @db.Uuid
+  /// کد یکتا (مثلاً POST_PISHTAZ)
+  code                 String             @unique
+  name                 String
+  type                 ShippingMethodType
+  description          String?
+  /// نشانی رهگیری با {code}، مثلاً https://example.com/track?id={code}
+  trackingUrlTemplate  String?            @map("tracking_url_template")
+  requiresTrackingCode Boolean            @default(false) @map("requires_tracking_code")
+  /// تحویل فقط با کد تحویل مشتری تأیید می‌شود (پیامک کد به مشتری هنگام ارسال)
+  requiresDeliveryCode Boolean            @default(true) @map("requires_delivery_code")
+  /// ارسال لینک ثبت تحویل برای پیک با پیامک (پیک کد مشتری را در لینک وارد می‌کند)
+  courierLinkEnabled   Boolean            @default(false) @map("courier_link_enabled")
+  estimatedDays        Int?               @map("estimated_days")
+  contactPhone         String?            @map("contact_phone")
+  isActive             Boolean            @default(true) @map("is_active")
+  sortOrder            Int                @default(0) @map("sort_order")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+  shippings            Shipping[]
+
+  @@index([isActive, sortOrder])
+  @@map("shipping_methods")
+}
+
+/// تاریخچه‌ی وضعیت سفارش فروشگاه (Timeline برای ادمین و کاربر)
+model ShopOrderStatusHistory {
+  id         String           @id @default(uuid()) @db.Uuid
+  orderId    String           @map("order_id") @db.Uuid
+  order      ShopOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus ShopOrderStatus? @map("from_status")
+  toStatus   ShopOrderStatus  @map("to_status")
+  /// USER | ADMIN | SYSTEM | COURIER
+  actorType  String           @map("actor_type")
+  actorId    String?          @map("actor_id")
+  note       String?
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  @@index([orderId, createdAt])
+  @@map("shop_order_status_history")
+}
+
+enum ShippingMethodType {
+  /// پست (پیشتاز / سفارشی)
+  POST
+  /// پیک اختصاصی / درون‌شهری
+  COURIER
+  /// باربری / پست خصوصی (تیپاکس، چاپار و ...)
+  EXPRESS
+  /// تحویل حضوری در دفتر
+  PICKUP
 }
 
 model PayrollPlan {
@@ -1816,6 +1942,7 @@ model Agent {
   sales          AgentSale[]
   settlements    AgentSettlement[]
   ledgerEntries  AgentLedgerEntry[]
+  agentContracts AgentContract[]
 
   @@index([status])
   @@map("agents")
@@ -2126,10 +2253,17 @@ enum PaymentStatus {
 }
 
 enum WithdrawalStatus {
+  /// ثبت‌شده توسط کاربر — موجودی رزرو شده
   PENDING
+  /// بررسی و تأیید مالی — در صف پرداخت بانکی
   APPROVED
   REJECTED
+  /// پرداخت‌شده به حساب بانکی کاربر (کسر قطعی از کیف پول + سند)
   PROCESSED
+  /// لغو توسط کاربر پیش از بررسی
+  CANCELLED
+  /// وجه پرداخت‌شده از بانک برگشت خورد و به کیف پول بازگشت
+  RETURNED
 }
 
 enum ApprovalType {
@@ -2739,4 +2873,207 @@ enum PartnerOrderStatus {
   SETTLED
   CANCELLED
   REFUNDED
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// مرکز پیامک — قالب متن هر رویداد سیستم و لاگ ارسال (قاصدک / sms.ir / Mock)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// قالب پیامک یک رویداد (سفارش، واریز/برداشت، OTP، قرارداد نماینده و ...).
+/// ردیف‌های پیش‌فرض هنگام استارت ساخته می‌شوند و متن/وضعیت/سامانه‌ی ارسال از پنل ادمین تغییر می‌کند.
+model SmsTemplate {
+  id                   String      @id @default(uuid()) @db.Uuid
+  /// کد یکتای رویداد، مثلاً SHOP_ORDER_SHIPPED
+  key                  String      @unique
+  title                String
+  /// AUTH | ORDER | FINANCE | AGENT | GENERAL
+  category             String
+  /// متن پیامک با متغیرهای {name}
+  body                 String
+  isActive             Boolean     @default(true) @map("is_active")
+  /// سامانه‌ی اختصاصی این رویداد (GHASEDAK / SMSIR / MOCK)؛ null = طبق اولویت سرویس SMS
+  providerCode         String?     @map("provider_code")
+  /// TEXT: ارسال متن از خط اختصاصی — PATTERN: قالب تأییدشده‌ی سامانه (Verify / OTP)
+  sendMode             SmsSendMode @default(TEXT) @map("send_mode")
+  /// شناسه‌ی قالب در sms.ir (templateId عددی) برای حالت PATTERN
+  smsirTemplateId      String?     @map("smsir_template_id")
+  /// نام قالب در قاصدک (templateName) برای حالت PATTERN
+  ghasedakTemplateName String?     @map("ghasedak_template_name")
+  updatedById          String?     @map("updated_by_id") @db.Uuid
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@map("sms_templates")
+}
+
+/// لاگ هر پیامک ارسالی — برای پیگیری، گزارش هزینه و رفع اشکال.
+/// متن پیامک‌های حاوی کد یکبارمصرف به‌صورت ماسک‌شده ذخیره می‌شود (FAU_GEN_EXT.1.4).
+model SmsLog {
+  id                String       @id @default(uuid()) @db.Uuid
+  phone             String
+  userId            String?      @map("user_id") @db.Uuid
+  templateKey       String?      @map("template_key")
+  providerCode      String?      @map("provider_code")
+  sendMode          SmsSendMode  @default(TEXT) @map("send_mode")
+  text              String
+  status            SmsLogStatus
+  providerMessageId String?      @map("provider_message_id")
+  /// هزینه‌ی اعلام‌شده توسط سامانه (واحد همان سامانه)
+  cost              Decimal?     @db.Decimal(18, 2)
+  errorMessage      String?      @map("error_message")
+  referenceType     String?      @map("reference_type")
+  referenceId       String?      @map("reference_id")
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([phone, createdAt])
+  @@index([templateKey, createdAt])
+  @@index([status, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("sms_logs")
+}
+
+enum SmsSendMode {
+  TEXT
+  PATTERN
+}
+
+enum SmsLogStatus {
+  SENT
+  FAILED
+  /// محیط غیرعملیاتی: ارسال واقعی انجام نشد و فقط لاگ شد
+  DRY_RUN
+  /// قالب غیرفعال یا شماره نامعتبر — ارسالی انجام نشد
+  SKIPPED
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// قرارداد الکترونیک نمایندگان — صدور از پنل، مطالعه و امضای الکترونیک با کد یکبارمصرف پیامکی
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// قالب متن قرارداد نمایندگی با متغیرهای {agentName}، {commission}، {startDate} و ...
+model AgentContractTemplate {
+  id          String          @id @default(uuid()) @db.Uuid
+  title       String
+  body        String
+  description String?
+  isActive    Boolean         @default(true) @map("is_active")
+  /// با هر ویرایش متن یک واحد افزایش می‌یابد (قراردادهای صادرشده snapshot نسخه‌ی خود را دارند)
+  version     Int             @default(1)
+  createdById String?         @map("created_by_id") @db.Uuid
+  updatedById String?         @map("updated_by_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  contracts   AgentContract[]
+
+  @@map("agent_contract_templates")
+}
+
+/// قرارداد صادرشده برای یک نماینده؛ پس از صدور متن قفل می‌شود و فقط با امضای الکترونیک
+/// (کد یکبارمصرف به موبایل ثبت‌شده‌ی نماینده) نهایی می‌شود.
+model AgentContract {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  contractNumber     String                 @unique @map("contract_number")
+  agentId            String                 @map("agent_id") @db.Uuid
+  agent              Agent                  @relation(fields: [agentId], references: [id])
+  templateId         String?                @map("template_id") @db.Uuid
+  template           AgentContractTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateVersion    Int?                   @map("template_version")
+  title              String
+  /// متن نهایی (متغیرها جایگذاری‌شده) — پس از صدور تغییرناپذیر
+  body               String
+  /// SHA-256 متن نهایی در لحظه‌ی صدور — مبنای اثبات عدم تغییر متن امضاشده
+  bodyHash           String?                @map("body_hash")
+  status             AgentContractStatus    @default(DRAFT)
+  startsAt           DateTime?              @map("starts_at")
+  endsAt             DateTime?              @map("ends_at")
+  /// مهلت امضا؛ پس از آن قرارداد منقضی می‌شود
+  signDeadline       DateTime?              @map("sign_deadline")
+  issuedAt           DateTime?              @map("issued_at")
+  issuedById         String?                @map("issued_by_id") @db.Uuid
+  firstViewedAt      DateTime?              @map("first_viewed_at")
+  // ── امضای الکترونیک ──
+  signedAt           DateTime?              @map("signed_at")
+  signerAdminUserId  String?                @map("signer_admin_user_id") @db.Uuid
+  signerName         String?                @map("signer_name")
+  signerNationalCode String?                @map("signer_national_code")
+  signerPhone        String?                @map("signer_phone")
+  signerIp           String?                @map("signer_ip")
+  signerUserAgent    String?                @map("signer_user_agent")
+  /// SHA-256(شماره قرارداد | hash متن | موبایل | زمان امضا | امضاکننده) — گواهی امضا
+  signatureHash      String?                @map("signature_hash")
+  // ── کد یکبارمصرف امضا ──
+  otpHash            String?                @map("otp_hash")
+  otpExpiresAt       DateTime?              @map("otp_expires_at")
+  otpAttempts        Int                    @default(0) @map("otp_attempts")
+  otpSentAt          DateTime?              @map("otp_sent_at")
+  otpSendCount       Int                    @default(0) @map("otp_send_count")
+  // ── ابطال ──
+  cancelledAt        DateTime?              @map("cancelled_at")
+  cancelledById      String?                @map("cancelled_by_id") @db.Uuid
+  cancelReason       String?                @map("cancel_reason")
+  createdById        String?                @map("created_by_id") @db.Uuid
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  events             AgentContractEvent[]
+
+  @@index([agentId, status])
+  @@index([status, createdAt])
+  @@map("agent_contracts")
+}
+
+/// رویدادهای قرارداد (ایجاد، صدور، مشاهده، ارسال کد، امضا، ابطال) — مستند حقوقی فرایند امضا
+model AgentContractEvent {
+  id         String        @id @default(uuid()) @db.Uuid
+  contractId String        @map("contract_id") @db.Uuid
+  contract   AgentContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  /// CREATED | UPDATED | ISSUED | VIEWED | OTP_SENT | OTP_FAILED | SIGNED | CANCELLED | EXPIRED
+  type       String
+  /// ADMIN | AGENT | SYSTEM
+  actorType  String        @map("actor_type")
+  actorId    String?       @map("actor_id")
+  ip         String?
+  userAgent  String?       @map("user_agent")
+  note       String?
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@index([contractId, createdAt])
+  @@map("agent_contract_events")
+}
+
+enum AgentContractStatus {
+  /// پیش‌نویس — قابل ویرایش، برای نماینده نمایش داده نمی‌شود
+  DRAFT
+  /// صادرشده — در انتظار امضای نماینده
+  ISSUED
+  SIGNED
+  CANCELLED
+  EXPIRED
+}
+
+/// مغایرت‌گیری بانکی — تطبیق سطرهای دفتر حساب بانک (معین‌های 1010) با صورتحساب بانک تا یک تاریخ
+model BankReconciliation {
+  id                    String        @id @default(uuid()) @db.Uuid
+  accountId             String        @map("account_id") @db.Uuid
+  /// تاریخ صورتحساب بانک (تا پایان این روز)
+  statementDate         DateTime      @map("statement_date")
+  /// مانده‌ی پایان صورتحساب بانک (ریال)
+  statementBalanceRial  Decimal       @map("statement_balance_rial") @db.Decimal(18, 0)
+  /// مانده‌ی دفتر تا تاریخ صورتحساب
+  bookBalanceRial       Decimal       @map("book_balance_rial") @db.Decimal(18, 0)
+  /// مانده‌ی سطرهای تطبیق‌شده (باید با صورتحساب برابر باشد)
+  clearedBalanceRial    Decimal       @map("cleared_balance_rial") @db.Decimal(18, 0)
+  differenceRial        Decimal       @map("difference_rial") @db.Decimal(18, 0)
+  /// واریزهای در راه (در دفتر، نه در بانک)
+  outstandingDebitRial  Decimal       @default(0) @map("outstanding_debit_rial") @db.Decimal(18, 0)
+  /// پرداخت‌های در راه (در دفتر، نه در بانک)
+  outstandingCreditRial Decimal       @default(0) @map("outstanding_credit_rial") @db.Decimal(18, 0)
+  note                  String?
+  createdById           String?       @map("created_by_id") @db.Uuid
+  createdAt             DateTime      @default(now()) @map("created_at")
+  ledgerEntries         LedgerEntry[]
+
+  @@index([accountId, statementDate])
+  @@map("bank_reconciliations")
 }

@@ -31,6 +31,7 @@ import {
   usePerm,
 } from "@/app/components/finance/ui";
 import JournalModal from "@/app/components/finance/JournalModal";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
 
 interface Line {
   accountCode: string;
@@ -144,7 +145,7 @@ function VoucherForm({ voucher, onDone }: { voucher?: Voucher; onDone: () => voi
           </select>
         </Field>
         <Field label="تاریخ سند">
-          <input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className={inputCls} dir="ltr" />
+          <JalaliDateInput value={entryDate} onChange={(v) => setEntryDate(v)} className={inputCls} />
         </Field>
         <Field label="شماره مدرک پیوست" hint="شماره فاکتور، رسید بانکی، ...">
           <input value={attachmentRef} onChange={(e) => setAttachmentRef(e.target.value)} className={inputCls} />
@@ -234,7 +235,7 @@ function ExpenseForm({ onDone }: { onDone: () => void }) {
           <input value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} dir="ltr" />
         </Field>
         <Field label="تاریخ">
-          <input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className={inputCls} dir="ltr" />
+          <JalaliDateInput value={entryDate} onChange={(v) => setEntryDate(v)} className={inputCls} />
         </Field>
       </div>
       <Field label="شرح">

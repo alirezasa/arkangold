@@ -221,6 +221,12 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     subType: 'GOLD_REVALUATION_GAIN',
   },
   {
+    code: '4090',
+    name: 'درآمد کارمزد برداشت و خدمات کیف پول',
+    type: AccountType.INCOME,
+    subType: 'WALLET_SERVICE_FEE',
+  },
+  {
     code: '4080',
     name: 'سایر درآمدها',
     type: AccountType.INCOME,
@@ -362,6 +368,7 @@ export const ACC = {
   BAR_SALE: '4040',
   BAR_PREMIUM: '4050',
   GOLD_GAIN: '4070',
+  WITHDRAWAL_FEE: '4090',
   PAYROLL: '5010',
   REFERRAL: '5020',
   BAR_COGS: '5060',

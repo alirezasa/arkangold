@@ -21,6 +21,7 @@ import {
   secondaryBtn,
   toman,
 } from "./ui";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
 
 // ═══════════════════════════ صورتحساب ═══════════════════════════
 
@@ -100,28 +101,24 @@ export function StatementView({
       <div className="flex items-end gap-2 flex-wrap">
         <label className="text-[11px] font-bold text-gray-500">
           از تاریخ
-          <input
-            type="date"
+          <JalaliDateInput
             value={from}
-            onChange={(e) => {
-              setFrom(e.target.value);
+            onChange={(v) => {
+              setFrom(v);
               setPage(1);
             }}
             className="block mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white"
-            dir="ltr"
           />
         </label>
         <label className="text-[11px] font-bold text-gray-500">
           تا تاریخ
-          <input
-            type="date"
+          <JalaliDateInput
             value={to}
-            onChange={(e) => {
-              setTo(e.target.value);
+            onChange={(v) => {
+              setTo(v);
               setPage(1);
             }}
             className="block mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white"
-            dir="ltr"
           />
         </label>
         <a

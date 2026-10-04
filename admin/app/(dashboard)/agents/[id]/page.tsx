@@ -56,6 +56,7 @@ import {
   SettlementModal,
   StatusModal,
 } from "@/app/components/agents/AgentActionModals";
+import { AgentContractsPanel } from "@/app/components/agents/ContractViews";
 
 interface AgentDetail {
   agent: AgentFormValue & {
@@ -86,7 +87,7 @@ interface AgentDetail {
   createdBy: string | null;
 }
 
-type Tab = "inventory" | "sales" | "settlements" | "statement" | "movements" | "journals" | "accounts" | "info";
+type Tab = "inventory" | "sales" | "settlements" | "statement" | "movements" | "journals" | "accounts" | "contracts" | "info";
 
 type ModalState =
   | null
@@ -147,6 +148,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
     { key: "movements", label: "حواله‌ها", show: true },
     { key: "journals", label: "اسناد حسابداری", show: true },
     { key: "accounts", label: `حساب‌های ورود (${faNum(data.accounts.length)})`, show: true },
+    { key: "contracts", label: "قراردادها", show: true },
     { key: "info", label: "اطلاعات و قرارداد", show: true },
   ];
 
@@ -320,6 +322,8 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
             printHref={`/agent-docs/statement?agentId=${id}`}
           />
         )}
+        {tab === "contracts" && <AgentContractsPanel agentId={id} />}
+
         {tab === "movements" && (
           <MovementsView
             key={refreshKey}

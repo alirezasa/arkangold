@@ -14,7 +14,6 @@ import {
   CreateShopOrderDto,
   GetShopOrdersQueryDto,
   PayShopOrderDto,
-  ShipShopOrderDto,
   ShopOrderItemRecipientType,
 } from '@arkan-gold/shared';
 import { Prisma } from '../generated/prisma/client';
@@ -30,6 +29,9 @@ import { InvoiceService } from '../invoice/invoice.service';
 import { DiscountService } from '../discount/discount.service';
 import { PackagingService } from '../packaging/packaging.service';
 import { businessRuleViolation } from '../common/audit/business-rule.util';
+import { DocumentSequenceService } from '../common/documents/document-sequence.service';
+import { ShopOrderEventsService } from './shop-order-events.service';
+import { ShopOrderFulfillmentService } from './shop-order-fulfillment.service';
 
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 const PENDING_PAYMENT_TTL_MINUTES = 30;
@@ -66,6 +68,7 @@ type ShopOrderDtoSource = {
   packagingWaivedRial: unknown;
   totalRial: unknown;
   trackingCode: string | null;
+  orderNumber?: string | null;
   createdAt: Date;
   updatedAt: Date;
   items: ShopOrderDtoItem[];
@@ -88,6 +91,9 @@ export class ShopOrdersService {
     private readonly discountService: DiscountService,
     private readonly packagingService: PackagingService,
     private readonly inventoryAccounting: InventoryAccountingService,
+    private readonly documentSequence: DocumentSequenceService,
+    private readonly events: ShopOrderEventsService,
+    private readonly fulfillment: ShopOrderFulfillmentService,
   ) {}
 
   /**
@@ -404,6 +410,7 @@ export class ShopOrdersService {
 
           const newOrder = await tx.shopOrder.create({
             data: {
+              orderNumber: await this.documentSequence.next(tx, 'SHO'),
               userId,
               addressId: dto.addressId,
               subtotalRial,
@@ -448,11 +455,20 @@ export class ShopOrdersService {
           }
 
           await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+          await this.events.recordStatus(
+            tx,
+            newOrder.id,
+            null,
+            'PENDING_PAYMENT',
+            { type: 'USER', id: userId },
+            'ثبت سفارش',
+          );
           return newOrder;
         },
         { maxWait: 5000, timeout: 15000 },
       );
 
+      void this.events.notify(order.id, 'CREATED');
       return this.getOne(userId, order.id);
     } catch (err) {
       throw this.translateDbError(err, userId);
@@ -641,13 +657,22 @@ export class ShopOrdersService {
 
         await tx.shopOrder.update({
           where: { id: orderId },
-          data: { status: 'PAID' },
+          data: { status: 'PAID', paidAt: new Date() },
         });
+        await this.events.recordStatus(
+          tx,
+          orderId,
+          'PENDING_PAYMENT',
+          'PAID',
+          { type: 'USER', id: userId },
+          'پرداخت از کیف پول',
+        );
         await this.invoiceService.issueForShopOrder(tx, orderId);
         this.logger.log(
           `[ShopOrder] سفارش ${orderId} با موفقیت پرداخت شد (کیف‌پول)`,
         );
       });
+      void this.events.notify(orderId, 'PAID');
     } catch (err) {
       throw this.translateDbError(err, userId);
     }
@@ -936,13 +961,22 @@ export class ShopOrdersService {
 
         await tx.shopOrder.update({
           where: { id: order.id },
-          data: { status: 'PAID' },
+          data: { status: 'PAID', paidAt: new Date() },
         });
+        await this.events.recordStatus(
+          tx,
+          order.id,
+          'PENDING_PAYMENT',
+          'PAID',
+          { type: 'USER', id: payment.userId },
+          `پرداخت از درگاه ${providerKey}`,
+        );
       });
 
       this.logger.log(
         `[ShopOrder] سفارش ${orderId} از طریق ${providerKey} پرداخت شد`,
       );
+      void this.events.notify(orderId, 'PAID');
 
       // صدور فاکتور بعد از نهایی شدن پرداخت درگاه، در تراکنش جدا: پول از درگاه
       // کسر شده و خطای صدور (مثلاً تنظیمات ناقص شرکت) نباید پرداخت را برگرداند.
@@ -1014,8 +1048,20 @@ export class ShopOrdersService {
       });
       await tx.shopOrder.update({
         where: { id: order.id },
-        data: { status: 'CANCELLED' },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancelReason: 'لغو توسط کاربر',
+        },
       });
+      await this.events.recordStatus(
+        tx,
+        order.id,
+        order.status,
+        'CANCELLED',
+        { type: 'USER', id: userId },
+        'لغو توسط کاربر',
+      );
 
       return { message: 'سفارش لغو شد', alreadyProcessed: false };
     });
@@ -1084,18 +1130,66 @@ export class ShopOrdersService {
       'SHOP_ORDER',
       [order.id],
     );
+    // کد تحویل فقط برای مالک سفارش نمایش داده می‌شود؛ ردیف خام shippings (حاوی
+    // کد رمزنگاری‌شده و hash توکن پیک) هرگز به کلاینت برنمی‌گردد
+    const view = await this.fulfillment.deliveryView(order.id, true);
+    // یادداشت‌های داخلی Timeline (مثلاً دلیل تأیید استثنایی) فقط برای پنل است
+    const delivery = view
+      ? {
+          ...view,
+          timeline: view.timeline.map((t) => ({
+            ...t,
+            note: null,
+            actorType: undefined,
+          })),
+          shipping: view.shipping
+            ? {
+                ...view.shipping,
+                note: null,
+                deliveryCodeAttempts: undefined,
+                deliveryCodeLocked: undefined,
+                deliveryConfirmedVia: undefined,
+              }
+            : null,
+        }
+      : null;
     return {
       ...this.toDto(order),
+      shippings: undefined,
+      delivery,
       invoiceId: invoiceIds.get(order.id) ?? null,
     };
   }
 
-  async adminList(query: GetShopOrdersQueryDto) {
-    const where: Prisma.ShopOrderWhereInput = query.status
-      ? { status: query.status }
-      : {};
+  async adminList(
+    query: GetShopOrdersQueryDto & { q?: string; from?: string; to?: string },
+  ) {
+    const q = query.q?.trim();
+    const where: Prisma.ShopOrderWhereInput = {
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.from || query.to
+        ? {
+            createdAt: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to
+                ? { lt: new Date(new Date(query.to).getTime() + 86_400_000) }
+                : {}),
+            },
+          }
+        : {}),
+      ...(q
+        ? {
+            OR: [
+              { orderNumber: { contains: q, mode: 'insensitive' } },
+              { trackingCode: { contains: q } },
+              { user: { phone: { contains: q } } },
+              { address: { receiverName: { contains: q } } },
+            ],
+          }
+        : {}),
+    };
 
-    const [items, total] = await Promise.all([
+    const [items, total, counts] = await Promise.all([
       this.prisma.shopOrder.findMany({
         where,
         include: {
@@ -1106,13 +1200,25 @@ export class ShopOrdersService {
             },
           },
           address: true,
-          user: { select: { id: true, phone: true } },
+          user: {
+            select: {
+              id: true,
+              phone: true,
+              identity: { select: { firstName: true, lastName: true } },
+            },
+          },
+          shippings: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: { shippingMethod: { select: { name: true, type: true } } },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
       }),
       this.prisma.shopOrder.count({ where }),
+      this.prisma.shopOrder.groupBy({ by: ['status'], _count: { _all: true } }),
     ]);
 
     const invoiceIds = await this.invoiceService.findInvoiceIdsBySource(
@@ -1121,11 +1227,36 @@ export class ShopOrdersService {
     );
 
     return {
-      data: items.map((order) => ({
-        ...this.toDto(order),
-        user: order.user,
-        invoiceId: invoiceIds.get(order.id) ?? null,
-      })),
+      data: items.map((order) => {
+        const s = order.shippings[0];
+        return {
+          ...this.toDto({ ...order, shippings: undefined }),
+          user: {
+            id: order.user.id,
+            phone: order.user.phone,
+            fullName:
+              `${order.user.identity?.firstName ?? ''} ${order.user.identity?.lastName ?? ''}`.trim() ||
+              null,
+          },
+          shipping: s
+            ? {
+                methodName: s.shippingMethod?.name ?? s.carrierName,
+                methodType: s.shippingMethod?.type ?? null,
+                trackingCode: s.trackingCode,
+                courierName: s.courierName,
+                deliveryCodeRequired: !!s.deliveryCodeEnc,
+                deliveryConfirmedVia: s.deliveryConfirmedVia,
+              }
+            : null,
+          paidAt: order.paidAt,
+          shippedAt: order.shippedAt,
+          deliveredAt: order.deliveredAt,
+          invoiceId: invoiceIds.get(order.id) ?? null,
+        };
+      }),
+      statusCounts: Object.fromEntries(
+        counts.map((c) => [c.status, c._count._all]),
+      ),
       page: query.page,
       limit: query.limit,
       total,
@@ -1133,126 +1264,136 @@ export class ShopOrdersService {
     };
   }
 
-  async process(orderId: string) {
+  /** جزئیات کامل سفارش برای پنل: اقلام، پرداخت‌ها، ارسال، Timeline و پیامک‌ها */
+  async adminGetOne(orderId: string) {
     const order = await this.prisma.shopOrder.findUnique({
       where: { id: orderId },
+      include: {
+        items: {
+          include: {
+            variant: { include: { product: true } },
+            product: true,
+          },
+        },
+        address: true,
+        payments: { orderBy: { createdAt: 'asc' } },
+        user: {
+          select: {
+            id: true,
+            phone: true,
+            identity: {
+              select: { firstName: true, lastName: true, nationalCode: true },
+            },
+          },
+        },
+      },
     });
-
     if (!order) throw new NotFoundException('سفارش یافت نشد');
-
-    if (order.status === 'PROCESSING') {
-      return {
-        message: 'این سفارش قبلاً در حال پردازش است',
-        alreadyProcessed: true,
-      };
-    }
-
-    if (order.status !== 'PAID') {
-      throw new ConflictException('فقط سفارش‌های پرداخت‌شده قابل پردازش هستند');
-    }
-
-    await this.prisma.shopOrder.update({
-      where: { id: orderId },
-      data: { status: 'PROCESSING' },
-    });
-
+    // کد تحویل به ادمین نمایش داده نمی‌شود تا تأیید تحویل بدون حضور مشتری ممکن نباشد
+    const [delivery, invoiceIds, smsLogs] = await Promise.all([
+      this.fulfillment.deliveryView(order.id, false),
+      this.invoiceService.findInvoiceIdsBySource('SHOP_ORDER', [order.id]),
+      this.prisma.smsLog.findMany({
+        where: { referenceType: 'SHOP_ORDER', referenceId: order.id },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          templateKey: true,
+          phone: true,
+          status: true,
+          providerCode: true,
+          errorMessage: true,
+          createdAt: true,
+        },
+      }),
+    ]);
     return {
-      message: 'سفارش به حالت پردازش تغییر یافت',
-      alreadyProcessed: false,
+      ...this.toDto({ ...order, shippings: undefined }),
+      adminNote: order.adminNote,
+      user: {
+        id: order.user.id,
+        phone: order.user.phone,
+        fullName:
+          `${order.user.identity?.firstName ?? ''} ${order.user.identity?.lastName ?? ''}`.trim() ||
+          null,
+        nationalCode: order.user.identity?.nationalCode ?? null,
+      },
+      payments: order.payments.map((p) => ({
+        id: p.id,
+        method: p.method,
+        status: p.status,
+        amountToman: this.rialToTomanString(p.amountRial),
+        gatewayProvider: p.gatewayProvider,
+        gatewayTrackingCode: p.gatewayTrackingCode,
+        paidAt: p.paidAt,
+      })),
+      delivery,
+      smsLogs,
+      invoiceId: invoiceIds.get(order.id) ?? null,
     };
   }
 
-  async ship(orderId: string, dto: ShipShopOrderDto) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${orderId}::uuid FOR UPDATE`;
+  async updateAdminNote(orderId: string, note: string) {
+    const order = await this.prisma.shopOrder.findUnique({
+      where: { id: orderId },
+      select: { id: true },
+    });
+    if (!order) throw new NotFoundException('سفارش یافت نشد');
+    await this.prisma.shopOrder.update({
+      where: { id: orderId },
+      data: { adminNote: note.trim().slice(0, 1000) || null },
+    });
+    return { message: 'یادداشت ذخیره شد' };
+  }
 
+  async process(orderId: string, adminId?: string) {
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${orderId}::uuid FOR UPDATE`;
       const order = await tx.shopOrder.findUnique({
         where: { id: orderId },
       });
 
       if (!order) throw new NotFoundException('سفارش یافت نشد');
 
-      if (order.status === 'SHIPPED') {
+      if (order.status === 'PROCESSING') {
         return {
-          message: 'این سفارش قبلاً ارسال شده است',
+          message: 'این سفارش قبلاً در حال پردازش است',
           alreadyProcessed: true,
         };
       }
 
-      if (order.status !== 'PROCESSING') {
+      if (order.status !== 'PAID') {
         throw new ConflictException(
-          'فقط سفارش‌های در حال پردازش قابل ارسال هستند',
+          'فقط سفارش‌های پرداخت‌شده قابل پردازش هستند',
         );
       }
 
       await tx.shopOrder.update({
         where: { id: orderId },
-        data: {
-          status: 'SHIPPED',
-          trackingCode: dto.trackingCode ?? order.trackingCode,
-        },
+        data: { status: 'PROCESSING', processingAt: new Date() },
+      });
+      await this.events.recordStatus(tx, orderId, 'PAID', 'PROCESSING', {
+        type: 'ADMIN',
+        id: adminId,
       });
 
-      await tx.shipping.create({
-        data: {
-          shopOrderId: orderId,
-          carrierName: dto.carrierName,
-          trackingCode: dto.trackingCode,
-          estimatedDelivery: dto.estimatedDelivery
-            ? new Date(dto.estimatedDelivery)
-            : null,
-          status: 'IN_TRANSIT',
-        },
-      });
-
-      return { message: 'اطلاعات ارسال ثبت شد', alreadyProcessed: false };
+      return {
+        message: 'سفارش به حالت پردازش تغییر یافت',
+        alreadyProcessed: false,
+      };
     });
+    if (!result.alreadyProcessed) {
+      void this.events.notify(orderId, 'PROCESSING');
+    }
+    return result;
   }
 
-  async deliver(orderId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${orderId}::uuid FOR UPDATE`;
-
-      const order = await tx.shopOrder.findUnique({
-        where: { id: orderId },
-        include: {
-          shippings: { orderBy: { createdAt: 'asc' } },
-        },
-      });
-
-      if (!order) throw new NotFoundException('سفارش یافت نشد');
-
-      if (order.status === 'DELIVERED') {
-        return {
-          message: 'این سفارش قبلاً تحویل داده شده است',
-          alreadyProcessed: true,
-        };
-      }
-
-      if (order.status !== 'SHIPPED') {
-        throw new ConflictException('این سفارش هنوز ارسال نشده است');
-      }
-
-      const latestShipping = order.shippings.at(-1);
-
-      await tx.shopOrder.update({
-        where: { id: orderId },
-        data: { status: 'DELIVERED' },
-      });
-
-      if (latestShipping) {
-        await tx.shipping.update({
-          where: { id: latestShipping.id },
-          data: { status: 'DELIVERED', deliveredAt: new Date() },
-        });
-      }
-
-      return { message: 'تحویل با موفقیت ثبت شد', alreadyProcessed: false };
-    });
-  }
-
-  async adminCancel(orderId: string, dto: CancelShopOrderDto) {
-    return this.prisma.$transaction(async (tx) => {
+  async adminCancel(
+    orderId: string,
+    dto: CancelShopOrderDto,
+    adminId?: string,
+  ) {
+    const result = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${orderId}::uuid FOR UPDATE`;
 
       const order = await tx.shopOrder.findUnique({
@@ -1361,15 +1502,37 @@ export class ShopOrdersService {
       });
       await tx.shopOrder.update({
         where: { id: orderId },
-        data: { status: 'CANCELLED' },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancelReason: dto.reason?.trim() || 'لغو توسط پشتیبانی',
+        },
       });
+      await this.events.recordStatus(
+        tx,
+        orderId,
+        order.status,
+        'CANCELLED',
+        { type: 'ADMIN', id: adminId },
+        dto.reason?.trim() || null,
+      );
 
       this.logger.log(
         `[ShopOrder] سفارش ${order.id} لغو شد${dto.reason ? ` (${dto.reason})` : ''}`,
       );
 
-      return { message: 'سفارش لغو شد', alreadyProcessed: false };
+      return {
+        message: 'سفارش لغو شد',
+        alreadyProcessed: false,
+        notify: order.status !== 'PENDING_PAYMENT',
+      };
     });
+    if (!result.alreadyProcessed && 'notify' in result && result.notify) {
+      void this.events.notify(orderId, 'CANCELLED', {
+        reason: dto.reason?.trim() || null,
+      });
+    }
+    return result;
   }
 
   @Cron('*/10 * * * *', { name: 'expire-stale-shop-orders' })
@@ -1401,8 +1564,20 @@ export class ShopOrdersService {
           });
           await tx.shopOrder.update({
             where: { id: order.id },
-            data: { status: 'CANCELLED' },
+            data: {
+              status: 'CANCELLED',
+              cancelledAt: new Date(),
+              cancelReason: 'پایان مهلت پرداخت',
+            },
           });
+          await this.events.recordStatus(
+            tx,
+            order.id,
+            'PENDING_PAYMENT',
+            'CANCELLED',
+            { type: 'SYSTEM' },
+            'لغو خودکار به‌دلیل پایان مهلت پرداخت',
+          );
         });
       } catch (err) {
         this.logger.error(
@@ -1438,6 +1613,7 @@ export class ShopOrdersService {
       packagingWaivedToman: this.rialToTomanString(order.packagingWaivedRial),
       totalToman: this.rialToTomanString(order.totalRial),
       trackingCode: order.trackingCode,
+      orderNumber: order.orderNumber ?? null,
       address: order.address,
       payments: order.payments,
       shippings: order.shippings,

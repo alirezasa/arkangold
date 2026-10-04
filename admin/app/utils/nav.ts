@@ -41,6 +41,9 @@ import {
   ShieldCheck as ShieldCheck2,
   LineChart,
   Warehouse,
+  MessageSquareText,
+  Truck,
+  FileSignature,
 } from "lucide-react";
 
 export interface NavItem {
@@ -76,6 +79,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "فروش‌های من", href: "/agent-portal/sales", icon: Receipt, perm: "agent_portal.view", agentOnly: true },
       { label: "تسویه و واریز", href: "/agent-portal/settlements", icon: HandCoins, perm: "agent_portal.view", agentOnly: true },
       { label: "صورتحساب", href: "/agent-portal/statement", icon: FileSpreadsheet, perm: "agent_portal.view", agentOnly: true },
+      { label: "قراردادها", href: "/agent-portal/contracts", icon: FileSignature, perm: "agent_portal.view", agentOnly: true },
     ],
   },
   {
@@ -84,6 +88,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "درخواست‌های برداشت", href: "/withdrawals", icon: Wallet, perm: "withdrawal.view" },
       { label: "تراکنش‌های کاربران", href: "/transactions", icon: Wallet, perm: "transactions.view" },
       { label: "درخواست‌های واریز", href: "/deposits", icon: Wallet, perm: "deposit.view" },
+      { label: "گزارش واریز و برداشت", href: "/finance-report", icon: BarChart3, perm: "withdrawal.view" },
     ],
   },
   {
@@ -96,6 +101,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "تراز آزمایشی", href: "/accounting/trial-balance", icon: Scale, perm: "accounting.view" },
       { label: "صورت‌های مالی", href: "/accounting/reports", icon: BarChart3, perm: "accounting.view" },
       { label: "مغایرت‌گیری", href: "/accounting/reconciliation", icon: ShieldCheck2, perm: "accounting.view" },
+      { label: "مغایرت‌گیری بانکی", href: "/accounting/bank-reconciliation", icon: Landmark, perm: "accounting.view" },
       { label: "سال مالی و قفل دوره", href: "/accounting/fiscal-years", icon: CalendarRange, perm: "accounting.view" },
     ],
   },
@@ -134,6 +140,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "دسته‌بندی‌ها", href: "/shop/categories", icon: FolderTree, perm: "shop.manage" },
       { label: "بسته‌بندی ارسال", href: "/shop/packaging", icon: Box, perm: "shop.manage" },
       { label: "سفارشات فروشگاه", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
+      { label: "مراجع ارسال", href: "/shop/shipping-methods", icon: Truck, perm: "shop.view" },
       { label: "کدهای تخفیف", href: "/discount-codes", icon: TicketPercent, perm: "discount.view" },
     ],
   },
@@ -151,6 +158,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "نمایندگان", href: "/agents", icon: Store, perm: "agent.view" },
       { label: "فروش‌های نمایندگان", href: "/agents/sales", icon: Coins, perm: "agent.view" },
       { label: "تسویه‌های نمایندگان", href: "/agents/settlements", icon: HandCoins, perm: "agent.view" },
+      { label: "قراردادهای نمایندگان", href: "/agents/contracts", icon: FileSignature, perm: "agent.view" },
       { label: "گزارش عملکرد", href: "/agents/reports", icon: BarChart3, perm: "agent.view" },
     ],
   },
@@ -165,6 +173,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "سیستم",
     items: [
       { label: "تنظیمات سیستم", href: "/system-config", icon: Settings2, perm: "system_config.view" },
+      { label: "مرکز پیامک", href: "/sms", icon: MessageSquareText, perm: "sms.view" },
       { label: "یکپارچه‌سازی‌ها (KYC/فینوتک)", href: "/integrations", icon: Plug, perm: "integrations.view" },
     ],
   },

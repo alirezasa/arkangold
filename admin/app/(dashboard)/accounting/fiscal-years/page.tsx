@@ -20,6 +20,7 @@ import {
   useAction,
   usePerm,
 } from "@/app/components/finance/ui";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
 
 interface Years {
   lockedUntil: string | null;
@@ -90,7 +91,7 @@ export default function FiscalYearsPage() {
               </p>
               {manage && (
                 <div className="flex flex-wrap items-end gap-2">
-                  <input type="date" value={lock} onChange={(e) => setLock(e.target.value)} className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white" dir="ltr" />
+                  <JalaliDateInput value={lock} onChange={(v) => setLock(v)} className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white" />
                   <ActionButton
                     variant="secondary"
                     busy={act.busy}
@@ -108,7 +109,7 @@ export default function FiscalYearsPage() {
               </p>
               {manage && (
                 <div className="flex flex-wrap items-end gap-2">
-                  <input type="date" value={finalizeTo} onChange={(e) => setFinalizeTo(e.target.value)} className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white" dir="ltr" />
+                  <JalaliDateInput value={finalizeTo} onChange={(v) => setFinalizeTo(v)} className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white" />
                   <ActionButton
                     variant="secondary"
                     busy={act.busy}
@@ -182,10 +183,10 @@ export default function FiscalYearsPage() {
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="تاریخ شروع" hint="مثلاً ۱ فروردین = 2026-03-21">
-              <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className={inputCls} dir="ltr" />
+              <JalaliDateInput value={start} onChange={(v) => setStart(v)} className={inputCls} />
             </Field>
             <Field label="تاریخ پایان">
-              <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className={inputCls} dir="ltr" />
+              <JalaliDateInput value={end} onChange={(v) => setEnd(v)} className={inputCls} />
             </Field>
           </div>
           {act.error && <Alert kind="error" text={act.error} />}

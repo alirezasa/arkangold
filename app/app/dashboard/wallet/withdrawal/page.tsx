@@ -18,6 +18,7 @@ import {
   ArrowUpCircle,
   Info,
 } from "lucide-react";
+import MyWithdrawals from "./components/MyWithdrawals";
 
 function toToman(rial: number) {
   return (rial / 10).toLocaleString("fa-IR");
@@ -119,6 +120,16 @@ export default function WithdrawalPage() {
     setError(null);
     setStep("confirm");
   };
+
+  // کارمزد برداشت طبق تنظیمات (درصد + ثابت با سقف) — نمایش پیش از ثبت؛ مبلغ قطعی را سرور محاسبه می‌کند
+  const feeRial = (() => {
+    if (!config || !amountRial) return 0;
+    let fee =
+      Math.round((amountRial * (config.feePercent ?? 0)) / 100) +
+      (config.feeFixedRial ?? 0);
+    if ((config.feeMaxRial ?? 0) > 0) fee = Math.min(fee, config.feeMaxRial ?? 0);
+    return Math.max(0, fee);
+  })();
 
   const handleConfirm = async () => {
     const res = await request(selectedAccountId, amountRial);
@@ -424,6 +435,12 @@ export default function WithdrawalPage() {
                 value: `${toToman(amountRial)} تومان`,
                 big: true,
               },
+              ...(feeRial > 0
+                ? [
+                    { label: "کارمزد برداشت", value: `${toToman(feeRial)} تومان` },
+                    { label: "مبلغ واریزی به حساب", value: `${toToman(amountRial - feeRial)} تومان` },
+                  ]
+                : []),
               { label: "حساب مقصد", value: selectedAccount?.bankName ?? "" },
               {
                 label: "شماره کارت",
@@ -531,6 +548,7 @@ export default function WithdrawalPage() {
           </div>
         </div>
       )}
+      <MyWithdrawals refreshKey={step === "done" ? 1 : 0} />
     </div>
   );
 }

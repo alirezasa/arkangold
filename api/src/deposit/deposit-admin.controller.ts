@@ -11,7 +11,13 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
@@ -30,6 +36,12 @@ class ApproveDepositDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  /** حساب بانک شرکت که وجه به آن واریز شده (1010 یا معین‌های آن) */
+  @IsOptional()
+  @IsString()
+  @Matches(/^1010\d*$/, { message: 'حساب دریافت باید زیرمجموعه‌ی 1010 باشد' })
+  cashAccountCode?: string;
 }
 
 class RejectDepositDto {
@@ -73,6 +85,13 @@ export class DepositAdminController {
     });
   }
 
+  @Get('report')
+  @RequirePermission('deposit.view')
+  @ApiOperation({ summary: 'گزارش دوره‌ای واریزها' })
+  report(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.service.report(from, to);
+  }
+
   @Get(':id')
   @RequirePermission('deposit.view')
   @ApiOperation({ summary: 'جزئیات درخواست واریز' })
@@ -109,7 +128,12 @@ export class DepositAdminController {
     @Body() dto: ApproveDepositDto,
   ) {
     // ⚠ هیچ مبلغی از بدنه خوانده نمی‌شود — فقط از رکورد دیتابیس
-    return this.service.approve(req.user.adminUserId, id, dto.note);
+    return this.service.approve(
+      req.user.adminUserId,
+      id,
+      dto.note,
+      dto.cashAccountCode,
+    );
   }
 
   @Post(':id/reject')

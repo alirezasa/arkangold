@@ -7,6 +7,8 @@ import { AccountingManageService } from './accounting-manage.service';
 import { PartyLedgerService } from './party-ledger.service';
 import { InventoryAccountingService } from './inventory-accounting.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AccountingAnalyticsService } from './accounting-analytics.service';
+import { BankReconciliationService } from './bank-reconciliation.service';
 
 @Module({
   imports: [PrismaModule],
@@ -18,6 +20,8 @@ import { PrismaModule } from '../prisma/prisma.module';
     AccountingManageService,
     PartyLedgerService,
     InventoryAccountingService,
+    AccountingAnalyticsService,
+    BankReconciliationService,
   ],
   exports: [
     AccountingService,

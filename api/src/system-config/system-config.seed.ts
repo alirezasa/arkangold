@@ -199,6 +199,13 @@ export const WALLET_CONFIG_DEFAULTS = [
     description: 'فعال بودن خدمت «زیورآلات» (بنر و فروشگاه)',
   },
 
+  {
+    key: 'deposit.default_cash_account',
+    value: '1010',
+    description:
+      'حساب بانکی پیش‌فرض شرکت برای ثبت واریزهای تأییدشده (کد حساب معین زیر 1010)',
+  },
+
   // ══ برداشت ══
   {
     key: 'withdrawal.daily_limit',
@@ -224,6 +231,28 @@ export const WALLET_CONFIG_DEFAULTS = [
     key: 'withdrawal.processing_time',
     value: 'سیکل پایا - روزهای کاری بین ۱۲:۴۵ تا ۱۳:۴۵',
     description: 'زمان پردازش',
+  },
+  {
+    key: 'withdrawal.fee_percent',
+    value: '0',
+    description:
+      'کارمزد برداشت (درصد از مبلغ) — از مبلغ واریزی به حساب کاربر کسر می‌شود',
+  },
+  {
+    key: 'withdrawal.fee_fixed_rial',
+    value: '0',
+    description: 'کارمزد ثابت هر برداشت (ریال)',
+  },
+  {
+    key: 'withdrawal.fee_max_rial',
+    value: '0',
+    description: 'سقف کارمزد هر برداشت (ریال) — صفر یعنی بدون سقف',
+  },
+  {
+    key: 'withdrawal.default_source_account',
+    value: '1010',
+    description:
+      'حساب بانکی پیش‌فرض شرکت برای پرداخت برداشت‌ها (کد حساب معین زیر 1010)',
   },
 
   // ══ معاملات طلا ══

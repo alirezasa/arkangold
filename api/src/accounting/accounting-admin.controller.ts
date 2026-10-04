@@ -14,9 +14,21 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { AccountingAdminService } from './accounting-admin.service';
 import { AccountingReportsService } from './accounting-reports.service';
 import { AccountingManageService } from './accounting-manage.service';
+import { AccountingAnalyticsService } from './accounting-analytics.service';
+import { BankReconciliationService } from './bank-reconciliation.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
@@ -44,6 +56,20 @@ interface AdminRequest extends Request {
   user: AdminAuthenticatedUser;
 }
 
+class BankReconcileDto {
+  @IsString() @Matches(/^1010\d*$/) accountCode!: string;
+  @IsString() statementDate!: string;
+  @IsString()
+  @Matches(/^-?\d{1,18}$/, { message: 'مانده‌ی صورتحساب باید ریال صحیح باشد' })
+  statementBalanceRial!: string;
+  @IsArray()
+  @ArrayMaxSize(2000)
+  @IsUUID('4', { each: true })
+  entryIds!: string[];
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+  @IsOptional() @IsBoolean() allowDifference?: boolean;
+}
+
 @ApiTags('Admin - Accounting')
 @ApiBearerAuth()
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
@@ -55,6 +81,8 @@ export class AccountingAdminController {
     private readonly service: AccountingAdminService,
     private readonly reports: AccountingReportsService,
     private readonly manage: AccountingManageService,
+    private readonly analytics: AccountingAnalyticsService,
+    private readonly bankRec: BankReconciliationService,
   ) {}
 
   // ── خلاصه و داشبورد ──
@@ -148,6 +176,51 @@ export class AccountingAdminController {
   })
   reconciliation() {
     return this.reports.reconciliation();
+  }
+
+  @Get('reports/cash-flow')
+  @ApiOperation({ summary: 'صورت جریان وجوه نقد (روش مستقیم)' })
+  cashFlow(@Query() query: PeriodQueryDto) {
+    return this.analytics.cashFlow(query.from, query.to);
+  }
+
+  @Get('reports/monthly-income')
+  @ApiOperation({ summary: 'سود و زیان مقایسه‌ای ماهانه (ماه شمسی)' })
+  monthlyIncome(@Query() query: PeriodQueryDto) {
+    return this.analytics.monthlyIncome(query.from, query.to);
+  }
+
+  @Get('reports/tax')
+  @ApiOperation({ summary: 'گزارش مالیات پرداختنی و اعتبار ارزش افزوده' })
+  taxReport(@Query() query: PeriodQueryDto) {
+    return this.analytics.taxReport(query.from, query.to);
+  }
+
+  // ── مغایرت‌گیری بانکی ──
+  @Get('bank-reconciliation/:code')
+  @ApiOperation({ summary: 'سطرهای باز و مانده‌ی حساب بانک تا تاریخ صورتحساب' })
+  bankRecWorkspace(
+    @Param('code') code: string,
+    @Query('statementDate') statementDate?: string,
+  ) {
+    return this.bankRec.workspace(
+      code,
+      statementDate || new Date().toISOString().slice(0, 10),
+    );
+  }
+
+  @RequirePermission('accounting.bank_reconcile')
+  @AuditLog('accounting.bank_reconcile')
+  @Post('bank-reconciliation')
+  bankReconcile(@Req() req: AdminRequest, @Body() dto: BankReconcileDto) {
+    return this.bankRec.reconcile(req.user.adminUserId, dto);
+  }
+
+  @RequirePermission('accounting.bank_reconcile')
+  @AuditLog('accounting.bank_reconcile_undo')
+  @Post('bank-reconciliation/:code/undo')
+  bankReconcileUndo(@Param('code') code: string) {
+    return this.bankRec.undoLast(code);
   }
 
   // ── ارزیابی طلا ──

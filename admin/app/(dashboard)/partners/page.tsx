@@ -29,6 +29,7 @@ import {
   useAction,
   usePerm,
 } from "@/app/components/finance/ui";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
 
 interface Partner {
   id: string;
@@ -171,10 +172,10 @@ function PartnerForm({ p, onDone }: { p?: Partner; onDone: () => void }) {
         {inp("maxOrder", "حداکثر مبلغ سفارش (تومان)", undefined, true)}
         {inp("contractNumber", "شماره قرارداد")}
         <Field label="شروع قرارداد">
-          <input type="date" value={f.contractStartAt} onChange={(e) => set("contractStartAt", e.target.value)} className={inputCls} dir="ltr" />
+          <JalaliDateInput value={f.contractStartAt} onChange={(v) => set("contractStartAt", v)} className={inputCls} />
         </Field>
         <Field label="پایان قرارداد">
-          <input type="date" value={f.contractEndAt} onChange={(e) => set("contractEndAt", e.target.value)} className={inputCls} dir="ltr" />
+          <JalaliDateInput value={f.contractEndAt} onChange={(v) => set("contractEndAt", v)} className={inputCls} />
         </Field>
         {inp("contactName", "رابط")}
         {inp("contactPhone", "تلفن رابط", undefined, true)}

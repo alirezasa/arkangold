@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { WalletService } from './wallet.service';
@@ -116,6 +125,26 @@ export class WalletController {
       body.bankAccountId,
       body.amountRial,
     );
+  }
+
+  @Get('withdrawals')
+  @ApiOperation({ summary: 'فهرست درخواست‌های برداشت کاربر' })
+  listWithdrawals(
+    @Req() req: AuthenticatedRequest,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.walletService.listMyWithdrawals(
+      req.user.userId,
+      page ? Number(page) : 1,
+      limit ? Number(limit) : 20,
+    );
+  }
+
+  @Post('withdrawals/:id/cancel')
+  @ApiOperation({ summary: 'لغو درخواست برداشت در انتظار بررسی' })
+  cancelWithdrawal(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.walletService.cancelMyWithdrawal(req.user.userId, id);
   }
 
   // ── کانفیگ و محدودیت‌های انتقال داخلی ──

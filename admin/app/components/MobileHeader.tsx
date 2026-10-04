@@ -22,7 +22,7 @@ export default function MobileHeader({ onMenuOpen, me }: { onMenuOpen: () => voi
 
   return (
     <header
-      className="lg:hidden flex items-center justify-between px-4 py-3.5 sticky top-0 z-30"
+      className="lg:hidden flex items-center justify-between px-4 py-3.5 sticky top-0 z-30 print:hidden"
       style={{ backgroundColor: "var(--color-emerald)" }}
     >
       <button onClick={onMenuOpen} className="p-1.5 text-white/90" aria-label="باز کردن منو">

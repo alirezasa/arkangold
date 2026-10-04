@@ -28,5 +28,6 @@ export function catchAll(base: string) {
     GET: async (req: Request, { params }: Ctx) => forward(req, base, (await params).path, "GET"),
     POST: async (req: Request, { params }: Ctx) => forward(req, base, (await params).path, "POST"),
     PATCH: async (req: Request, { params }: Ctx) => forward(req, base, (await params).path, "PATCH"),
+    DELETE: async (req: Request, { params }: Ctx) => forward(req, base, (await params).path, "DELETE"),
   };
 }

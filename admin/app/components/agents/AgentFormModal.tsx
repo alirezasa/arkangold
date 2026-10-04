@@ -14,6 +14,7 @@ import {
   primaryBtnStyle,
   tomanToRial,
 } from "./ui";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
 
 export interface AgentFormValue {
   id?: string;
@@ -178,10 +179,10 @@ export default function AgentFormModal({
               <input value={f.contractNumber} onChange={set("contractNumber")} className={inputCls} />
             </Field>
             <Field label="شروع قرارداد">
-              <input type="date" value={f.contractStartAt} onChange={set("contractStartAt")} className={inputCls} dir="ltr" />
+              <JalaliDateInput value={f.contractStartAt} onChange={(v) => setF((prev) => ({ ...prev, contractStartAt: v }))} className={inputCls} />
             </Field>
             <Field label="پایان قرارداد">
-              <input type="date" value={f.contractEndAt} onChange={set("contractEndAt")} className={inputCls} dir="ltr" />
+              <JalaliDateInput value={f.contractEndAt} onChange={(v) => setF((prev) => ({ ...prev, contractEndAt: v }))} className={inputCls} />
             </Field>
             <Field label="نوع حق‌العمل (کمیسیون)">
               <select value={f.commissionType} onChange={set("commissionType")} className={inputCls}>

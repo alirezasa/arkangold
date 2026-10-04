@@ -17,6 +17,8 @@ import {
   secondaryBtn,
   toman,
 } from "@/app/components/agents/ui";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
+import { jalaliMonthStartIso, todayIsoLocal } from "@/app/utils/jalali";
 
 interface ReportRow {
   agent: { id: string; code: string; name: string; city: string | null; status: string };
@@ -56,14 +58,9 @@ interface Report {
   };
 }
 
-const monthStart = () => {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-};
-
 export default function AgentReportsPage() {
-  const [from, setFrom] = useState(monthStart());
-  const [to, setTo] = useState(new Date().toISOString().slice(0, 10));
+  const [from, setFrom] = useState(jalaliMonthStartIso());
+  const [to, setTo] = useState(todayIsoLocal());
   const qs = new URLSearchParams();
   if (from) qs.set("from", from);
   if (to) qs.set("to", to);
@@ -130,11 +127,11 @@ export default function AgentReportsPage() {
         <div className="flex items-end gap-2 flex-wrap print:hidden">
           <label className="text-[11px] font-bold text-gray-500">
             از
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="block mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white" dir="ltr" />
+            <JalaliDateInput value={from} onChange={(v) => setFrom(v)} className="block mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white" />
           </label>
           <label className="text-[11px] font-bold text-gray-500">
             تا
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="block mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white" dir="ltr" />
+            <JalaliDateInput value={to} onChange={(v) => setTo(v)} className="block mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white" />
           </label>
           <button type="button" onClick={exportCsv} className={secondaryBtn}>
             <Download className="w-4 h-4" /> اکسل

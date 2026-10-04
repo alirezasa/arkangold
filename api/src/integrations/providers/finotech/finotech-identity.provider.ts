@@ -29,7 +29,7 @@ interface FinotechIdentityInquiryResponse {
     deathStatus?: string;
     nationalId?: string;
     gender?: string;
-    identityNo?: number;
+    identityNo?: number | string;
     identitySeri?: string;
     identitySerial?: string;
     officeName?: string;
@@ -123,7 +123,11 @@ export class FinotechIdentityProvider implements IdentityVerificationProvider {
       fatherName: this.trim(response.result.fatherName),
       deathStatus,
       gender: this.trim(response.result.gender),
-      identityNo: response.result.identityNo,
+      identityNo: this.trim(
+        response.result.identityNo == null
+          ? undefined
+          : String(response.result.identityNo),
+      ),
       identitySeri: this.trim(response.result.identitySeri),
       identitySerial: this.trim(response.result.identitySerial),
       officeName: this.trim(response.result.officeName),

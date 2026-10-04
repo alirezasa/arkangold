@@ -12,6 +12,12 @@ export const ADMIN_PERMISSIONS = [
     description: 'تایید/رد درخواست برداشت',
   },
   {
+    key: 'withdrawal.pay',
+    group: 'wallet',
+    description:
+      'ثبت پرداخت بانکی برداشت (شماره پیگیری، حساب مبدأ، پرداخت گروهی) و ثبت برگشت وجه از بانک',
+  },
+  {
     key: 'wallet.adjust',
     group: 'wallet',
     description: 'شارژ یا کسر دستی موجودی کیف پول کاربر',
@@ -410,6 +416,7 @@ export const ADMIN_ROLES = [
     permissions: [
       'withdrawal.view',
       'withdrawal.approve',
+      'withdrawal.pay',
       'transactions.view',
       'physical_delivery.view',
       'physical_delivery.approve',

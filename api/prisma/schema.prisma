@@ -708,21 +708,54 @@ model Payment {
 }
 
 model WithdrawalRequest {
-  amountRial    Decimal          @map("amount_rial") @db.Decimal(18, 0)
-  status        WithdrawalStatus @default(PENDING)
-  adminNotes    String?          @map("admin_notes")
-  createdAt     DateTime         @default(now()) @map("created_at")
-  updatedAt     DateTime         @updatedAt @map("updated_at")
-  id            String           @id @default(uuid()) @db.Uuid
-  userId        String           @map("user_id") @db.Uuid
-  bankAccountId String           @map("bank_account_id") @db.Uuid
-  processedById String?          @map("processed_by_id") @db.Uuid
-  approvals     Approval[]
-  bankAccount   BankAccount      @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  processedBy   AdminUser?       @relation("ProcessedBy", fields: [processedById], references: [id])
-  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountRial          Decimal          @map("amount_rial") @db.Decimal(18, 0)
+  status              WithdrawalStatus @default(PENDING)
+  adminNotes          String?          @map("admin_notes")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  id                  String           @id @default(uuid()) @db.Uuid
+  userId              String           @map("user_id") @db.Uuid
+  bankAccountId       String           @map("bank_account_id") @db.Uuid
+  processedById       String?          @map("processed_by_id") @db.Uuid
+  /// شماره درخواست قابل ارائه به کاربر (AG-1405-WDR-000045)
+  requestNumber       String?          @unique @map("request_number")
+  /// کارمزد برداشت (ریال) — هنگام ثبت محاسبه و از مبلغ واریزی کسر می‌شود
+  feeRial             Decimal          @default(0) @map("fee_rial") @db.Decimal(18, 0)
+  /// مبلغ قابل واریز به حساب کاربر = مبلغ − کارمزد
+  netAmountRial       Decimal?         @map("net_amount_rial") @db.Decimal(18, 0)
+  /// رزرو موجودی کیف پول تا زمان پرداخت/رد
+  holdId              String?          @map("hold_id") @db.Uuid
+  /// تراکنش کیف پول این برداشت (PENDING ← COMPLETED / FAILED)
+  transactionId       String?          @unique @map("transaction_id") @db.Uuid
+  /// snapshot حساب مقصد در لحظه‌ی ثبت (بانک، شبا، کارت، صاحب حساب)
+  destinationSnapshot Json?            @map("destination_snapshot")
+  reviewedById        String?          @map("reviewed_by_id") @db.Uuid
+  reviewedAt          DateTime?        @map("reviewed_at")
+  paidById            String?          @map("paid_by_id") @db.Uuid
+  paidAt              DateTime?        @map("paid_at")
+  /// روش پرداخت بانکی: PAYA | SATNA | POL | CARD_TO_CARD | INTERNAL
+  payoutMethod        String?          @map("payout_method")
+  /// شماره پیگیری / مرجع تراکنش بانکی پرداخت
+  bankReference       String?          @map("bank_reference")
+  /// شناسه دسته‌ی پرداخت گروهی (فایل پایا)
+  payoutBatchId       String?          @map("payout_batch_id")
+  /// حساب نقد/بانک شرکت که برداشت از آن پرداخت شد (کد معین زیر 1010)
+  sourceAccountCode   String?          @map("source_account_code")
+  journalEntryId      String?          @map("journal_entry_id") @db.Uuid
+  rejectionReason     String?          @map("rejection_reason")
+  cancelledAt         DateTime?        @map("cancelled_at")
+  /// برگشت وجه از بانک پس از پرداخت (شبای نامعتبر و ...)
+  returnedAt          DateTime?        @map("returned_at")
+  returnReason        String?          @map("return_reason")
+  returnJournalId     String?          @map("return_journal_id") @db.Uuid
+  approvals           Approval[]
+  bankAccount         BankAccount      @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  processedBy         AdminUser?       @relation("ProcessedBy", fields: [processedById], references: [id])
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
+  @@index([status, createdAt])
+  @@index([payoutBatchId])
   @@map("withdrawal_requests")
 }
 
@@ -2214,10 +2247,17 @@ enum PaymentStatus {
 }
 
 enum WithdrawalStatus {
+  /// ثبت‌شده توسط کاربر — موجودی رزرو شده
   PENDING
+  /// بررسی و تأیید مالی — در صف پرداخت بانکی
   APPROVED
   REJECTED
+  /// پرداخت‌شده به حساب بانکی کاربر (کسر قطعی از کیف پول + سند)
   PROCESSED
+  /// لغو توسط کاربر پیش از بررسی
+  CANCELLED
+  /// وجه پرداخت‌شده از بانک برگشت خورد و به کیف پول بازگشت
+  RETURNED
 }
 
 enum ApprovalType {

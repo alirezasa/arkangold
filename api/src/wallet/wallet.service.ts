@@ -9,6 +9,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { Prisma } from '../generated/prisma/client';
 import { AccountingService } from '../accounting/accounting.service';
+import { DocumentSequenceService } from '../common/documents/document-sequence.service';
+import { SmsTemplateService } from '../notifications/sms-template.service';
 
 @Injectable()
 export class WalletService {
@@ -18,6 +20,8 @@ export class WalletService {
     private prisma: PrismaService,
     private systemConfig: SystemConfigService,
     private accountingService: AccountingService,
+    private documentSequence: DocumentSequenceService,
+    private smsTemplates: SmsTemplateService,
   ) {}
 
   // ══════════════════════════════════════════
@@ -556,18 +560,6 @@ export class WalletService {
       );
     }
 
-    // بررسی موجودی کافی
-    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
-    if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
-
-    const holdRial = await this.getActiveHoldRial(wallet.id);
-    const availableBalance = Number(wallet.rialBalance) - holdRial;
-    if (availableBalance < amount) {
-      throw new BadRequestException(
-        `موجودی کافی نیست. موجودی قابل برداشت: ${(availableBalance / 10).toLocaleString('fa-IR')} تومان`,
-      );
-    }
-
     // بررسی حساب بانکی
     const bankAccount = await this.prisma.bankAccount.findFirst({
       where: { id: bankAccountId, userId, isVerified: true },
@@ -575,23 +567,54 @@ export class WalletService {
     if (!bankAccount)
       throw new NotFoundException('حساب بانکی تایید شده یافت نشد');
 
-    // ثبت hold روی موجودی و درخواست برداشت
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 روز
+    const feeRial = await this.calcWithdrawalFee(amount);
+    if (feeRial >= amount) {
+      throw new BadRequestException('مبلغ برداشت باید بیشتر از کارمزد باشد');
+    }
+
     const result = await this.prisma.$transaction(async (tx) => {
+      // قفل کیف پول: دو درخواست همزمان نمی‌توانند هر دو از یک موجودی رزرو کنند
+      const wallet = await tx.wallet.findUnique({ where: { userId } });
+      if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
+      await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "id" = ${wallet.id}::uuid FOR UPDATE`;
+      const fresh = await tx.wallet.findUniqueOrThrow({
+        where: { id: wallet.id },
+      });
+
+      const holdRial = await this.getActiveHoldRial(wallet.id, tx);
+      const availableBalance = Number(fresh.rialBalance) - holdRial;
+      if (availableBalance < amount) {
+        throw new BadRequestException(
+          `موجودی کافی نیست. موجودی قابل برداشت: ${(availableBalance / 10).toLocaleString('fa-IR')} تومان`,
+        );
+      }
+
+      // رزرو تا پرداخت/رد/لغو صریح درخواست نگه داشته می‌شود (منقضی نمی‌شود)
       const hold = await tx.walletHold.create({
         data: {
           walletId: wallet.id,
           amountRial: amount,
           holdType: 'WITHDRAWAL',
-          expiresAt,
+          expiresAt: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000),
         },
       });
+      const requestNumber = await this.documentSequence.next(tx, 'WDR');
       const withdrawal = await tx.withdrawalRequest.create({
         data: {
           userId,
           bankAccountId,
           amountRial: amount,
+          feeRial,
+          netAmountRial: amount - feeRial,
+          requestNumber,
+          holdId: hold.id,
           status: 'PENDING',
+          destinationSnapshot: {
+            bankName: bankAccount.bankName,
+            cardNumber: bankAccount.cardNumber,
+            sheba: bankAccount.sheba,
+            accountNumber: bankAccount.accountNumber,
+          },
         },
       });
 
@@ -601,9 +624,14 @@ export class WalletService {
           walletId: wallet.id,
           type: 'WITHDRAWAL',
           amountRial: amount,
+          feeAmount: feeRial || null,
           status: 'PENDING',
           description: `withdrawal:${withdrawal.id}|to:${bankAccount.cardNumber}|hold:${hold.id}`,
         },
+      });
+      await tx.withdrawalRequest.update({
+        where: { id: withdrawal.id },
+        data: { transactionId: transaction.id },
       });
 
       return { transaction, withdrawal, hold };
@@ -613,16 +641,114 @@ export class WalletService {
       'withdrawal.processing_time',
     );
 
+    void this.smsTemplates.sendToUser(
+      'WITHDRAWAL_REQUESTED',
+      userId,
+      {
+        amount: (amount / 10).toLocaleString('fa-IR'),
+        requestNumber: result.withdrawal.requestNumber,
+      },
+      { referenceType: 'WITHDRAWAL', referenceId: result.withdrawal.id },
+    );
+
     return {
       withdrawalId: result.withdrawal.id,
+      requestNumber: result.withdrawal.requestNumber,
       transactionId: result.transaction.id,
       amount,
+      feeRial,
+      netAmountRial: amount - feeRial,
       bankAccountId,
       bankName: bankAccount.bankName,
       cardNumber: this.maskCard(bankAccount.cardNumber),
       processingTime,
       message: 'درخواست برداشت با موفقیت ثبت شد',
     };
+  }
+
+  /** کارمزد برداشت طبق تنظیمات سیستم (درصد + ثابت، با سقف اختیاری) */
+  async calcWithdrawalFee(amountRial: number): Promise<number> {
+    const [percent, fixed, max] = await Promise.all([
+      this.systemConfig.getNumber('withdrawal.fee_percent', 0),
+      this.systemConfig.getNumber('withdrawal.fee_fixed_rial', 0),
+      this.systemConfig.getNumber('withdrawal.fee_max_rial', 0),
+    ]);
+    let fee =
+      Math.round((amountRial * Math.max(0, percent)) / 100) +
+      Math.max(0, fixed);
+    if (max > 0) fee = Math.min(fee, max);
+    return Math.max(0, Math.round(fee));
+  }
+
+  // ══════════════════════════════════════════
+  // ── فهرست و لغو درخواست‌های برداشت کاربر ──
+  // ══════════════════════════════════════════
+  async listMyWithdrawals(userId: string, page = 1, limit = 20) {
+    const take = Math.min(50, Math.max(1, limit));
+    const [items, total] = await Promise.all([
+      this.prisma.withdrawalRequest.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        skip: (Math.max(1, page) - 1) * take,
+        take,
+        include: {
+          bankAccount: { select: { bankName: true, cardNumber: true } },
+        },
+      }),
+      this.prisma.withdrawalRequest.count({ where: { userId } }),
+    ]);
+    return {
+      total,
+      page,
+      items: items.map((w) => ({
+        id: w.id,
+        requestNumber: w.requestNumber,
+        status: w.status,
+        amountRial: w.amountRial.toString(),
+        feeRial: w.feeRial.toString(),
+        netAmountRial: (w.netAmountRial ?? w.amountRial).toString(),
+        bankName: w.bankAccount.bankName,
+        cardNumber: this.maskCard(w.bankAccount.cardNumber),
+        bankReference: w.status === 'PROCESSED' ? w.bankReference : null,
+        rejectionReason: w.rejectionReason,
+        createdAt: w.createdAt,
+        paidAt: w.paidAt,
+      })),
+    };
+  }
+
+  async cancelMyWithdrawal(userId: string, withdrawalId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT 1 FROM "withdrawal_requests" WHERE "id" = ${withdrawalId}::uuid FOR UPDATE`;
+      const w = await tx.withdrawalRequest.findFirst({
+        where: { id: withdrawalId, userId },
+      });
+      if (!w) throw new NotFoundException('درخواست برداشت یافت نشد');
+      if (w.status === 'CANCELLED') {
+        return { message: 'این درخواست قبلاً لغو شده است' };
+      }
+      if (w.status !== 'PENDING') {
+        throw new BadRequestException(
+          'فقط درخواست‌های در انتظار بررسی قابل لغو هستند',
+        );
+      }
+      if (w.holdId) {
+        await tx.walletHold.deleteMany({ where: { id: w.holdId } });
+      }
+      if (w.transactionId) {
+        await tx.transaction.update({
+          where: { id: w.transactionId },
+          data: { status: 'FAILED' },
+        });
+      }
+      await tx.withdrawalRequest.update({
+        where: { id: w.id },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      });
+      return {
+        message: 'درخواست برداشت لغو شد و مبلغ به موجودی قابل برداشت بازگشت',
+      };
+    });
   }
 
   // ══════════════════════════════════════════
@@ -664,12 +790,21 @@ export class WalletService {
       }),
     ]);
 
+    const [feePercent, feeFixedRial, feeMaxRial] = await Promise.all([
+      this.systemConfig.getNumber('withdrawal.fee_percent', 0),
+      this.systemConfig.getNumber('withdrawal.fee_fixed_rial', 0),
+      this.systemConfig.getNumber('withdrawal.fee_max_rial', 0),
+    ]);
+
     return {
       minAmount,
       maxAmount,
       dailyLimit,
       monthlyLimit,
       processingTime,
+      feePercent,
+      feeFixedRial,
+      feeMaxRial,
       usedToday: Number(todayUsed._sum.amountRial ?? 0),
       usedThisMonth: Number(monthUsed._sum.amountRial ?? 0),
       remainingToday: dailyLimit - Number(todayUsed._sum.amountRial ?? 0),

@@ -8,6 +8,7 @@ import axios from "axios";
 import {
   AlertTriangle, ArrowRight, Check, Eye, FileText, Loader2, ShieldAlert, X,
 } from "lucide-react";
+import { AccountSelect } from "@/app/components/finance/ui";
 
 interface Detail {
   id: string;
@@ -64,6 +65,7 @@ export default function AdminDepositDetailPage({
   const [typedAmount, setTypedAmount] = useState("");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
+  const [cashAccount, setCashAccount] = useState("");
 
   const call = async (path: string, body?: unknown) => {
     if (busy) return;
@@ -321,7 +323,7 @@ export default function AdminDepositDetailPage({
 
             {canReview && (
               <button
-                onClick={() => call("/review")}
+                onClick={() => call("/review/start")}
                 disabled={busy}
                 className="w-full py-3.5 rounded-xl font-black text-white text-[13px] disabled:opacity-50"
                 style={{ backgroundColor: "var(--color-emerald)" }}
@@ -361,6 +363,15 @@ export default function AdminDepositDetailPage({
                   placeholder={tomanExact}
                   className="w-full px-3 py-2.5 rounded-xl border-2 border-gray-200 focus:border-emerald-600 outline-none text-center font-black"
                 />
+                <label className="block text-[11px] font-bold text-gray-500">
+                  حساب بانکی دریافت‌کننده (برای سند حسابداری)
+                  <AccountSelect
+                    value={cashAccount}
+                    onChange={setCashAccount}
+                    filter={(a) => a.code.startsWith("1010")}
+                    placeholder="حساب پیش‌فرض تنظیمات (1010)"
+                  />
+                </label>
                 <input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
@@ -375,7 +386,7 @@ export default function AdminDepositDetailPage({
                     انصراف
                   </button>
                   <button
-                    onClick={() => call("/approve", { note })}
+                    onClick={() => call("/approve", { note, cashAccountCode: cashAccount || undefined })}
                     disabled={!amountMatches || busy}
                     className="flex-[2] py-3 rounded-xl text-[13px] font-black text-white bg-emerald-700 disabled:opacity-40 flex items-center justify-center gap-2"
                   >

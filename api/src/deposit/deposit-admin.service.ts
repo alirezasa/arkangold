@@ -17,6 +17,8 @@ import {
 } from './deposit.state';
 import type { DepositStatusValue } from './deposit.state';
 import { formatJalaliDateTime } from '../common/utils/jalali.util';
+import { SmsTemplateService } from '../notifications/sms-template.service';
+import { SystemConfigService } from '../system-config/system-config.service';
 
 @Injectable()
 export class DepositAdminService {
@@ -26,7 +28,55 @@ export class DepositAdminService {
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly accountingService: AccountingService,
+    private readonly smsTemplates: SmsTemplateService,
+    private readonly systemConfig: SystemConfigService,
   ) {}
+
+  /** حساب بانک دریافت‌کننده‌ی واریز: 1010 یا معین فعال زیر آن */
+  private async resolveCashAccount(
+    tx: Prisma.TransactionClient,
+    code?: string,
+  ): Promise<string> {
+    const fallback = await this.systemConfig.get(
+      'deposit.default_cash_account',
+      '1010',
+    );
+    const chosen = (code?.trim() || fallback || '1010').trim();
+    if (!/^1010\d*$/.test(chosen)) {
+      throw new BadRequestException(
+        'حساب دریافت باید حساب نقد و بانک (1010 یا معین‌های آن) باشد',
+      );
+    }
+    const account = await tx.account.findUnique({ where: { code: chosen } });
+    if (!account || !account.isActive) {
+      throw new BadRequestException(`حساب ${chosen} یافت نشد یا غیرفعال است`);
+    }
+    return chosen;
+  }
+
+  private notify(
+    d: {
+      id: string;
+      userId: string;
+      requestNumber: string;
+      amountRial: Prisma.Decimal;
+    },
+    key: 'DEPOSIT_APPROVED' | 'DEPOSIT_REJECTED',
+    reason?: string,
+  ) {
+    void this.smsTemplates
+      .sendToUser(
+        key,
+        d.userId,
+        {
+          amount: Math.round(Number(d.amountRial) / 10).toLocaleString('fa-IR'),
+          requestNumber: d.requestNumber,
+          reason: reason ?? '',
+        },
+        { referenceType: 'DEPOSIT', referenceId: d.id },
+      )
+      .catch(() => undefined);
+  }
 
   // ═══════════════════════════════════════════════════════════
   // ── فهرست و جزئیات ──
@@ -230,6 +280,86 @@ export class DepositAdminService {
     };
   }
 
+  /** گزارش دوره‌ای واریزها: وضعیت‌ها، روش واریز، جمع روزانه‌ی تأییدشده و زمان بررسی */
+  async report(from?: string, to?: string) {
+    const range =
+      from || to
+        ? {
+            ...(from ? { gte: new Date(from) } : {}),
+            ...(to
+              ? { lt: new Date(new Date(to).getTime() + 86_400_000) }
+              : {}),
+          }
+        : undefined;
+    const [byStatus, approved, queue] = await Promise.all([
+      this.prisma.depositRequest.groupBy({
+        by: ['status'],
+        where: range ? { createdAt: range } : {},
+        _count: { _all: true },
+        _sum: { amountRial: true },
+      }),
+      this.prisma.depositRequest.findMany({
+        where: { status: 'APPROVED', ...(range ? { reviewedAt: range } : {}) },
+        select: {
+          amountRial: true,
+          method: true,
+          reviewedAt: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.depositRequest.aggregate({
+        where: { status: { in: ['RECEIPT_UPLOADED', 'UNDER_REVIEW'] } },
+        _count: { _all: true },
+        _sum: { amountRial: true },
+      }),
+    ]);
+    const byMethod = new Map<string, { count: number; amountRial: number }>();
+    const daily = new Map<string, { count: number; amountRial: number }>();
+    let reviewMs = 0;
+    for (const d of approved) {
+      const amount = Number(d.amountRial);
+      const m = byMethod.get(d.method) ?? { count: 0, amountRial: 0 };
+      m.count += 1;
+      m.amountRial += amount;
+      byMethod.set(d.method, m);
+      if (d.reviewedAt) {
+        const day = d.reviewedAt.toISOString().slice(0, 10);
+        const x = daily.get(day) ?? { count: 0, amountRial: 0 };
+        x.count += 1;
+        x.amountRial += amount;
+        daily.set(day, x);
+        reviewMs += d.reviewedAt.getTime() - d.createdAt.getTime();
+      }
+    }
+    return {
+      byStatus: byStatus.map((s) => ({
+        status: s.status,
+        label: STATUS_LABEL[s.status],
+        count: s._count._all,
+        amountRial: (s._sum.amountRial ?? 0).toString(),
+      })),
+      byMethod: [...byMethod.entries()].map(([method, v]) => ({
+        method,
+        count: v.count,
+        amountRial: String(v.amountRial),
+      })),
+      daily: [...daily.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([day, v]) => ({
+          day,
+          count: v.count,
+          amountRial: String(v.amountRial),
+        })),
+      averageReviewHours: approved.length
+        ? Math.round((reviewMs / approved.length / 3_600_000) * 10) / 10
+        : null,
+      openQueue: {
+        count: queue._count._all,
+        amountRial: (queue._sum.amountRial ?? 0).toString(),
+      },
+    };
+  }
+
   /** هر بار صدور URL رسید در Audit ثبت می‌شود (دکوریتور روی کنترلر). */
   async getReceiptUrl(depositId: string, receiptId: string) {
     const receipt = await this.prisma.depositReceipt.findFirst({
@@ -291,7 +421,12 @@ export class DepositAdminService {
    *
    * ⚠ هیچ عدد مالی از بدنه درخواست خوانده نمی‌شود؛ مبلغ فقط از رکورد DB.
    */
-  async approve(adminUserId: string, depositId: string, note?: string) {
+  async approve(
+    adminUserId: string,
+    depositId: string,
+    note?: string,
+    cashAccountCode?: string,
+  ) {
     const result = await this.prisma.$transaction(async (tx) => {
       // لایه ۱ — قفل مشورتی روی UUID درخواست
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'deposit:' + depositId}))`;
@@ -328,6 +463,7 @@ export class DepositAdminService {
       if (!wallet) throw new NotFoundException('کیف پول کاربر یافت نشد');
 
       const amountRial = Number(d.amountRial);
+      const cashCode = await this.resolveCashAccount(tx, cashAccountCode);
 
       await tx.wallet.update({
         where: { id: wallet.id },
@@ -347,13 +483,17 @@ export class DepositAdminService {
 
       // سند دوطرفه — تنها نقطه مجاز ثبت سند در سیستم
       await this.accountingService.postJournal(tx, {
-        description: `واریز بانکی کاربر ${d.userId} — ${d.requestNumber}`,
+        description: `واریز بانکی کاربر — ${d.requestNumber} — شناسه واریز ${d.depositTrackingId}`,
         totalRial: amountRial,
         totalGrams: 0,
         lines: [
-          { accountCode: '1010', side: 'DEBIT', amountRial }, // بانک / نقد
+          { accountCode: cashCode, side: 'DEBIT', amountRial }, // بانک دریافت‌کننده
           { accountCode: '2010', side: 'CREDIT', amountRial }, // بدهی به مشتری
         ],
+        referenceType: 'DEPOSIT',
+        referenceId: d.id,
+        createdByAdminId: adminUserId,
+        transactionId: transaction.id,
       });
 
       // لایه ۴ — اگر رکورد دیگری همزمان transactionId گرفته باشد،
@@ -380,15 +520,21 @@ export class DepositAdminService {
         message: 'درخواست واریز تایید و کیف پول شارژ شد',
         alreadyProcessed: false,
         transactionId: transaction.id,
+        deposit: d,
       };
     });
 
-    if (!result.alreadyProcessed) {
+    if (!result.alreadyProcessed && 'deposit' in result && result.deposit) {
       this.logger.log(
         `[Deposit] تایید شد — درخواست ${depositId} توسط ادمین ${adminUserId}`,
       );
+      this.notify(result.deposit, 'DEPOSIT_APPROVED');
     }
-    return result;
+    return {
+      message: result.message,
+      alreadyProcessed: result.alreadyProcessed,
+      transactionId: result.transactionId,
+    };
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -400,7 +546,7 @@ export class DepositAdminService {
       throw new BadRequestException('دلیل رد باید حداقل ۱۰ کاراکتر باشد');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'deposit:' + depositId}))`;
       await tx.$executeRaw`SELECT 1 FROM "deposit_requests" WHERE "id" = ${depositId}::uuid FOR UPDATE`;
 
@@ -446,8 +592,19 @@ export class DepositAdminService {
         message: 'درخواست واریز رد شد',
         alreadyProcessed: false,
         remainingAttempts: Math.max(0, MAX_REJECTIONS - nextCount),
+        deposit: d,
       };
     });
+    if (!result.alreadyProcessed && 'deposit' in result && result.deposit) {
+      this.notify(result.deposit, 'DEPOSIT_REJECTED', reason.trim());
+    }
+    return {
+      message: result.message,
+      alreadyProcessed: result.alreadyProcessed,
+      ...('remainingAttempts' in result
+        ? { remainingAttempts: result.remainingAttempts }
+        : {}),
+    };
   }
 
   /** برگرداندن به مرحله ارسال رسید — وقتی تصویر ناخوانا است. */

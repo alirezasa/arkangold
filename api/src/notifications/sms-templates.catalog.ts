@@ -236,6 +236,14 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
     variables: [V.name, V.requestNumber, V.reason, V.brand],
   },
 
+  {
+    key: 'WITHDRAWAL_RETURNED',
+    title: 'برگشت وجه برداشت از بانک',
+    category: 'FINANCE',
+    body: '{name} عزیز، مبلغ برداشت {requestNumber} از سوی بانک برگشت خورد و {amount} تومان به کیف پول شما بازگردانده شد.\nدلیل: {reason}\n{brand}',
+    variables: [V.name, V.requestNumber, V.amount, V.reason, V.brand],
+  },
+
   // ─────────────────────────── نمایندگان ───────────────────────────
   {
     key: 'AGENT_CONTRACT_ISSUED',

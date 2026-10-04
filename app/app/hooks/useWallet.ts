@@ -74,6 +74,10 @@ export interface WithdrawalConfig {
   usedThisMonth: number;
   remainingToday: number;
   remainingThisMonth: number;
+  // کارمزد برداشت (از مبلغ واریزی کسر می‌شود)
+  feePercent?: number;
+  feeFixedRial?: number;
+  feeMaxRial?: number;
 }
 
 // انتقال داخلی کیف پول فقط برای طلا مجاز است؛ انتقال ریالی/تومانی پشتیبانی نمی‌شود

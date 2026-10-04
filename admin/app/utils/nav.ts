@@ -101,6 +101,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "تراز آزمایشی", href: "/accounting/trial-balance", icon: Scale, perm: "accounting.view" },
       { label: "صورت‌های مالی", href: "/accounting/reports", icon: BarChart3, perm: "accounting.view" },
       { label: "مغایرت‌گیری", href: "/accounting/reconciliation", icon: ShieldCheck2, perm: "accounting.view" },
+      { label: "مغایرت‌گیری بانکی", href: "/accounting/bank-reconciliation", icon: Landmark, perm: "accounting.view" },
       { label: "سال مالی و قفل دوره", href: "/accounting/fiscal-years", icon: CalendarRange, perm: "accounting.view" },
     ],
   },

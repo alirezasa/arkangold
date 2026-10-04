@@ -300,18 +300,23 @@ model JournalEntry {
 }
 
 model LedgerEntry {
-  side           LedgerSide
-  amountRial     Decimal      @default(0) @map("amount_rial") @db.Decimal(18, 0)
-  amountGrams    Decimal      @default(0) @map("amount_grams") @db.Decimal(18, 4)
+  side             LedgerSide
+  amountRial       Decimal             @default(0) @map("amount_rial") @db.Decimal(18, 0)
+  amountGrams      Decimal             @default(0) @map("amount_grams") @db.Decimal(18, 4)
   /// شرح اختصاصی سطر (اسناد دستی)
-  description    String?
-  createdAt      DateTime     @default(now()) @map("created_at")
-  id             String       @id @default(uuid()) @db.Uuid
-  journalEntryId String       @map("journal_entry_id") @db.Uuid
-  accountId      String       @map("account_id") @db.Uuid
-  account        Account      @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  description      String?
+  createdAt        DateTime            @default(now()) @map("created_at")
+  id               String              @id @default(uuid()) @db.Uuid
+  journalEntryId   String              @map("journal_entry_id") @db.Uuid
+  accountId        String              @map("account_id") @db.Uuid
+  account          Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  journalEntry     JournalEntry        @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  /// مغایرت‌گیری بانکی: زمان تطبیق این سطر با صورتحساب بانک
+  reconciledAt     DateTime?           @map("reconciled_at")
+  reconciliationId String?             @map("reconciliation_id") @db.Uuid
+  reconciliation   BankReconciliation? @relation(fields: [reconciliationId], references: [id], onDelete: SetNull)
 
+  @@index([reconciliationId])
   @@index([accountId])
   @@index([accountId, createdAt])
   @@index([journalEntryId])
@@ -3045,4 +3050,30 @@ enum AgentContractStatus {
   SIGNED
   CANCELLED
   EXPIRED
+}
+
+/// مغایرت‌گیری بانکی — تطبیق سطرهای دفتر حساب بانک (معین‌های 1010) با صورتحساب بانک تا یک تاریخ
+model BankReconciliation {
+  id                    String        @id @default(uuid()) @db.Uuid
+  accountId             String        @map("account_id") @db.Uuid
+  /// تاریخ صورتحساب بانک (تا پایان این روز)
+  statementDate         DateTime      @map("statement_date")
+  /// مانده‌ی پایان صورتحساب بانک (ریال)
+  statementBalanceRial  Decimal       @map("statement_balance_rial") @db.Decimal(18, 0)
+  /// مانده‌ی دفتر تا تاریخ صورتحساب
+  bookBalanceRial       Decimal       @map("book_balance_rial") @db.Decimal(18, 0)
+  /// مانده‌ی سطرهای تطبیق‌شده (باید با صورتحساب برابر باشد)
+  clearedBalanceRial    Decimal       @map("cleared_balance_rial") @db.Decimal(18, 0)
+  differenceRial        Decimal       @map("difference_rial") @db.Decimal(18, 0)
+  /// واریزهای در راه (در دفتر، نه در بانک)
+  outstandingDebitRial  Decimal       @default(0) @map("outstanding_debit_rial") @db.Decimal(18, 0)
+  /// پرداخت‌های در راه (در دفتر، نه در بانک)
+  outstandingCreditRial Decimal       @default(0) @map("outstanding_credit_rial") @db.Decimal(18, 0)
+  note                  String?
+  createdById           String?       @map("created_by_id") @db.Uuid
+  createdAt             DateTime      @default(now()) @map("created_at")
+  ledgerEntries         LedgerEntry[]
+
+  @@index([accountId, statementDate])
+  @@map("bank_reconciliations")
 }

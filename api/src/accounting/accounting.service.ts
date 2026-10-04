@@ -158,6 +158,16 @@ export class AccountingService implements OnModuleInit {
     // ── ۲. رد سند نامتوازن قبل از هر نوشتنی ──
     this.assertBalanced(lines, description);
 
+    // ── ۲-۱. سند با تاریخ صریح (مثلاً تاریخ پرداخت بانکی گذشته) نباید در دوره‌ی قفل یا
+    // سال مالی بسته ثبت شود؛ اسناد سیستمی لحظه‌ای (بدون entryDate) همیشه در دوره‌ی جاری‌اند
+    if (
+      params.entryDate &&
+      !params.reversalOfId &&
+      params.source !== 'CLOSING'
+    ) {
+      await this.assertPostingDateAllowed(tx, params.entryDate);
+    }
+
     // ── ۳. واکشی حساب‌ها با یک کوئری + fail-fast ──
     const codes = [...new Set(lines.map((l) => l.accountCode))];
     const accounts = await this.getRequiredAccounts(tx, codes);

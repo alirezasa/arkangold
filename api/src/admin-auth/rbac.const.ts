@@ -166,6 +166,11 @@ export const ADMIN_PERMISSIONS = [
     description: 'تعریف و بستن سال مالی، قفل دوره‌ی مالی و قطعی‌سازی اسناد',
   },
   {
+    key: 'accounting.bank_reconcile',
+    group: 'accounting',
+    description: 'مغایرت‌گیری بانکی: تطبیق سطرهای حساب بانک با صورتحساب بانک',
+  },
+  {
     key: 'treasury.view',
     group: 'treasury',
     description:
@@ -449,6 +454,7 @@ export const ADMIN_ROLES = [
       'accounting.voucher.create',
       'accounting.voucher.approve',
       'accounting.period.manage',
+      'accounting.bank_reconcile',
       'treasury.view',
       'treasury.order.manage',
       'treasury.payment.manage',
@@ -469,6 +475,7 @@ export const ADMIN_ROLES = [
     permissions: [
       'accounting.view',
       'accounting.voucher.create',
+      'accounting.bank_reconcile',
       'invoice.view',
       'transactions.view',
       'deposit.view',

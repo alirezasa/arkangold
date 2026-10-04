@@ -42,7 +42,7 @@
     <thead><tr><th>صفحه</th><th>کاربرد</th><th>دسترسی</th></tr></thead>
     <tbody>
       <tr><td>درخواست‌های برداشت</td><td>تأیید، رد، پرداخت بانکی، پرداخت گروهی، برگشت وجه</td><td>مشاهده <span class="code">withdrawal.view</span>، تأیید/رد <span class="code">withdrawal.approve</span>، پرداخت/برگشت <span class="code">withdrawal.pay</span></td></tr>
-      <tr><td>درخواست‌های واریز</td><td>بررسی رسید و تأیید واریز (کارت/حساب/مبالغ بالا)</td><td><span class="code">deposit.view</span> / <span class="code">deposit.approve</span></td></tr>
+      <tr><td>درخواست‌های واریز</td><td>بررسی رسید و تأیید واریز (کارت/حساب/مبالغ بالا)</td><td><span class="ltr"><span class="code">deposit.view</span> / <span class="code">deposit.approve</span></span></td></tr>
       <tr><td>تراکنش‌های کاربران</td><td>همه‌ی تراکنش‌های کیف پول</td><td><span class="code">transactions.view</span></td></tr>
       <tr><td>گزارش واریز و برداشت</td><td>جمع‌بندی دوره‌ای و گردش روزانه</td><td><span class="code">withdrawal.view</span></td></tr>
     </tbody>
@@ -53,8 +53,8 @@
   <table class="values">
     <thead><tr><th>کلید (ریال)</th><th>معنی</th><th>مقدار شروع</th></tr></thead>
     <tbody>
-      <tr><td class="code">withdrawal.min_amount / max_amount</td><td>حداقل / حداکثر هر درخواست</td><td><span class="code">100000</span> / <span class="code">2000000000</span></td></tr>
-      <tr><td class="code">withdrawal.daily_limit / monthly_limit</td><td>سقف هر کاربر</td><td><span class="code">2000000000</span> / <span class="code">5000000000</span></td></tr>
+      <tr><td class="code">withdrawal.min_amount / max_amount</td><td>حداقل / حداکثر هر درخواست</td><td><span class="ltr"><span class="code">100000</span> / <span class="code">2000000000</span></span></td></tr>
+      <tr><td class="code">withdrawal.daily_limit / monthly_limit</td><td>سقف هر کاربر</td><td><span class="ltr"><span class="code">2000000000</span> / <span class="code">5000000000</span></span></td></tr>
       <tr><td class="code">withdrawal.fee_percent</td><td>کارمزد درصدی</td><td><span class="code">0</span></td></tr>
       <tr><td class="code">withdrawal.fee_fixed_rial</td><td>کارمزد ثابت</td><td><span class="code">0</span> (یا <span class="code">50000</span> = ۵ هزار تومان)</td></tr>
       <tr><td class="code">withdrawal.fee_max_rial</td><td>سقف کارمزد؛ صفر = بی‌سقف</td><td><span class="code">0</span></td></tr>

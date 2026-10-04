@@ -217,3 +217,4 @@ ol.steps > li::before {
 .pb { break-before: page; }
 .preload { font-family: "Dana"; font-size: 1pt; color: transparent; position: absolute; }
 tr:has(td.grp) { break-after: avoid; }
+td.code { white-space: normal; overflow-wrap: anywhere; font-size: 8.1pt; line-height: 1.6; }

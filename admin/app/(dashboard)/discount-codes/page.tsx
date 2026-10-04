@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
 import UserPicker, { type UserSearchItem } from "@/app/components/UserPicker";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -465,12 +466,11 @@ function DiscountFormModal({
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="text-[12px] font-bold text-gray-600">شروع اعتبار (اختیاری)</span>
-            <input
-              type="datetime-local"
+            <JalaliDateInput
+              withTime
               value={startsAt}
-              onChange={(e) => setStartsAt(e.target.value)}
+              onChange={(v) => setStartsAt(v)}
               className={inputCls}
-              dir="ltr"
             />
             {startsAt && (
               <span className="text-[10px] text-gray-400">
@@ -480,12 +480,11 @@ function DiscountFormModal({
           </label>
           <label className="block">
             <span className="text-[12px] font-bold text-gray-600">زمان انقضا (اختیاری)</span>
-            <input
-              type="datetime-local"
+            <JalaliDateInput
+              withTime
               value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
+              onChange={(v) => setExpiresAt(v)}
               className={inputCls}
-              dir="ltr"
             />
             <span className="text-[10px] text-gray-400">
               {expiresAt

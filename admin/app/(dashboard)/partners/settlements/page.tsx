@@ -24,6 +24,7 @@ import {
   useAction,
   usePerm,
 } from "@/app/components/finance/ui";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
 
 interface Settlement {
   id: string;
@@ -117,7 +118,7 @@ function SettlementForm({ onDone }: { onDone: () => void }) {
           <input value={ref} onChange={(e) => setRef(e.target.value)} className={inputCls} />
         </Field>
         <Field label="تاریخ واریز">
-          <input type="date" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} className={inputCls} dir="ltr" />
+          <JalaliDateInput value={paidAt} onChange={(v) => setPaidAt(v)} className={inputCls} />
         </Field>
       </div>
       {open && open.data.length > 0 && (

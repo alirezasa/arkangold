@@ -16,6 +16,7 @@ import {
   Link2,
 } from "lucide-react";
 import UserPicker, { type UserSearchItem } from "@/app/components/UserPicker";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -178,12 +179,10 @@ function CreateAnnouncementModal({
             <label className="text-[12px] font-bold text-gray-500 mb-1 block">
               تاریخ انقضا (اختیاری)
             </label>
-            <input
-              type="date"
+            <JalaliDateInput
               value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
+              onChange={(v) => setExpiresAt(v)}
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
-              dir="ltr"
             />
           </div>
         </div>

@@ -34,6 +34,8 @@ export {
   tomanToRial,
   SETTLEMENT_METHOD_FA,
 } from "@/app/components/agents/ui";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
+import { jalaliMonthStartIso, jalaliYearStartIso, todayIsoLocal } from "@/app/utils/jalali";
 
 // ─────────────────────────── قالب‌بندی ───────────────────────────
 
@@ -48,11 +50,10 @@ export const signedToman = (rial: string | number | null | undefined) => {
   return n < 0 ? `(${Math.abs(n).toLocaleString("fa-IR")})` : n.toLocaleString("fa-IR");
 };
 
-export const todayIso = () => new Date().toISOString().slice(0, 10);
-export const monthStartIso = () => {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-};
+/** امروز (ISO میلادی، وقت محلی) و ابتدای ماه/سال شمسی جاری — بازه‌ی پیش‌فرض گزارش‌ها */
+export const todayIso = () => todayIsoLocal();
+export const monthStartIso = () => jalaliMonthStartIso();
+export const yearStartIso = () => jalaliYearStartIso();
 
 export function usePerm() {
   const { me } = useAdminMe();
@@ -182,11 +183,11 @@ export function DateRange({
     <div className="flex flex-wrap items-end gap-3">
       <label className="text-[12px] font-bold text-gray-600">
         از تاریخ
-        <input type="date" value={from} onChange={(e) => onFrom(e.target.value)} className={cls} dir="ltr" />
+        <JalaliDateInput value={from} onChange={(v) => onFrom(v)} className={cls} />
       </label>
       <label className="text-[12px] font-bold text-gray-600">
         تا تاریخ
-        <input type="date" value={to} onChange={(e) => onTo(e.target.value)} className={cls} dir="ltr" />
+        <JalaliDateInput value={to} onChange={(v) => onTo(v)} className={cls} />
       </label>
       {children}
     </div>

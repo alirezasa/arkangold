@@ -26,6 +26,7 @@ import {
   useAction,
   usePerm,
 } from "@/app/components/finance/ui";
+import JalaliDateInput from "@/app/components/JalaliDateInput";
 
 type Tab = "pl" | "bs" | "gold" | "reval";
 
@@ -167,7 +168,7 @@ function BalanceSheet() {
     <div className="space-y-3">
       <label className="text-[12px] font-bold text-gray-600">
         در تاریخ
-        <input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="block mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white" dir="ltr" />
+        <JalaliDateInput value={asOf} onChange={(v) => setAsOf(v)} className="block mt-1 px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white" />
       </label>
       {!data ? (
         <Spinner />

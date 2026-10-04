@@ -17,7 +17,7 @@ export interface IdentityVerificationResult {
   deathStatus?: string;
   gender?: string;
   /** شماره/سری/سریال شناسنامه و محل صدور — فقط Providerهایی که مشخصات ثبت احوال کامل برمی‌گردانند (مثل فینوتک) این‌ها را پر می‌کنند */
-  identityNo?: number;
+  identityNo?: string;
   identitySeri?: string;
   identitySerial?: string;
   officeName?: string;

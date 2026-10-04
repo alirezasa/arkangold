@@ -105,7 +105,8 @@ model UserIdentity {
   fatherName                String?        @map("father_name")
   gender                    String?        @map("gender")
   deathStatus               String?        @map("death_status")
-  identityNo                Int?           @map("identity_no")
+  // شماره شناسنامه — برای متولدین جدید برابر کد ملی ۱۰ رقمی (بزرگ‌تر از Int32) و گاهی با صفر ابتدایی؛ پس رشته
+  identityNo                String?        @map("identity_no")
   identitySeri              String?        @map("identity_seri")
   identitySerial            String?        @map("identity_serial")
   officeName                String?        @map("office_name")

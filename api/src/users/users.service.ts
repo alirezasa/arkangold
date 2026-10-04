@@ -5,6 +5,8 @@ import {
   ServiceUnavailableException,
   Logger,
   BadRequestException,
+  HttpException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import * as fs from 'fs/promises';
 import { Prisma } from '../generated/prisma/client';
@@ -171,7 +173,7 @@ export class UsersService {
 
     const input: SubmitIdentityDto = {
       nationalCode: identity.nationalCode,
-      birthDate: identity.birthDate.toISOString().slice(0, 10),
+      birthDate: this.toIsoDate(identity.birthDate),
       firstName: identity.firstName ?? '',
       lastName: identity.lastName ?? '',
     };
@@ -193,25 +195,39 @@ export class UsersService {
     }
 
     let updated = identity;
-    if (civilResult.matched) {
-      updated = await this.upsertIdentity(
-        userId,
-        input,
-        'VERIFIED',
-        civilResult,
-      );
-      if (previousStatus !== 'VERIFIED') {
-        await this.referralService.handleReferredUserEvent(
+    try {
+      if (civilResult.matched) {
+        updated = await this.upsertIdentity(
           userId,
-          'IDENTITY_VERIFIED',
+          input,
+          'VERIFIED',
+          civilResult,
+        );
+      } else if (previousStatus !== 'VERIFIED') {
+        updated = await this.upsertIdentity(
+          userId,
+          input,
+          'MANUAL_REVIEW',
+          civilResult,
         );
       }
-    } else if (previousStatus !== 'VERIFIED') {
-      updated = await this.upsertIdentity(
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      // استعلام در Provider موفق بوده ولی ذخیره‌ی پاسخ شکست خورده — به‌جای «خطای داخلی
+      // سرور» پیام روشن برگردانده می‌شود تا ادمین بداند استعلام انجام شده است
+      this.logger.error(
+        `ذخیره‌ی نتیجه‌ی استعلام مجدد هویت کاربر ${userId} ناموفق بود: ${(err as Error).message}`,
+        (err as Error).stack,
+      );
+      throw new UnprocessableEntityException(
+        'استعلام از ثبت احوال انجام شد ولی ذخیره‌ی نتیجه ناموفق بود؛ جزئیات در لاگ سرور ثبت شد',
+      );
+    }
+
+    if (civilResult.matched && previousStatus !== 'VERIFIED') {
+      await this.referralService.handleReferredUserEvent(
         userId,
-        input,
-        'MANUAL_REVIEW',
-        civilResult,
+        'IDENTITY_VERIFIED',
       );
     }
 
@@ -240,6 +256,18 @@ export class UsersService {
         verifiedByProvider: updated.verifiedByProvider,
       },
     };
+  }
+
+  /**
+   * تاریخ تولد با new Date('yyyy-mm-dd') یعنی نیمه‌شب UTC ذخیره می‌شود؛ اگر رکوردی با
+   * ساعت محلی تهران ذخیره شده باشد (مثلاً 20:30 UTC روز قبل) به نزدیک‌ترین روز گرد می‌شود
+   * تا یک روز عقب‌تر به ثبت احوال ارسال نشود.
+   */
+  private toIsoDate(date: Date): string {
+    const rounded = new Date(
+      Math.round(date.getTime() / 86_400_000) * 86_400_000,
+    );
+    return rounded.toISOString().slice(0, 10);
   }
 
   // ══════════════════════════════════════════

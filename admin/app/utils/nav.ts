@@ -44,7 +44,6 @@ import {
   MessageSquareText,
   Truck,
   FileSignature,
-  Landmark as BankIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -80,6 +79,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "فروش‌های من", href: "/agent-portal/sales", icon: Receipt, perm: "agent_portal.view", agentOnly: true },
       { label: "تسویه و واریز", href: "/agent-portal/settlements", icon: HandCoins, perm: "agent_portal.view", agentOnly: true },
       { label: "صورتحساب", href: "/agent-portal/statement", icon: FileSpreadsheet, perm: "agent_portal.view", agentOnly: true },
+      { label: "قراردادها", href: "/agent-portal/contracts", icon: FileSignature, perm: "agent_portal.view", agentOnly: true },
     ],
   },
   {
@@ -157,6 +157,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "نمایندگان", href: "/agents", icon: Store, perm: "agent.view" },
       { label: "فروش‌های نمایندگان", href: "/agents/sales", icon: Coins, perm: "agent.view" },
       { label: "تسویه‌های نمایندگان", href: "/agents/settlements", icon: HandCoins, perm: "agent.view" },
+      { label: "قراردادهای نمایندگان", href: "/agents/contracts", icon: FileSignature, perm: "agent.view" },
       { label: "گزارش عملکرد", href: "/agents/reports", icon: BarChart3, perm: "agent.view" },
     ],
   },

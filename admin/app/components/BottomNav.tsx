@@ -11,7 +11,7 @@ export default function BottomNav({ me }: { me: AdminMe }) {
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-2 py-2 pb-safe"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-2 py-2 pb-safe print:hidden"
       style={{ backgroundColor: "var(--color-surface)", borderTop: "1px solid var(--color-border)" }}
     >
       {items.map((item) => {

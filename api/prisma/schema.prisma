@@ -1937,6 +1937,7 @@ model Agent {
   sales          AgentSale[]
   settlements    AgentSettlement[]
   ledgerEntries  AgentLedgerEntry[]
+  agentContracts AgentContract[]
 
   @@index([status])
   @@map("agents")
@@ -2940,4 +2941,108 @@ enum SmsLogStatus {
   DRY_RUN
   /// قالب غیرفعال یا شماره نامعتبر — ارسالی انجام نشد
   SKIPPED
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// قرارداد الکترونیک نمایندگان — صدور از پنل، مطالعه و امضای الکترونیک با کد یکبارمصرف پیامکی
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// قالب متن قرارداد نمایندگی با متغیرهای {agentName}، {commission}، {startDate} و ...
+model AgentContractTemplate {
+  id          String          @id @default(uuid()) @db.Uuid
+  title       String
+  body        String
+  description String?
+  isActive    Boolean         @default(true) @map("is_active")
+  /// با هر ویرایش متن یک واحد افزایش می‌یابد (قراردادهای صادرشده snapshot نسخه‌ی خود را دارند)
+  version     Int             @default(1)
+  createdById String?         @map("created_by_id") @db.Uuid
+  updatedById String?         @map("updated_by_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  contracts   AgentContract[]
+
+  @@map("agent_contract_templates")
+}
+
+/// قرارداد صادرشده برای یک نماینده؛ پس از صدور متن قفل می‌شود و فقط با امضای الکترونیک
+/// (کد یکبارمصرف به موبایل ثبت‌شده‌ی نماینده) نهایی می‌شود.
+model AgentContract {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  contractNumber     String                 @unique @map("contract_number")
+  agentId            String                 @map("agent_id") @db.Uuid
+  agent              Agent                  @relation(fields: [agentId], references: [id])
+  templateId         String?                @map("template_id") @db.Uuid
+  template           AgentContractTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateVersion    Int?                   @map("template_version")
+  title              String
+  /// متن نهایی (متغیرها جایگذاری‌شده) — پس از صدور تغییرناپذیر
+  body               String
+  /// SHA-256 متن نهایی در لحظه‌ی صدور — مبنای اثبات عدم تغییر متن امضاشده
+  bodyHash           String?                @map("body_hash")
+  status             AgentContractStatus    @default(DRAFT)
+  startsAt           DateTime?              @map("starts_at")
+  endsAt             DateTime?              @map("ends_at")
+  /// مهلت امضا؛ پس از آن قرارداد منقضی می‌شود
+  signDeadline       DateTime?              @map("sign_deadline")
+  issuedAt           DateTime?              @map("issued_at")
+  issuedById         String?                @map("issued_by_id") @db.Uuid
+  firstViewedAt      DateTime?              @map("first_viewed_at")
+  // ── امضای الکترونیک ──
+  signedAt           DateTime?              @map("signed_at")
+  signerAdminUserId  String?                @map("signer_admin_user_id") @db.Uuid
+  signerName         String?                @map("signer_name")
+  signerNationalCode String?                @map("signer_national_code")
+  signerPhone        String?                @map("signer_phone")
+  signerIp           String?                @map("signer_ip")
+  signerUserAgent    String?                @map("signer_user_agent")
+  /// SHA-256(شماره قرارداد | hash متن | موبایل | زمان امضا | امضاکننده) — گواهی امضا
+  signatureHash      String?                @map("signature_hash")
+  // ── کد یکبارمصرف امضا ──
+  otpHash            String?                @map("otp_hash")
+  otpExpiresAt       DateTime?              @map("otp_expires_at")
+  otpAttempts        Int                    @default(0) @map("otp_attempts")
+  otpSentAt          DateTime?              @map("otp_sent_at")
+  otpSendCount       Int                    @default(0) @map("otp_send_count")
+  // ── ابطال ──
+  cancelledAt        DateTime?              @map("cancelled_at")
+  cancelledById      String?                @map("cancelled_by_id") @db.Uuid
+  cancelReason       String?                @map("cancel_reason")
+  createdById        String?                @map("created_by_id") @db.Uuid
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  events             AgentContractEvent[]
+
+  @@index([agentId, status])
+  @@index([status, createdAt])
+  @@map("agent_contracts")
+}
+
+/// رویدادهای قرارداد (ایجاد، صدور، مشاهده، ارسال کد، امضا، ابطال) — مستند حقوقی فرایند امضا
+model AgentContractEvent {
+  id         String        @id @default(uuid()) @db.Uuid
+  contractId String        @map("contract_id") @db.Uuid
+  contract   AgentContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  /// CREATED | UPDATED | ISSUED | VIEWED | OTP_SENT | OTP_FAILED | SIGNED | CANCELLED | EXPIRED
+  type       String
+  /// ADMIN | AGENT | SYSTEM
+  actorType  String        @map("actor_type")
+  actorId    String?       @map("actor_id")
+  ip         String?
+  userAgent  String?       @map("user_agent")
+  note       String?
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@index([contractId, createdAt])
+  @@map("agent_contract_events")
+}
+
+enum AgentContractStatus {
+  /// پیش‌نویس — قابل ویرایش، برای نماینده نمایش داده نمی‌شود
+  DRAFT
+  /// صادرشده — در انتظار امضای نماینده
+  ISSUED
+  SIGNED
+  CANCELLED
+  EXPIRED
 }

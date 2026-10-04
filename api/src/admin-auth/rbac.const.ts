@@ -350,6 +350,12 @@ export const ADMIN_PERMISSIONS = [
     description: 'ثبت، تأیید و رد تسویه نماینده و ثبت اصلاحیه حساب نماینده',
   },
   {
+    key: 'agent.contract.manage',
+    group: 'agent',
+    description:
+      'تعریف قالب قرارداد، صدور، ویرایش پیش‌نویس و ابطال قرارداد الکترونیک نمایندگان',
+  },
+  {
     key: 'agent.sale.void',
     group: 'agent',
     description: 'ابطال فروش ثبت‌شده توسط نماینده (برگشت مالکیت و سند)',
@@ -365,6 +371,12 @@ export const ADMIN_PERMISSIONS = [
     key: 'agent_portal.sell',
     group: 'agent_portal',
     description: 'پرتال نماینده: ثبت فروش شمش و ثبت مالک نهایی',
+  },
+  {
+    key: 'agent_portal.contract.sign',
+    group: 'agent_portal',
+    description:
+      'پرتال نماینده: امضای الکترونیک قرارداد با کد یکبارمصرف پیامکی',
   },
   {
     key: 'agent_portal.settle',
@@ -547,6 +559,7 @@ export const ADMIN_ROLES = [
       'agent.stock.manage',
       'agent.settlement.manage',
       'agent.sale.void',
+      'agent.contract.manage',
       'hologram.code.view',
       'hologram.transfer.view',
       'users.view',
@@ -564,6 +577,7 @@ export const ADMIN_ROLES = [
       'agent_portal.view',
       'agent_portal.sell',
       'agent_portal.settle',
+      'agent_portal.contract.sign',
     ] as PermissionKey[],
   },
 ] as const;

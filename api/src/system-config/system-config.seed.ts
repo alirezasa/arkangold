@@ -182,6 +182,50 @@ export const WALLET_CONFIG_DEFAULTS = [
       'حداکثر عمر توکن تمدید (Refresh) ادمین‌ها (ساعت؛ بین ۱ تا ۱۶۸)',
   },
 
+  // ══ امنیت ورود و احراز هویت (FIA) ══
+  {
+    key: 'security.password.user_min_length',
+    value: '8',
+    description:
+      'حداقل طول رمز عبور کاربران (کاراکتر؛ بین ۸ تا ۶۴). قاعده‌ی ترکیب کاراکتر (حرف بزرگ/عدد/نماد) اعمال نمی‌شود',
+  },
+  {
+    key: 'security.password.admin_min_length',
+    value: '15',
+    description:
+      'حداقل طول رمز عبور ادمین‌ها و نمایندگان (کاراکتر؛ بین ۸ تا ۶۴)',
+  },
+  {
+    key: 'security.password.hibp_enabled',
+    value: 'true',
+    description:
+      'بررسی آنلاین رمزهای افشاشده در Have I Been Pwned با روش k-anonymity (فقط ۵ کاراکتر اول هش ارسال می‌شود؛ در صورت قطعی فقط فهرست آفلاین بررسی می‌شود)',
+  },
+  {
+    key: 'security.password.blocked_words',
+    value: '',
+    description:
+      'کلمات ممنوع اضافه در رمز عبور، جدا با ویرگول (علاوه بر نام برنامه، شرکت، دامنه و واژه‌هایی مثل admin و password)',
+  },
+  {
+    key: 'security.login_alerts.enabled',
+    value: 'true',
+    description:
+      'ارسال پیامک/اعلان به صاحب حساب هنگام ورود از دستگاه جدید و تلاش‌های ناموفق مکرر',
+  },
+  {
+    key: 'security.expiry.reminder_days',
+    value: '30,15,7,1',
+    description:
+      'روزهای ارسال یادآوری پیش از انقضای کلیدهای API شرکا و اعتبارنامه‌های سرویس‌های ثالث (جدا با ویرگول)',
+  },
+  {
+    key: 'security.api_key.lifetime_days',
+    value: '365',
+    description:
+      'مدت اعتبار هر کلید API شریک فروش پس از صدور (روز؛ بین ۳۰ تا ۷۳۰)',
+  },
+
   // ══ خدمات صفحه اصلی اپلیکیشن (بنرها) ══
   {
     key: 'service.melted_gold.enabled',

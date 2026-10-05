@@ -8,6 +8,10 @@
       {
         "include": "generated/prisma/**/*",
         "outDir": "dist/src"
+      },
+      {
+        "include": "common/password-policy/data/*.txt",
+        "outDir": "dist/src"
       }
     ],
     "watchAssets": true

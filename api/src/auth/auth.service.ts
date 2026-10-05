@@ -32,7 +32,17 @@ import {
   jwtSignOptions,
   jwtVerifyOptions,
 } from '../common/secrets/jwt-keyring';
-import { hashPassword } from '../common/crypto/password.util';
+import { hashPassword, verifyPassword } from '../common/crypto/password.util';
+import { PasswordPolicyService } from '../common/password-policy/password-policy.service';
+import { LoginThrottleService } from '../common/auth-security/login-throttle.service';
+import { PowCaptchaService } from '../common/auth-security/pow-captcha.service';
+import { OtpSendLimiterService } from '../common/auth-security/otp-send-limiter.service';
+import { LoginAlertService } from '../common/auth-security/login-alert.service';
+import {
+  LoginChallenge,
+  LoginChallengeService,
+} from '../common/auth-security/login-challenge.service';
+import { MfaService } from '../common/mfa/mfa.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { ReferralService } from '../referral/referral.service';
 import type { ChangePasswordDto } from './dto/change-password.dto';
@@ -42,9 +52,11 @@ import { SmsTemplateService } from '../notifications/sms-template.service';
 
 const AUDIT_SOURCE = 'AuthService';
 
-const MAX_FAILED_PASSWORD_ATTEMPTS = 5;
-const LOCK_DURATION_MS = 15 * 60 * 1000;
 const OTP_ATTEMPTS_EXCEEDED_MSG = 'تعداد تلاش‌های مجاز به پایان رسید';
+const OTP_TTL_SECONDS = 180;
+// FIA_UAU_EXT.2.7: یک پیام برای شماره‌ی ناموجود، رمز نادرست و حساب بدون رمز
+const INVALID_CREDENTIALS_MSG = 'شماره همراه یا رمز عبور نادرست است';
+const RESET_SENT_MSG = 'در صورت وجود حساب کاربری، کد بازیابی ارسال خواهد شد';
 
 interface RequestContext {
   ip?: string;
@@ -63,6 +75,18 @@ interface ResetTokenPayload {
   phone: string;
   purpose: 'reset_password';
   userId: string;
+  /** شناسه‌ی یکتا تا توکن بازیابی فقط یک‌بار قابل استفاده باشد */
+  jti?: string;
+}
+
+/** پاسخ مرحله‌ی اول ورود: هنوز نشستی صادر نشده و عامل دوم لازم است */
+export interface MfaChallengeResponse {
+  mfaRequired: true;
+  method: 'SMS' | 'TOTP';
+  challengeToken: string;
+  maskedPhone?: string;
+  expiresIn?: number;
+  resendAfter?: number;
 }
 
 @Injectable()
@@ -78,6 +102,13 @@ export class AuthService {
     private systemConfig: SystemConfigService,
     private referralService: ReferralService,
     private smsTemplates: SmsTemplateService,
+    private passwordPolicy: PasswordPolicyService,
+    private loginThrottle: LoginThrottleService,
+    private captcha: PowCaptchaService,
+    private otpLimiter: OtpSendLimiterService,
+    private loginAlerts: LoginAlertService,
+    private challenges: LoginChallengeService,
+    private mfa: MfaService,
   ) {}
 
   /** ارسال کد یکبارمصرف با قالب پیامک رویداد؛ شکست ارسال به کاربر گزارش می‌شود */
@@ -112,26 +143,54 @@ export class AuthService {
   // ═══════════════════════════════════════════
   async sendOtp(dto: SendOtpDto, purpose: OtpPurpose = OtpPurpose.REGISTER) {
     const phone = this.normalizePhone(dto.phone);
+    await this.issueOtp(phone, purpose);
+    return {
+      message: 'کد تایید ارسال شد',
+      expiresIn: OTP_TTL_SECONDS,
+      resendAfter: 60,
+    };
+  }
+
+  /**
+   * صدور کد یکبارمصرف جدید (CSPRNG، ۶ رقم، ۱۸۰ ثانیه، هش bcrypt با نمک تصادفی).
+   * FIA_AUX_EXT.1.2: سهمیه‌ی ارسال هر شماره (۶۰ ثانیه فاصله، ۵ ارسال در ساعت) پیش از ارسال
+   * مصرف می‌شود و کدهای قبلی همان هدف باطل می‌شوند تا همیشه فقط یک کد معتبر وجود داشته باشد.
+   */
+  private async issueOtp(
+    phone: string,
+    purpose: OtpPurpose,
+    opts: { deliver?: boolean } = {},
+  ) {
+    await this.otpLimiter.consume(phone, purpose);
     const otp = this.generateOtp();
     const otpHash = await bcrypt.hash(otp, 10);
 
-    const redisKey = `otp:${phone}:${purpose}`;
-    await this.redis.setex(redisKey, 180, otpHash);
-
+    await this.redis.setex(`otp:${phone}:${purpose}`, OTP_TTL_SECONDS, otpHash);
+    await this.redis.del(`otp_attempts:${phone}:${purpose}`);
+    await this.prisma.userOtp.deleteMany({ where: { phone, purpose } });
     await this.prisma.userOtp.create({
       data: {
         phone,
         codeHash: otpHash,
         purpose,
-        expiresAt: new Date(Date.now() + 3 * 60 * 1000),
+        expiresAt: new Date(Date.now() + OTP_TTL_SECONDS * 1000),
       },
     });
 
     if (isOtpDebugLogEnabled()) {
       this.logger.warn(`[OTP] ${phone} (${purpose}): ${otp}`);
     }
-    await this.deliverOtp(phone, purpose, otp);
-    return { message: 'کد تایید ارسال شد', expiresIn: 180 };
+    if (opts.deliver === false) return otp;
+    try {
+      await this.deliverOtp(phone, purpose, otp);
+    } catch (err) {
+      // کد ارسال‌نشده نباید معتبر بماند یا سهمیه را مصرف کند
+      await this.redis.del(`otp:${phone}:${purpose}`);
+      await this.prisma.userOtp.deleteMany({ where: { phone, purpose } });
+      await this.otpLimiter.release(phone, purpose);
+      throw err;
+    }
+    return otp;
   }
 
   // ═══════════════════════════════════════════
@@ -227,6 +286,8 @@ export class AuthService {
       referrerId = referrer.id;
     }
 
+    // FIA_UAU_EXT.1: حداقل طول، رمزهای رایج/افشاشده و کلمات مرتبط با برنامه
+    await this.passwordPolicy.assertAcceptable(dto.password, 'user', { phone });
     const passwordHash = await hashPassword(dto.password);
     const referralCode = await this.generateReferralCode();
     const cardNumber = await this.generateCardNumber();
@@ -240,6 +301,7 @@ export class AuthService {
           status: type === 'LEGAL' ? 'PENDING_ACTIVATION' : 'ACTIVE',
           referralCode,
           referredById: referrerId,
+          passwordChangedAt: new Date(),
         },
       });
 
@@ -294,6 +356,12 @@ export class AuthService {
     }
 
     const tokens = await this.createSession(user.id, user.phone, ip, userAgent);
+    // ثبت‌نام با دو عامل (مالکیت شماره با کد پیامکی + تعیین رمز) کامل شده؛ اولین دستگاه ثبت می‌شود
+    await this.loginAlerts.onSuccessfulLogin(
+      { kind: 'user', id: user.id },
+      ip,
+      userAgent,
+    );
     await this.auditService.logUser({
       userId: user.id,
       actorLabel: maskPhone(user.phone),
@@ -316,54 +384,68 @@ export class AuthService {
   }
 
   // ═══════════════════════════════════════════
-  async login(dto: LoginDto, ip?: string, userAgent?: string) {
+  /**
+   * مرحله‌ی اول ورود (عامل دانستنی): رمز عبور.
+   * FIA_UAU_EXT.2.3 / FIA_AUX_EXT.1.1: هیچ نشستی با یک عامل صادر نمی‌شود. پس از رمز درست، عامل
+   * دوم لازم است: کد برنامه‌ی احراز هویت (اگر کاربر فعال کرده) یا کد پیامکی به شماره‌ای که
+   * مالکیت آن هنگام ثبت‌نام اثبات شده است. ورود فقط با پیامک (بدون رمز) حذف شده است.
+   */
+  async login(
+    dto: LoginDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<MfaChallengeResponse> {
     const phone = this.normalizePhone(dto.phone);
-    const user = await this.prisma.user.findUnique({ where: { phone } });
     const maskedPhone = maskPhone(phone);
 
-    if (!user || !user.passwordHash) {
+    // FIA_UAU_EXT.2.1: تأخیر فزاینده و بررسی امنیتی برای هر شماره (موجود یا ناموجود، یکسان)
+    await this.loginThrottle.assertAllowed('user', phone, ip);
+    await this.captcha.enforce(
+      await this.loginThrottle.captchaRequired('user', phone, ip, userAgent),
+      dto.captcha,
+    );
+
+    const user = await this.prisma.user.findUnique({ where: { phone } });
+    // FIA_UAU_EXT.2.7: برای شماره‌ی ناموجود هم یک مقایسه‌ی bcrypt انجام می‌شود تا زمان پاسخ یکسان بماند
+    const check = await verifyPassword(dto.password, user?.passwordHash);
+
+    if (!user || !check.valid) {
+      const result = await this.loginThrottle.recordFailure('user', phone, ip);
+      if (user)
+        await this.mirrorFailure(user.id, maskedPhone, result, {
+          ip,
+          userAgent,
+        });
       await this.auditService.logUser({
-        userId: null,
+        userId: user?.id ?? null,
         actorLabel: maskedPhone,
         action: 'auth.login',
         ip,
         userAgent,
         source: AUDIT_SOURCE,
         success: false,
+        newValue: {
+          reason: !user
+            ? 'unknown_user'
+            : !user.passwordHash
+              ? 'no_password'
+              : 'invalid_password',
+        },
       });
-      throw new UnauthorizedException('شماره همراه یا رمز عبور نادرست است');
-    }
-    if (user.status === 'BANNED') {
-      await this.auditService.logUser({
-        userId: user.id,
-        actorLabel: maskedPhone,
-        action: 'auth.login',
-        ip,
-        userAgent,
-        source: AUDIT_SOURCE,
-        success: false,
-        newValue: { reason: 'banned' },
-      });
-      throw new UnauthorizedException('حساب کاربری شما مسدود شده است');
-    }
-    if (user.status !== 'ACTIVE') {
-      await this.auditService.logUser({
-        userId: user.id,
-        actorLabel: maskedPhone,
-        action: 'auth.login',
-        ip,
-        userAgent,
-        source: AUDIT_SOURCE,
-        success: false,
-        newValue: { reason: 'not_active' },
-      });
-      throw new UnauthorizedException('حساب کاربری شما فعال نیست');
+      throw new UnauthorizedException(INVALID_CREDENTIALS_MSG);
     }
 
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      const minutesLeft = Math.ceil(
-        (user.lockedUntil.getTime() - Date.now()) / 60000,
-      );
+    if (check.needsRehash) {
+      // ارتقای خودکار هش قدیمی به قالب جدید (پیش‌هش SHA-384 + bcrypt)
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: await hashPassword(dto.password) },
+      });
+    }
+
+    // وضعیت حساب فقط پس از اثبات رمز اعلام می‌شود (عدم افشای وجود حساب به ناشناس)
+    if (user.status === 'BANNED' || user.status !== 'ACTIVE') {
+      const banned = user.status === 'BANNED';
       await this.auditService.logUser({
         userId: user.id,
         actorLabel: maskedPhone,
@@ -372,37 +454,93 @@ export class AuthService {
         userAgent,
         source: AUDIT_SOURCE,
         success: false,
-        newValue: { reason: 'locked' },
+        newValue: { reason: banned ? 'banned' : 'not_active' },
       });
       throw new ForbiddenException(
-        `حساب شما به دلیل تلاش‌های ناموفق مکرر موقتاً قفل شده است. ${minutesLeft} دقیقه دیگر تلاش کنید یا با کد یک‌بارمصرف وارد شوید`,
+        banned ? 'حساب کاربری شما مسدود شده است' : 'حساب کاربری شما فعال نیست',
       );
     }
 
-    const valid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!valid) {
-      await this.registerFailedPasswordAttempt(user.id, maskedPhone, {
-        ip,
-        userAgent,
-      });
-      await this.auditService.logUser({
-        userId: user.id,
-        actorLabel: maskedPhone,
-        action: 'auth.login',
-        ip,
-        userAgent,
-        source: AUDIT_SOURCE,
-        success: false,
-        newValue: { reason: 'invalid_password' },
-      });
-      throw new UnauthorizedException('شماره همراه یا رمز عبور نادرست است');
+    const method = user.totpEnabled ? 'TOTP' : 'SMS';
+    if (method === 'SMS') {
+      await this.issueOtp(phone, OtpPurpose.LOGIN);
     }
+    const challengeToken = await this.challenges.create({
+      kind: 'user',
+      accountId: user.id,
+      stage: method === 'TOTP' ? 'TOTP' : 'SMS_OTP',
+      via: 'password',
+      purpose: 'login',
+      identifier: phone,
+    });
+    await this.auditService.logUser({
+      userId: user.id,
+      actorLabel: maskedPhone,
+      action: 'auth.login_first_factor',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+      newValue: { secondFactor: method.toLowerCase() },
+    });
+    return method === 'TOTP'
+      ? { mfaRequired: true, method, challengeToken }
+      : {
+          mfaRequired: true,
+          method,
+          challengeToken,
+          maskedPhone,
+          expiresIn: OTP_TTL_SECONDS,
+          resendAfter: 60,
+        };
+  }
 
-    await this.resetFailedPasswordAttempts(
-      user.id,
-      user.failedLoginCount,
-      user.lockedUntil,
+  /** مرحله‌ی دوم ورود: کد پیامکی، کد برنامه‌ی احراز هویت یا یکی از کدهای بازیابی */
+  async verifyLoginMfa(
+    challengeToken: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const ch = await this.challenges.get(challengeToken, 'user', [
+      'SMS_OTP',
+      'TOTP',
+    ]);
+    if (ch.purpose !== 'login') {
+      throw new UnauthorizedException(
+        'مرحله‌ی ورود نامعتبر است؛ دوباره وارد شوید',
+      );
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: ch.accountId },
+    });
+    if (!user)
+      throw new UnauthorizedException(
+        'مرحله‌ی ورود نامعتبر است؛ دوباره وارد شوید',
+      );
+    const maskedPhone = maskPhone(user.phone);
+
+    const usedMethod = await this.checkSecondFactor(
+      ch,
+      challengeToken,
+      user,
+      code,
+      {
+        ip,
+        userAgent,
+        action: 'auth.login_mfa',
+      },
     );
+
+    await this.challenges.consume(challengeToken);
+    await this.loginThrottle.recordSuccess('user', user.phone);
+    await this.loginThrottle.recordSuccess('mfa', `user:${user.id}`);
+    if (user.failedLoginCount !== 0 || user.lockedUntil) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginCount: 0, lockedUntil: null },
+      });
+    }
     const tokens = await this.createSession(user.id, user.phone, ip, userAgent);
     await this.auditService.logUser({
       userId: user.id,
@@ -412,68 +550,19 @@ export class AuthService {
       userAgent,
       source: AUDIT_SOURCE,
       success: true,
+      newValue: { mfa: usedMethod },
     });
-    return {
-      ...tokens,
-      user: {
-        id: user.id,
-        phone: user.phone,
-        type: user.type,
-        status: user.status,
-        referralCode: user.referralCode,
-      },
-    };
-  }
-
-  // ═══════════════════════════════════════════
-  async sendLoginOtp(dto: SendOtpDto) {
-    return this.sendOtp(dto, OtpPurpose.LOGIN);
-  }
-
-  async verifyLoginOtp(dto: VerifyOtpDto, ip?: string, userAgent?: string) {
-    const phone = this.normalizePhone(dto.phone);
-    const maskedPhone = maskPhone(phone);
-    const user = await this.prisma.user.findUnique({ where: { phone } });
-    if (!user) {
-      await this.auditService.logUser({
-        userId: null,
-        actorLabel: maskedPhone,
-        action: 'auth.login_otp',
-        ip,
-        userAgent,
-        source: AUDIT_SOURCE,
-        success: false,
-      });
-      throw new NotFoundException(
-        'کاربری با این شماره یافت نشد. لطفاً ثبت‌نام کنید.',
-      );
-    }
-
-    await this.validateOtpAudited(
-      phone,
-      dto.code,
-      OtpPurpose.LOGIN,
-      'auth.login_otp',
-      user.id,
-      { ip, userAgent },
-    );
-
-    // ورود موفق با عامل «مالکیت شماره همراه»، قفل ناشی از رمز عبور را هم برطرف می‌کند
-    await this.resetFailedPasswordAttempts(
-      user.id,
-      user.failedLoginCount,
-      user.lockedUntil,
-    );
-    const tokens = await this.createSession(user.id, user.phone, ip, userAgent);
-    await this.auditService.logUser({
-      userId: user.id,
-      actorLabel: maskedPhone,
-      action: 'auth.login_otp',
+    await this.loginAlerts.onSuccessfulLogin(
+      { kind: 'user', id: user.id },
       ip,
       userAgent,
-      source: AUDIT_SOURCE,
-      success: true,
-    });
+    );
+    if (usedMethod === 'recovery_code') {
+      await this.loginAlerts.onSecurityChange(
+        { kind: 'user', id: user.id },
+        'ورود با یکی از کدهای بازیابی انجام شد',
+      );
+    }
     return {
       ...tokens,
       user: {
@@ -486,9 +575,136 @@ export class AuthService {
     };
   }
 
+  /** ارسال دوباره‌ی کد پیامکی مرحله‌ی دوم (با همان سهمیه‌ی هر شماره) */
+  async resendLoginOtp(challengeToken: string) {
+    const ch = await this.challenges.get(challengeToken, 'user', ['SMS_OTP']);
+    const user = await this.prisma.user.findUnique({
+      where: { id: ch.accountId },
+    });
+    if (!user)
+      throw new UnauthorizedException(
+        'مرحله‌ی ورود نامعتبر است؛ دوباره وارد شوید',
+      );
+    const purpose =
+      ch.purpose === 'reset' ? OtpPurpose.RESET_PASSWORD : OtpPurpose.LOGIN;
+    await this.issueOtp(user.phone, purpose);
+    return {
+      message: 'کد تایید دوباره ارسال شد',
+      expiresIn: OTP_TTL_SECONDS,
+      resendAfter: 60,
+    };
+  }
+
+  /**
+   * بررسی عامل دوم یک مرحله (پیامک یا TOTP/کد بازیابی) با شمارش تلاش‌ها؛ در صورت خطا
+   * استثنای مناسب پرتاب می‌شود. FIA_UAU_EXT.2.1: تلاش‌های ناموفق عامل دوم برای هر حساب هم
+   * تأخیر فزاینده دارند تا ساختن مرحله‌های پیاپی راهی برای حدس کد نباشد.
+   */
+  private async checkSecondFactor(
+    ch: LoginChallenge,
+    challengeToken: string,
+    user: { id: string; phone: string },
+    code: string,
+    ctx: { ip?: string; userAgent?: string; action: string },
+  ): Promise<'sms' | 'totp' | 'recovery_code'> {
+    await this.loginThrottle.assertAllowed('mfa', `user:${user.id}`, ctx.ip);
+    let used: 'sms' | 'totp' | 'recovery_code' | null = null;
+    let otpError: unknown = null;
+    if (ch.stage === 'SMS_OTP') {
+      try {
+        await this.validateOtp(
+          user.phone,
+          code,
+          ch.purpose === 'reset' ? OtpPurpose.RESET_PASSWORD : OtpPurpose.LOGIN,
+        );
+        used = 'sms';
+      } catch (err) {
+        otpError = err;
+      }
+    } else {
+      used = await this.mfa.verify({ kind: 'user', id: user.id }, code);
+    }
+    if (used) return used;
+
+    const remaining = await this.challenges.fail(challengeToken, ch);
+    await this.loginThrottle.recordFailure('mfa', `user:${user.id}`, ctx.ip);
+    await this.auditService.logUser({
+      userId: user.id,
+      actorLabel: maskPhone(user.phone),
+      action: ctx.action,
+      ip: ctx.ip,
+      userAgent: ctx.userAgent,
+      source: AUDIT_SOURCE,
+      success: false,
+      newValue: {
+        reason: ch.stage === 'SMS_OTP' ? 'invalid_otp' : 'invalid_totp',
+        remaining,
+      },
+    });
+    if (
+      otpError instanceof BadRequestException &&
+      otpError.message === OTP_ATTEMPTS_EXCEEDED_MSG
+    ) {
+      await this.challenges.consume(challengeToken);
+      throw new UnauthorizedException(
+        'تعداد تلاش‌های مجاز به پایان رسید؛ دوباره وارد شوید',
+      );
+    }
+    throw new UnauthorizedException(
+      remaining > 0
+        ? `کد وارد شده نادرست یا منقضی است (${remaining.toLocaleString('fa-IR')} تلاش باقی‌مانده)`
+        : 'تعداد تلاش‌های مجاز به پایان رسید؛ دوباره وارد شوید',
+    );
+  }
+
+  /** بازتاب شمارنده‌ی Redis در ستون‌های حساب (برای نمایش در پنل) + رویداد قفل و هشدار */
+  private async mirrorFailure(
+    userId: string,
+    maskedPhone: string,
+    result: { failures: number; delaySeconds: number; justThrottled: boolean },
+    ctx: RequestContext,
+  ) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        failedLoginCount: result.failures,
+        lockedUntil: result.delaySeconds
+          ? new Date(Date.now() + result.delaySeconds * 1000)
+          : undefined,
+      },
+    });
+    if (result.justThrottled) {
+      // FAU_GEN_EXT.1.5 بند ۵: ورود حساب به دوره‌ی تأخیر به دلیل تلاش‌های ناموفق مکرر
+      await this.auditService.logUser({
+        userId,
+        actorLabel: maskedPhone,
+        action: 'auth.account_locked',
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: {
+          failedAttempts: result.failures,
+          policy: 'progressive_delay',
+        },
+      });
+      // FIA_UAU_EXT.2.5: اطلاع به صاحب حساب
+      await this.loginAlerts.onRepeatedFailures(
+        { kind: 'user', id: userId },
+        result.failures,
+        ctx.ip,
+      );
+    }
+  }
+
   // ═══════════════════════════════════════════
+  /**
+   * FIA_UAU_EXT.2.7: پاسخ، کد وضعیت و زمان پاسخ برای شماره‌ی ثبت‌شده و ثبت‌نشده یکسان است:
+   * سهمیه‌ی ارسال برای هر دو مصرف می‌شود و ارسال پیامک در پس‌زمینه انجام می‌شود.
+   */
   async forgotPassword(dto: ForgotPasswordDto, ctx: RequestContext = {}) {
     const phone = this.normalizePhone(dto.phone);
+    await this.otpLimiter.consume(phone, OtpPurpose.RESET_PASSWORD);
     const user = await this.prisma.user.findUnique({ where: { phone } });
 
     // FAU_GEN_EXT.1.5 بند ۶: ثبت «درخواست» بازنشانی رمز (پاسخ به کلاینت در هر دو حالت یکسان می‌ماند)
@@ -503,34 +719,30 @@ export class AuthService {
       newValue: user ? undefined : { reason: 'unknown_user' },
     });
 
-    if (!user) {
-      return { message: 'در صورت وجود حساب کاربری، کد بازیابی ارسال خواهد شد' };
+    if (user) {
+      void (async () => {
+        try {
+          // سهمیه همین بالا مصرف شده؛ issueOtp دوباره آن را نمی‌شمارد
+          await this.otpLimiter.release(phone, OtpPurpose.RESET_PASSWORD);
+          await this.issueOtp(phone, OtpPurpose.RESET_PASSWORD);
+        } catch (err) {
+          this.logger.error(
+            `ارسال کد بازیابی به ${maskPhone(phone)} ناموفق بود: ${(err as Error).message}`,
+          );
+        }
+      })();
     }
-
-    const otp = this.generateOtp();
-    const otpHash = await bcrypt.hash(otp, 10);
-
-    await this.redis.setex(
-      `otp:${phone}:${OtpPurpose.RESET_PASSWORD}`,
-      180,
-      otpHash,
-    );
-    await this.prisma.userOtp.create({
-      data: {
-        phone,
-        codeHash: otpHash,
-        purpose: OtpPurpose.RESET_PASSWORD,
-        expiresAt: new Date(Date.now() + 3 * 60 * 1000),
-      },
-    });
-
-    if (isOtpDebugLogEnabled()) {
-      this.logger.warn(`[Reset OTP] ${phone}: ${otp}`);
-    }
-    await this.deliverOtp(phone, OtpPurpose.RESET_PASSWORD, otp);
-    return { message: 'در صورت وجود حساب کاربری، کد بازیابی ارسال خواهد شد' };
+    return {
+      message: RESET_SENT_MSG,
+      expiresIn: OTP_TTL_SECONDS,
+      resendAfter: 60,
+    };
   }
 
+  /**
+   * تأیید کد پیامکی بازیابی. FIA_UID_EXT.1.3: اگر ورود دومرحله‌ای با برنامه‌ی احراز هویت فعال
+   * باشد، توکن بازیابی فقط پس از ارائه‌ی کد برنامه (یا کد بازیابی) صادر می‌شود.
+   */
   async verifyResetOtp(dto: VerifyOtpDto, ctx: RequestContext = {}) {
     const phone = this.normalizePhone(dto.phone);
     await this.validateOtpAudited(
@@ -542,8 +754,10 @@ export class AuthService {
       ctx,
     );
 
+    // کد فقط برای شماره‌ی ثبت‌شده صادر می‌شود؛ رسیدن به اینجا یعنی حساب وجود دارد
     const user = await this.prisma.user.findUnique({ where: { phone } });
-    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    if (!user)
+      throw new BadRequestException('کد تایید منقضی شده یا نامعتبر است');
 
     await this.auditService.logUser({
       userId: user.id,
@@ -555,19 +769,72 @@ export class AuthService {
       success: true,
     });
 
-    const resetToken = this.jwtService.sign(
+    if (user.totpEnabled) {
+      const challengeToken = await this.challenges.create({
+        kind: 'user',
+        accountId: user.id,
+        stage: 'TOTP',
+        via: 'password',
+        purpose: 'reset',
+        identifier: phone,
+      });
+      return {
+        mfaRequired: true as const,
+        method: 'TOTP' as const,
+        challengeToken,
+        message:
+          'برای ادامه، کد برنامه‌ی احراز هویت یا یکی از کدهای بازیابی را وارد کنید',
+      };
+    }
+    return {
+      resetToken: this.signResetToken(user.id, phone),
+      message: 'کد با موفقیت تایید شد',
+    };
+  }
+
+  /** مرحله‌ی عامل دوم در بازنشانی رمز (فقط برای حساب‌های دارای TOTP) */
+  async verifyResetMfa(
+    challengeToken: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const ch = await this.challenges.get(challengeToken, 'user', ['TOTP']);
+    if (ch.purpose !== 'reset') {
+      throw new UnauthorizedException(
+        'مرحله‌ی بازیابی نامعتبر است؛ دوباره تلاش کنید',
+      );
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id: ch.accountId },
+    });
+    if (!user)
+      throw new UnauthorizedException(
+        'مرحله‌ی بازیابی نامعتبر است؛ دوباره تلاش کنید',
+      );
+    await this.checkSecondFactor(ch, challengeToken, user, code, {
+      ip,
+      userAgent,
+      action: 'auth.reset_password_mfa',
+    });
+    await this.challenges.consume(challengeToken);
+    await this.loginThrottle.recordSuccess('mfa', `user:${user.id}`);
+    return {
+      resetToken: this.signResetToken(user.id, user.phone),
+      message: 'هویت شما تأیید شد؛ رمز عبور جدید را تعیین کنید',
+    };
+  }
+
+  private signResetToken(userId: string, phone: string) {
+    return this.jwtService.sign(
       {
         phone,
         purpose: 'reset_password',
-        userId: user.id,
+        userId,
+        jti: uuidv4(),
       } as ResetTokenPayload,
-      {
-        ...jwtSignOptions('JWT_RESET_SECRET'),
-        expiresIn: 600,
-      },
+      { ...jwtSignOptions('JWT_RESET_SECRET'), expiresIn: 600 },
     );
-
-    return { resetToken, message: 'کد با موفقیت تایید شد' };
   }
 
   async resetPassword(dto: ResetPasswordDto, ip?: string, userAgent?: string) {
@@ -602,14 +869,41 @@ export class AuthService {
       throw new BadRequestException('توکن نامعتبر است');
     }
 
+    // قواعد رمز پیش از مصرف توکن بررسی می‌شود تا کاربر بتواند رمز دیگری امتحان کند
+    await this.passwordPolicy.assertAcceptable(dto.password, 'user', {
+      phone: payload.phone,
+    });
+
+    // FIA_UAU_EXT.3.1: توکن بازیابی فقط یک‌بار قابل استفاده است
+    if (payload.jti) {
+      const fresh = await this.redis.set(
+        `reset-token-used:${payload.jti}`,
+        '1',
+        'EX',
+        900,
+        'NX',
+      );
+      if (fresh !== 'OK') {
+        throw new UnauthorizedException(
+          'این لینک/توکن بازیابی قبلاً استفاده شده است',
+        );
+      }
+    }
+
     const passwordHash = await hashPassword(dto.password);
     await this.prisma.user.update({
       where: { id: payload.userId },
-      data: { passwordHash, failedLoginCount: 0, lockedUntil: null },
+      data: {
+        passwordHash,
+        failedLoginCount: 0,
+        lockedUntil: null,
+        passwordChangedAt: new Date(),
+      },
     });
     await this.prisma.userSession.deleteMany({
       where: { userId: payload.userId },
     });
+    await this.loginThrottle.clear('user', payload.phone);
 
     await this.auditService.logUser({
       userId: payload.userId,
@@ -620,12 +914,16 @@ export class AuthService {
       source: AUDIT_SOURCE,
       success: true,
     });
+    await this.loginAlerts.onSecurityChange(
+      { kind: 'user', id: payload.userId },
+      'رمز عبور بازنشانی شد و همه‌ی نشست‌ها بسته شدند',
+    );
 
     return { message: 'رمز عبور با موفقیت تغییر کرد. لطفاً دوباره وارد شوید.' };
   }
 
   // ═══════════════════════════════════════════
-  // تغییر رمز عبور توسط کاربر واردشده — سایر نشست‌ها باطل می‌شوند
+  // تغییر رمز عبور توسط کاربر واردشده — سایر نشست‌ها باطل می‌شوند (FIA_UAU_EXT.1.2 و 1.3)
   async changePassword(
     userId: string,
     sessionId: string,
@@ -643,8 +941,13 @@ export class AuthService {
       );
     }
 
-    const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
-    if (!valid) {
+    await this.loginThrottle.assertAllowed('mfa', `pwchange:${userId}`, ip);
+    const current = await verifyPassword(
+      dto.currentPassword,
+      user.passwordHash,
+    );
+    if (!current.valid) {
+      await this.loginThrottle.recordFailure('mfa', `pwchange:${userId}`, ip);
       await this.auditService.logUser({
         userId,
         actorLabel: maskedPhone,
@@ -657,17 +960,26 @@ export class AuthService {
       });
       throw new BadRequestException('رمز عبور فعلی نادرست است');
     }
+    await this.loginThrottle.recordSuccess('mfa', `pwchange:${userId}`);
 
-    if (await bcrypt.compare(dto.newPassword, user.passwordHash)) {
+    if (dto.newPassword === dto.currentPassword) {
       throw new BadRequestException(
         'رمز عبور جدید نباید با رمز عبور فعلی یکسان باشد',
       );
     }
+    await this.passwordPolicy.assertAcceptable(dto.newPassword, 'user', {
+      phone: user.phone,
+    });
 
     const passwordHash = await hashPassword(dto.newPassword);
     await this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash, failedLoginCount: 0, lockedUntil: null },
+      data: {
+        passwordHash,
+        failedLoginCount: 0,
+        lockedUntil: null,
+        passwordChangedAt: new Date(),
+      },
     });
     await this.prisma.userSession.deleteMany({
       where: { userId, id: { not: sessionId } },
@@ -682,6 +994,10 @@ export class AuthService {
       source: AUDIT_SOURCE,
       success: true,
     });
+    await this.loginAlerts.onSecurityChange(
+      { kind: 'user', id: userId },
+      'رمز عبور تغییر کرد و نشست‌های سایر دستگاه‌ها بسته شدند',
+    );
 
     return {
       message:
@@ -763,6 +1079,11 @@ export class AuthService {
       type: user.type,
       status: user.status,
       referralCode: user.referralCode,
+      mfa: {
+        totpEnabled: user.totpEnabled,
+        recoveryCodesRemaining: user.backupCodesHash.length,
+      },
+      passwordChangedAt: user.passwordChangedAt,
       wallet: user.wallet
         ? {
             goldBalance: user.wallet.goldBalanceGrams.toString(),
@@ -825,55 +1146,6 @@ export class AuthService {
       });
       throw err;
     }
-  }
-
-  private async registerFailedPasswordAttempt(
-    userId: string,
-    maskedPhone: string | null,
-    ctx: RequestContext,
-  ) {
-    // افزایش اتمیک تا تلاش‌های همزمان (از IPهای مختلف) کم‌شماری نشوند
-    const { failedLoginCount: newCount } = await this.prisma.user.update({
-      where: { id: userId },
-      data: { failedLoginCount: { increment: 1 } },
-      select: { failedLoginCount: true },
-    });
-
-    if (newCount >= MAX_FAILED_PASSWORD_ATTEMPTS) {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          failedLoginCount: 0,
-          lockedUntil: new Date(Date.now() + LOCK_DURATION_MS),
-        },
-      });
-      // FAU_GEN_EXT.1.5 بند ۵: قفل‌شدن حساب به دلیل تلاش‌های ناموفق مکرر
-      await this.auditService.logUser({
-        userId,
-        actorLabel: maskedPhone,
-        action: 'auth.account_locked',
-        ip: ctx.ip,
-        userAgent: ctx.userAgent,
-        source: AUDIT_SOURCE,
-        success: false,
-        newValue: {
-          failedAttempts: newCount,
-          lockDurationMs: LOCK_DURATION_MS,
-        },
-      });
-    }
-  }
-
-  private async resetFailedPasswordAttempts(
-    userId: string,
-    currentCount: number,
-    lockedUntil: Date | null,
-  ) {
-    if (currentCount === 0 && !lockedUntil) return;
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { failedLoginCount: 0, lockedUntil: null },
-    });
   }
 
   private async validateOtp(phone: string, code: string, purpose: OtpPurpose) {
@@ -1001,8 +1273,7 @@ export class AuthService {
   private async generateReferralCode(): Promise<string> {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
-    for (let i = 0; i < 8; i++)
-      code += chars[crypto.randomInt(chars.length)];
+    for (let i = 0; i < 8; i++) code += chars[crypto.randomInt(chars.length)];
     const exists = await this.prisma.user.findUnique({
       where: { referralCode: code },
     });

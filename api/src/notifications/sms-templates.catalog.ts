@@ -8,7 +8,7 @@
 // - در حالت PATTERN، نام پارامترهای قالب در پنل قاصدک/sms.ir باید دقیقاً همین نام متغیرها باشد.
 
 export type SmsTemplateCategory =
-  'AUTH' | 'ORDER' | 'FINANCE' | 'AGENT' | 'GENERAL';
+  'AUTH' | 'SECURITY' | 'ORDER' | 'FINANCE' | 'AGENT' | 'GENERAL';
 
 export interface SmsVariableDef {
   name: string;
@@ -87,6 +87,44 @@ const V = {
     label: 'نام مشتری',
     sample: 'علی رضایی',
   },
+  device: {
+    name: 'device',
+    label: 'دستگاه/مرورگر',
+    sample: 'Chrome روی Android',
+  },
+  ip: { name: 'ip', label: 'IP (ماسک‌شده)', sample: '5.112.x.x' },
+  time: { name: 'time', label: 'زمان', sample: '۱۴۰۵/۰۷/۱۳ ساعت ۱۰:۲۴' },
+  count: { name: 'count', label: 'تعداد', sample: '۵' },
+  change: {
+    name: 'change',
+    label: 'تغییر امنیتی',
+    sample: 'ورود دومرحله‌ای فعال شد',
+  },
+  username: { name: 'username', label: 'نام کاربری', sample: 'r.ahmadi' },
+  tempPassword: {
+    name: 'tempPassword',
+    label: 'رمز موقت',
+    sample: 'Kp7v-Q2mX-9wTz-Hd4r',
+  },
+  hours: { name: 'hours', label: 'مدت اعتبار (ساعت)', sample: '۲۴' },
+  panelUrl: {
+    name: 'panelUrl',
+    label: 'نشانی پنل',
+    sample: 'admin.arkan.gold',
+  },
+  item: {
+    name: 'item',
+    label: 'اعتبارنامه',
+    sample: 'کلید API شریک «اسنپ‌پی»',
+  },
+  partnerName: { name: 'partnerName', label: 'نام شریک', sample: 'اسنپ‌پی' },
+  keyPrefix: {
+    name: 'keyPrefix',
+    label: 'پیشوند کلید',
+    sample: 'ak_live_7f3a9c',
+  },
+  days: { name: 'days', label: 'روزهای باقی‌مانده', sample: '۱۵' },
+  date: { name: 'date', label: 'تاریخ انقضا', sample: '۱۴۰۵/۰۸/۰۱' },
 } satisfies Record<string, SmsVariableDef>;
 
 export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
@@ -114,6 +152,87 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
     body: '{brand}\nکد بازیابی رمز عبور: {code}\nاگر این درخواست از طرف شما نیست، به پشتیبانی اطلاع دهید.',
     variables: [V.code, V.brand],
     sensitive: true,
+  },
+
+  // ─────────────────────────── هشدارهای امنیتی (FIA) ───────────────────────────
+  {
+    key: 'AUTH_NEW_DEVICE_LOGIN',
+    title: 'ورود از دستگاه جدید',
+    category: 'SECURITY',
+    body: '{name} عزیز، ورود جدید به حساب شما در {brand}\nدستگاه: {device}\nIP: {ip}\nزمان: {time}\nاگر شما نبودید، فوراً رمز عبور را تغییر دهید و با پشتیبانی تماس بگیرید.',
+    variables: [V.name, V.device, V.ip, V.time, V.brand],
+    defaultActive: true,
+  },
+  {
+    key: 'AUTH_FAILED_ATTEMPTS_ALERT',
+    title: 'تلاش‌های ناموفق ورود',
+    category: 'SECURITY',
+    body: '{name} عزیز، {count} تلاش ناموفق برای ورود به حساب شما در {brand} ثبت شد (آخرین IP: {ip}، {time}). اگر شما نبودید، رمز عبور خود را تغییر دهید و ورود دومرحله‌ای را فعال کنید.',
+    variables: [V.name, V.count, V.ip, V.time, V.brand],
+    defaultActive: true,
+  },
+  {
+    key: 'AUTH_SECURITY_CHANGE',
+    title: 'تغییر تنظیمات امنیتی حساب',
+    category: 'SECURITY',
+    body: '{name} عزیز، تغییر امنیتی در حساب {brand}: {change}\nزمان: {time}\nاگر این تغییر توسط شما انجام نشده، فوراً با پشتیبانی تماس بگیرید.',
+    variables: [V.name, V.change, V.time, V.brand],
+    defaultActive: true,
+  },
+  {
+    key: 'ADMIN_TEMP_PASSWORD',
+    title: 'رمز موقت حساب پنل مدیریت/نمایندگی',
+    category: 'SECURITY',
+    body: '{brand}\n{name} گرامی، رمز موقت حساب {username}: {tempPassword}\nاین رمز {hours} ساعت اعتبار دارد و در اولین ورود ({panelUrl}) باید تغییر کند. آن را در اختیار هیچ‌کس قرار ندهید.',
+    variables: [
+      V.name,
+      V.username,
+      V.tempPassword,
+      V.hours,
+      V.panelUrl,
+      V.brand,
+    ],
+    sensitive: true,
+  },
+  {
+    key: 'ADMIN_NEW_DEVICE_LOGIN',
+    title: 'ورود ادمین از دستگاه جدید',
+    category: 'SECURITY',
+    body: '{brand}\n{name} گرامی، ورود جدید به حساب {username} در پنل\nدستگاه: {device}\nIP: {ip}\nزمان: {time}\nاگر شما نبودید، فوراً به مدیر امنیت اطلاع دهید.',
+    variables: [V.name, V.username, V.device, V.ip, V.time, V.brand],
+    defaultActive: true,
+  },
+  {
+    key: 'ADMIN_FAILED_ATTEMPTS_ALERT',
+    title: 'تلاش‌های ناموفق ورود به پنل',
+    category: 'SECURITY',
+    body: '{brand}\n{name} گرامی، {count} تلاش ناموفق برای ورود به حساب {username} ثبت شد (آخرین IP: {ip}، {time}).',
+    variables: [V.name, V.count, V.username, V.ip, V.time, V.brand],
+    defaultActive: true,
+  },
+  {
+    key: 'ADMIN_SECURITY_CHANGE',
+    title: 'تغییر امنیتی حساب پنل',
+    category: 'SECURITY',
+    body: '{brand}\n{name} گرامی، تغییر امنیتی در حساب {username}: {change}\nزمان: {time}',
+    variables: [V.name, V.username, V.change, V.time, V.brand],
+    defaultActive: true,
+  },
+  {
+    key: 'PARTNER_API_KEY_EXPIRING',
+    title: 'یادآوری انقضای کلید API شریک',
+    category: 'SECURITY',
+    body: '{partnerName} گرامی، کلید API شما در {brand} (پیشوند {keyPrefix}) {days} روز دیگر در تاریخ {date} منقضی می‌شود. برای دریافت کلید جدید پیش از این تاریخ با مدیر حساب خود تماس بگیرید؛ پس از انقضا درخواست‌های API پذیرفته نمی‌شوند.',
+    variables: [V.partnerName, V.keyPrefix, V.days, V.date, V.brand],
+    defaultActive: true,
+  },
+  {
+    key: 'ADMIN_EXPIRY_ALERT',
+    title: 'یادآوری انقضای اعتبارنامه (مدیران امنیت)',
+    category: 'SECURITY',
+    body: '{brand}\nیادآوری انقضا: {item}\n{days} روز باقی‌مانده (تا {date}). برای تمدید به پنل مدیریت ← «امنیت و رمزنگاری» مراجعه کنید.',
+    variables: [V.item, V.days, V.date, V.brand],
+    defaultActive: true,
   },
 
   // ─────────────────────────── سفارشات فروشگاه ───────────────────────────
@@ -283,6 +402,7 @@ export const SMS_TEMPLATE_BY_KEY = new Map(
 
 export const SMS_CATEGORY_LABEL: Record<SmsTemplateCategory, string> = {
   AUTH: 'احراز هویت و ورود',
+  SECURITY: 'هشدارهای امنیتی حساب',
   ORDER: 'سفارشات فروشگاه',
   FINANCE: 'واریز و برداشت',
   AGENT: 'نمایندگان',

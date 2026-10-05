@@ -1,7 +1,10 @@
 // api/scripts/create-first-admin.ts
 import 'dotenv/config';
-import * as bcrypt from 'bcryptjs';
 import { PrismaClient } from '../src/generated/prisma/client';
+import { hashPassword } from '../src/common/crypto/password.util';
+import { PasswordPolicyService } from '../src/common/password-policy/password-policy.service';
+import { assertUsernameAllowed } from '../src/common/auth-security/account-hygiene';
+import type { SystemConfigService } from '../src/system-config/system-config.service';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as readline from 'readline/promises';
 
@@ -37,18 +40,43 @@ async function main() {
     input: process.stdin,
     output: process.stdout,
   });
-  const username = await rl.question('نام کاربری ادمین: ');
-  const password = await rl.question('رمز عبور (حداقل ۱۲ کاراکتر): ');
+  const username = (
+    await rl.question('نام کاربری ادمین (نام شخصی، نه admin/root): ')
+  ).trim();
+  const password = await rl.question(
+    'رمز عبور (حداقل ۱۵ کاراکتر؛ عبارت عبور طولانی توصیه می‌شود): ',
+  );
   const fullName = await rl.question('نام کامل: ');
+  const phone = (
+    await rl.question('شماره موبایل (برای هشدارهای امنیتی و بازیابی): ')
+  ).trim();
   const roleKey =
     (await rl.question(
       'نقش (SUPER_ADMIN/FINANCE_ADMIN/SUPPORT_ADMIN/SHOP_ADMIN) [SUPER_ADMIN]: ',
     )) || 'SUPER_ADMIN';
   rl.close();
 
-  if (password.length < 12) {
-    throw new Error('رمز عبور باید حداقل ۱۲ کاراکتر باشد');
+  // FIA_UAU_EXT.2.2: نام کاربری پیش‌فرض ممنوع؛ FIA_UAU_EXT.1: همان سیاست رمز عبور پنل
+  try {
+    assertUsernameAllowed(username);
+  } catch (e) {
+    throw new Error(getErrorMessage((e as { message?: string }).message ?? e));
   }
+  if (!/^09\d{9}$/.test(phone)) {
+    throw new Error('شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود');
+  }
+  const policy = new PasswordPolicyService({
+    getNumber: (_k: string, d: number) => Promise.resolve(d),
+    getBoolean: (_k: string, d: boolean) => Promise.resolve(d),
+    get: (_k: string, d: string) => Promise.resolve(d),
+  } as unknown as SystemConfigService);
+  policy.onModuleInit();
+  const reason = await policy.check(password, 'admin', {
+    username,
+    fullName,
+    phone,
+  });
+  if (reason) throw new Error(reason);
 
   const role = await prisma.adminRole.findUnique({ where: { key: roleKey } });
   if (!role) {
@@ -60,17 +88,22 @@ async function main() {
   const existing = await prisma.adminUser.findUnique({ where: { username } });
   if (existing) throw new Error('این نام کاربری قبلاً استفاده شده است');
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const passwordHash = await hashPassword(password);
   const admin = await prisma.adminUser.create({
     data: {
       username,
       passwordHash,
       fullName,
+      phone,
+      passwordChangedAt: new Date(),
       roles: { create: { roleId: role.id } },
     },
   });
 
   console.log(`✅ ادمین "${admin.username}" با نقش ${role.name} ایجاد شد.`);
+  console.log(
+    'در اولین ورود، راه‌اندازی برنامه‌ی احراز هویت (ورود دومرحله‌ای) اجباری است.',
+  );
 }
 
 main()

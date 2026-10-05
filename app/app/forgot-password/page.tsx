@@ -34,7 +34,9 @@ export default function ForgotPasswordPage() {
     requestOtp,
     verifyOtp,
     submitNewPassword,
+    verifyMfa,
   } = useForgotPassword();
+  const [mfaCode, setMfaCode] = useState("");
 
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -118,15 +120,18 @@ export default function ForgotPasswordPage() {
     if (step === "request_phone") {
       if (!/^09\d{9}$/.test(phone))
         return setError("شماره موبایل نامعتبر است.");
-      await requestOtp(phone);
-      setTimer(120);
+      setTimer(await requestOtp(phone));
     } else if (step === "verify_otp") {
       const code = otp.join("");
       if (code.length < 6) return setError("کد تایید کامل نیست.");
       await verifyOtp(phone, code);
+    } else if (step === "verify_mfa") {
+      if (mfaCode.replace(/\s/g, "").length < 6)
+        return setError("کد برنامه‌ی احراز هویت یا کد بازیابی را وارد کنید.");
+      await verifyMfa(mfaCode);
     } else if (step === "set_password") {
-      if (password.length < 6)
-        return setError("رمز عبور باید حداقل ۶ کاراکتر باشد.");
+      if ([...password].length < 8)
+        return setError("رمز عبور باید حداقل ۸ کاراکتر باشد.");
       const success = await submitNewPassword(password);
       if (success) {
         setSuccessMsg(true);
@@ -292,16 +297,35 @@ export default function ForgotPasswordPage() {
                       ) : (
                         <button
                           type="button"
-                          onClick={() => {
-                            requestOtp(phone);
-                            setTimer(120);
-                          }}
+                          onClick={async () => setTimer(await requestOtp(phone))}
                           className="text-emerald hover:underline"
                         >
                           ارسال مجدد کد
                         </button>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* مرحله ۲-ب: عامل دوم (اگر برنامه‌ی احراز هویت فعال است) — FIA_UID_EXT.1.3 */}
+                {step === "verify_mfa" && (
+                  <div className="space-y-3 animate-in slide-in-from-left-4">
+                    <p className="text-gray-500 font-medium text-sm leading-relaxed text-center">
+                      ورود دومرحله‌ای حساب شما فعال است. برای ادامه، کد ۶ رقمی برنامه‌ی احراز هویت
+                      یا یکی از کدهای بازیابی را وارد کنید.
+                    </p>
+                    <input
+                      type="text"
+                      dir="ltr"
+                      autoComplete="one-time-code"
+                      placeholder="123456 یا XXXXX-XXXXX"
+                      value={mfaCode}
+                      onChange={(e) => {
+                        setMfaCode(e.target.value);
+                        if (error) setError(null);
+                      }}
+                      className="w-full px-4 py-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 transition-all text-lg font-mono tracking-widest text-center"
+                    />
                   </div>
                 )}
 
@@ -316,7 +340,9 @@ export default function ForgotPasswordPage() {
                       <input
                         type={showPassword ? "text" : "password"}
                         dir="ltr"
-                        placeholder="حداقل ۶ کاراکتر"
+                        placeholder="حداقل ۸ کاراکتر"
+                        autoComplete="new-password"
+                        maxLength={128}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="w-full pr-12 pl-12 py-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 transition-all text-lg font-medium text-left"
@@ -333,6 +359,10 @@ export default function ForgotPasswordPage() {
                         )}
                       </button>
                     </div>
+                    <p className="text-[11px] text-gray-400 leading-5 mr-1">
+                      حداقل ۸ و حداکثر ۱۲۸ کاراکتر. عبارت عبور طولانی (حتی فارسی و بدون عدد یا نماد) امن‌تر
+                      است؛ رمزهای رایج یا افشاشده و رمزهای ساخته‌شده از نام برنامه یا شماره موبایل پذیرفته نمی‌شوند.
+                    </p>
                   </div>
                 )}
 
@@ -348,7 +378,7 @@ export default function ForgotPasswordPage() {
                     <>
                       {step === "request_phone"
                         ? "دریافت کد تایید"
-                        : step === "verify_otp"
+                        : step === "verify_otp" || step === "verify_mfa"
                           ? "بررسی کد"
                           : "ثبت رمز جدید"}
                       <ArrowLeft className="w-5 h-5" />

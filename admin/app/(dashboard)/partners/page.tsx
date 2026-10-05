@@ -31,6 +31,13 @@ import {
 } from "@/app/components/finance/ui";
 import JalaliDateInput from "@/app/components/JalaliDateInput";
 
+
+/** روزهای باقی‌مانده تا یک تاریخ (برای نمایش انقضای کلید API) */
+function daysUntil(iso: string) {
+  const d = (new Date(iso).getTime() - Date.now()) / 86_400_000;
+  return d <= 0 ? -1 : Math.ceil(d);
+}
+
 interface Partner {
   id: string;
   code: string;
@@ -60,6 +67,7 @@ interface Partner {
   apiEnabled: boolean;
   hasApiKey: boolean;
   apiKeyPrefix: string | null;
+  apiKeyExpiresAt?: string | null;
   apiIpWhitelist: string[];
   webhookUrl: string | null;
   openOrders: number;
@@ -250,6 +258,18 @@ function PartnerDetail({ p, onChanged }: { p: Partner; onChanged: () => void }) 
         <p>
           API: {p.apiEnabled ? "فعال" : "غیرفعال"} — کلید: {p.hasApiKey ? `${p.apiKeyPrefix}…` : "ندارد"}
         </p>
+        {p.hasApiKey && p.apiKeyExpiresAt && (
+          <p>
+            {/* FIA_UID_EXT.1.5: کلید تاریخ انقضا دارد؛ یادآوری‌ها خودکار ارسال می‌شود */}
+            انقضای کلید: {faDate(p.apiKeyExpiresAt)}{" "}
+            {(() => {
+              const days = daysUntil(p.apiKeyExpiresAt);
+              if (days < 0) return <b className="text-red-600">(منقضی شده — کلید جدید بسازید)</b>;
+              if (days <= 30) return <b className={days <= 7 ? "text-red-600" : "text-amber-600"}>({days.toLocaleString("fa-IR")} روز مانده)</b>;
+              return null;
+            })()}
+          </p>
+        )}
       </div>
       {can("partner.manage") && (
         <div className="flex flex-wrap gap-2">

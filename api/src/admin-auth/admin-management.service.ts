@@ -1,13 +1,26 @@
 // api/src/admin-auth/admin-management.service.ts
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
   BadRequestException,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword } from '../common/crypto/password.util';
+import { SmsTemplateService } from '../notifications/sms-template.service';
+import { LoginThrottleService } from '../common/auth-security/login-throttle.service';
+import { MfaService } from '../common/mfa/mfa.service';
+import { maskPhone } from '../common/audit/mask.util';
+import { isOtpDebugLogEnabled } from '../common/logging/otp-debug';
+import {
+  TEMP_PASSWORD_TTL_HOURS,
+  assertUsernameAllowed,
+  generateTempPassword,
+} from '../common/auth-security/account-hygiene';
+import type { Prisma } from '../generated/prisma/client';
 import { ADMIN_ROLES, AGENT_ROLE_KEY } from './rbac.const';
 import {
   ADMIN_ROLES_INCLUDE,
@@ -38,12 +51,84 @@ interface RoleInput {
 
 interface CreateAdminDto {
   username: string;
-  password: string;
   fullName: string;
   /** یک یا چند نقش؛ roleKey برای سازگاری با کلاینت‌های قدیمی پذیرفته می‌شود */
   roleKeys?: string[];
   roleKey?: string;
-  phone?: string;
+  phone: string;
+}
+
+const ADMIN_PANEL_URL = process.env.ADMIN_PANEL_URL || 'admin.arkan.gold';
+const AGENT_PANEL_URL = process.env.AGENT_PANEL_URL || 'panel.arkan.gold';
+
+/**
+ * FIA_UID_EXT.1.1 و 1.6: رمز اولیه/بازنشانی‌شده‌ی حساب‌های پنل را سیستم با CSPRNG می‌سازد و فقط به
+ * موبایل خودِ صاحب حساب پیامک می‌کند؛ مدیر سیستم آن را نه انتخاب می‌کند و نه می‌بیند. رمز موقت
+ * ۲۴ ساعت اعتبار دارد و در اولین ورود باید تغییر کند.
+ */
+export async function issueTempPassword(
+  deps: {
+    prisma: PrismaService | Prisma.TransactionClient;
+    sms: SmsTemplateService;
+    logger: Logger;
+  },
+  target: {
+    id: string;
+    username: string;
+    fullName: string;
+    phone: string | null;
+    agentId: string | null;
+  },
+): Promise<{ maskedPhone: string; expiresAt: Date }> {
+  if (!target.phone) {
+    throw new BadRequestException(
+      'برای ارسال رمز موقت، ابتدا شماره موبایل این حساب را ثبت کنید',
+    );
+  }
+  const tempPassword = generateTempPassword();
+  const expiresAt = new Date(Date.now() + TEMP_PASSWORD_TTL_HOURS * 3600_000);
+  if (isOtpDebugLogEnabled()) {
+    deps.logger.warn(`[TempPassword] ${target.username}: ${tempPassword}`);
+  }
+  try {
+    await deps.sms.send(
+      'ADMIN_TEMP_PASSWORD',
+      target.phone,
+      {
+        name: target.fullName,
+        username: target.username,
+        tempPassword,
+        hours: TEMP_PASSWORD_TTL_HOURS.toLocaleString('fa-IR'),
+        panelUrl: target.agentId ? AGENT_PANEL_URL : ADMIN_PANEL_URL,
+      },
+      {
+        throwOnFailure: true,
+        referenceType: 'ADMIN_TEMP_PASSWORD',
+        referenceId: target.id,
+      },
+    );
+  } catch (err) {
+    deps.logger.error(
+      `ارسال رمز موقت به ${maskPhone(target.phone)} ناموفق بود: ${(err as Error).message}`,
+    );
+    throw new ServiceUnavailableException(
+      'ارسال پیامک رمز موقت ناموفق بود؛ تغییری اعمال نشد. لحظاتی دیگر دوباره تلاش کنید',
+    );
+  }
+  await deps.prisma.adminUser.update({
+    where: { id: target.id },
+    data: {
+      passwordHash: await hashPassword(tempPassword),
+      mustChangePassword: true,
+      passwordExpiresAt: expiresAt,
+      failedLoginCount: 0,
+      lockedUntil: null,
+    },
+  });
+  await deps.prisma.adminSession.deleteMany({
+    where: { adminUserId: target.id },
+  });
+  return { maskedPhone: maskPhone(target.phone) ?? '', expiresAt };
 }
 
 interface UpdateAdminDto {
@@ -56,7 +141,14 @@ interface UpdateAdminDto {
 
 @Injectable()
 export class AdminManagementService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(AdminManagementService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private sms: SmsTemplateService,
+    private loginThrottle: LoginThrottleService,
+    private mfa: MfaService,
+  ) {}
 
   async list() {
     const now = new Date();
@@ -75,6 +167,8 @@ export class AdminManagementService {
       phone: a.phone,
       isActive: a.isActive,
       totpEnabled: a.totpEnabled,
+      mustChangePassword: a.mustChangePassword,
+      passwordExpiresAt: a.passwordExpiresAt,
       ...summarizeRoles(a.roles),
       lastLoginAt: a.lastLoginAt,
       lastLoginIp: a.lastLoginIp,
@@ -324,17 +418,19 @@ export class AdminManagementService {
       where: { id: targetId },
       data: { failedLoginCount: 0, lockedUntil: null },
     });
+    await this.loginThrottle.clear('admin', target.username);
+    await this.loginThrottle.clear('mfa', `admin:${target.id}`);
     return { message: 'قفل حساب ادمین برداشته شد' };
   }
 
   async create(actor: AdminActor, dto: CreateAdminDto) {
     const creatorId = actor.adminUserId;
-    if (dto.password.length < 12) {
-      throw new BadRequestException('رمز عبور باید حداقل ۱۲ کاراکتر باشد');
-    }
+    const username = dto.username.trim();
+    // FIA_UAU_EXT.2.2: نام‌های پیش‌فرض/قابل حدس (admin، root، test …) مجاز نیستند
+    assertUsernameAllowed(username);
 
     const existing = await this.prisma.adminUser.findUnique({
-      where: { username: dto.username },
+      where: { username },
     });
     if (existing)
       throw new ConflictException('این نام کاربری قبلاً استفاده شده است');
@@ -345,18 +441,32 @@ export class AdminManagementService {
     }
     const roles = await this.resolveAssignableRoles(actor, roleKeys);
 
-    const passwordHash = await hashPassword(dto.password);
-    const admin = await this.prisma.adminUser.create({
-      data: {
-        username: dto.username,
-        passwordHash,
-        fullName: dto.fullName,
-        phone: dto.phone,
-        createdById: creatorId,
-        roles: { create: roles.map((r) => ({ roleId: r.id })) },
+    // ساخت حساب و ارسال پیامک رمز موقت در یک تراکنش: اگر پیامک نرسد حسابی ساخته نمی‌شود
+    const { admin, delivery } = await this.prisma.$transaction(
+      async (tx) => {
+        const admin = await tx.adminUser.create({
+          data: {
+            username,
+            // تا پیش از ارسال رمز موقت، رمز تصادفی غیرقابل‌استفاده
+            passwordHash: await hashPassword(
+              generateTempPassword() + generateTempPassword(),
+            ),
+            fullName: dto.fullName,
+            phone: dto.phone,
+            createdById: creatorId,
+            mustChangePassword: true,
+            roles: { create: roles.map((r) => ({ roleId: r.id })) },
+          },
+          include: ADMIN_ROLES_INCLUDE,
+        });
+        const delivery = await issueTempPassword(
+          { prisma: tx, sms: this.sms, logger: this.logger },
+          admin,
+        );
+        return { admin, delivery };
       },
-      include: ADMIN_ROLES_INCLUDE,
-    });
+      { timeout: 30_000 },
+    );
 
     return {
       id: admin.id,
@@ -364,6 +474,8 @@ export class AdminManagementService {
       fullName: admin.fullName,
       phone: admin.phone,
       ...summarizeRoles(admin.roles),
+      message: `حساب ساخته شد و رمز موقت (۲۴ ساعته) به ${delivery.maskedPhone} پیامک شد`,
+      tempPasswordExpiresAt: delivery.expiresAt,
     };
   }
 
@@ -472,36 +584,55 @@ export class AdminManagementService {
     };
   }
 
-  async resetPassword(
-    actor: AdminActor,
-    targetId: string,
-    newPassword: string,
-  ) {
-    if (newPassword.length < 12) {
-      throw new BadRequestException('رمز عبور باید حداقل ۱۲ کاراکتر باشد');
-    }
+  /** FIA_UID_EXT.1.6: مدیر فقط بازنشانی را آغاز می‌کند؛ رمز موقت را نمی‌بیند و انتخاب نمی‌کند */
+  async resetPassword(actor: AdminActor, targetId: string) {
     const target = await this.prisma.adminUser.findUnique({
       where: { id: targetId },
       include: ADMIN_ROLES_INCLUDE,
     });
     if (!target) throw new NotFoundException('ادمین یافت نشد');
     this.assertCanManageTarget(actor, roleKeysOf(target.roles));
+    const delivery = await issueTempPassword(
+      { prisma: this.prisma, sms: this.sms, logger: this.logger },
+      target,
+    );
+    await this.loginThrottle.clear('admin', target.username);
+    return {
+      message: `رمز موقت (۲۴ ساعته) به ${delivery.maskedPhone} پیامک شد؛ همه‌ی نشست‌های این حساب بسته شد`,
+      tempPasswordExpiresAt: delivery.expiresAt,
+    };
+  }
 
-    const passwordHash = await hashPassword(newPassword);
-    await this.prisma.adminUser.update({
+  /**
+   * FIA_UID_EXT.1.4 و FIA_UAU_EXT.3.6: ابطال فوری عامل دوم (گم شدن/سرقت گوشی). بازیابی به همان
+   * اندازه‌ی ثبت اولیه امن است: رمز موقت جدید فقط به موبایل ثبت‌شده پیامک می‌شود و صاحب حساب
+   * باید پس از تغییر رمز، برنامه‌ی احراز هویت را از نو راه‌اندازی کند. همه‌ی نشست‌ها بسته می‌شوند.
+   */
+  async resetMfa(actor: AdminActor, targetId: string) {
+    const target = await this.prisma.adminUser.findUnique({
       where: { id: targetId },
-      data: {
-        passwordHash,
-        failedLoginCount: 0,
-        lockedUntil: null,
-      },
+      include: ADMIN_ROLES_INCLUDE,
     });
-
-    // ریست رمز یعنی همه نشست‌های فعلی باطل شوند
-    await this.prisma.adminSession.deleteMany({
-      where: { adminUserId: targetId },
-    });
-
-    return { message: 'رمز عبور با موفقیت بازنشانی شد' };
+    if (!target) throw new NotFoundException('ادمین یافت نشد');
+    this.assertCanManageTarget(actor, roleKeysOf(target.roles));
+    if (actor.adminUserId === targetId) {
+      throw new ForbiddenException(
+        'ورود دومرحله‌ای حساب خودتان را از پروفایل مدیریت کنید؛ بازنشانی باید توسط مدیر دیگری انجام شود',
+      );
+    }
+    if (!target.phone) {
+      throw new BadRequestException(
+        'برای بازنشانی ورود دومرحله‌ای، ابتدا شماره موبایل این حساب را ثبت کنید',
+      );
+    }
+    const delivery = await issueTempPassword(
+      { prisma: this.prisma, sms: this.sms, logger: this.logger },
+      target,
+    );
+    await this.mfa.disable({ kind: 'admin', id: target.id });
+    await this.loginThrottle.clear('mfa', `admin:${target.id}`);
+    return {
+      message: `ورود دومرحله‌ای این حساب باطل شد. رمز موقت به ${delivery.maskedPhone} پیامک شد و صاحب حساب در ورود بعدی برنامه‌ی احراز هویت را دوباره راه‌اندازی می‌کند`,
+    };
   }
 }

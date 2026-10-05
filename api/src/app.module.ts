@@ -4,6 +4,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuditedThrottlerGuard } from './common/audit/audited-throttler.guard';
+import Redis from 'ioredis';
+import { RedisThrottlerStorage } from './common/auth-security/redis-throttler.storage';
+import { AuthSecurityModule } from './common/auth-security/auth-security.module';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './common/audit/audit.module';
@@ -45,11 +48,19 @@ import { NotificationsModule } from './notifications/notifications.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([{ name: 'default', ttl: 60000, limit: 30 }]),
+    // FIA_UAU_EXT.2.1: شمارنده‌های محدودیت نرخ در Redis تا بین همه‌ی نمونه‌های API مشترک باشند
+    ThrottlerModule.forRootAsync({
+      inject: ['REDIS_CLIENT'],
+      useFactory: (redis: Redis) => ({
+        throttlers: [{ name: 'default', ttl: 60000, limit: 30 }],
+        storage: new RedisThrottlerStorage(redis),
+      }),
+    }),
     PrismaModule,
     NotificationsModule, // Global — مرکز پیامک
     AuditModule,
     RetentionModule,
+    AuthSecurityModule,
     SecurityModule,
     RedisModule,
     AuthModule,

@@ -13,6 +13,16 @@ model User {
   // قفل موقت حساب پس از تلاش‌های ناموفق مکرر ورود با رمز عبور (FAU_GEN_EXT.1.5 بند ۵)
   failedLoginCount           Int                        @default(0) @map("failed_login_count")
   lockedUntil                DateTime?                  @map("locked_until")
+  // FIA_UAU_EXT.2.3: عامل دوم اختیاری مبتنی بر برنامه‌ی احراز هویت (TOTP) — راز رمزشده با AES-256-GCM
+  totpSecret                 String?                    @map("totp_secret")
+  totpEnabled                Boolean                    @default(false) @map("totp_enabled")
+  totpEnabledAt              DateTime?                  @map("totp_enabled_at")
+  /// شماره‌ی گام آخرین کد TOTP مصرف‌شده (جلوگیری از استفاده‌ی مجدد — FIA_UAU_EXT.3.1)
+  totpLastStep               Int?                       @map("totp_last_step")
+  /// هش bcrypt کدهای بازیابی یک‌بارمصرف (FIA_UAU_EXT.3.2)
+  backupCodesHash            String[]                   @default([]) @map("backup_codes_hash")
+  passwordChangedAt          DateTime?                  @map("password_changed_at")
+  loginDevices               LoginDevice[]
   type                       UserType                   @default(REAL)
   status                     UserStatus                 @default(ACTIVE)
   referralCode               String                     @unique @map("referral_code")
@@ -1190,6 +1200,13 @@ model AdminUser {
   totpEnabled     Boolean   @default(false) @map("totp_enabled")
   totpEnabledAt   DateTime? @map("totp_enabled_at")
   backupCodesHash String[]  @default([]) @map("backup_codes_hash")
+  /// شماره‌ی گام آخرین کد TOTP مصرف‌شده (جلوگیری از استفاده‌ی مجدد — FIA_UAU_EXT.3.1)
+  totpLastStep    Int?      @map("totp_last_step")
+
+  // FIA_UID_EXT.1.1: رمز موقت تولیدی سیستم — کوتاه‌مدت و تغییر اجباری در اولین ورود
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
+  passwordExpiresAt  DateTime? @map("password_expires_at")
+  passwordChangedAt  DateTime? @map("password_changed_at")
 
   failedLoginCount Int       @default(0) @map("failed_login_count")
   lockedUntil      DateTime? @map("locked_until")
@@ -1210,6 +1227,7 @@ model AdminUser {
   createdAdmins AdminUser[] @relation("AdminCreatedBy")
 
   sessions                   AdminSession[]
+  loginDevices               LoginDevice[]
   auditLogs                  AdminAuditLog[]
   assignedTickets            Ticket[]                   @relation("TicketAssignedAdmin")
   approvals                  Approval[]
@@ -2706,6 +2724,11 @@ model SalesPartner {
   apiEnabled          Boolean              @default(false) @map("api_enabled")
   apiKeyHash          String?              @unique @map("api_key_hash")
   apiKeyPrefix        String?              @map("api_key_prefix")
+  /// FIA_UID_EXT.1.5: کلید API تاریخ انقضا دارد و پیش از آن یادآوری ارسال می‌شود
+  apiKeyCreatedAt     DateTime?            @map("api_key_created_at")
+  apiKeyExpiresAt     DateTime?            @map("api_key_expires_at")
+  /// کوچک‌ترین آستانه‌ی یادآوری (روز) که برای کلید فعلی ارسال شده است
+  apiKeyReminderDays  Int?                 @map("api_key_reminder_days")
   apiIpWhitelist      String[]             @default([]) @map("api_ip_whitelist")
   webhookUrl          String?              @map("webhook_url")
   createdByAdminId    String?              @map("created_by_admin_id") @db.Uuid
@@ -3088,4 +3111,23 @@ model BankReconciliation {
 
   @@index([accountId, statementDate])
   @@map("bank_reconciliations")
+}
+
+/// دستگاه‌های شناخته‌شده‌ی ورود — ورود از دستگاه جدید به صاحب حساب اطلاع داده می‌شود (FIA_UAU_EXT.2.5)
+model LoginDevice {
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String?    @map("user_id") @db.Uuid
+  user        User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminUserId String?    @map("admin_user_id") @db.Uuid
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  /// SHA-256 از خانواده‌ی مرورگر و سیستم‌عامل (بدون داده‌ی شخصی خام)
+  fingerprint String
+  label       String
+  lastIp      String?    @map("last_ip")
+  firstSeenAt DateTime   @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime   @default(now()) @map("last_seen_at")
+
+  @@unique([userId, fingerprint])
+  @@unique([adminUserId, fingerprint])
+  @@map("login_devices")
 }

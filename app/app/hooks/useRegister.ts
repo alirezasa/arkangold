@@ -82,7 +82,7 @@ export const useRegister = () => {
 
   const handleFinalize = async (password: string, confirmPassword: string, referralCode?: string) => {
     // اعتبارسنجی‌های امنیتی رمز عبور سمت کاربر
-    if (password.length < 8) {
+    if ([...password].length < 8) {
       setError("رمز عبور باید حداقل ۸ کاراکتر باشد.");
       return false;
     }

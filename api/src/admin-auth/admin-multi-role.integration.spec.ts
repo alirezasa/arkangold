@@ -11,6 +11,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RbacSyncService } from './rbac-sync.service';
+import type { SmsTemplateService } from '../notifications/sms-template.service';
+import type { LoginThrottleService } from '../common/auth-security/login-throttle.service';
+import type { MfaService } from '../common/mfa/mfa.service';
 import { AdminManagementService, AdminActor } from './admin-management.service';
 import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
 import { ADMIN_ROLES } from './rbac.const';
@@ -56,7 +59,15 @@ run('ادمین چندنقشی (یکپارچه با PostgreSQL)', () => {
       adapter: new PrismaPg({ connectionString: url }),
     }) as unknown as PrismaService;
     await new RbacSyncService(prisma).onModuleInit();
-    service = new AdminManagementService(prisma);
+    // رمز موقت به‌جای مدیر، با پیامک به صاحب حساب می‌رسد (FIA_UID_EXT.1.6)؛ در این آزمون فقط ثبت می‌شود
+    const sms = {
+      send: () => Promise.resolve({ status: 'SENT' }),
+    } as unknown as SmsTemplateService;
+    const throttle = {
+      clear: () => Promise.resolve(),
+    } as unknown as LoginThrottleService;
+    const mfa = { disable: () => Promise.resolve() } as unknown as MfaService;
+    service = new AdminManagementService(prisma, sms, throttle, mfa);
     process.env.JWT_ADMIN_SECRET ??= 'integration-secret-integration-secret';
     strategy = new AdminJwtStrategy(new ConfigService(), prisma);
     await prisma.adminUser.create({
@@ -77,7 +88,7 @@ run('ادمین چندنقشی (یکپارچه با PostgreSQL)', () => {
   it('ادمین با سه نقش، اجتماع دسترسی‌ها را دارد و ویرایش نقش‌ها اعمال می‌شود', async () => {
     const created = await service.create(superActor, {
       username: `multi-${suffix}`,
-      password: 'a-very-long-password-1',
+      phone: '09120000000',
       fullName: 'کاربر چندنقشی',
       roleKeys: ['ACCOUNTANT', 'FINANCE_ADMIN', 'SUPPORT_ADMIN'],
     });
@@ -126,7 +137,7 @@ run('ادمین چندنقشی (یکپارچه با PostgreSQL)', () => {
     await expect(
       service.create(accountant, {
         username: `ok-${suffix}`,
-        password: 'a-very-long-password-1',
+        phone: '09120000000',
         fullName: 'مجاز',
         roleKeys: ['ACCOUNTANT', 'SUPPORT_ADMIN'],
       }),
@@ -135,7 +146,7 @@ run('ادمین چندنقشی (یکپارچه با PostgreSQL)', () => {
     await expect(
       service.create(accountant, {
         username: `bad-${suffix}`,
-        password: 'a-very-long-password-1',
+        phone: '09120000000',
         fullName: 'غیرمجاز',
         roleKeys: ['ACCOUNTANT', 'FINANCE_ADMIN'],
       }),
@@ -143,7 +154,7 @@ run('ادمین چندنقشی (یکپارچه با PostgreSQL)', () => {
     await expect(
       service.create(superActor, {
         username: `agent-${suffix}`,
-        password: 'a-very-long-password-1',
+        phone: '09120000000',
         fullName: 'نماینده',
         roleKeys: ['ACCOUNTANT', 'AGENT'],
       }),
@@ -153,7 +164,7 @@ run('ادمین چندنقشی (یکپارچه با PostgreSQL)', () => {
   it('roleKey قدیمی (تک‌نقشی) همچنان پذیرفته می‌شود', async () => {
     const created = await service.create(superActor, {
       username: `legacy-${suffix}`,
-      password: 'a-very-long-password-1',
+      phone: '09120000000',
       fullName: 'قدیمی',
       roleKey: 'SHOP_ADMIN',
     });

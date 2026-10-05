@@ -13,7 +13,7 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL در فایل .env تنظیم نشده است');
 }
 
-// Prisma Accelerate (prisma+postgres://) یا اتصال مستقیم PostgreSQL (مثلاً دیتابیس رانفلر یا لیارا)
+// Prisma Accelerate (prisma+postgres://) یا اتصال مستقیم PostgreSQL (مثلاً دیتابیس لیارا)
 const isAccelerate =
   databaseUrl.startsWith('prisma://') ||
   databaseUrl.startsWith('prisma+postgres://');

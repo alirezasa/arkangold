@@ -53,7 +53,8 @@ export const ADMIN_PERMISSIONS = [
   {
     key: 'bank_account.view',
     group: 'users',
-    description: 'مشاهده کارت‌ها و حساب‌های بانکی کاربران و نتیجه‌ی استعلام آن‌ها',
+    description:
+      'مشاهده کارت‌ها و حساب‌های بانکی کاربران و نتیجه‌ی استعلام آن‌ها',
   },
   {
     key: 'bank_account.manage',

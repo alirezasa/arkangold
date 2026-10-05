@@ -43,8 +43,7 @@ const SERVICES: ServiceDefinition[] = [
   {
     code: 'CARD_NATIONAL_ID_MATCH',
     name: 'تطبیق کارت و کد ملی',
-    description:
-      'هنگام ثبت کارت بانکی، تعلق کارت به کد ملی کاربر بررسی می‌شود',
+    description: 'هنگام ثبت کارت بانکی، تعلق کارت به کد ملی کاربر بررسی می‌شود',
   },
   {
     code: 'CARD_TO_IBAN',
@@ -105,24 +104,26 @@ const INITIAL_LINKS: InitialLink[] = [
   },
   // استعلام‌های شاهکار/کارت/شبا: Mock برای dev فعال است؛ در Production ادمین پس از ثبت
   // Credential و فعال‌سازی Scopeها روی کلاینت فینوتک، FINOTECH را فعال و Mock را غیرفعال می‌کند
-  ...['MOBILE_NATIONAL_ID_MATCH', 'CARD_NATIONAL_ID_MATCH', 'CARD_TO_IBAN'].flatMap(
-    (serviceCode): InitialLink[] => [
-      {
-        serviceCode,
-        providerCode: 'MOCK',
-        priority: 1,
-        isActive: true,
-        isFallback: false,
-      },
-      {
-        serviceCode,
-        providerCode: 'FINOTECH',
-        priority: 2,
-        isActive: false,
-        isFallback: true,
-      },
-    ],
-  ),
+  ...[
+    'MOBILE_NATIONAL_ID_MATCH',
+    'CARD_NATIONAL_ID_MATCH',
+    'CARD_TO_IBAN',
+  ].flatMap((serviceCode): InitialLink[] => [
+    {
+      serviceCode,
+      providerCode: 'MOCK',
+      priority: 1,
+      isActive: true,
+      isFallback: false,
+    },
+    {
+      serviceCode,
+      providerCode: 'FINOTECH',
+      priority: 2,
+      isActive: false,
+      isFallback: true,
+    },
+  ]),
   {
     serviceCode: 'SMS',
     providerCode: 'MOCK',

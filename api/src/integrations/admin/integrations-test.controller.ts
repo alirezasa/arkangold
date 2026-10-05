@@ -28,7 +28,9 @@ import { DEPOSIT_STATUS_LABELS } from '../interfaces/card-to-iban.interface';
 class TestInquiryDto {
   @IsOptional()
   @IsString()
-  @Matches(/^09\d{9}$/, { message: 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود' })
+  @Matches(/^09\d{9}$/, {
+    message: 'شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود',
+  })
   mobile?: string;
 
   @IsOptional()

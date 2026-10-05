@@ -80,7 +80,10 @@ export class BankAccountService {
 
     const outcome = await this.accountInquiry.inquire(cardNumber, nationalCode);
 
-    if (outcome.kind === 'OWNER_MISMATCH' || outcome.kind === 'ACCOUNT_BLOCKED') {
+    if (
+      outcome.kind === 'OWNER_MISMATCH' ||
+      outcome.kind === 'ACCOUNT_BLOCKED'
+    ) {
       throw new UnprocessableEntityException({
         statusCode: 422,
         code: outcome.kind,
@@ -286,7 +289,11 @@ export class BankAccountService {
       account.cardNumber,
       nationalCode,
     );
-    const fields = this.inquiryFields(outcome.data, account.cardNumber, account);
+    const fields = this.inquiryFields(
+      outcome.data,
+      account.cardNumber,
+      account,
+    );
     const now = new Date();
     let updated: BankAccount;
 
@@ -307,7 +314,11 @@ export class BankAccountService {
         return tx.bankAccount.findUniqueOrThrow({ where: { id: row.id } });
       });
       if (account.status !== 'VERIFIED') {
-        await this.notify(account.userId, 'BANK_ACCOUNT_VERIFIED', account.cardNumber);
+        await this.notify(
+          account.userId,
+          'BANK_ACCOUNT_VERIFIED',
+          account.cardNumber,
+        );
       }
     } else if (outcome.kind === 'PENDING') {
       // قطعی سرویس، کارت تأییدشده را از وضعیت تأیید خارج نمی‌کند
@@ -340,14 +351,21 @@ export class BankAccountService {
   /** تأیید دستی (وقتی وب‌سرویس در دسترس نیست و کارشناس مدارک را بررسی کرده) */
   async adminApprove(
     accountId: string,
-    input: { sheba?: string; accountNumber?: string; bankName?: string; ownerName?: string },
+    input: {
+      sheba?: string;
+      accountNumber?: string;
+      bankName?: string;
+      ownerName?: string;
+    },
   ) {
     const account = await this.prisma.bankAccount.findUnique({
       where: { id: accountId },
     });
     if (!account) throw new NotFoundException('کارت بانکی یافت نشد');
 
-    const sheba = input.sheba ? this.normalizeAndValidateSheba(input.sheba) : account.sheba;
+    const sheba = input.sheba
+      ? this.normalizeAndValidateSheba(input.sheba)
+      : account.sheba;
     if (!sheba) {
       throw new BadRequestException(
         'شماره شبای این کارت هنوز مشخص نیست؛ برای تأیید دستی شبا را وارد کنید یا استعلام مجدد بگیرید',
@@ -377,7 +395,11 @@ export class BankAccountService {
       return tx.bankAccount.findUniqueOrThrow({ where: { id: accountId } });
     });
     if (account.status !== 'VERIFIED') {
-      await this.notify(account.userId, 'BANK_ACCOUNT_VERIFIED', account.cardNumber);
+      await this.notify(
+        account.userId,
+        'BANK_ACCOUNT_VERIFIED',
+        account.cardNumber,
+      );
     }
     return {
       message: 'کارت بانکی به‌صورت دستی تأیید شد',
@@ -419,9 +441,14 @@ export class BankAccountService {
       return tx.bankAccount.findUniqueOrThrow({ where: { id: account.id } });
     });
     if (account.status !== 'REJECTED') {
-      await this.notify(account.userId, 'BANK_ACCOUNT_REJECTED', account.cardNumber, {
-        reason,
-      });
+      await this.notify(
+        account.userId,
+        'BANK_ACCOUNT_REJECTED',
+        account.cardNumber,
+        {
+          reason,
+        },
+      );
     }
     return updated;
   }
@@ -454,7 +481,8 @@ export class BankAccountService {
     previous?: BankAccount,
   ) {
     return {
-      cardOwnerMatched: data.cardOwnerMatched ?? previous?.cardOwnerMatched ?? null,
+      cardOwnerMatched:
+        data.cardOwnerMatched ?? previous?.cardOwnerMatched ?? null,
       sheba: data.sheba ?? previous?.sheba ?? null,
       accountNumber: data.accountNumber ?? previous?.accountNumber ?? '',
       bankName:
@@ -464,7 +492,8 @@ export class BankAccountService {
           : this.bankInquiry.detectBankByCard(cardNumber)),
       ownerName: data.ownerName ?? previous?.ownerName ?? null,
       depositStatus: data.depositStatus ?? previous?.depositStatus ?? null,
-      inquiryProvider: data.inquiryProvider ?? previous?.inquiryProvider ?? null,
+      inquiryProvider:
+        data.inquiryProvider ?? previous?.inquiryProvider ?? null,
       inquiryTrackId: data.inquiryTrackId ?? previous?.inquiryTrackId ?? null,
     };
   }
@@ -495,7 +524,9 @@ export class BankAccountService {
       throw new BadRequestException('شماره شبا باید IR و ۲۴ رقم باشد');
     }
     if (!isValidIranIban(sheba)) {
-      throw new BadRequestException('شماره شبا معتبر نیست (رقم کنترل نادرست است)');
+      throw new BadRequestException(
+        'شماره شبا معتبر نیست (رقم کنترل نادرست است)',
+      );
     }
     return sheba;
   }

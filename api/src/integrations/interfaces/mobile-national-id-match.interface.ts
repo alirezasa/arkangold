@@ -20,5 +20,7 @@ export interface MobileNationalIdMatchResult {
 
 export interface MobileNationalIdMatchProvider {
   readonly providerCode: string;
-  match(input: MobileNationalIdMatchInput): Promise<MobileNationalIdMatchResult>;
+  match(
+    input: MobileNationalIdMatchInput,
+  ): Promise<MobileNationalIdMatchResult>;
 }

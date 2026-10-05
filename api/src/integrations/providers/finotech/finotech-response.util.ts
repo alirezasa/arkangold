@@ -1,4 +1,7 @@
-import { InvalidResponseError, ProviderError } from '../../errors/integration-error';
+import {
+  InvalidResponseError,
+  ProviderError,
+} from '../../errors/integration-error';
 
 /** ساختار مشترک پاسخ سرویس‌های v2 فینوتک */
 export interface FinotechEnvelope<TResult> {
@@ -36,7 +39,9 @@ export function unwrapFinotech<TResult>(
   return response.result;
 }
 
-export function trimOrUndefined(value: unknown): string | undefined {
+export function trimOrUndefined(
+  value: string | number | null | undefined,
+): string | undefined {
   if (value === null || value === undefined) return undefined;
   const trimmed = String(value).trim();
   return trimmed.length > 0 ? trimmed : undefined;

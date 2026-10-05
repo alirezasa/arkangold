@@ -11,7 +11,11 @@ import { IntegrationsTestController } from './admin/integrations-test.controller
  * Global است و نیازی به import مجدد در ماژول‌های دیگر ندارد.
  */
 @Module({
-  imports: [IntegrationCoreModule, IdentityVerificationModule, KycInquiryModule],
+  imports: [
+    IntegrationCoreModule,
+    IdentityVerificationModule,
+    KycInquiryModule,
+  ],
   controllers: [IntegrationsTestController],
 })
 export class IntegrationsModule {}

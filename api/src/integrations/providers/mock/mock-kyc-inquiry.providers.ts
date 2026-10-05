@@ -32,7 +32,9 @@ export class MockShahkarProvider implements MobileNationalIdMatchProvider {
   async match(
     input: MobileNationalIdMatchInput,
   ): Promise<MobileNationalIdMatchResult> {
-    this.logger.log(`[MOCK] شاهکار: ${input.mobile.slice(0, 4)}***${input.mobile.slice(-2)}`);
+    this.logger.log(
+      `[MOCK] شاهکار: ${input.mobile.slice(0, 4)}***${input.mobile.slice(-2)}`,
+    );
     await delay(250);
     const matched = !input.mobile.endsWith('9999');
     return {
@@ -85,7 +87,10 @@ export class MockCardToIbanProvider implements CardToIbanProvider {
       input.cardNumber.slice(0, 6)
     ] ?? ['017', 'ملی'];
     // ۱۹ رقم حساب ساختگی ولی ثابت برای هر کارت
-    const account = `0${input.cardNumber}${input.cardNumber.slice(-2)}`.slice(0, 19);
+    const account = `0${input.cardNumber}${input.cardNumber.slice(-2)}`.slice(
+      0,
+      19,
+    );
     const bban = `${bankCode}${account}`;
     const check = 98 - Number(mod97(`${bban}182700`));
     const iban = `IR${String(check).padStart(2, '0')}${bban}`;

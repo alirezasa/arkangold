@@ -56,7 +56,7 @@ export class FinotechTokenService {
     if (cached) return cached;
 
     const pending = this.pendingRequests.get(cacheKey);
-    if (pending) return pending;
+    if (pending !== undefined) return pending;
 
     const request = this.requestNewToken(cacheKey, scope).finally(() => {
       this.pendingRequests.delete(cacheKey);

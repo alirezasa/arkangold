@@ -75,7 +75,8 @@ export class FinotechHttpClient {
       });
       return response.data;
     } catch (err) {
-      const passthrough = options?.passthroughStatuses ?? (options ? [400] : []);
+      const passthrough =
+        options?.passthroughStatuses ?? (options ? [400] : []);
       if (
         isAxiosError(err) &&
         err.response &&

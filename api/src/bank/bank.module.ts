@@ -9,7 +9,11 @@ import { KycInquiryModule } from '../integrations/services/kyc-inquiry.module';
 @Module({
   imports: [KycInquiryModule],
   controllers: [BankAccountController, BankAccountAdminController],
-  providers: [BankAccountService, BankInquiryService, BankAccountInquiryService],
+  providers: [
+    BankAccountService,
+    BankInquiryService,
+    BankAccountInquiryService,
+  ],
   exports: [BankAccountService, BankInquiryService],
 })
 export class BankModule {}

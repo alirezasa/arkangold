@@ -156,7 +156,7 @@ function AccountTile({
   const brand = bankBrand(account.cardBin, account.bankName);
   const brandName =
     account.bankName && account.bankName !== "بانک نامشخص" ? account.bankName : brand.name;
-  const number = `${account.cardBin.slice(0, 4)} ${account.cardBin.slice(4, 6)}•• •••• ${account.cardLast4}`;
+  const number = `${account.cardBin.slice(0, 4)} ${account.cardBin.slice(4, 6)}** **** ${account.cardLast4}`;
 
   const run = async (kind: "default" | "remove") => {
     setBusy(kind);
@@ -354,7 +354,8 @@ function AddCardSheet({
     };
   }, [loading]);
 
-  const preview = card.padEnd(16, "•");
+  // پیش‌نمایش روی کارت: ارقام واردشده + ستاره برای باقی‌مانده، در گروه‌های چهارتایی
+  const preview = card.padEnd(16, "*").replace(/(.{4})(?=.)/g, "$1 ");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -369,7 +370,7 @@ function AddCardSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center sm:p-4">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={loading ? undefined : onClose} />
       <div
         className="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl"
@@ -392,7 +393,7 @@ function AddCardSheet({
           <AddResult result={result} onClose={onClose} />
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <CardFace brand={brand} number={groupCard(preview)} />
+            <CardFace brand={brand} number={preview} />
 
             {error && <AddError code={error.code} message={error.message} />}
 
@@ -490,14 +491,14 @@ function AddError({ code, message }: { code?: string; message: string }) {
         <ul className="space-y-1 text-[11px] leading-relaxed text-rose-700/90">
           {mismatch ? (
             <>
-              <li>• کارت همسر، والدین یا دیگران قابل ثبت نیست؛ حتی اگر در اختیار شما باشد.</li>
-              <li>• اگر کارت به نام خودتان است، شاید با کد ملی دیگری (مثلاً قدیمی) صادر شده؛ با بانک تماس بگیرید.</li>
-              <li>• کارت دیگری که به نام خودتان است را امتحان کنید.</li>
+              <li>* کارت همسر، والدین یا دیگران قابل ثبت نیست؛ حتی اگر در اختیار شما باشد.</li>
+              <li>* اگر کارت به نام خودتان است، شاید با کد ملی دیگری (مثلاً قدیمی) صادر شده؛ با بانک تماس بگیرید.</li>
+              <li>* کارت دیگری که به نام خودتان است را امتحان کنید.</li>
             </>
           ) : (
             <>
-              <li>• برای رفع مسدودی یا فعال‌سازی حساب راکد به شعبه‌ی بانک مراجعه کنید.</li>
-              <li>• یا کارت حساب فعال دیگری که به نام خودتان است وارد کنید.</li>
+              <li>* برای رفع مسدودی یا فعال‌سازی حساب راکد به شعبه‌ی بانک مراجعه کنید.</li>
+              <li>* یا کارت حساب فعال دیگری که به نام خودتان است وارد کنید.</li>
             </>
           )}
         </ul>
@@ -676,7 +677,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
     >
       <div className="mx-auto w-full max-w-sm -rotate-3">
-        <CardFace brand={{ ...sample, name: "کارت شما", mark: "AG", from: "#330509", to: "#c5a059" }} number="•••• •••• •••• ••••" />
+        <CardFace brand={{ ...sample, name: "کارت شما", mark: "AG", from: "#330509", to: "#c5a059" }} number="**** **** **** ****" />
       </div>
       <div className="space-y-3 text-center md:text-right">
         <h2 className="text-[17px] font-black text-gray-900">هنوز کارتی ثبت نکرده‌اید</h2>

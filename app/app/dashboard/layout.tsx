@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import axios from "axios";
 import { usePathname, useRouter } from "next/navigation";
 import { IdentityStatus, UserType } from "@arkan-gold/shared";
 
@@ -13,8 +14,12 @@ import MobileHeader from "./components/MobileHeader";
 import IdentityBanner from "./components/IdentityBanner";
 import { saveReturnPath } from "@/app/utils/return-path";
 import LegalProfileBanner from "./components/LegalProfileBanner";
+import MobileVerificationBanner from "./components/MobileVerificationBanner";
 
 const IDENTITY_PATH = "/dashboard/identity";
+const MOBILE_VERIFICATION_PATH = "/dashboard/identity/mobile";
+/** مسیرهایی که کاربرِ دارای شماره‌ی ناهمخوان با شاهکار هم به آن‌ها دسترسی دارد */
+const MOBILE_GATE_FREE_PATHS = ["/dashboard/support"];
 const LEGAL_PROFILE_PATH = "/dashboard/identity/legal";
 
 type LegalOnboardingStep =
@@ -100,7 +105,31 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // منبع داده واحد و مشترک بین Layout و صفحه پروفایل حقوقی
-  const { data: userData, loading: isVerifying, error } = useProfilePage();
+  const {
+    data: userData,
+    loading: isVerifying,
+    error,
+    refetch: refetchProfile,
+  } = useProfilePage();
+
+  /**
+   * اگر وسط کار نتیجه‌ی شاهکار «عدم تطابق» شود، API با کد MOBILE_NOT_OWNED پاسخ می‌دهد؛
+   * پروفایل دوباره خوانده می‌شود تا گیت، کاربر را به صفحه‌ی تأیید شماره ببرد.
+   */
+  useEffect(() => {
+    const id = axios.interceptors.response.use(undefined, (err: unknown) => {
+      if (
+        axios.isAxiosError(err) &&
+        err.response?.status === 403 &&
+        (err.response.data as { code?: string } | undefined)?.code ===
+          "MOBILE_NOT_OWNED"
+      ) {
+        void refetchProfile();
+      }
+      return Promise.reject(err);
+    });
+    return () => axios.interceptors.response.eject(id);
+  }, [refetchProfile]);
 
   /**
    * در صورت نامعتبر بودن نشست کاربر، انتقال به صفحه ورود
@@ -137,6 +166,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const hasSubmittedLegalProfile = Boolean(legalProfile?.companyName?.trim());
 
   /**
+   * تطبیق شاهکار: اگر شماره موبایل به نام کد ملی کاربر نباشد، تا ثبت شماره‌ی به نام
+   * خودش هیچ بخشی (به‌جز صفحه‌ی تأیید شماره و پشتیبانی) در دسترس نیست
+   */
+  const isMobileBlocked =
+    isIdentityVerified && userData?.mobileVerification?.blocked === true;
+
+  /**
    * تعیین مرحله فعلی احراز هویت کاربر حقوقی
    */
   const legalOnboardingStep: LegalOnboardingStep = !isLegalUser
@@ -156,14 +192,20 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
    */
   const gateTargetPath: string | null = !isIdentityVerified
     ? IDENTITY_PATH
-    : legalOnboardingStep === "legal_profile_submit" ||
+    : isMobileBlocked
+      ? MOBILE_VERIFICATION_PATH
+      : legalOnboardingStep === "legal_profile_submit" ||
         legalOnboardingStep === "legal_profile_pending"
       ? LEGAL_PROFILE_PATH
       : null;
 
   const isAllowedWhileGated = (path: string) =>
     path === gateTargetPath ||
-    (gateTargetPath === IDENTITY_PATH && isIdentityFreePath(path));
+    (gateTargetPath === IDENTITY_PATH && isIdentityFreePath(path)) ||
+    (gateTargetPath === MOBILE_VERIFICATION_PATH &&
+      MOBILE_GATE_FREE_PATHS.some(
+        (p) => path === p || path.startsWith(`${p}/`),
+      ));
 
   const isNavLocked = gateTargetPath !== null;
 
@@ -203,7 +245,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   let bannerNode: ReactNode = null;
 
   if (!onGateTargetPage) {
-    if (
+    if (isMobileBlocked) {
+      bannerNode = <MobileVerificationBanner />;
+    } else if (
       legalOnboardingStep === "legal_profile_submit" ||
       legalOnboardingStep === "legal_profile_pending"
     ) {

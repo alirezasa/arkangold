@@ -27,11 +27,11 @@ export class FinotechEnvironmentService {
   }
 
   /**
-   * توکن Sandbox و Production جدا Cache می‌شوند تا با تغییر این تنظیم از پنل ادمین،
-   * توکن قدیمیِ محیط قبلی به اشتباه برای محیط جدید استفاده نشود.
+   * توکن Sandbox و Production (و هر Scope) جدا Cache می‌شوند تا با تغییر این تنظیم از
+   * پنل ادمین، توکن قدیمیِ محیط قبلی به اشتباه برای محیط جدید استفاده نشود.
    */
-  async getTokenCacheKey(): Promise<string> {
+  async getTokenCacheKey(scope: string): Promise<string> {
     const sandbox = await this.isSandbox();
-    return `${FINOTECH_CONFIG.TOKEN_CACHE_KEY}:${sandbox ? 'sandbox' : 'production'}`;
+    return `${FINOTECH_CONFIG.TOKEN_CACHE_KEY}:${sandbox ? 'sandbox' : 'production'}:${scope}`;
   }
 }

@@ -1,6 +1,6 @@
 /**
- * TODO: مشابه iban-national-id-match — منتظر مستندات دقیق سرویس «تطبیق شماره کارت و کد ملی»
- * فینوتک است. هیچ Endpoint/فیلدی حدس زده نشده.
+ * تطبیق شماره کارت و کد ملی
+ * (فینوتک: POST /kyc/v2/clients/{clientId}/cardOwnerVerification — body {card, nid})
  */
 export interface CardNationalIdMatchInput {
   cardNumber: string;
@@ -12,6 +12,8 @@ export interface CardNationalIdMatchResult {
   reason?: string;
   ownerName?: string;
   providerRequestId?: string;
+  /** توسط CardNationalIdMatchService پر می‌شود */
+  verifiedByProvider?: string;
 }
 
 export interface CardNationalIdMatchProvider {

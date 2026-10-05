@@ -10,6 +10,8 @@ import {
   Plug,
   KeyRound,
   ListChecks,
+  ScanSearch,
+  AlertTriangle,
 } from "lucide-react";
 
 interface Provider {
@@ -60,6 +62,42 @@ interface LogItem {
 }
 
 const fetcher = (url: string) => adminApi.get(url).then((r) => r.data);
+
+interface ScopeResult {
+  scope: string;
+  label: string;
+  ok: boolean;
+  message: string;
+}
+
+interface ConnectionTestResult {
+  success: boolean;
+  message: string;
+  environment?: "SANDBOX" | "PRODUCTION";
+  scopes?: ScopeResult[];
+}
+
+/** سرویس‌های استعلامی که از پنل قابل تست آزمایشی هستند و ورودی‌های لازم هرکدام */
+const TESTABLE_SERVICES: Record<string, { fields: ("mobile" | "nationalCode" | "cardNumber")[]; hint: string }> = {
+  MOBILE_NATIONAL_ID_MATCH: {
+    fields: ["mobile", "nationalCode"],
+    hint: "پس از تأیید احراز هویت، شماره موبایل کاربر با کد ملی تطبیق داده می‌شود؛ عدم تطابق = مسدود شدن امکانات تا ثبت شماره‌ی به نام خودش.",
+  },
+  CARD_NATIONAL_ID_MATCH: {
+    fields: ["cardNumber", "nationalCode"],
+    hint: "هنگام ثبت کارت در اپ، تعلق کارت به کد ملی کاربر بررسی می‌شود. قطعی سرویس = ثبت کارت در صف «کارت‌های بانکی کاربران».",
+  },
+  CARD_TO_IBAN: {
+    fields: ["cardNumber"],
+    hint: "پس از تأیید مالکیت کارت، شبا، شماره حساب، نام بانک و وضعیت حساب خودکار تکمیل می‌شود.",
+  },
+};
+
+const TEST_FIELD_LABELS: Record<string, { label: string; placeholder: string; max: number }> = {
+  mobile: { label: "موبایل", placeholder: "09123456789", max: 11 },
+  nationalCode: { label: "کد ملی", placeholder: "0012345678", max: 10 },
+  cardNumber: { label: "شماره کارت", placeholder: "6037991234567890", max: 16 },
+};
 
 const FINOTECH_CREDENTIAL_FIELDS: { key: string; label: string; secret: boolean }[] = [
   { key: "CLIENT_ID", label: "Client ID", secret: false },
@@ -147,7 +185,7 @@ export default function IntegrationsPage() {
 
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [credentialSaved, setCredentialSaved] = useState<string | null>(null);
 
   const runAction = async (key: string, fn: () => Promise<void>) => {
@@ -230,8 +268,10 @@ export default function IntegrationsPage() {
           یکپارچه‌سازی‌ها (KYC / فینوتک)
         </h1>
         <p className="text-xs text-gray-400 mt-1">
-          مدیریت Provider احراز هویت، اولویت/فال‌بک بین آن‌ها، Credential فینوتک و تست اتصال —
-          بدون نیاز به تغییر کد یا Deploy مجدد.
+          مدیریت وب‌سرویس‌های استعلامی (احراز هویت، شاهکار، تطبیق کارت با کد ملی، کارت به شبا)،
+          فعال/غیرفعال کردن هر سرویس، اولویت/فال‌بک Providerها، Credential فینوتک، تست اتصال و
+          استعلام آزمایشی — بدون نیاز به تغییر کد یا Deploy مجدد. غیرفعال کردن شاهکار یعنی کاربری
+          مسدود نمی‌شود؛ غیرفعال کردن سرویس‌های کارت یعنی کارت‌های جدید به صف بررسی ادمین می‌روند.
         </p>
       </div>
 
@@ -256,6 +296,17 @@ export default function IntegrationsPage() {
             />
           </div>
 
+          {service.description && (
+            <p className="text-[11px] text-gray-400 -mt-1 mb-3">{service.description}</p>
+          )}
+          {TESTABLE_SERVICES[service.code] &&
+            service.providers.some((l) => l.provider.code === "MOCK" && l.isActive && l.provider.isActive) && (
+              <div className="flex items-start gap-2 p-3 mb-3 rounded-xl bg-amber-50 text-amber-700 text-[11px] font-bold">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                Provider شبیه‌ساز (Mock) برای این سرویس فعال است و استعلام واقعی انجام نمی‌شود. در محیط عملیاتی پس از
+                ثبت Credential و فعال بودن Scope، فینوتک را فعال و Mock را غیرفعال کنید.
+              </div>
+            )}
           {service.providers.length === 0 ? (
             <p className="text-[12px] text-gray-400">
               هیچ Provider ای برای این سرویس تنظیم نشده است.
@@ -329,6 +380,9 @@ export default function IntegrationsPage() {
               </p>
             </div>
           )}
+          {TESTABLE_SERVICES[service.code] && (
+            <ServiceTestPanel code={service.code} onDone={() => mutateLogs()} />
+          )}
         </Card>
       ))}
 
@@ -382,20 +436,46 @@ export default function IntegrationsPage() {
               ) : (
                 <Plug className="w-4 h-4" />
               )}
-              تست اتصال فینوتک (گرفتن توکن)
+              تست اتصال فینوتک (گرفتن توکن هر سرویس)
             </button>
             {testResult && (
-              <div
-                className={`flex items-center gap-2 mt-3 p-3 rounded-xl text-[12px] font-bold ${
-                  testResult.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-                }`}
-              >
-                {testResult.success ? (
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                ) : (
-                  <XCircle className="w-4 h-4 shrink-0" />
-                )}
-                {testResult.message}
+              <div className="mt-3 space-y-2">
+                <div
+                  className={`flex items-center gap-2 p-3 rounded-xl text-[12px] font-bold ${
+                    testResult.success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                  }`}
+                >
+                  {testResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  ) : (
+                    <XCircle className="w-4 h-4 shrink-0" />
+                  )}
+                  <span className="flex-1">{testResult.message}</span>
+                  {testResult.environment && (
+                    <span className="badge bg-white/70 text-gray-600">
+                      {testResult.environment === "SANDBOX" ? "Sandbox" : "Production"}
+                    </span>
+                  )}
+                </div>
+                {testResult.scopes?.map((s) => (
+                  <div
+                    key={s.scope}
+                    className="flex items-start gap-2 p-2.5 rounded-lg text-[11px]"
+                    style={{ backgroundColor: "var(--color-background, #f9fafb)" }}
+                  >
+                    {s.ok ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-bold text-gray-700">
+                        {s.label} <span className="text-gray-400 font-normal" dir="ltr">({s.scope})</span>
+                      </p>
+                      {!s.ok && <p className="text-red-500 mt-0.5">{s.message}</p>}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -568,6 +648,135 @@ function FinotechCredentials({ onSaved }: { onSaved: (key: string) => void }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+interface TestInquiryResponse {
+  success: boolean;
+  message: string;
+  provider?: string;
+  durationMs?: number;
+  errorCategory?: string;
+  result?: Record<string, string | boolean | null | undefined>;
+}
+
+const RESULT_LABELS: Record<string, string> = {
+  matched: "تطابق",
+  iban: "شبا",
+  bankName: "بانک",
+  deposit: "شماره حساب",
+  depositStatusLabel: "وضعیت حساب",
+  depositOwners: "صاحب حساب",
+  trackId: "کد پیگیری",
+};
+
+/** استعلام آزمایشی یک سرویس با Provider فعال فعلی (فراخوانی واقعی و هزینه‌دار) */
+function ServiceTestPanel({ code, onDone }: { code: string; onDone: () => void }) {
+  const spec = TESTABLE_SERVICES[code];
+  const [open, setOpen] = useState(false);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<TestInquiryResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const ready = spec.fields.every(
+    (f) => (values[f] ?? "").length === TEST_FIELD_LABELS[f].max,
+  );
+
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await adminApi.post(`/api/admin/integrations/services/${code}/test`, values);
+      setResult(res.data);
+      onDone();
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+      setError((Array.isArray(msg) ? msg[0] : msg) || "خطا در اجرای استعلام آزمایشی");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 pt-3 border-t" style={{ borderColor: "var(--color-border)" }}>
+      <p className="text-[11px] text-gray-400 mb-2">{spec.hint}</p>
+      {!open ? (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1.5 text-[12px] font-bold text-gray-600 hover:text-gray-900"
+        >
+          <ScanSearch className="w-4 h-4" /> استعلام آزمایشی
+        </button>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid sm:grid-cols-2 gap-2">
+            {spec.fields.map((f) => (
+              <label key={f} className="block">
+                <span className="text-[11px] font-bold text-gray-500">{TEST_FIELD_LABELS[f].label}</span>
+                <input
+                  dir="ltr"
+                  inputMode="numeric"
+                  maxLength={TEST_FIELD_LABELS[f].max}
+                  placeholder={TEST_FIELD_LABELS[f].placeholder}
+                  value={values[f] ?? ""}
+                  onChange={(e) =>
+                    setValues((v) => ({
+                      ...v,
+                      [f]: e.target.value
+                        .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+                        .replace(/\D/g, "")
+                        .slice(0, TEST_FIELD_LABELS[f].max),
+                    }))
+                  }
+                  className="w-full mt-1 px-3 py-2 rounded-xl border text-[13px]"
+                  style={{ borderColor: "var(--color-border)" }}
+                />
+              </label>
+            ))}
+          </div>
+          <button
+            onClick={run}
+            disabled={busy || !ready}
+            className="w-full py-2.5 rounded-xl font-bold text-white text-[12px] flex items-center justify-center gap-2 disabled:opacity-50"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ScanSearch className="w-4 h-4" />}
+            اجرای استعلام (فراخوانی واقعی و هزینه‌دار)
+          </button>
+          {error && <p className="text-[11px] font-bold text-red-600">{error}</p>}
+          {result && (
+            <div
+              className={`p-3 rounded-xl text-[12px] space-y-1.5 ${
+                result.success ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"
+              }`}
+            >
+              <p className="font-bold flex items-center gap-1.5">
+                {result.success ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                {result.message}
+              </p>
+              <p className="text-[10px] opacity-70">
+                {result.provider ? `Provider: ${result.provider} · ` : ""}
+                {result.errorCategory ? `${result.errorCategory} · ` : ""}
+                {result.durationMs != null ? `${result.durationMs}ms` : ""}
+              </p>
+              {result.result &&
+                Object.entries(result.result)
+                  .filter(([k, v]) => v != null && v !== "" && k in RESULT_LABELS)
+                  .map(([k, v]) => (
+                    <div key={k} className="flex justify-between gap-2 text-[11px]">
+                      <span className="opacity-70">{RESULT_LABELS[k]}</span>
+                      <span className="font-bold" dir="ltr">
+                        {typeof v === "boolean" ? (v ? "✓" : "✗") : String(v)}
+                      </span>
+                    </div>
+                  ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

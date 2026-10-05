@@ -32,6 +32,7 @@ const V = {
   brand: { name: 'brand', label: 'نام تجاری', sample: 'آرکان گلد' },
   name: { name: 'name', label: 'نام کاربر', sample: 'علی رضایی' },
   code: { name: 'code', label: 'کد یکبارمصرف', sample: '482915' },
+  cardLast4: { name: 'cardLast4', label: '۴ رقم آخر کارت', sample: '4437' },
   orderNumber: {
     name: 'orderNumber',
     label: 'شماره سفارش',
@@ -150,6 +151,14 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
     title: 'کد بازیابی رمز عبور',
     category: 'AUTH',
     body: '{brand}\nکد بازیابی رمز عبور: {code}\nاگر این درخواست از طرف شما نیست، به پشتیبانی اطلاع دهید.',
+    variables: [V.code, V.brand],
+    sensitive: true,
+  },
+  {
+    key: 'AUTH_CHANGE_PHONE_OTP',
+    title: 'کد تأیید تغییر شماره موبایل',
+    category: 'AUTH',
+    body: '{brand}\nکد تأیید ثبت این شماره برای حساب کاربری شما: {code}\nاگر این درخواست از طرف شما نیست، آن را نادیده بگیرید.',
     variables: [V.code, V.brand],
     sensitive: true,
   },
@@ -324,6 +333,20 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
     category: 'FINANCE',
     body: '{name} عزیز، درخواست واریز {requestNumber} تأیید نشد.\nدلیل: {reason}\n{brand}',
     variables: [V.name, V.requestNumber, V.reason, V.brand],
+  },
+  {
+    key: 'BANK_ACCOUNT_VERIFIED',
+    title: 'تأیید کارت بانکی',
+    category: 'FINANCE',
+    body: '{name} عزیز، کارت بانکی {cardLast4}**** شما تأیید شد و برای برداشت قابل استفاده است.\n{brand}',
+    variables: [V.name, V.cardLast4, V.brand],
+  },
+  {
+    key: 'BANK_ACCOUNT_REJECTED',
+    title: 'رد کارت بانکی',
+    category: 'FINANCE',
+    body: '{name} عزیز، کارت بانکی {cardLast4}**** شما تأیید نشد.\nدلیل: {reason}\n{brand}',
+    variables: [V.name, V.cardLast4, V.reason, V.brand],
   },
   {
     key: 'WITHDRAWAL_REQUESTED',

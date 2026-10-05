@@ -41,7 +41,26 @@ export const ADMIN_PERMISSIONS = [
   {
     key: 'users.identity.reinquire',
     group: 'users',
-    description: 'استعلام مجدد اطلاعات هویتی کاربر از ثبت احوال',
+    description:
+      'استعلام مجدد اطلاعات هویتی کاربر از ثبت احوال و تطبیق شاهکار شماره موبایل',
+  },
+  {
+    key: 'users.mobile.approve',
+    group: 'users',
+    description:
+      'تأیید دستی مالکیت شماره موبایل کاربر (خارج کردن از حالت مسدود عدم تطابق شاهکار)',
+  },
+  {
+    key: 'bank_account.view',
+    group: 'users',
+    description:
+      'مشاهده کارت‌ها و حساب‌های بانکی کاربران و نتیجه‌ی استعلام آن‌ها',
+  },
+  {
+    key: 'bank_account.manage',
+    group: 'users',
+    description:
+      'استعلام مجدد کارت بانکی (تطبیق کارت با کد ملی و دریافت شبا) و تأیید/رد دستی آن',
   },
   {
     key: 'users.mfa.reset',
@@ -446,6 +465,8 @@ export const ADMIN_ROLES = [
       'physical_delivery.view',
       'physical_delivery.approve',
       'users.view',
+      'bank_account.view',
+      'bank_account.manage',
       'accounting.view',
       'deposit.view',
       'deposit.approve',
@@ -504,6 +525,7 @@ export const ADMIN_ROLES = [
     isSystem: true,
     permissions: [
       'users.view',
+      'bank_account.view',
       'transactions.view',
       'legal_profile.view',
       'physical_delivery.view',
@@ -522,6 +544,7 @@ export const ADMIN_ROLES = [
     isSystem: true,
     permissions: [
       'users.view',
+      'bank_account.view',
       'transactions.view',
       'legal_profile.view',
       'physical_delivery.view',

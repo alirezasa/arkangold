@@ -17,6 +17,7 @@ import { UpdateLegalProfileDto } from '@arkan-gold/shared';
 import { IdentityVerificationService } from '../integrations/services/identity-verification.service';
 import { IdentityVerificationResult } from '../integrations/interfaces/identity-verification.interface';
 import { ReferralService } from '../referral/referral.service';
+import { MobileVerificationService } from '../kyc/mobile-verification.service';
 
 @Injectable()
 export class UsersService {
@@ -26,6 +27,7 @@ export class UsersService {
     private prisma: PrismaService,
     private identityVerification: IdentityVerificationService,
     private referralService: ReferralService,
+    private mobileVerification: MobileVerificationService,
   ) {}
 
   // ══════════════════════════════════════════
@@ -41,12 +43,30 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('کاربر یافت نشد');
 
+    const identityVerified = user.identity?.status === 'VERIFIED';
+    // کاربرانی که هنوز نتیجه‌ی قطعی شاهکار ندارند در پس‌زمینه استعلام می‌شوند
+    this.mobileVerification.scheduleAutoCheck({
+      id: user.id,
+      mobileVerificationStatus: user.mobileVerificationStatus,
+      mobileCheckedAt: user.mobileCheckedAt,
+      identityVerified,
+    });
+
     return {
       id: user.id,
       phone: user.phone,
       type: user.type,
       status: user.status,
       referralCode: user.referralCode,
+      mobileVerification: this.mobileVerification.present(
+        user.mobileVerificationStatus,
+        user.phone,
+        {
+          checkedAt: user.mobileCheckedAt,
+          verifiedAt: user.mobileVerifiedAt,
+          identityVerified,
+        },
+      ),
       wallet: user.wallet
         ? {
             goldBalanceGrams: String(user.wallet.goldBalanceGrams),
@@ -136,9 +156,19 @@ export class UsersService {
       userId,
       'IDENTITY_VERIFIED',
     );
+    // بلافاصله پس از تأیید هویت: تطبیق شاهکار شماره موبایل با کد ملی
+    const mobile = await this.mobileVerification.checkUser(userId);
     return {
       status: 'VERIFIED',
-      message: 'احراز هویت با موفقیت انجام شد',
+      message:
+        mobile.status === 'MISMATCH'
+          ? 'احراز هویت انجام شد، اما شماره موبایل شما به نام کد ملی‌تان ثبت نشده است. برای استفاده از خدمات، شماره‌ای که به نام خودتان است ثبت کنید'
+          : 'احراز هویت با موفقیت انجام شد',
+      mobileVerification: {
+        status: mobile.status,
+        blocked: mobile.status === 'MISMATCH',
+        message: mobile.message,
+      },
       identity: {
         firstName: identity.firstName,
         lastName: identity.lastName,
@@ -229,6 +259,8 @@ export class UsersService {
         userId,
         'IDENTITY_VERIFIED',
       );
+      // هویت تازه تأیید شد → تطبیق شاهکار شماره موبایل
+      await this.mobileVerification.checkUser(userId);
     }
 
     return {

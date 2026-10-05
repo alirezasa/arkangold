@@ -23,6 +23,7 @@ import {
 } from '@arkan-gold/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
+import { AllowMobileMismatch } from '../auth/decorators/allow-mobile-mismatch.decorator';
 import { TicketsService } from './tickets.service';
 import { OwnedResource } from '../common/audit/owned-resource.decorator';
 
@@ -35,6 +36,8 @@ interface AuthenticatedRequest extends Request {
   user: AuthenticatedUser;
 }
 
+// پشتیبانی برای کاربرِ دارای شماره‌ی ناهمخوان با شاهکار هم باز می‌ماند تا بتواند راهنمایی بگیرد
+@AllowMobileMismatch()
 @UseGuards(JwtAuthGuard, ActiveUserGuard)
 @Controller('tickets')
 export class TicketsController {

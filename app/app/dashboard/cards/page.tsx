@@ -1,485 +1,698 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
-  CreditCard,
-  Plus,
-  Star,
-  StarOff,
-  ShieldCheck,
-  Clock,
   AlertCircle,
-  Loader2,
-  X,
+  AlertTriangle,
+  BadgeCheck,
   CheckCircle2,
-  Building2,
+  Clock,
+  CreditCard,
+  Headset,
+  Landmark,
+  Loader2,
+  Plus,
+  ScanSearch,
+  ShieldCheck,
+  Star,
+  Trash2,
+  UserRound,
+  X,
+  XCircle,
 } from "lucide-react";
 import {
-  useBankAccounts,
   useAddBankAccount,
+  useBankAccounts,
+  type AddBankAccountResult,
+  type BankAccount,
 } from "@/app/hooks/useBankAccounts";
-import { digitsOnly, toEnglishDigits } from "@/app/utils/digits";
-//import { BankInquiryService } from "@/app/utils/bankUtils";
+import { digitsOnly } from "@/app/utils/digits";
+import {
+  bankBrand,
+  detectBank,
+  groupCard,
+  groupIban,
+  isValidCardNumber,
+  type BankBrand,
+} from "@/app/utils/banks";
 
-// ── کامپوننت کارت بانکی ──
-function BankCard({
+const MAX_CARDS = 5;
+
+// ══════════════════════════════════════════
+// نمای کارت بانکی
+// ══════════════════════════════════════════
+function CardFace({
+  brand,
+  number,
+  ownerName,
+  badge,
+  dimmed = false,
+}: {
+  brand: BankBrand;
+  /** رشته‌ی نمایشی شماره کارت (با فاصله) */
+  number: string;
+  ownerName?: string | null;
+  badge?: React.ReactNode;
+  dimmed?: boolean;
+}) {
+  return (
+    <div
+      className={`relative aspect-[1.586] w-full overflow-hidden rounded-[22px] p-5 text-white shadow-[0_18px_40px_-18px_rgba(0,0,0,0.55)] transition-all ${
+        dimmed ? "grayscale-[60%] opacity-80" : ""
+      }`}
+      style={{
+        background: `linear-gradient(135deg, ${brand.from} 0%, ${brand.to} 100%)`,
+      }}
+    >
+      {/* بافت تزئینی */}
+      <div className="pointer-events-none absolute -left-16 -top-20 h-56 w-56 rounded-full bg-white/10" />
+      <div className="pointer-events-none absolute -bottom-24 right-10 h-56 w-56 rounded-full bg-black/10" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_10%,rgba(255,255,255,0.18),transparent_45%)]" />
+
+      <div className="relative flex h-full flex-col justify-between">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="flex h-9 min-w-9 items-center justify-center rounded-xl bg-white/20 px-2 text-[11px] font-black backdrop-blur">
+              {brand.mark}
+            </span>
+            <span className="text-[14px] font-black drop-shadow-sm">{brand.name}</span>
+          </div>
+          {badge}
+        </div>
+
+        <div className="flex items-center gap-3" dir="ltr">
+          {/* تراشه */}
+          <div className="relative h-8 w-11 rounded-md bg-gradient-to-br from-amber-200 via-yellow-300 to-amber-500 shadow-inner">
+            <div className="absolute inset-x-1 top-1/2 h-px bg-amber-700/40" />
+            <div className="absolute inset-y-1 left-1/2 w-px bg-amber-700/40" />
+          </div>
+          <svg viewBox="0 0 24 24" className="h-6 w-6 opacity-80" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <path d="M8.5 7.5a6 6 0 0 1 0 9" strokeLinecap="round" />
+            <path d="M12 5a9.5 9.5 0 0 1 0 14" strokeLinecap="round" />
+            <path d="M5 10a2.5 2.5 0 0 1 0 4" strokeLinecap="round" />
+          </svg>
+        </div>
+
+        <div>
+          <p
+            className="mb-2 text-[19px] font-black tracking-[0.18em] drop-shadow sm:text-[21px]"
+            dir="ltr"
+          >
+            {number}
+          </p>
+          <div className="flex items-end justify-between gap-2">
+            <p className="truncate text-[12px] font-bold text-white/85">
+              {ownerName || " "}
+            </p>
+            <span className="shrink-0 text-[10px] font-bold tracking-widest text-white/60" dir="ltr">
+              SHETAB
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: BankAccount["status"] }) {
+  if (status === "VERIFIED") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black text-emerald-700 shadow-sm">
+        <BadgeCheck className="h-3.5 w-3.5" /> تأیید شده
+      </span>
+    );
+  }
+  if (status === "REJECTED") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black text-rose-600 shadow-sm">
+        <XCircle className="h-3.5 w-3.5" /> رد شده
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black text-amber-600 shadow-sm">
+      <Clock className="h-3.5 w-3.5 animate-pulse" /> در حال بررسی
+    </span>
+  );
+}
+
+// ══════════════════════════════════════════
+// کارت ثبت‌شده + جزئیات حساب
+// ══════════════════════════════════════════
+function AccountTile({
   account,
   onSetDefault,
+  onRemove,
 }: {
-  account: {
-    id: string;
-    bankName: string;
-    cardNumber: string;
-    cardLast4: string;
-    sheba: string | null;
-    isVerified: boolean;
-    isDefault: boolean;
-  };
-   onSetDefault: (id: string) => Promise<boolean>;
+  account: BankAccount;
+  onSetDefault: (id: string) => Promise<boolean>;
+  onRemove: (id: string) => Promise<boolean>;
 }) {
-  const [settingDefault, setSettingDefault] = useState(false);
+  const [busy, setBusy] = useState<null | "default" | "remove">(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const handleSetDefault = async () => {
-    setSettingDefault(true);
+  const brand = bankBrand(account.cardBin, account.bankName);
+  const brandName =
+    account.bankName && account.bankName !== "بانک نامشخص" ? account.bankName : brand.name;
+  const number = `${account.cardBin.slice(0, 4)} ${account.cardBin.slice(4, 6)}** **** ${account.cardLast4}`;
+
+  const run = async (kind: "default" | "remove") => {
+    setBusy(kind);
     setErr(null);
     try {
-      const success = await onSetDefault(account.id);
-      if (!success) {
-        // اگر عملیات false برگرداند، خطا نشان می‌دهیم
-        setErr("تنظیم پیش‌فرض ناموفق بود. لطفاً دوباره تلاش کنید.");
-      }
+      if (kind === "default") await onSetDefault(account.id);
+      else await onRemove(account.id);
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "خطا");
     } finally {
-      setSettingDefault(false);
+      setBusy(null);
+      setConfirmRemove(false);
     }
   };
 
   return (
     <div
-      className={`relative rounded-2xl p-5 transition-all ${
-        account.isDefault ? "ring-2 ring-gold-500" : "border border-gray-100"
-      }`}
-      style={{ backgroundColor: "var(--color-surface)" }}
+      className="overflow-hidden rounded-3xl"
+      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
     >
-      {/* نوار رنگی بالا */}
-      <div
-        className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl"
-        style={{
-          background: account.isDefault
-            ? "linear-gradient(90deg, #c5a059, #e8c97a)"
-            : account.isVerified
-              ? "#22c55e"
-              : "#94a3b8",
-        }}
-      />
+      <div className="p-3 pb-0">
+        <CardFace
+          brand={{ ...brand, name: brandName }}
+          number={number}
+          ownerName={account.ownerName}
+          dimmed={account.status === "REJECTED"}
+          badge={
+            <div className="flex flex-col items-end gap-1.5">
+              <StatusPill status={account.status} />
+              {account.isDefault && (
+                <span className="flex items-center gap-1 rounded-full bg-amber-300 px-2.5 py-1 text-[10px] font-black text-amber-900 shadow-sm">
+                  <Star className="h-3 w-3 fill-current" /> پیش‌فرض برداشت
+                </span>
+              )}
+            </div>
+          }
+        />
+      </div>
 
-      <div className="flex items-start justify-between gap-3 mt-1">
-        <div className="flex items-center gap-3">
-          {/* آیکون بانک */}
-          <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-            style={{ backgroundColor: "var(--color-bg-page)" }}
-          >
-            <Building2 className="w-5 h-5 text-gray-500" />
-          </div>
-
-          <div>
-            <p className="text-[14px] font-black text-gray-800">
-              {account.bankName}
-            </p>
-            <p
-              className="text-[13px] font-bold text-gray-400 mt-0.5 tracking-widest"
-              dir="ltr"
-            >
-              {account.cardNumber}
-            </p>
-            {account.sheba && (
-              <p className="text-[11px] text-gray-400 mt-0.5" dir="ltr">
-                {account.sheba}
-              </p>
+      <div className="space-y-3 p-4">
+        <dl className="grid grid-cols-1 gap-2 text-[12px] sm:grid-cols-2">
+          <Detail label="شماره شبا" icon={<Landmark className="h-3.5 w-3.5" />}>
+            {account.sheba ? (
+              <span dir="ltr" className="font-black tracking-wider text-gray-800">
+                {groupIban(account.sheba)}
+              </span>
+            ) : (
+              <span className="text-gray-400">پس از استعلام تکمیل می‌شود</span>
             )}
-          </div>
-        </div>
-
-        {/* وضعیت */}
-        <div className="flex flex-col items-end gap-2 shrink-0">
-          {account.isVerified ? (
-            <span className="flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 border border-green-100 rounded-lg text-[11px] font-bold">
-              <ShieldCheck className="w-3.5 h-3.5" /> تایید شده
-            </span>
-          ) : (
-            <span className="flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-700 border border-amber-100 rounded-lg text-[11px] font-bold">
-              <Clock className="w-3.5 h-3.5 animate-pulse" /> در انتظار
-            </span>
+          </Detail>
+          <Detail label="شماره حساب" icon={<CreditCard className="h-3.5 w-3.5" />}>
+            {account.accountNumber ? (
+              <span dir="ltr" className="font-black text-gray-800">
+                {account.accountNumber}
+              </span>
+            ) : (
+              <span className="text-gray-400">—</span>
+            )}
+          </Detail>
+          {account.ownerName && (
+            <Detail label="صاحب حساب" icon={<UserRound className="h-3.5 w-3.5" />}>
+              <span className="font-bold text-gray-800">{account.ownerName}</span>
+            </Detail>
           )}
+          {account.depositStatusLabel && (
+            <Detail label="وضعیت حساب" icon={<ShieldCheck className="h-3.5 w-3.5" />}>
+              <span
+                className={`font-bold ${
+                  account.depositStatus === "02" ? "text-emerald-600" : "text-amber-600"
+                }`}
+              >
+                {account.depositStatusLabel}
+              </span>
+            </Detail>
+          )}
+        </dl>
 
-          {account.isDefault && (
-            <span
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold"
-              style={{
-                backgroundColor: "#fdf6e7",
-                color: "#c5a059",
-                border: "1px solid #f0d990",
-              }}
+        {account.status !== "VERIFIED" && account.statusMessage && (
+          <div
+            className={`flex items-start gap-2 rounded-xl border p-3 text-[12px] font-medium leading-relaxed ${
+              account.status === "REJECTED"
+                ? "border-rose-100 bg-rose-50 text-rose-700"
+                : "border-amber-100 bg-amber-50 text-amber-800"
+            }`}
+          >
+            {account.status === "REJECTED" ? (
+              <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            ) : (
+              <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+            )}
+            <span>{account.statusMessage}</span>
+          </div>
+        )}
+
+        {err && <p className="text-[12px] font-bold text-rose-600">{err}</p>}
+
+        <div className="flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: "var(--color-border)" }}>
+          {account.isVerified && !account.isDefault && (
+            <button
+              onClick={() => run("default")}
+              disabled={busy !== null}
+              className="flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
             >
-              <Star className="w-3.5 h-3.5 fill-current" /> پیش‌فرض
-            </span>
+              {busy === "default" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
+              پیش‌فرض برداشت
+            </button>
+          )}
+          <div className="flex-1" />
+          {confirmRemove ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-bold text-gray-500">حذف شود؟</span>
+              <button
+                onClick={() => run("remove")}
+                disabled={busy !== null}
+                className="flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-2 text-[12px] font-bold text-white disabled:opacity-50"
+              >
+                {busy === "remove" ? <Loader2 className="h-4 w-4 animate-spin" /> : "بله، حذف"}
+              </button>
+              <button
+                onClick={() => setConfirmRemove(false)}
+                className="rounded-xl px-3 py-2 text-[12px] font-bold text-gray-500 hover:bg-gray-100"
+              >
+                انصراف
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmRemove(true)}
+              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-bold text-gray-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+            >
+              <Trash2 className="h-4 w-4" /> حذف کارت
+            </button>
           )}
         </div>
       </div>
-
-      {/* دکمه پیش‌فرض */}
-      {!account.isDefault && account.isVerified && (
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          {err && (
-            <p className="text-[11px] text-red-500 font-bold mb-2">{err}</p>
-          )}
-          <button
-            onClick={handleSetDefault}
-            disabled={settingDefault}
-            className="flex items-center gap-1.5 text-[12px] font-bold text-gray-500 hover:text-gold-500 transition-colors disabled:opacity-50"
-          >
-            {settingDefault ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <StarOff className="w-4 h-4" />
-            )}
-            تنظیم به عنوان پیش‌فرض
-          </button>
-        </div>
-      )}
-
-      {/* پیام تایید نشده */}
-      {!account.isVerified && (
-        <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-[11px] font-medium">
-          <Clock className="w-3.5 h-3.5 mt-0.5 shrink-0 animate-pulse" />
-          این حساب در انتظار تایید کارشناسان است و فعلاً قابل استفاده نیست.
-        </div>
-      )}
     </div>
   );
 }
 
-// ── فرم افزودن حساب ──
-function AddAccountForm({
-  onSuccess,
-  onClose,
+function Detail({
+  label,
+  icon,
+  children,
 }: {
-  onSuccess: () => void;
-  onClose: () => void;
+  label: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
 }) {
-  const { loading, error, setError, submit } = useAddBankAccount();
-  const [form, setForm] = useState({
-    cardNumber: "",
-    sheba: "",
-    bankName: "",
-    accountNumber: "",
-  });
-  const [done, setDone] = useState(false);
-
-  // تشخیص خودکار بانک از BIN
-  const handleCardChange = (val: string) => {
-    const digits = digitsOnly(val).slice(0, 16);
-    const detected =
-      digits.length >= 6 ? detectBankFromBin(digits.slice(0, 6)) : "";
-    setForm((f) => ({
-      ...f,
-      cardNumber: digits,
-      bankName: detected || f.bankName,
-    }));
-    if (error) setError(null);
-  };
-
-  const handleShebaChange = (val: string) => {
-    // اضافه کردن IR اگر نداره
-    let v = toEnglishDigits(val).toUpperCase().replace(/[^IR\d]/g, "");
-    if (v.length > 0 && !v.startsWith("IR")) v = "IR" + v.replace(/\D/g, "");
-    setForm((f) => ({ ...f, sheba: v.slice(0, 26) }));
-    if (error) setError(null);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (form.cardNumber.length !== 16)
-      return setError("شماره کارت باید ۱۶ رقم باشد");
-    if (form.sheba.length < 24) return setError("شماره شبا معتبر نیست");
-
-    const result = await submit({
-      cardNumber: form.cardNumber,
-      sheba: form.sheba,
-      bankName: form.bankName || "بانک نامشخص",
-      accountNumber: form.accountNumber || undefined,
-    });
-
-    if (result) {
-      setDone(true);
-      setTimeout(() => {
-        onSuccess();
-        onClose();
-      }, 1500);
-    }
-  };
-
-  if (done) {
-    return (
-      <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-        <CheckCircle2 className="w-14 h-14 text-green-500" />
-        <h3 className="text-[16px] font-black text-gray-800">حساب ثبت شد</h3>
-        <p className="text-[13px] text-gray-500">در انتظار تایید کارشناسان</p>
-      </div>
-    );
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <div className="flex items-start gap-2 p-3 rounded-xl text-[13px] font-bold text-red-600 bg-red-50 border border-red-100">
-          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          {error}
-        </div>
-      )}
-
-      {/* شماره کارت */}
-      <div className="space-y-1.5">
-        <label className="text-[12px] font-bold text-gray-500">
-          شماره کارت (۱۶ رقم)
-        </label>
-        <input
-          type="tel"
-          dir="ltr"
-          maxLength={16}
-          placeholder="6037************"
-          value={form.cardNumber}
-          onChange={(e) => handleCardChange(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl text-[15px] font-bold border border-gray-200 outline-none focus:border-gold-500 bg-white transition-all text-left tracking-widest"
-        />
-      </div>
-
-      {/* نام بانک (auto-detect) */}
-      <div className="space-y-1.5">
-        <label className="text-[12px] font-bold text-gray-500">نام بانک</label>
-        <input
-          type="text"
-          placeholder="بانک ملت"
-          value={form.bankName}
-          onChange={(e) => setForm((f) => ({ ...f, bankName: e.target.value }))}
-          className="w-full px-4 py-3 rounded-xl text-[14px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white transition-all"
-        />
-        {form.cardNumber.length >= 6 && form.bankName && (
-          <p className="text-[11px] text-green-600 font-bold">
-            ✓ بانک شناسایی شد: {form.bankName}
-          </p>
-        )}
-      </div>
-
-      {/* شبا */}
-      <div className="space-y-1.5">
-        <label className="text-[12px] font-bold text-gray-500">شماره شبا</label>
-        <input
-          type="text"
-          dir="ltr"
-          maxLength={26}
-          placeholder="IR000000000000000000000000"
-          value={form.sheba}
-          onChange={(e) => handleShebaChange(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl text-[13px] font-bold border border-gray-200 outline-none focus:border-gold-500 bg-white transition-all text-left tracking-wider"
-        />
-      </div>
-
-      {/* شماره حساب (اختیاری) */}
-      <div className="space-y-1.5">
-        <label className="text-[12px] font-bold text-gray-500">
-          شماره حساب (اختیاری)
-        </label>
-        <input
-          type="tel"
-          dir="ltr"
-          placeholder="0000000000"
-          value={form.accountNumber}
-          onChange={(e) =>
-            setForm((f) => ({
-              ...f,
-              accountNumber: digitsOnly(e.target.value),
-            }))
-          }
-          className="w-full px-4 py-3 rounded-xl text-[14px] font-medium border border-gray-200 outline-none focus:border-gold-500 bg-white transition-all text-left"
-        />
-      </div>
-
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full py-4 rounded-xl font-black text-white flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-        style={{ backgroundColor: "var(--color-emerald)" }}
-      >
-        {loading ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
-        ) : (
-          <>
-            <CreditCard className="w-5 h-5" />
-            ثبت حساب بانکی
-          </>
-        )}
-      </button>
-    </form>
+    <div className="rounded-xl px-3 py-2.5" style={{ backgroundColor: "var(--color-bg-page)" }}>
+      <dt className="mb-1 flex items-center gap-1 text-[10px] font-bold text-gray-400">
+        {icon}
+        {label}
+      </dt>
+      <dd className="truncate">{children}</dd>
+    </div>
   );
 }
 
-// ── تابع کمکی تشخیص بانک در کلاینت ──
-function detectBankFromBin(bin: string): string {
-  const banks: Record<string, string> = {
-    "603799": "بانک ملی",
-    "589210": "بانک سپه",
-    "636214": "بانک آینده",
-    "627412": "بانک اقتصاد نوین",
-    "622106": "بانک پارسیان",
-    "639194": "بانک پارسیان",
-    "603770": "بانک کشاورزی",
-    "639217": "بانک کشاورزی",
-    "628023": "بانک مسکن",
-    "627353": "بانک تجارت",
-    "610433": "بانک ملت",
-    "991975": "بانک ملت",
-    "603684": "بانک رفاه",
-    "621986": "بانک سامان",
-    "639346": "بانک سینا",
-    "502806": "بانک شهر",
-    "603769": "بانک صادرات",
-    "610343": "بانک صادرات",
-    "627381": "بانک انصار",
-    "627488": "بانک کارآفرین",
-    "504172": "بانک رسالت",
-    "505416": "بانک گردشگری",
-  };
-  return banks[bin] || "";
-}
+// ══════════════════════════════════════════
+// افزودن کارت: فقط شماره کارت → استعلام → نتیجه
+// ══════════════════════════════════════════
+const INQUIRY_STEPS = [
+  "بررسی تعلق کارت به کد ملی شما",
+  "دریافت شماره شبا و اطلاعات حساب از بانک",
+  "ثبت کارت در حساب کاربری",
+];
 
-// ── صفحه اصلی ──
-export default function CardsPage() {
-  const { accounts, loading, error, refetch, setDefault } = useBankAccounts();
-  const [showForm, setShowForm] = useState(false);
+function AddCardSheet({
+  onClose,
+  onAdded,
+}: {
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const { loading, error, setError, submit } = useAddBankAccount();
+  const [card, setCard] = useState("");
+  const [touched, setTouched] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [result, setResult] = useState<AddBankAccountResult | null>(null);
+
+  const detected = detectBank(card);
+  const brand = bankBrand(card);
+  const complete = card.length === 16;
+  const luhnOk = complete && isValidCardNumber(card);
+
+  // پیشرفت نمایشی مراحل استعلام تا رسیدن پاسخ
+  useEffect(() => {
+    if (!loading) return;
+    const t1 = setTimeout(() => setProgress(1), 1200);
+    const t2 = setTimeout(() => setProgress(2), 2600);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [loading]);
+
+  // پیش‌نمایش روی کارت: ارقام واردشده + ستاره برای باقی‌مانده، در گروه‌های چهارتایی
+  const preview = card.padEnd(16, "*").replace(/(.{4})(?=.)/g, "$1 ");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTouched(true);
+    if (!luhnOk) return;
+    setProgress(0);
+    const res = await submit(card);
+    if (res) {
+      setResult(res);
+      onAdded();
+    }
+  };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6" dir="rtl">
+    <div className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center sm:p-4">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={loading ? undefined : onClose} />
+      <div
+        className="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl sm:rounded-3xl"
+        style={{ backgroundColor: "var(--color-surface)" }}
+        dir="rtl"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-[16px] font-black text-gray-900">افزودن کارت بانکی</h2>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-40"
+            aria-label="بستن"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {result ? (
+          <AddResult result={result} onClose={onClose} />
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <CardFace brand={brand} number={preview} />
+
+            {error && <AddError code={error.code} message={error.message} />}
+
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-bold text-gray-500">شماره کارت ۱۶ رقمی</label>
+              <input
+                type="tel"
+                inputMode="numeric"
+                autoComplete="cc-number"
+                dir="ltr"
+                placeholder="6037 9900 0000 0000"
+                value={groupCard(card)}
+                disabled={loading}
+                onChange={(e) => {
+                  setCard(digitsOnly(e.target.value).slice(0, 16));
+                  if (error) setError(null);
+                }}
+                onBlur={() => setTouched(true)}
+                className={`w-full rounded-xl border bg-white px-4 py-3.5 text-center text-[18px] font-black tracking-[0.15em] outline-none transition-all focus:border-gold-500 ${
+                  touched && complete && !luhnOk ? "border-rose-300" : "border-gray-200"
+                }`}
+              />
+              <div className="min-h-[18px] text-[11px] font-bold">
+                {touched && complete && !luhnOk ? (
+                  <span className="text-rose-600">شماره کارت معتبر نیست؛ ارقام را دوباره بررسی کنید</span>
+                ) : detected ? (
+                  <span className="text-emerald-600">✓ {detected.name}</span>
+                ) : (
+                  <span className="text-gray-400">بانک از روی ۶ رقم اول شناسایی می‌شود</span>
+                )}
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="space-y-2 rounded-2xl p-4" style={{ backgroundColor: "var(--color-bg-page)" }}>
+                {INQUIRY_STEPS.map((label, i) => (
+                  <div key={label} className="flex items-center gap-2.5 text-[12px] font-bold">
+                    {i < progress ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    ) : i === progress ? (
+                      <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--color-emerald)" }} />
+                    ) : (
+                      <span className="h-4 w-4 rounded-full border-2 border-gray-200" />
+                    )}
+                    <span className={i <= progress ? "text-gray-700" : "text-gray-400"}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <ul className="space-y-1.5 rounded-2xl p-4 text-[11px] leading-relaxed text-gray-500" style={{ backgroundColor: "var(--color-bg-page)" }}>
+                <li className="flex gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  فقط کارتی که به نام خودتان (با کد ملی شما) صادر شده قابل ثبت است.
+                </li>
+                <li className="flex gap-1.5">
+                  <ScanSearch className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  شبا، شماره حساب و نام بانک خودکار از بانک دریافت می‌شود؛ نیازی به وارد کردن آن‌ها نیست.
+                </li>
+              </ul>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading || !complete}
+              className="flex w-full items-center justify-center gap-2 rounded-xl py-4 font-black text-white transition-all disabled:opacity-50"
+              style={{ backgroundColor: "var(--color-emerald)" }}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" /> در حال استعلام...
+                </>
+              ) : (
+                <>
+                  <ScanSearch className="h-5 w-5" /> استعلام و ثبت کارت
+                </>
+              )}
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddError({ code, message }: { code?: string; message: string }) {
+  if (code === "OWNER_MISMATCH" || code === "ACCOUNT_BLOCKED") {
+    const mismatch = code === "OWNER_MISMATCH";
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800">
+        <div className="mb-2 flex items-center gap-2 text-[13px] font-black">
+          <AlertTriangle className="h-4 w-4" />
+          {mismatch ? "این کارت به نام شما نیست" : "امکان واریز به این حساب وجود ندارد"}
+        </div>
+        <p className="mb-3 text-[12px] leading-relaxed">{message}</p>
+        <ul className="space-y-1 text-[11px] leading-relaxed text-rose-700/90">
+          {mismatch ? (
+            <>
+              <li>* کارت همسر، والدین یا دیگران قابل ثبت نیست؛ حتی اگر در اختیار شما باشد.</li>
+              <li>* اگر کارت به نام خودتان است، شاید با کد ملی دیگری (مثلاً قدیمی) صادر شده؛ با بانک تماس بگیرید.</li>
+              <li>* کارت دیگری که به نام خودتان است را امتحان کنید.</li>
+            </>
+          ) : (
+            <>
+              <li>* برای رفع مسدودی یا فعال‌سازی حساب راکد به شعبه‌ی بانک مراجعه کنید.</li>
+              <li>* یا کارت حساب فعال دیگری که به نام خودتان است وارد کنید.</li>
+            </>
+          )}
+        </ul>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 p-3 text-[13px] font-bold leading-relaxed text-red-600">
+      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+      {message}
+    </div>
+  );
+}
+
+function AddResult({ result, onClose }: { result: AddBankAccountResult; onClose: () => void }) {
+  const ok = result.result === "VERIFIED";
+  const acc = result.account;
+  return (
+    <div className="space-y-4 text-center">
+      <div
+        className={`mx-auto flex h-16 w-16 items-center justify-center rounded-2xl ${
+          ok ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+        }`}
+      >
+        {ok ? <CheckCircle2 className="h-9 w-9" /> : <Clock className="h-9 w-9" />}
+      </div>
+      <div>
+        <h3 className="mb-1 text-[17px] font-black text-gray-900">
+          {ok ? "کارت تأیید و ثبت شد" : "کارت ثبت شد و در انتظار بررسی است"}
+        </h3>
+        <p className="text-[12px] leading-relaxed text-gray-500">{result.message}</p>
+      </div>
+      {ok && (
+        <div className="space-y-2 rounded-2xl p-4 text-right text-[12px]" style={{ backgroundColor: "var(--color-bg-page)" }}>
+          <Row label="بانک" value={acc.bankName} />
+          {acc.sheba && <Row label="شبا" value={groupIban(acc.sheba)} ltr />}
+          {acc.accountNumber && <Row label="شماره حساب" value={acc.accountNumber} ltr />}
+          {acc.ownerName && <Row label="صاحب حساب" value={acc.ownerName} />}
+        </div>
+      )}
+      <button
+        onClick={onClose}
+        className="w-full rounded-xl py-3.5 font-black text-white"
+        style={{ backgroundColor: "var(--color-emerald)" }}
+      >
+        متوجه شدم
+      </button>
+    </div>
+  );
+}
+
+function Row({ label, value, ltr = false }: { label: string; value: string; ltr?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="font-bold text-gray-400">{label}</span>
+      <span className="truncate font-black text-gray-800" dir={ltr ? "ltr" : undefined}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// صفحه
+// ══════════════════════════════════════════
+export default function CardsPage() {
+  const { accounts, loading, error, refetch, setDefault, remove } = useBankAccounts();
+  const [showForm, setShowForm] = useState(false);
+
+  const activeCount = accounts.filter((a) => a.status !== "REJECTED").length;
+  const verifiedCount = accounts.filter((a) => a.status === "VERIFIED").length;
+  const pendingCount = accounts.filter((a) => a.status === "PENDING_INQUIRY").length;
+  const canAdd = activeCount < MAX_CARDS;
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-6" dir="rtl">
       {/* هدر */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            className="flex h-10 w-10 items-center justify-center rounded-xl"
             style={{ backgroundColor: "var(--color-emerald-light)" }}
           >
-            <CreditCard
-              className="w-5 h-5"
-              style={{ color: "var(--color-emerald)" }}
-            />
+            <CreditCard className="h-5 w-5" style={{ color: "var(--color-emerald)" }} />
           </div>
           <div>
-            <h1 className="text-[18px] font-black text-gray-900">
-              حساب‌های بانکی
-            </h1>
+            <h1 className="text-[18px] font-black text-gray-900">کارت‌های بانکی</h1>
             <p className="text-[12px] text-gray-400">
-              {accounts.length} از ۵ حساب
+              {activeCount.toLocaleString("fa-IR")} از {MAX_CARDS.toLocaleString("fa-IR")} کارت
             </p>
           </div>
         </div>
-
-        {accounts.length < 5 && (
+        {canAdd && accounts.length > 0 && (
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold text-white transition-all"
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-bold text-white shadow-sm transition-all active:scale-95"
             style={{ backgroundColor: "var(--color-emerald)" }}
           >
-            <Plus className="w-4 h-4" />
-            افزودن حساب
+            <Plus className="h-4 w-4" /> افزودن کارت
           </button>
         )}
       </div>
 
-      {/* نوتیس */}
+      {accounts.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <Stat label="کل کارت‌ها" value={activeCount} tone="text-gray-800" />
+          <Stat label="تأیید شده" value={verifiedCount} tone="text-emerald-600" />
+          <Stat label="در حال بررسی" value={pendingCount} tone="text-amber-600" />
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--color-emerald)" }} />
+        </div>
+      ) : error ? (
+        <div className="py-12 text-center text-[14px] font-bold text-red-500">{error}</div>
+      ) : accounts.length === 0 ? (
+        <EmptyState onAdd={() => setShowForm(true)} />
+      ) : (
+        <div className="grid gap-5 md:grid-cols-2">
+          {accounts.map((acc) => (
+            <AccountTile key={acc.id} account={acc} onSetDefault={setDefault} onRemove={remove} />
+          ))}
+          {canAdd && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed text-gray-400 transition-colors hover:border-gold-500 hover:text-gold-600"
+              style={{ borderColor: "var(--color-border)" }}
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+                <Plus className="h-6 w-6" />
+              </span>
+              <span className="text-[13px] font-bold">افزودن کارت جدید</span>
+            </button>
+          )}
+        </div>
+      )}
+
       <div
-        className="flex items-start gap-3 p-4 rounded-xl text-[12px] font-medium"
-        style={{
-          backgroundColor: "#fefce8",
-          border: "1px solid #fef08a",
-          color: "#854d0e",
-        }}
+        className="flex items-start gap-3 rounded-2xl p-4 text-[12px] leading-relaxed"
+        style={{ backgroundColor: "var(--color-gold-50)", border: "1px solid var(--color-gold-100)", color: "var(--color-gold-900)" }}
       >
-        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          حساب‌های بانکی برای برداشت ریال استفاده می‌شوند. پس از ثبت، توسط
-          کارشناسان ما استعلام و تایید می‌شوند.
+          برداشت ریالی فقط به کارت‌های تأییدشده‌ی به نام خودتان واریز می‌شود. اگر کارتی «در حال بررسی» است، به‌دلیل
+          در دسترس نبودن سامانه‌ی بانکی ثبت شده و پس از استعلام کارشناسان فعال می‌شود.{" "}
+          <Link href="/dashboard/support" className="inline-flex items-center gap-1 font-bold underline">
+            <Headset className="h-3.5 w-3.5" /> پشتیبانی
+          </Link>
         </p>
       </div>
 
-      {/* لیست کارت‌ها */}
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2
-            className="w-8 h-8 animate-spin"
-            style={{ color: "var(--color-emerald)" }}
-          />
-        </div>
-      ) : error ? (
-        <div className="text-center py-12 text-red-500 font-bold text-[14px]">
-          {error}
-        </div>
-      ) : accounts.length === 0 ? (
-        <div
-          className="flex flex-col items-center justify-center py-16 gap-4 rounded-2xl"
-          style={{ border: "2px dashed var(--color-border)" }}
-        >
-          <CreditCard className="w-12 h-12 text-gray-300" />
-          <p className="text-[14px] font-bold text-gray-400">
-            هنوز حساب بانکی ثبت نکرده‌اید
-          </p>
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold text-white"
-            style={{ backgroundColor: "var(--color-emerald)" }}
-          >
-            <Plus className="w-4 h-4" />
-            افزودن اولین حساب
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {accounts.map((acc) => (
-           <BankCard key={acc.id} account={acc} onSetDefault={setDefault} />
-          ))}
-        </div>
-      )}
+      {showForm && <AddCardSheet onClose={() => setShowForm(false)} onAdded={() => void refetch()} />}
+    </div>
+  );
+}
 
-      {/* Modal فرم */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowForm(false)}
-          />
-          <div
-            className="relative w-full max-w-md rounded-2xl p-6 shadow-xl"
-            style={{ backgroundColor: "var(--color-surface)" }}
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[16px] font-black text-gray-800">
-                افزودن حساب بانکی
-              </h2>
-              <button
-                onClick={() => setShowForm(false)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <AddAccountForm
-              onSuccess={refetch}
-              onClose={() => setShowForm(false)}
-            />
-          </div>
-        </div>
-      )}
+function Stat({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <div
+      className="rounded-2xl p-3 text-center"
+      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+    >
+      <p className={`text-[20px] font-black ${tone}`}>{value.toLocaleString("fa-IR")}</p>
+      <p className="text-[11px] font-bold text-gray-400">{label}</p>
+    </div>
+  );
+}
+
+function EmptyState({ onAdd }: { onAdd: () => void }) {
+  const sample = bankBrand("603799");
+  return (
+    <div
+      className="grid items-center gap-6 rounded-3xl p-6 md:grid-cols-2"
+      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+    >
+      <div className="mx-auto w-full max-w-sm -rotate-3">
+        <CardFace brand={{ ...sample, name: "کارت شما", mark: "AG", from: "#330509", to: "#c5a059" }} number="**** **** **** ****" />
+      </div>
+      <div className="space-y-3 text-center md:text-right">
+        <h2 className="text-[17px] font-black text-gray-900">هنوز کارتی ثبت نکرده‌اید</h2>
+        <p className="text-[13px] leading-relaxed text-gray-500">
+          فقط شماره کارت را وارد کنید؛ تعلق کارت به کد ملی شما بررسی و شبا و اطلاعات حساب به‌صورت خودکار تکمیل
+          می‌شود.
+        </p>
+        <button
+          onClick={onAdd}
+          className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[13px] font-bold text-white"
+          style={{ backgroundColor: "var(--color-emerald)" }}
+        >
+          <Plus className="h-4 w-4" /> افزودن اولین کارت
+        </button>
+      </div>
     </div>
   );
 }

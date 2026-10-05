@@ -22,9 +22,37 @@ interface BankAccount {
   id: string;
   bankName: string;
   cardNumber: string;
+  sheba: string | null;
+  accountNumber: string | null;
+  ownerName: string | null;
+  status: "VERIFIED" | "PENDING_INQUIRY" | "REJECTED";
+  statusMessage: string | null;
   isVerified: boolean;
   isDefault: boolean;
 }
+
+type MobileStatus = "NOT_CHECKED" | "VERIFIED" | "MISMATCH" | "UNAVAILABLE";
+
+interface MobileVerification {
+  status: MobileStatus;
+  checkedAt: string | null;
+  verifiedAt: string | null;
+  provider: string | null;
+  trackId: string | null;
+}
+
+const MOBILE_STATUS_META: Record<MobileStatus, { label: string; bg: string; color: string }> = {
+  VERIFIED: { label: "متعلق به کاربر", bg: "#dcfce7", color: "#16a34a" },
+  MISMATCH: { label: "عدم تطابق — امکانات مسدود", bg: "#fee2e2", color: "#dc2626" },
+  UNAVAILABLE: { label: "در انتظار سامانه شاهکار", bg: "#fef3c7", color: "#b45309" },
+  NOT_CHECKED: { label: "استعلام نشده", bg: "#f3f4f6", color: "#6b7280" },
+};
+
+const BANK_STATUS_META: Record<BankAccount["status"], { label: string; bg: string; color: string }> = {
+  VERIFIED: { label: "تایید شده", bg: "#dcfce7", color: "#16a34a" },
+  PENDING_INQUIRY: { label: "در انتظار استعلام", bg: "#fef3c7", color: "#b45309" },
+  REJECTED: { label: "رد شده", bg: "#fee2e2", color: "#dc2626" },
+};
 
 type IdentityStatus = "PENDING" | "VERIFIED" | "REJECTED" | "MANUAL_REVIEW";
 
@@ -83,6 +111,7 @@ interface UserDetail {
   identity: UserIdentity | null;
   wallet: UserWallet | null;
   bankAccounts: BankAccount[];
+  mobileVerification?: MobileVerification;
   referralStats: ReferralStats;
   referredBy: ReferredBy | null;
 }
@@ -124,6 +153,103 @@ function apiError(err: unknown, fallback: string) {
     if (msg) return msg;
   }
   return fallback;
+}
+
+// ── تطبیق شاهکار شماره موبایل با کد ملی: استعلام مجدد / تأیید دستی ──
+function MobileSection({
+  user,
+  onUpdated,
+}: {
+  user: UserDetail;
+  onUpdated: () => Promise<unknown>;
+}) {
+  const { me } = useAdminMe();
+  const canReinquire = me?.permissions.includes("users.identity.reinquire") ?? false;
+  const canApprove = me?.permissions.includes("users.mobile.approve") ?? false;
+  const [busy, setBusy] = useState<null | "reinquire" | "approve">(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const mv = user.mobileVerification;
+  if (!mv) return null;
+  const meta = MOBILE_STATUS_META[mv.status];
+
+  const act = async (action: "reinquire" | "approve") => {
+    if (
+      action === "approve" &&
+      !window.confirm("مالکیت شماره موبایل این کاربر به‌صورت دستی تأیید شود؟ (کاربر از حالت مسدود خارج می‌شود)")
+    ) {
+      return;
+    }
+    setBusy(action);
+    setMessage(null);
+    try {
+      const res = await axios.post(`/api/admin/users/${user.id}/mobile-verification/${action}`);
+      setMessage({ ok: true, text: res.data.message });
+      await onUpdated();
+    } catch (err) {
+      setMessage({ ok: false, text: apiError(err, "عملیات ناموفق بود") });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div
+      className="rounded-2xl p-5"
+      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <h2 className="text-[13px] font-black text-gray-700">تطبیق شماره موبایل (شاهکار)</h2>
+        <span className="badge" style={{ background: meta.bg, color: meta.color }}>
+          {meta.label}
+        </span>
+      </div>
+      <div className="grid sm:grid-cols-3 gap-2 text-[12px] mb-3">
+        <div className="p-2.5 rounded-xl bg-gray-50">
+          <p className="text-gray-400 font-bold mb-0.5">موبایل</p>
+          <p dir="ltr" className="font-bold text-right">{user.phone}</p>
+        </div>
+        <div className="p-2.5 rounded-xl bg-gray-50">
+          <p className="text-gray-400 font-bold mb-0.5">آخرین استعلام</p>
+          <p className="font-bold">{mv.checkedAt ? new Date(mv.checkedAt).toLocaleString("fa-IR") : "—"}</p>
+        </div>
+        <div className="p-2.5 rounded-xl bg-gray-50">
+          <p className="text-gray-400 font-bold mb-0.5">Provider / کد پیگیری</p>
+          <p className="font-bold truncate" dir="ltr">{`${mv.provider ?? "—"} / ${mv.trackId ?? "—"}`}</p>
+        </div>
+      </div>
+      {mv.status === "MISMATCH" && (
+        <p className="text-[11px] text-red-600 font-bold mb-3">
+          کاربر تا ثبت شماره‌ای که به نام خودش است (با تأیید شاهکار و کد پیامکی در اپ) به امکانات سامانه دسترسی ندارد.
+        </p>
+      )}
+      {message && (
+        <p className={`text-[12px] font-bold mb-3 ${message.ok ? "text-emerald-600" : "text-red-600"}`}>{message.text}</p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {canReinquire && (
+          <button
+            onClick={() => act("reinquire")}
+            disabled={busy !== null}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold text-white disabled:opacity-60"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+          >
+            {busy === "reinquire" ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            استعلام مجدد شاهکار
+          </button>
+        )}
+        {canApprove && mv.status !== "VERIFIED" && (
+          <button
+            onClick={() => act("approve")}
+            disabled={busy !== null}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold border border-gray-200 bg-white text-gray-700 disabled:opacity-60"
+          >
+            {busy === "approve" ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+            تأیید دستی مالکیت شماره
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── ورود دومرحله‌ای: بازیابی پس از احراز هویت مجدد (FIA_UID_EXT.1.4) ──
@@ -649,6 +775,8 @@ export default function UserDetailPage() {
       <IdentitySection user={data} onUpdated={() => mutate()} />
       <MfaSection user={data} onUpdated={() => mutate()} />
 
+      <MobileSection user={data} onUpdated={() => mutate()} />
+
       <ReferralSection user={data} />
 
       <div
@@ -658,9 +786,12 @@ export default function UserDetailPage() {
           border: "1px solid var(--color-border)",
         }}
       >
-        <h2 className="text-[13px] font-black text-gray-700 mb-3">
-          حساب‌های بانکی
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[13px] font-black text-gray-700">حساب‌های بانکی</h2>
+          <Link href={`/bank-accounts?search=${data.phone}`} className="text-[11px] font-bold text-gray-500 hover:text-gray-700">
+            بررسی و استعلام ←
+          </Link>
+        </div>
         {data.bankAccounts.length === 0 ? (
           <p className="text-[12px] text-gray-400">بدون حساب بانکی ثبت‌شده</p>
         ) : (
@@ -669,20 +800,26 @@ export default function UserDetailPage() {
             {data.bankAccounts.map((b: BankAccount) => (
               <div
                 key={b.id}
-                className="flex items-center justify-between text-[12px] py-2 border-b border-gray-50 last:border-0"
+                className="flex flex-wrap items-center justify-between gap-2 text-[12px] py-2 border-b border-gray-50 last:border-0"
               >
-                <span>{b.bankName}</span>
-                <span dir="ltr" className="font-medium text-gray-600">
+                <div className="min-w-0">
+                  <span className="font-bold">{b.bankName}</span>
+                  {b.isDefault && <span className="text-[10px] text-amber-600 font-bold"> · پیش‌فرض</span>}
+                  {b.ownerName && <div className="text-[10px] text-gray-400">{b.ownerName}</div>}
+                </div>
+                <div dir="ltr" className="font-medium text-gray-600 text-left">
                   {b.cardNumber}
-                </span>
+                  {b.sheba && <div className="text-[10px] text-gray-400">{b.sheba}</div>}
+                </div>
                 <span
                   className="badge"
+                  title={b.statusMessage ?? undefined}
                   style={{
-                    background: b.isVerified ? "#dcfce7" : "#fef3c7",
-                    color: b.isVerified ? "#16a34a" : "#b45309",
+                    background: BANK_STATUS_META[b.status]?.bg ?? "#f3f4f6",
+                    color: BANK_STATUS_META[b.status]?.color ?? "#6b7280",
                   }}
                 >
-                  {b.isVerified ? "تایید شده" : "در انتظار"}
+                  {BANK_STATUS_META[b.status]?.label ?? (b.isVerified ? "تایید شده" : "در انتظار")}
                 </span>
               </div>
             ))}

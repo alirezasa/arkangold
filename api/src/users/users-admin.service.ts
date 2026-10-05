@@ -71,6 +71,7 @@ export class UsersAdminService {
           ? `${u.identity.firstName ?? ''} ${u.identity.lastName ?? ''}`.trim()
           : null,
         identityStatus: u.identity?.status ?? null,
+        mobileVerificationStatus: u.mobileVerificationStatus,
         // اصلاح خطا: استفاده از String() برای تبدیل امن Decimal به رشته
         rialBalance: u.wallet ? String(u.wallet.rialBalance) : '0',
         goldBalanceGrams: u.wallet ? String(u.wallet.goldBalanceGrams) : '0',
@@ -125,12 +126,27 @@ export class UsersAdminService {
             cardNumber: user.wallet.cardNumber,
           }
         : null,
+      mobileVerification: {
+        status: user.mobileVerificationStatus,
+        checkedAt: user.mobileCheckedAt,
+        verifiedAt: user.mobileVerifiedAt,
+        provider: user.mobileCheckProvider,
+        trackId: user.mobileCheckTrackId,
+      },
       bankAccounts: user.bankAccounts.map((b) => ({
         id: b.id,
         bankName: b.bankName,
         cardNumber: b.cardNumber,
+        sheba: b.sheba,
+        accountNumber: b.accountNumber || null,
+        ownerName: b.ownerName,
+        depositStatus: b.depositStatus,
+        status: b.status,
+        statusMessage: b.statusMessage,
         isVerified: b.isVerified,
         isDefault: b.isDefault,
+        lastInquiryAt: b.lastInquiryAt,
+        createdAt: b.createdAt,
       })),
       limits: user.limits,
       referralStats,

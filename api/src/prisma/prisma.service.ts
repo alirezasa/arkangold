@@ -29,7 +29,7 @@ export class PrismaService
       // فعال‌سازی اکستنشن Accelerate
       this.$extends(withAccelerate());
     } else {
-      // اتصال مستقیم به PostgreSQL (مثلاً دیتابیس چابکان: postgresql://USER:PASS@HOST:PORT/DB)
+      // اتصال مستقیم به PostgreSQL (مثلاً دیتابیس لیارا: postgresql://USER:PASS@HOST:PORT/DB)
       super({
         adapter: new PrismaPg({ connectionString: url }),
         log: ['error', 'warn'],

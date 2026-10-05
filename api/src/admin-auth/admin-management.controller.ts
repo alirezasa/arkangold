@@ -33,15 +33,19 @@ import { AuditLog } from './decorators/audit-log.decorator';
 import { AuditLogInterceptor } from './interceptors/audit-log.interceptor';
 import { AdminAuthenticatedUser } from './interfaces/admin-jwt-payload.interface';
 
+// FIA_UID_EXT.1.1/1.6: رمز عبور در فرم ساخت حساب وجود ندارد؛ سیستم رمز موقت را به موبایل
+// صاحب حساب پیامک می‌کند. بنابراین شماره موبایل اجباری است.
 class CreateAdminDto {
   @IsString()
+  @Matches(/^[A-Za-z][A-Za-z0-9._-]{2,49}$/, {
+    message:
+      'نام کاربری باید ۳ تا ۵۰ کاراکتر انگلیسی باشد و با حرف شروع شود (مجاز: حروف، عدد، . _ -)',
+  })
   username!: string;
 
   @IsString()
-  @MinLength(12)
-  password!: string;
-
-  @IsString()
+  @MinLength(3)
+  @MaxLength(80)
   fullName!: string;
 
   // یک ادمین می‌تواند هم‌زمان چند نقش داشته باشد (مثلاً حسابدار + مدیر مالی + پشتیبانی)
@@ -57,10 +61,9 @@ class CreateAdminDto {
   @IsString()
   roleKey?: string;
 
-  // مقصد پیامک اطلاع‌رسانی تیکت‌هایی که به این ادمین Assign می‌شوند
-  @IsOptional()
-  @IsPhoneNumber('IR')
-  phone?: string;
+  // مقصد رمز موقت، هشدارهای امنیتی و پیامک تیکت‌هایی که به این ادمین Assign می‌شوند
+  @IsPhoneNumber('IR', { message: 'شماره موبایل معتبر وارد کنید' })
+  phone!: string;
 }
 
 class UpdateAdminDto {
@@ -87,12 +90,6 @@ class UpdateAdminDto {
   @IsOptional()
   @IsPhoneNumber('IR')
   phone?: string;
-}
-
-class ResetPasswordDto {
-  @IsString()
-  @MinLength(12)
-  newPassword!: string;
 }
 
 class CreateRoleDto {
@@ -216,12 +213,15 @@ export class AdminManagementController {
   @AuditLog('admin.reset_password')
   @UseInterceptors(AuditLogInterceptor)
   @Post(':id/reset-password')
-  resetPassword(
-    @Req() req: AdminRequest,
-    @Param('id') id: string,
-    @Body() dto: ResetPasswordDto,
-  ) {
-    return this.service.resetPassword(actorOf(req), id, dto.newPassword);
+  resetPassword(@Req() req: AdminRequest, @Param('id') id: string) {
+    return this.service.resetPassword(actorOf(req), id);
+  }
+
+  @AuditLog('admin.reset_mfa')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post(':id/reset-mfa')
+  resetMfa(@Req() req: AdminRequest, @Param('id') id: string) {
+    return this.service.resetMfa(actorOf(req), id);
   }
 
   @AuditLog('admin.revoke_sessions')

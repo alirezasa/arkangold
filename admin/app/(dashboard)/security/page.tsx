@@ -1,6 +1,9 @@
 // admin/app/(dashboard)/security/page.tsx
-// امنیت و رمزنگاری (کلاس FCS): وضعیت اسرار، کلیدهای JWT، رمزنگاری Credentialها،
-// نگهداری داده و شکست‌های رمزنگاری. این صفحه هیچ مقدار کلید یا رازی نمایش نمی‌دهد.
+// پنل امنیت با دو بخش:
+//  - احراز هویت (کلاس FIA): سیاست رمز، ورود دومرحله‌ای، حساب‌های پیش‌فرض، تلاش‌های ناموفق، هشدارها،
+//    یادآوری انقضا و فهرست مسیرهای ورود
+//  - رمزنگاری (کلاس FCS): وضعیت اسرار، کلیدهای JWT، رمزنگاری Credentialها، نگهداری داده و شکست‌ها
+// این صفحه هیچ مقدار کلید، راز یا رمزی نمایش نمی‌دهد.
 "use client";
 import { useState } from "react";
 import Link from "next/link";
@@ -13,7 +16,6 @@ import {
   KeyRound,
   Loader2,
   LockKeyhole,
-  RefreshCw,
   ServerCog,
   ShieldCheck,
   TimerReset,
@@ -22,7 +24,20 @@ import {
 } from "lucide-react";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
 
-const fetcher = (url: string) => axios.get(url).then((r) => r.data);
+import {
+  ActionButton,
+  BAD,
+  Badge,
+  Card,
+  OK,
+  StatTile,
+  Tech,
+  WARN,
+  fa,
+  fetcher,
+  getErrorMessage,
+} from "./ui";
+import AuthSection from "./AuthSection";
 
 type SecretSource = "vault" | "file" | "env" | "missing";
 
@@ -65,7 +80,7 @@ interface CryptoStatus {
       updatedAt: string;
     }[];
   };
-  passwordHashing: { algorithm: string; cost: number; maxBytes: number };
+  passwordHashing: { algorithm: string; prehash: string; cost: number; maxLength: number };
   retention: {
     schedule: string;
     pending: { userSessions: number; adminSessions: number; otps: number };
@@ -90,105 +105,7 @@ const SOURCE_META: Record<SecretSource, { label: string; bg: string; color: stri
   missing: { label: "تنظیم نشده", bg: "#f3f4f6", color: "#6b7280" },
 };
 
-const fa = (n: number) => n.toLocaleString("fa-IR");
-
-function getErrorMessage(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) return err.response?.data?.message || fallback;
-  return fallback;
-}
-
-/** شناسه‌ی فنی (نام الگوریتم، متغیر، kid) — فونت پنل ارقام را فارسی می‌کند؛ این‌ها باید لاتین بمانند */
-function Tech({ children }: { children: React.ReactNode }) {
-  return (
-    <bdi dir="ltr" className="font-mono text-[0.92em]">
-      {children}
-    </bdi>
-  );
-}
-
-function Badge({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
-  return (
-    <span className="badge" style={{ background: bg, color }}>
-      {children}
-    </span>
-  );
-}
-
-const OK = { bg: "var(--color-emerald-light)", color: "var(--color-emerald)" };
-const WARN = { bg: "#fef3c7", color: "#b45309" };
-const BAD = { bg: "#fee2e2", color: "#dc2626" };
-
-function Card({
-  icon: Icon,
-  title,
-  subtitle,
-  action,
-  children,
-}: {
-  icon: typeof KeyRound;
-  title: string;
-  subtitle?: React.ReactNode;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      className="rounded-2xl p-4"
-      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
-    >
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-start gap-2 min-w-0">
-          <Icon className="w-5 h-5 mt-0.5 text-gray-700 shrink-0" />
-          <div className="min-w-0">
-            <h2 className="font-black text-[14px] text-gray-900">{title}</h2>
-            {subtitle && <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>}
-          </div>
-        </div>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function StatTile({ label, value, tone }: { label: string; value: React.ReactNode; tone: "ok" | "warn" | "bad" }) {
-  const t = tone === "ok" ? OK : tone === "warn" ? WARN : BAD;
-  return (
-    <div
-      className="rounded-2xl p-3"
-      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
-    >
-      <p className="text-[11px] text-gray-500 mb-1">{label}</p>
-      <p className="font-black text-[15px]" style={{ color: t.color }}>
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function ActionButton({
-  onClick,
-  loading,
-  children,
-}: {
-  onClick: () => void;
-  loading: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold text-white disabled:opacity-60"
-      style={{ backgroundColor: "var(--color-emerald)" }}
-    >
-      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-      {children}
-    </button>
-  );
-}
-
-export default function SecurityPage() {
+function CryptoSection() {
   const { data, isLoading, error, mutate } = useSWR<CryptoStatus>("/api/admin/security/crypto-status", fetcher, {
     revalidateOnFocus: false,
   });
@@ -242,15 +159,6 @@ export default function SecurityPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <KeyRound className="w-5 h-5 text-gray-700" />
-          <h1 className="text-lg font-black text-gray-900">امنیت و رمزنگاری</h1>
-        </div>
-        <p className="text-[12px] text-gray-400">
-          وضعیت کلیدها، مدیریت اسرار و چرخش — مقدار هیچ کلید یا رازی در این صفحه نمایش داده نمی‌شود
-        </p>
-      </div>
 
       {notice && (
         <div
@@ -558,9 +466,11 @@ export default function SecurityPage() {
                 [
                   ["رمزنگاری Credentialها", <><Tech>AES-256-GCM</Tech> (<Tech>NIST SP 800-38D</Tech>) با AAD{isVaultTransit ? " — داخل Vault" : ""}</>],
                   ["امضای توکن‌ها", <><Tech>{data.jwt.algorithm}</Tech> (<Tech>HMAC-SHA256</Tech>)، الگوریتم ثابت، شناسه‌ی کلید</>],
-                  ["ذخیره‌ی رمز عبور", <><Tech>{data.passwordHashing.algorithm}</Tech>، هزینه‌ی {fa(data.passwordHashing.cost)}، نمک تصادفی، حداکثر {fa(data.passwordHashing.maxBytes)} بایت</>],
+                  ["ذخیره‌ی رمز عبور", <><Tech>{data.passwordHashing.prehash}</Tech> + <Tech>{data.passwordHashing.algorithm}</Tech>، هزینه‌ی {fa(data.passwordHashing.cost)}، نمک تصادفی، بدون کوتاه‌سازی تا {fa(data.passwordHashing.maxLength)} کاراکتر</>],
                   ["ذخیره‌ی کد یک‌بارمصرف", <><Tech>bcrypt</Tech>، هزینه‌ی ۱۰</>],
-                  ["ذخیره‌ی refresh token و یکپارچگی رویدادها", <Tech>SHA-256</Tech>],
+                  ["ذخیره‌ی refresh token و یکپارچگی رویدادها", <><Tech>SHA-256</Tech></>],
+                  ["ورود دومرحله‌ای", <><Tech>TOTP (RFC 6238, HMAC-SHA1)</Tech>، راز ۱۶۰ بیتی رمزشده با <Tech>AES-256-GCM</Tech>؛ کدهای بازیابی با <Tech>bcrypt</Tech></>],
+                  ["بررسی امنیتی ورود", <><Tech>SHA-256</Tech> Proof-of-Work با امضای <Tech>HMAC-SHA256</Tech></>],
                   ["مقادیر تصادفی (OTP، IV، شناسه‌ها)", <>CSPRNG — <Tech>crypto.randomInt / randomBytes / randomUUID</Tech></>],
                   ["الگوریتم‌های ممنوع", <><Tech>MD5, SHA-1, DES, 3DES, RC4, ECB, CBC</Tech> — در محصول استفاده نمی‌شوند</>],
                 ] as [string, React.ReactNode][]
@@ -594,6 +504,47 @@ export default function SecurityPage() {
           </Link>
         </div>
       </Card>
+    </div>
+  );
+}
+
+type Tab = "auth" | "crypto";
+
+export default function SecurityPage() {
+  const [tab, setTab] = useState<Tab>("auth");
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <KeyRound className="w-5 h-5 text-gray-700" />
+          <h1 className="text-lg font-black text-gray-900">امنیت و رمزنگاری</h1>
+        </div>
+        <p className="text-[12px] text-gray-400">
+          احراز هویت، کلیدها، مدیریت اسرار و چرخش — مقدار هیچ کلید، راز یا رمزی در این صفحه نمایش داده نمی‌شود
+        </p>
+      </div>
+      <div className="inline-flex p-1 rounded-xl gap-1" style={{ backgroundColor: "var(--color-bg-page)" }} role="tablist">
+        {(
+          [
+            { key: "auth", label: "احراز هویت و ورود" },
+            { key: "crypto", label: "رمزنگاری و کلیدها" },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-4 py-2 rounded-lg text-[12px] font-black transition-colors ${
+              tab === t.key ? "bg-white shadow-sm text-gray-900" : "text-gray-500"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === "auth" ? <AuthSection /> : <CryptoSection />}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   UserPlus,
   Fingerprint,
   RefreshCw,
+  Smartphone,
 } from "lucide-react";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
 
@@ -106,6 +107,7 @@ interface UserDetail {
   phone: string;
   status: "ACTIVE" | "BANNED" | "INACTIVE";
   referralCode: string;
+  mfa?: { totpEnabled: boolean; totpEnabledAt: string | null; recoveryCodesRemaining: number };
   identity: UserIdentity | null;
   wallet: UserWallet | null;
   bankAccounts: BankAccount[];
@@ -246,6 +248,122 @@ function MobileSection({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── ورود دومرحله‌ای: بازیابی پس از احراز هویت مجدد (FIA_UID_EXT.1.4) ──
+function MfaSection({
+  user,
+  onUpdated,
+}: {
+  user: UserDetail;
+  onUpdated: () => Promise<unknown>;
+}) {
+  const { me } = useAdminMe();
+  const canReset = me?.permissions.includes("users.mfa.reset") ?? false;
+  const [open, setOpen] = useState(false);
+  const [nationalCode, setNationalCode] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+  const mfa = user.mfa;
+  if (!mfa) return null;
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { data } = await axios.post(`/api/admin/users/${user.id}/mfa/reset`, {
+        nationalCode,
+        reason,
+      });
+      setDone(data?.message ?? "انجام شد");
+      setOpen(false);
+      await onUpdated();
+    } catch (err) {
+      setError(apiError(err, "بازیابی انجام نشد"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="rounded-2xl p-5 mb-5"
+      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[13px] font-black text-gray-700 flex items-center gap-2">
+          <Smartphone className="w-4 h-4 text-gold-500" />
+          ورود دومرحله‌ای
+          <span
+            className="badge"
+            style={
+              mfa.totpEnabled
+                ? { background: "#dcfce7", color: "#16a34a" }
+                : { background: "#f3f4f6", color: "#6b7280" }
+            }
+          >
+            {mfa.totpEnabled ? "برنامه‌ی احراز هویت" : "رمز + کد پیامکی"}
+          </span>
+        </h2>
+        {canReset && mfa.totpEnabled && !open && (
+          <button
+            type="button"
+            onClick={() => { setOpen(true); setDone(null); }}
+            className="px-3 py-2 rounded-xl text-[12px] font-bold text-red-600 bg-red-50 border border-red-100"
+          >
+            بازیابی (گم شدن برنامه)
+          </button>
+        )}
+      </div>
+      {mfa.totpEnabled && (
+        <p className="text-[12px] text-gray-500 mt-2">
+          کدهای بازیابی باقی‌مانده: {mfa.recoveryCodesRemaining.toLocaleString("fa-IR")}
+        </p>
+      )}
+      {done && <p className="mt-3 text-[12px] font-bold text-green-700 bg-green-50 rounded-xl p-3">{done}</p>}
+      {open && (
+        <div className="mt-4 space-y-3">
+          <p className="text-[12px] leading-6 text-gray-600 bg-amber-50 border border-amber-100 rounded-xl p-3">
+            فقط وقتی کاربر به برنامه و کدهای بازیابی دسترسی ندارد. ابتدا هویت او را هم‌سطح ثبت‌نام اولیه تأیید کنید
+            (تماس تصویری و تطبیق چهره با کارت ملی)؛ کد ملی ارائه‌شده باید با هویت احرازشده‌ی حساب یکی باشد. همه‌ی
+            نشست‌های کاربر بسته و به او پیامک داده می‌شود.
+          </p>
+          {error && <p className="text-[12px] font-bold text-red-600">{error}</p>}
+          <input
+            dir="ltr"
+            inputMode="numeric"
+            maxLength={10}
+            placeholder="کد ملی ارائه‌شده توسط کاربر"
+            value={nationalCode}
+            onChange={(e) => setNationalCode(e.target.value.replace(/\D/g, ""))}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+          />
+          <textarea
+            placeholder="روش احراز هویت مجدد (مثلاً تماس تصویری در تاریخ … و تطبیق کارت ملی)"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={2}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={submit}
+              disabled={busy || nationalCode.length !== 10 || reason.trim().length < 10}
+              className="flex-1 py-2.5 rounded-xl text-[13px] font-black text-white bg-red-600 disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "ابطال برنامه‌ی احراز هویت کاربر"}
+            </button>
+            <button type="button" onClick={() => setOpen(false)} className="px-4 rounded-xl border border-gray-200 text-[13px] font-bold text-gray-500">
+              انصراف
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -655,6 +773,7 @@ export default function UserDetailPage() {
       </div>
 
       <IdentitySection user={data} onUpdated={() => mutate()} />
+      <MfaSection user={data} onUpdated={() => mutate()} />
 
       <MobileSection user={data} onUpdated={() => mutate()} />
 

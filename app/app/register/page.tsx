@@ -395,6 +395,11 @@ export default function RegisterPage() {
                 }}
                 isPassword
               />
+              <p className="text-[11px] text-gray-400 leading-5 mr-1 -mt-1">
+                حداقل ۸ و حداکثر ۱۲۸ کاراکتر؛ نیازی به عدد یا نماد نیست. یک عبارت طولانی و به‌یادماندنی
+                (حتی فارسی) بهترین انتخاب است. رمزهای رایج یا افشاشده و رمزهای ساخته‌شده از نام برنامه یا
+                شماره موبایل پذیرفته نمی‌شوند. استفاده از مدیر رمز عبور مرورگر هم مجاز است.
+              </p>
               <InputField
                 label="کد معرف (اختیاری)"
                 placeholder="مثال: X7Y2Z9AB"
@@ -484,6 +489,7 @@ function InputField({
           type={isPasswordField ? "password" : isNumeric ? "tel" : "text"}
           inputMode={isNumeric ? "numeric" : undefined}
           autoComplete={isPassword ? "new-password" : isNumeric ? "off" : undefined}
+          maxLength={isPassword ? 128 : undefined}
           placeholder={placeholder}
           dir={isNumeric || isPassword ? "ltr" : "rtl"}
           className={`w-full p-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 focus:ring-4 focus:ring-gold-500/10 transition-all text-lg font-medium ${isNumeric || isPassword ? "text-left" : "text-right"} ${isPassword ? "pl-12" : ""}`}

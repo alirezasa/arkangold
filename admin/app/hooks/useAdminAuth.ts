@@ -1,8 +1,9 @@
 // admin/app/hooks/useAdminAuth.ts
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import axios from "axios";
+import { withCaptcha } from "@/app/utils/pow-captcha";
+import type { LoginStep } from "@/app/login/LoginSteps";
 
 interface NestApiError {
   message?: string | string[];
@@ -27,32 +28,39 @@ const getErrorMessage = (err: unknown, defaultMsg: string): string => {
   return defaultMsg;
 };
 
+/**
+ * مرحله‌ی اول ورود پنل. پاسخ موفق «مرحله‌ی بعد» است (تغییر رمز موقت یا برنامه‌ی احراز هویت)؛
+ * «بررسی امنیتی» در صورت درخواست سرور به‌طور خودکار حل می‌شود (FIA_UAU_EXT.2.1).
+ */
 export const useAdminLogin = () => {
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string): Promise<LoginStep | null> => {
     setLoading(true);
     setError(null);
     try {
-      await axios.post("/api/admin-auth/login", { username, password });
-      router.replace("/");
+      const { data } = await withCaptcha(
+        (captcha) => axios.post<LoginStep>("/api/admin-auth/login", { username, password, captcha }),
+        setChecking,
+      );
+      return data;
     } catch (err: unknown) {
       setError(getErrorMessage(err, "خطا در ورود. لطفاً دوباره تلاش کنید."));
+      return null;
     } finally {
       setLoading(false);
     }
   };
 
-  return { login, loading, error, setError };
+  return { login, loading, checking, error, setError };
 };
 
 /** ورود نماینده با کد یکبارمصرف (فقط شماره‌ای که مدیر روی حساب نماینده ثبت کرده) */
 export const useAgentOtpLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   /** در صورت موفقیت، فاصله‌ی مجاز ارسال مجدد (ثانیه) و پیام برمی‌گردد */
   const requestCode = async (
@@ -75,14 +83,16 @@ export const useAgentOtpLogin = () => {
     }
   };
 
-  const verifyCode = async (phone: string, code: string) => {
+  /** کد پیامکی عامل اول است؛ مرحله‌ی برنامه‌ی احراز هویت برگردانده می‌شود */
+  const verifyCode = async (phone: string, code: string): Promise<LoginStep | null> => {
     setLoading(true);
     setError(null);
     try {
-      await axios.post("/api/admin-auth/agent-otp/verify", { phone, code });
-      router.replace("/agent-portal");
+      const { data } = await axios.post<LoginStep>("/api/admin-auth/agent-otp/verify", { phone, code });
+      return data;
     } catch (err: unknown) {
       setError(getErrorMessage(err, "ورود ناموفق بود. لطفاً دوباره تلاش کنید."));
+      return null;
     } finally {
       setLoading(false);
     }

@@ -53,6 +53,12 @@ export class PartnerApiGuard implements CanActivate {
     if (!partner.apiEnabled || partner.status !== 'ACTIVE') {
       throw new ForbiddenException('دسترسی API این شریک غیرفعال است');
     }
+    // FIA_UID_EXT.1.5: کلید منقضی پذیرفته نمی‌شود (یادآوری پیش از انقضا ارسال شده است)
+    if (partner.apiKeyExpiresAt && partner.apiKeyExpiresAt <= new Date()) {
+      throw new UnauthorizedException(
+        'کلید API منقضی شده است؛ برای دریافت کلید جدید با مدیر حساب خود تماس بگیرید',
+      );
+    }
     if (partner.apiIpWhitelist.length) {
       const ip = extractClientIp(req);
       if (!partner.apiIpWhitelist.includes(ip)) {

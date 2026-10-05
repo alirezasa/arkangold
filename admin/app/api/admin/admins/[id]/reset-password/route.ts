@@ -10,7 +10,7 @@ async function getToken() {
 }
 
 export async function POST(
-  req: Request,
+  _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -18,8 +18,8 @@ export async function POST(
     const token = await getToken();
     if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-    const body = await req.json();
-    const res = await axios.post(`${NEST}/admin/admins/${id}/reset-password`, body, {
+    // FIA_UID_EXT.1.6: بدون بدنه — رمز موقت را سیستم می‌سازد و فقط به موبایل صاحب حساب پیامک می‌کند
+    const res = await axios.post(`${NEST}/admin/admins/${id}/reset-password`, {}, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return NextResponse.json(res.data);

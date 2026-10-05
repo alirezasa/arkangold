@@ -11,19 +11,36 @@ import {
   EyeOff,
 } from "lucide-react";
 import { useAdminLogin } from "@/app/hooks/useAdminAuth";
+import LoginSteps, { type LoginStep } from "./LoginSteps";
 
-export default function AdminLoginForm({ submitLabel = "ورود به پنل" }: { submitLabel?: string }) {
-  const { login, loading, error, setError } = useAdminLogin();
+export default function AdminLoginForm({
+  submitLabel = "ورود به پنل",
+  home = "/",
+}: {
+  submitLabel?: string;
+  home?: string;
+}) {
+  const { login, loading, checking, error, setError } = useAdminLogin();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  // پس از رمز درست: تغییر رمز موقت و/یا برنامه‌ی احراز هویت (FIA_UAU_EXT.2.3)
+  const [step, setStep] = useState<LoginStep | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim()) return setError("نام کاربری را وارد کنید");
     if (!password) return setError("رمز عبور را وارد کنید");
-    await login(username.trim(), password);
+    const next = await login(username.trim(), password);
+    if (next) {
+      setPassword("");
+      setStep(next);
+    }
   };
+
+  if (step) {
+    return <LoginSteps initial={step} home={home} onRestart={() => setStep(null)} />;
+  }
 
   return (
     <>
@@ -54,6 +71,7 @@ export default function AdminLoginForm({ submitLabel = "ورود به پنل" }:
                 ["--tw-ring-color" as string]: "rgba(197,160,89,.15)",
               }}
               autoComplete="username"
+              aria-label="نام کاربری"
               autoFocus
             />
           </div>
@@ -75,11 +93,14 @@ export default function AdminLoginForm({ submitLabel = "ورود به پنل" }:
               }}
               className="w-full pr-12 pl-12 py-4 bg-white border border-gray-300 rounded-2xl outline-none transition-all text-base font-medium text-left focus:border-gold-500"
               autoComplete="current-password"
+              maxLength={128}
+              aria-label="رمز عبور"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute left-4 text-gray-400 hover:text-gray-600 transition-colors"
+              aria-label={showPassword ? "پنهان کردن رمز" : "نمایش رمز"}
               tabIndex={-1}
             >
               {showPassword ? (
@@ -101,7 +122,10 @@ export default function AdminLoginForm({ submitLabel = "ورود به پنل" }:
           }}
         >
           {loading ? (
-            <Loader2 className="w-6 h-6 animate-spin" />
+            <>
+              <Loader2 className="w-6 h-6 animate-spin" />
+              {checking && <span className="text-sm font-bold">در حال بررسی امنیتی…</span>}
+            </>
           ) : (
             submitLabel
           )}

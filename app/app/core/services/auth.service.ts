@@ -7,6 +7,15 @@ const NEST_API_URL =
     ? "https://api.arkan.gold/auth"
     : "http://localhost:5000/auth");
 
+export interface LoginChallenge {
+  mfaRequired: true;
+  method: "SMS" | "TOTP";
+  challengeToken: string;
+  maskedPhone?: string;
+  expiresIn?: number;
+  resendAfter?: number;
+}
+
 export const AuthService = {
   // ==========================================
   // ─── بخش اول: متدهای ثبت نام (کدهای قبلی شما)
@@ -49,28 +58,31 @@ export const AuthService = {
   },
 
   // ==========================================
-  // ─── بخش دوم: متدهای ورود (اضافه شده برای رفع خطا)
+  // ─── بخش دوم: ورود دومرحله‌ای (FIA_UAU_EXT.2.3)
   // ==========================================
 
-  // ارسال کد پیامکی ورود (درخواست مستقیم به NestJS چون کوکی نیاز ندارد)
-  sendLoginOtp: async (phone: string) => {
-    const response = await axios.post(`${NEST_API_URL}/send-login-otp`, { phone });
+  // مرحله‌ی اول: رمز عبور (از طریق BFF). پاسخ نشست نیست؛ توکن مرحله و روش عامل دوم است.
+  login: async (phone: string, password: string, captcha?: string) => {
+    const response = await axios.post<LoginChallenge>(`/api/auth/login`, {
+      phone,
+      password,
+      captcha,
+    });
     return response.data;
   },
 
-  // تایید کد ورود پیامکی (ارسال به BFF نکس‌جی‌اس برای ست کردن کوکی)
-  verifyLoginOtp: async (phone: string, code: string) => {
-    // آدرس باید مستقیماً به API داخلی خود نکس‌جی‌اس بخورد نه NEST_API_URL
-    const response = await axios.post(`/api/auth/verify-login-otp`, { phone, code });
+  // مرحله‌ی دوم: کد پیامکی، کد برنامه‌ی احراز هویت یا کد بازیابی (BFF کوکی نشست را ست می‌کند)
+  verifyLogin: async (challengeToken: string, code: string) => {
+    const response = await axios.post(`/api/auth/login/verify`, { challengeToken, code });
     return response.data;
   },
 
-  // ورود با رمز عبور (ارسال به BFF نکس‌جی‌اس برای ست کردن کوکی)
-  login: async (phone: string, password: string) => {
-    // برای این هم بهتر است آدرس صریح نوشته شود
-    const response = await axios.post(`/api/auth/login`, { phone, password });
-    return response.data;
+  // ارسال دوباره‌ی کد پیامکی مرحله‌ی دوم
+  resendLoginCode: async (challengeToken: string) => {
+    const response = await axios.post(`${NEST_API_URL}/login/resend`, { challengeToken });
+    return response.data as { expiresIn: number; resendAfter: number };
   },
+
   // ==========================================
   // ─── بخش سوم: متدهای فراموشی رمز عبور
   // ==========================================
@@ -81,9 +93,21 @@ export const AuthService = {
     return response.data;
   },
 
-  // تایید پیامک و دریافت توکن بازیابی (resetToken)
+  // تایید پیامک: توکن بازیابی، یا اگر ورود دومرحله‌ای با برنامه فعال است، توکن مرحله‌ی بعد
   verifyResetOtp: async (phone: string, code: string) => {
-    const response = await axios.post(`${NEST_API_URL}/verify-reset-otp`, { phone, code });
+    const response = await axios.post<
+      | { resetToken: string }
+      | { mfaRequired: true; method: "TOTP"; challengeToken: string; message: string }
+    >(`${NEST_API_URL}/verify-reset-otp`, { phone, code });
+    return response.data;
+  },
+
+  // FIA_UID_EXT.1.3: کد برنامه‌ی احراز هویت یا کد بازیابی برای ادامه‌ی بازیابی رمز
+  verifyResetMfa: async (challengeToken: string, code: string) => {
+    const response = await axios.post<{ resetToken: string }>(
+      `${NEST_API_URL}/reset-password/verify-mfa`,
+      { challengeToken, code },
+    );
     return response.data;
   },
 

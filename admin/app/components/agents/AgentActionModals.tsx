@@ -562,26 +562,27 @@ export function AccountModal({
   onClose: () => void;
   onDone: (msg: string) => void | Promise<void>;
 }) {
-  const [f, setF] = useState({ username: "", password: "", fullName: "", phone: "" });
+  const [f, setF] = useState({ username: "", fullName: "", phone: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submit = async () => {
     setError(null);
     if (!/^[a-zA-Z][a-zA-Z0-9_.-]{3,31}$/.test(f.username))
       return setError("نام کاربری: حرف انگلیسی در ابتدا، ۴ تا ۳۲ کاراکتر (حرف، عدد، _ . -)");
-    if (f.password.length < 12 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password))
-      return setError("رمز عبور حداقل ۱۲ کاراکتر و ترکیبی از حروف انگلیسی و عدد");
     if (f.fullName.trim().length < 3) return setError("نام کامل کاربر را وارد کنید");
-    if (f.phone && !/^09\d{9}$/.test(f.phone)) return setError("شماره موبایل معتبر نیست");
+    if (!/^09\d{9}$/.test(f.phone))
+      return setError("شماره موبایل (۱۱ رقم، شروع با ۰۹) برای ارسال رمز موقت لازم است");
     setBusy(true);
     try {
-      await axios.post(`/api/admin/agents/${agent.id}/accounts`, {
+      const { data } = await axios.post(`/api/admin/agents/${agent.id}/accounts`, {
         username: f.username,
-        password: f.password,
         fullName: f.fullName.trim(),
-        phone: f.phone || undefined,
+        phone: f.phone,
       });
-      await onDone(`حساب ورود «${f.username}» ساخته شد. نماینده با همین نام کاربری و رمز از صفحه‌ی ورود پنل وارد می‌شود.`);
+      await onDone(
+        data?.message ??
+          `حساب ورود «${f.username}» ساخته شد و رمز موقت به موبایل نماینده پیامک شد.`,
+      );
     } catch (err) {
       setError(getErrorMessage(err, "ساخت حساب ممکن نشد"));
     } finally {
@@ -594,18 +595,19 @@ export function AccountModal({
         kind="info"
         text="این حساب با نقش «نماینده فروش» ساخته می‌شود و فقط به پرتال همین نماینده (موجودی امانی، ثبت فروش، تسویه و صورتحساب) دسترسی دارد."
       />
+      <Alert
+        kind="info"
+        text="رمز عبور را شما تعیین نمی‌کنید: سیستم رمز موقت تصادفی (۲۴ ساعته) را فقط به موبایل نماینده پیامک می‌کند و در اولین ورود باید تغییر کند. ورود دومرحله‌ای با برنامه‌ی احراز هویت برای نمایندگان اجباری است."
+      />
       {error && <Alert kind="error" text={error} />}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="نام کاربری (انگلیسی)">
           <input value={f.username} onChange={(e) => setF((p) => ({ ...p, username: e.target.value.trim() }))} className={`${inputCls} text-left`} dir="ltr" />
         </Field>
-        <Field label="رمز عبور اولیه">
-          <input value={f.password} onChange={(e) => setF((p) => ({ ...p, password: e.target.value }))} className={`${inputCls} text-left`} dir="ltr" />
-        </Field>
         <Field label="نام و نام خانوادگی کاربر">
           <input value={f.fullName} onChange={(e) => setF((p) => ({ ...p, fullName: e.target.value }))} className={inputCls} />
         </Field>
-        <Field label="موبایل (برای ورود با کد یکبارمصرف — اختیاری)">
+        <Field label="موبایل (اجباری — رمز موقت و ورود با کد یکبارمصرف)">
           <input
             value={f.phone}
             onChange={(e) => setF((p) => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 11) }))}
@@ -677,6 +679,10 @@ export function AccountPhoneModal({
   );
 }
 
+/**
+ * FIA_UID_EXT.1.6: مدیر رمز نماینده را نمی‌بیند و تعیین نمی‌کند؛ فقط ارسال رمز موقت را آغاز می‌کند
+ * یا برنامه‌ی احراز هویت گم‌شده را باطل می‌کند (FIA_UAU_EXT.3.6).
+ */
 export function ResetPasswordModal({
   agentId,
   account,
@@ -684,35 +690,50 @@ export function ResetPasswordModal({
   onDone,
 }: {
   agentId: string;
-  account: { id: string; username: string };
+  account: { id: string; username: string; phone?: string | null };
   onClose: () => void;
   onDone: (msg: string) => void | Promise<void>;
 }) {
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"password" | "mfa" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const submit = async () => {
-    if (password.length < 12 || !/[A-Za-z]/.test(password) || !/\d/.test(password))
-      return setError("رمز عبور حداقل ۱۲ کاراکتر و ترکیبی از حروف انگلیسی و عدد");
-    setBusy(true);
+  const act = async (kind: "password" | "mfa") => {
+    setBusy(kind);
+    setError(null);
     try {
-      await axios.patch(`/api/admin/agents/${agentId}/accounts/${account.id}`, { newPassword: password });
-      await onDone(`رمز عبور «${account.username}» تغییر کرد و نشست‌های فعال او باطل شد`);
+      const { data } = await axios.patch(
+        `/api/admin/agents/${agentId}/accounts/${account.id}`,
+        kind === "password" ? { resetPassword: true } : { resetMfa: true },
+      );
+      await onDone(data?.message ?? "انجام شد");
     } catch (err) {
-      setError(getErrorMessage(err, "تغییر رمز ممکن نشد"));
+      setError(getErrorMessage(err, "انجام عملیات ممکن نشد"));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
   return (
-    <Modal title={`تعیین رمز جدید برای ${account.username}`} onClose={onClose}>
+    <Modal title={`امنیت ورود ${account.username}`} onClose={onClose}>
       {error && <Alert kind="error" text={error} />}
-      <Field label="رمز عبور جدید">
-        <input value={password} onChange={(e) => setPassword(e.target.value)} className={`${inputCls} text-left`} dir="ltr" />
-      </Field>
-      <button type="button" onClick={() => void submit()} disabled={busy} className={`${primaryBtn} w-full py-3`} style={primaryBtnStyle}>
-        {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-        ذخیره رمز جدید
+      <p className="text-[12px] leading-6 text-gray-600">
+        <b>ارسال رمز موقت:</b> رمز تصادفی ۲۴ ساعته فقط به موبایل ثبت‌شده‌ی نماینده پیامک می‌شود (شما آن را نمی‌بینید)،
+        نشست‌های فعلی بسته می‌شود و در ورود بعدی باید رمز را تغییر دهد.
+      </p>
+      <button type="button" onClick={() => void act("password")} disabled={!!busy} className={`${primaryBtn} w-full py-3`} style={primaryBtnStyle}>
+        {busy === "password" ? <Loader2 className="w-5 h-5 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+        ارسال رمز موقت
+      </button>
+      <p className="text-[12px] leading-6 text-gray-600">
+        <b>ابطال برنامه‌ی احراز هویت:</b> برای گم شدن یا سرقت گوشی؛ نماینده در ورود بعدی برنامه را دوباره راه‌اندازی
+        می‌کند. پیش از انجام، هویت درخواست‌کننده را تأیید کنید.
+      </p>
+      <button
+        type="button"
+        onClick={() => void act("mfa")}
+        disabled={!!busy}
+        className="w-full py-3 rounded-xl font-black text-white bg-red-600 flex items-center justify-center gap-2 disabled:opacity-60"
+      >
+        {busy === "mfa" ? <Loader2 className="w-5 h-5 animate-spin" /> : <Smartphone className="w-4 h-4" />}
+        ابطال برنامه‌ی احراز هویت
       </button>
     </Modal>
   );

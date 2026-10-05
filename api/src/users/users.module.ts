@@ -6,6 +6,7 @@ import { IdentityVerificationModule } from '../integrations/services/identity-ve
 import { UsersAdminController } from './users-admin.controller';
 import { UsersAdminService } from './users-admin.service';
 import { UsersAdminListController } from './users-admin-list.controller';
+import { UsersMfaAdminController } from './users-mfa-admin.controller';
 import { LegalDocumentsController } from './legal-documents.controller';
 import { LegalDocumentsService } from './legal-documents.service';
 import { ReferralModule } from '../referral/referral.module';
@@ -16,6 +17,7 @@ import { KycModule } from '../kyc/kyc.module';
     UsersController,
     UsersAdminController,
     UsersAdminListController,
+    UsersMfaAdminController,
     LegalDocumentsController,
   ],
   providers: [UsersService, UsersAdminService, LegalDocumentsService],

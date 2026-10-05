@@ -27,9 +27,6 @@ api/uploads
 *.log
 .DS_Store
 
-# فایل‌های پیکربندی چابکان
-.chabokignore
-
 # لیارا با دیدن pnpm-lock.yaml در ریشه، خودش pnpm را با yarn نصب و اجرا می‌کند و با فیلد
 # packageManager شکست می‌خورد؛ کپی آن (scripts/deploy/pnpm-lock.deploy.yaml) آپلود و در build
 # توسط scripts/deploy/run.mjs سر جایش گذاشته می‌شود

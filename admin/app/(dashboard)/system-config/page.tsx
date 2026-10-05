@@ -23,6 +23,7 @@ const fetcher = (url: string) => adminApi.get(url).then((r) => r.data);
 // ── ترتیب و عنوان فارسی هر گروه (بر اساس پیشوند کلید تا اولین نقطه) ──
 const GROUP_ORDER = [
   "session",
+  "security",
   "service",
   "transfer",
   "withdrawal",
@@ -41,6 +42,7 @@ const GROUP_ORDER = [
 
 const GROUP_TITLES: Record<string, string> = {
   session: "زمان نشست‌ها (کاربران و ادمین‌ها)",
+  security: "امنیت ورود، رمز عبور و یادآوری انقضا",
   service: "خدمات صفحه اصلی اپلیکیشن (بنرها)",
   transfer: "انتقال طلا بین کاربران",
   withdrawal: "برداشت وجه",

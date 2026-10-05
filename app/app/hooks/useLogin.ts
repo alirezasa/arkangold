@@ -1,77 +1,100 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AuthService } from "../core/services/auth.service";
 import axios from "axios";
+import { AuthService, type LoginChallenge } from "../core/services/auth.service";
 import { consumeReturnPath } from "../utils/return-path";
+import { withCaptcha } from "../utils/pow-captcha";
 
+export type LoginStep = "credentials" | "second_factor";
+
+// استخراج پیام خطای استاندارد از بک‌اَند
+export function apiErrorMessage(err: unknown, fallback = "خطایی در ارتباط با سرور رخ داد."): string {
+  if (axios.isAxiosError(err)) {
+    const message = err.response?.data?.message;
+    return Array.isArray(message) ? message[0] : message || fallback;
+  }
+  return err instanceof Error ? err.message : "خطای ناشناخته‌ای رخ داد.";
+}
+
+/**
+ * ورود دومرحله‌ای (FIA_UAU_EXT.2.3): رمز عبور ← کد پیامکی یا کد برنامه‌ی احراز هویت.
+ * «بررسی امنیتی» در صورت درخواست سرور به‌طور خودکار حل می‌شود (FIA_UAU_EXT.2.1).
+ */
 export const useLogin = () => {
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<LoginStep>("credentials");
+  const [challenge, setChallenge] = useState<LoginChallenge | null>(null);
   const router = useRouter();
 
-  // استخراج پیام خطای استاندارد از بک‌اَند
-  const handleError = (err: unknown) => {
-    if (axios.isAxiosError(err)) {
-      const message = err.response?.data?.message;
-      setError(
-        Array.isArray(message)
-          ? message[0]
-          : message || "خطایی در ارتباط با سرور رخ داد.",
+  const submitCredentials = async (phone: string, password: string): Promise<number> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const ch = await withCaptcha(
+        (captcha) => AuthService.login(phone, password, captcha),
+        setChecking,
       );
-    } else {
-      setError("خطای ناشناخته‌ای رخ داد.");
+      setChallenge(ch);
+      setStep("second_factor");
+      return ch.resendAfter ?? 0;
+    } catch (err) {
+      setError(apiErrorMessage(err));
+      return 0;
+    } finally {
+      setLoading(false);
     }
   };
 
-  // ۱. ورود با رمز عبور
-  const loginWithPassword = async (phone: string, password: string) => {
+  const verifyCode = async (code: string) => {
+    if (!challenge) return;
     setLoading(true);
     setError(null);
     try {
-      await AuthService.login(phone, password);
+      await AuthService.verifyLogin(challenge.challengeToken, code);
       router.replace(consumeReturnPath() ?? "/dashboard");
     } catch (err) {
-      handleError(err);
+      setError(apiErrorMessage(err));
+      // پایان مهلت/تلاش‌ها → بازگشت به مرحله‌ی رمز
+      if (axios.isAxiosError(err) && /دوباره وارد شوید/.test(String(err.response?.data?.message))) {
+        setStep("credentials");
+        setChallenge(null);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // ۲. درخواست کد OTP برای ورود
-  const sendLoginOtpCode = async (phone: string): Promise<boolean> => {
-    setLoading(true);
+  const resend = async (): Promise<number> => {
+    if (!challenge) return 0;
     setError(null);
     try {
-      await AuthService.sendLoginOtp(phone);
-      return true; // موفق
+      const r = await AuthService.resendLoginCode(challenge.challengeToken);
+      return r.resendAfter ?? 60;
     } catch (err) {
-      handleError(err);
-      return false; // ناموفق
-    } finally {
-      setLoading(false);
+      setError(apiErrorMessage(err));
+      const retry = axios.isAxiosError(err) ? Number(err.response?.data?.retryAfter) : 0;
+      return retry > 0 ? retry : 0;
     }
   };
 
-  // ۳. تایید کد OTP و ورود
-  const verifyLoginOtpCode = async (phone: string, code: string) => {
-    setLoading(true);
+  const restart = () => {
+    setStep("credentials");
+    setChallenge(null);
     setError(null);
-    try {
-      await AuthService.verifyLoginOtp(phone, code);
-      router.replace(consumeReturnPath() ?? "/dashboard");
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setLoading(false);
-    }
   };
 
   return {
     loading,
+    checking,
     error,
     setError,
-    loginWithPassword,
-    sendLoginOtpCode,
-    verifyLoginOtpCode,
+    step,
+    challenge,
+    submitCredentials,
+    verifyCode,
+    resend,
+    restart,
   };
 };

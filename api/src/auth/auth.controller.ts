@@ -14,6 +14,7 @@ import {
   RefreshTokenDto,
 } from '@arkan-gold/shared';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ChallengeCodeDto, ChallengeTokenDto } from './dto/mfa.dto';
 
 // تعریف دقیق ساختار user که توسط JwtStrategy اضافه می‌شود
 interface AuthenticatedUser {
@@ -55,9 +56,11 @@ export class AuthController {
     return this.authService.setPassword(dto, ip, userAgent);
   }
 
+  // FIA_UAU_EXT.2.4: مسیرهای ورود کاربر فقط همین سه مسیرند (رمز ← عامل دوم ← ارسال دوباره)؛
+  // مسیرهای قدیمی send-login-otp / verify-login-otp (ورود تک‌عاملی پیامکی) حذف شده‌اند.
   @Public()
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 300000 } })
+  @Throttle({ default: { limit: 10, ttl: 300000 } })
   async login(@Body() dto: LoginDto, @Req() req: Request) {
     const ip = req.ip;
     const userAgent = req.headers['user-agent'];
@@ -65,19 +68,22 @@ export class AuthController {
   }
 
   @Public()
-  @Post('send-login-otp')
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
-  async sendLoginOtp(@Body() dto: SendOtpDto) {
-    return this.authService.sendLoginOtp(dto);
+  @Post('login/verify')
+  @Throttle({ default: { limit: 10, ttl: 300000 } })
+  async verifyLoginMfa(@Body() dto: ChallengeCodeDto, @Req() req: Request) {
+    return this.authService.verifyLoginMfa(
+      dto.challengeToken,
+      dto.code,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   @Public()
-  @Post('verify-login-otp')
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
-  async verifyLoginOtp(@Body() dto: VerifyOtpDto, @Req() req: Request) {
-    const ip = req.ip;
-    const userAgent = req.headers['user-agent'];
-    return this.authService.verifyLoginOtp(dto, ip, userAgent);
+  @Post('login/resend')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  async resendLoginOtp(@Body() dto: ChallengeTokenDto) {
+    return this.authService.resendLoginOtp(dto.challengeToken);
   }
 
   @Public()
@@ -101,9 +107,25 @@ export class AuthController {
   }
 
   @Public()
+  @Post('reset-password/verify-mfa')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async verifyResetMfa(@Body() dto: ChallengeCodeDto, @Req() req: Request) {
+    return this.authService.verifyResetMfa(
+      dto.challengeToken,
+      dto.code,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
+  @Public()
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto, @Req() req: Request) {
-    return this.authService.resetPassword(dto, req.ip, req.headers['user-agent']);
+    return this.authService.resetPassword(
+      dto,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   @Public()

@@ -1,5 +1,6 @@
 // admin/app/(dashboard)/profile/page.tsx
 "use client";
+import MfaCard from "./MfaCard";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
@@ -261,13 +262,11 @@ function InfoTab() {
 
 // ═══════════════════════════ رمز عبور ═══════════════════════════
 
+// قدرت رمز فقط بر اساس طول (FIA_UAU_EXT.1.5: ترکیب کاراکتر امتیاز نمی‌دهد؛ رمزهای رایج،
+// افشاشده و ساخته‌شده از نام/برنامه را سرور رد می‌کند)
 function passwordStrength(pw: string) {
-  let score = 0;
-  if (pw.length >= 12) score++;
-  if (pw.length >= 16) score++;
-  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
-  if (/\d/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
+  const n = [...pw].length;
+  const score = n < 15 ? 0 : n < 18 ? 1 : n < 22 ? 2 : n < 28 ? 3 : n < 36 ? 4 : 5;
   const labels = ["خیلی ضعیف", "ضعیف", "متوسط", "خوب", "قوی", "خیلی قوی"];
   const colors = ["#dc2626", "#dc2626", "#d97706", "#ca8a04", "#16a34a", "#15803d"];
   return { score, label: labels[score], color: colors[score] };
@@ -288,9 +287,7 @@ function SecurityTab() {
     e.preventDefault();
     setError(null);
     if (!currentPassword) return setError("رمز عبور فعلی را وارد کنید");
-    if (newPassword.length < 12) return setError("رمز عبور جدید باید حداقل ۱۲ کاراکتر باشد");
-    if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword))
-      return setError("رمز عبور جدید باید ترکیبی از حروف انگلیسی و عدد باشد");
+    if ([...newPassword].length < 15) return setError("رمز عبور جدید باید حداقل ۱۵ کاراکتر باشد");
     if (newPassword === currentPassword) return setError("رمز عبور جدید نباید با رمز فعلی یکسان باشد");
     if (newPassword !== confirmPassword) return setError("رمز عبور جدید و تکرار آن یکسان نیستند");
 
@@ -337,6 +334,7 @@ function SecurityTab() {
           }}
           className={`${inputCls} pr-10 pl-10 text-left`}
           autoComplete={auto}
+          maxLength={128}
         />
         {withToggle && (
           <button
@@ -354,11 +352,18 @@ function SecurityTab() {
   );
 
   return (
+    <div className="space-y-5">
+    <MfaCard />
     <form onSubmit={submit} className="rounded-2xl p-6 space-y-4 max-w-xl" style={cardStyle}>
       <h2 className="text-[14px] font-black text-gray-800">تغییر رمز عبور</h2>
       {error && <Alert kind="error" text={error} />}
       {field("رمز عبور فعلی", currentPassword, setCurrentPassword, "current-password", true)}
-      {field("رمز عبور جدید (حداقل ۱۲ کاراکتر، حروف و عدد)", newPassword, setNewPassword, "new-password")}
+      {field("رمز عبور جدید (حداقل ۱۵ کاراکتر)", newPassword, setNewPassword, "new-password")}
+      <p className="text-[11px] text-gray-500 leading-5">
+        نیازی به عدد، حرف بزرگ یا نماد نیست؛ عبارت عبور طولانی (حتی فارسی، تا ۱۲۸ کاراکتر) یا رمز تولیدشده‌ی
+        مدیر رمز عبور بهترین انتخاب است. رمزهای رایج یا افشاشده و رمزهای ساخته‌شده از نام، نام کاربری یا نام
+        برنامه پذیرفته نمی‌شوند.
+      </p>
       {newPassword && (
         <div className="space-y-1">
           <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
@@ -386,6 +391,7 @@ function SecurityTab() {
         {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "تغییر رمز عبور"}
       </button>
     </form>
+    </div>
   );
 }
 

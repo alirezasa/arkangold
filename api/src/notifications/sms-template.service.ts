@@ -297,6 +297,11 @@ export class SmsTemplateService implements OnModuleInit {
         out = out.split(String(v)).join('*'.repeat(String(v).length));
       }
     }
+    // رمز موقت (حروف و عدد) در هر قالبی هرگز خوانا در لاگ نمی‌ماند (FIA_UID_EXT.1.6)
+    const temp = vars.tempPassword;
+    if (temp !== null && temp !== undefined && String(temp).length > 0) {
+      out = out.split(String(temp)).join('*'.repeat(String(temp).length));
+    }
     return out;
   }
 

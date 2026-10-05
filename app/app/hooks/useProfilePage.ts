@@ -33,12 +33,21 @@ export interface LegalProfileData {
   verified: boolean;
 }
 
+export interface MobileVerificationSummary {
+  status: "NOT_CHECKED" | "VERIFIED" | "MISMATCH" | "UNAVAILABLE";
+  blocked: boolean;
+  title: string;
+  description: string;
+}
+
 export interface ProfilePageData {
   id: string;
   phone: string;
   type: "REAL" | "LEGAL";
   status: string;
   referralCode: string;
+  /** تطبیق شاهکار شماره موبایل با کد ملی (blocked=true یعنی امکانات بسته است) */
+  mobileVerification?: MobileVerificationSummary | null;
   identity: IdentityData | null;
   legalProfile: LegalProfileData | null;
 }

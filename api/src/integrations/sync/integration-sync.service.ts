@@ -35,9 +35,22 @@ const SERVICES: ServiceDefinition[] = [
     description: '',
   },
   {
+    code: 'MOBILE_NATIONAL_ID_MATCH',
+    name: 'شاهکار (تطبیق موبایل و کد ملی)',
+    description:
+      'پس از احراز هویت، مالکیت شماره موبایل کاربر بررسی می‌شود؛ عدم تطابق = مسدود شدن امکانات تا ثبت شماره‌ی به نام خود کاربر',
+  },
+  {
     code: 'CARD_NATIONAL_ID_MATCH',
     name: 'تطبیق کارت و کد ملی',
-    description: '',
+    description:
+      'هنگام ثبت کارت بانکی، تعلق کارت به کد ملی کاربر بررسی می‌شود',
+  },
+  {
+    code: 'CARD_TO_IBAN',
+    name: 'تبدیل کارت به شبا',
+    description:
+      'شماره شبا، شماره حساب، نام بانک و وضعیت حساب از روی شماره کارت تکمیل می‌شود',
   },
   { code: 'COMPANY_INQUIRY', name: 'استعلام اطلاعات شرکت', description: '' },
   { code: 'GOLD_PRICE', name: 'قیمت لحظه‌ای طلا', description: '' },
@@ -72,8 +85,8 @@ const PROVIDERS: ProviderDefinition[] = [
   },
 ];
 
-// فقط سرویس‌هایی که همین الان Adapter دارند این‌جا Link می‌شوند (SMS: Mock، قاصدک، sms.ir).
-// بقیه سرویس‌ها (IBAN/CARD/COMPANY/GOLD_PRICE/PAYMENT_GATEWAY) عمداً بدون لینک باقی می‌مانند
+// فقط سرویس‌هایی که همین الان Adapter دارند این‌جا Link می‌شوند.
+// بقیه سرویس‌ها (IBAN/COMPANY/GOLD_PRICE/PAYMENT_GATEWAY) عمداً بدون لینک باقی می‌مانند
 // تا وقتی Adapter واقعی‌شان نوشته شود؛ صدا زدن آن‌ها فعلاً به‌درستی CONFIGURATION_ERROR می‌دهد.
 const INITIAL_LINKS: InitialLink[] = [
   {
@@ -90,6 +103,26 @@ const INITIAL_LINKS: InitialLink[] = [
     isActive: false,
     isFallback: true,
   },
+  // استعلام‌های شاهکار/کارت/شبا: Mock برای dev فعال است؛ در Production ادمین پس از ثبت
+  // Credential و فعال‌سازی Scopeها روی کلاینت فینوتک، FINOTECH را فعال و Mock را غیرفعال می‌کند
+  ...['MOBILE_NATIONAL_ID_MATCH', 'CARD_NATIONAL_ID_MATCH', 'CARD_TO_IBAN'].flatMap(
+    (serviceCode): InitialLink[] => [
+      {
+        serviceCode,
+        providerCode: 'MOCK',
+        priority: 1,
+        isActive: true,
+        isFallback: false,
+      },
+      {
+        serviceCode,
+        providerCode: 'FINOTECH',
+        priority: 2,
+        isActive: false,
+        isFallback: true,
+      },
+    ],
+  ),
   {
     serviceCode: 'SMS',
     providerCode: 'MOCK',

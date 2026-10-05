@@ -13,8 +13,15 @@ export async function getAccessToken() {
 
 export function errorResponse(e: unknown) {
   if (axios.isAxiosError(e)) {
+    const data = e.response?.data as
+      | { message?: string | string[]; code?: string }
+      | undefined;
+    const message = Array.isArray(data?.message)
+      ? data.message[0]
+      : (data?.message ?? "خطا در ارتباط با سرور");
+    // code (مثل MOBILE_NOT_OWNED یا OWNER_MISMATCH) برای راهنمایی دقیق کاربر در رابط کاربری
     return NextResponse.json(
-      { message: e.response?.data?.message ?? "خطا در ارتباط با سرور" },
+      { message, ...(data?.code ? { code: data.code } : {}) },
       { status: e.response?.status ?? 500 },
     );
   }

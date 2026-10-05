@@ -55,6 +55,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       sessionId: payload.sessionId,
       status: session.user.status,
       type: session.user.type,
+      mobileVerificationStatus: session.user.mobileVerificationStatus,
     };
   }
 }

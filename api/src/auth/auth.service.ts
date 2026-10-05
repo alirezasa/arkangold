@@ -91,7 +91,9 @@ export class AuthService {
         ? 'AUTH_LOGIN_OTP'
         : purpose === OtpPurpose.RESET_PASSWORD
           ? 'AUTH_RESET_PASSWORD_OTP'
-          : 'AUTH_REGISTER_OTP';
+          : purpose === OtpPurpose.CHANGE_PHONE
+            ? 'AUTH_CHANGE_PHONE_OTP'
+            : 'AUTH_REGISTER_OTP';
     try {
       await this.smsTemplates.send(
         key,
@@ -790,6 +792,42 @@ export class AuthService {
       limits: user.limits,
       createdAt: user.createdAt,
     };
+  }
+
+  // ═══════════════════════════════════════════
+  // تغییر شماره موبایل (پس از عدم تطابق شاهکار) — فراخوانی از MobileVerificationService
+  // ═══════════════════════════════════════════
+
+  /** ارسال کد یکبارمصرف به شماره‌ی جدید برای اثبات مالکیت آن */
+  async sendPhoneChangeOtp(phone: string) {
+    return this.sendOtp({ phone }, OtpPurpose.CHANGE_PHONE);
+  }
+
+  /** اعتبارسنجی کد شماره‌ی جدید؛ تلاش ناموفق در گزارش فعالیت ثبت می‌شود */
+  async verifyPhoneChangeOtp(
+    phone: string,
+    code: string,
+    userId: string,
+    ctx: RequestContext = {},
+  ) {
+    await this.validateOtpAudited(
+      this.normalizePhone(phone),
+      code,
+      OtpPurpose.CHANGE_PHONE,
+      'auth.change_phone_otp',
+      userId,
+      ctx,
+    );
+  }
+
+  /** نشست تازه با شماره‌ی جدید (توکن‌های قبلی حاوی شماره‌ی قدیمی‌اند و باطل می‌شوند) */
+  async issueSessionForUser(
+    userId: string,
+    phone: string,
+    ip?: string,
+    device?: string,
+  ) {
+    return this.createSession(userId, phone, ip, device);
   }
 
   // ═══════════════════════════════════════════

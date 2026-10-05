@@ -9,8 +9,9 @@ import { UsersAdminListController } from './users-admin-list.controller';
 import { LegalDocumentsController } from './legal-documents.controller';
 import { LegalDocumentsService } from './legal-documents.service';
 import { ReferralModule } from '../referral/referral.module';
+import { KycModule } from '../kyc/kyc.module';
 @Module({
-  imports: [IdentityVerificationModule, ReferralModule],
+  imports: [IdentityVerificationModule, ReferralModule, KycModule],
   controllers: [
     UsersController,
     UsersAdminController,

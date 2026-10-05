@@ -7,6 +7,7 @@ import {
   FINOTECH_CONFIG,
   FINOTECH_CREDENTIAL_KEYS,
   FINOTECH_PROVIDER_CODE,
+  FINOTECH_SCOPES,
 } from './finotech-config';
 import {
   AuthenticationError,
@@ -29,8 +30,9 @@ interface FinotechTokenResponse {
 /**
  * مدیریت Token فینوتک با رویکرد Client Credential (بدون رضایت کاربر بیرونی):
  * - دریافت توکن با Basic Auth از Base64(client_id:client_secret)
+ * - هر Scope توکن جداگانه دارد (هر سرویس فینوتک Scope خودش را می‌خواهد)
  * - Cache در Redis تا زمان انقضا (با Safety Margin)
- * - قفل in-memory برای جلوگیری از چند درخواست همزمان تکراری برای گرفتن توکن جدید
+ * - قفل in-memory (به ازای هر Scope) برای جلوگیری از چند درخواست همزمان تکراری برای گرفتن توکن جدید
  *
  * طبق قانون معماری: Business Service هرگز مسئول گرفتن/Refresh کردن این توکن نیست؛
  * همه‌چیز داخل همین Adapter می‌ماند.
@@ -38,7 +40,7 @@ interface FinotechTokenResponse {
 @Injectable()
 export class FinotechTokenService {
   private readonly logger = new Logger(FinotechTokenService.name);
-  private pendingRequest: Promise<string> | null = null;
+  private readonly pendingRequests = new Map<string, Promise<string>>();
 
   constructor(
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
@@ -46,29 +48,41 @@ export class FinotechTokenService {
     private readonly environment: FinotechEnvironmentService,
   ) {}
 
-  async getAccessToken(): Promise<string> {
-    const cacheKey = await this.environment.getTokenCacheKey();
+  async getAccessToken(
+    scope: string = FINOTECH_SCOPES.IDENTITY_INQUIRY,
+  ): Promise<string> {
+    const cacheKey = await this.environment.getTokenCacheKey(scope);
     const cached = await this.redis.get(cacheKey);
     if (cached) return cached;
 
-    if (this.pendingRequest !== null) return this.pendingRequest;
+    const pending = this.pendingRequests.get(cacheKey);
+    if (pending) return pending;
 
-    this.pendingRequest = this.requestNewToken(cacheKey).finally(() => {
-      this.pendingRequest = null;
+    const request = this.requestNewToken(cacheKey, scope).finally(() => {
+      this.pendingRequests.delete(cacheKey);
     });
+    this.pendingRequests.set(cacheKey, request);
 
-    return this.pendingRequest;
+    return request;
   }
 
-  /** برای Health Check از پنل ادمین: توکن Cache شده (هر دو محیط) را باطل می‌کند تا دوباره از فینوتک گرفته شود */
+  /** برای Health Check از پنل ادمین: توکن Cache شده (همه‌ی Scopeها، هر دو محیط) را باطل می‌کند */
   async invalidateCache(): Promise<void> {
-    await Promise.all([
-      this.redis.del(`${FINOTECH_CONFIG.TOKEN_CACHE_KEY}:sandbox`),
-      this.redis.del(`${FINOTECH_CONFIG.TOKEN_CACHE_KEY}:production`),
-    ]);
+    const keys: string[] = [];
+    for (const env of ['sandbox', 'production']) {
+      // کلید قدیمی (پیش از تفکیک Scope)
+      keys.push(`${FINOTECH_CONFIG.TOKEN_CACHE_KEY}:${env}`);
+      for (const scope of Object.values(FINOTECH_SCOPES)) {
+        keys.push(`${FINOTECH_CONFIG.TOKEN_CACHE_KEY}:${env}:${scope}`);
+      }
+    }
+    await this.redis.del(...keys);
   }
 
-  private async requestNewToken(cacheKey: string): Promise<string> {
+  private async requestNewToken(
+    cacheKey: string,
+    scope: string,
+  ): Promise<string> {
     const { CLIENT_ID, CLIENT_SECRET, NID } =
       await this.credentials.getCredentials(FINOTECH_PROVIDER_CODE, [
         FINOTECH_CREDENTIAL_KEYS.CLIENT_ID,
@@ -87,7 +101,7 @@ export class FinotechTokenService {
         {
           grant_type: FINOTECH_CONFIG.GRANT_TYPE,
           nid: NID,
-          scopes: FINOTECH_CONFIG.SCOPE,
+          scopes: scope,
         },
         {
           timeout: 10_000,
@@ -126,7 +140,7 @@ export class FinotechTokenService {
         }
         if (err.response.status === 401 || err.response.status === 400) {
           throw new AuthenticationError(
-            `دریافت توکن فینوتک ناموفق بود (HTTP ${err.response.status}) — Client ID/Secret را در پنل ادمین بررسی کن`,
+            `دریافت توکن فینوتک برای Scope «${scope}» ناموفق بود (HTTP ${err.response.status}) — Client ID/Secret و فعال بودن این Scope روی کلاینت را بررسی کن`,
             String(err.response.status),
           );
         }

@@ -15,6 +15,14 @@ model User {
   lockedUntil                DateTime?                  @map("locked_until")
   type                       UserType                   @default(REAL)
   status                     UserStatus                 @default(ACTIVE)
+  // ── تطبیق شاهکار (مالکیت شماره موبایل با کد ملی) ──
+  // MISMATCH یعنی شماره به نام کاربر نیست → تا ثبت شماره‌ی به نام خودش، دسترسی به امکانات بسته است
+  mobileVerificationStatus   MobileVerificationStatus   @default(NOT_CHECKED) @map("mobile_verification_status")
+  mobileVerifiedAt           DateTime?                  @map("mobile_verified_at")
+  // آخرین تلاش استعلام (موفق یا ناموفق) — برای جلوگیری از استعلام تکراری پشت‌سرهم
+  mobileCheckedAt            DateTime?                  @map("mobile_checked_at")
+  mobileCheckProvider        String?                    @map("mobile_check_provider")
+  mobileCheckTrackId         String?                    @map("mobile_check_track_id")
   referralCode               String                     @unique @map("referral_code")
   createdAt                  DateTime                   @default(now()) @map("created_at")
   updatedAt                  DateTime                   @updatedAt @map("updated_at")
@@ -163,15 +171,30 @@ model BankAccount {
   accountNumber      String              @map("account_number")
   cardNumber         String              @map("card_number")
   sheba              String?
+  // فقط وقتی true است که status=VERIFIED (برای سازگاری با برداشت و سایر ماژول‌ها نگه داشته شده)
   isVerified         Boolean             @default(false) @map("is_verified")
   isDefault          Boolean             @default(false) @map("is_default")
   createdAt          DateTime            @default(now()) @map("created_at")
+  // ── نتیجه‌ی استعلام بانکی (تطبیق کارت با کد ملی + تبدیل کارت به شبا) ──
+  status             BankAccountStatus   @default(PENDING_INQUIRY)
+  // پیام قابل نمایش به کاربر/ادمین (دلیل رد یا انتظار)
+  statusMessage      String?             @map("status_message")
+  ownerName          String?             @map("owner_name")
+  // کد وضعیت حساب طبق فینوتک: 02 فعال، 03 مسدود با قابلیت واریز، 04 مسدود بدون واریز، 05 راکد، ...
+  depositStatus      String?             @map("deposit_status")
+  cardOwnerMatched   Boolean?            @map("card_owner_matched")
+  verifiedAt         DateTime?           @map("verified_at")
+  lastInquiryAt      DateTime?           @map("last_inquiry_at")
+  inquiryProvider    String?             @map("inquiry_provider")
+  inquiryTrackId     String?             @map("inquiry_track_id")
+  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
   id                 String              @id @default(uuid()) @db.Uuid
   userId             String              @map("user_id") @db.Uuid
   user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   withdrawalRequests WithdrawalRequest[]
 
   @@index([userId])
+  @@index([status])
   @@map("bank_accounts")
 }
 
@@ -2168,6 +2191,20 @@ enum OtpPurpose {
   REGISTER
   LOGIN
   RESET_PASSWORD
+  CHANGE_PHONE
+}
+
+enum MobileVerificationStatus {
+  NOT_CHECKED
+  VERIFIED
+  MISMATCH
+  UNAVAILABLE
+}
+
+enum BankAccountStatus {
+  VERIFIED
+  PENDING_INQUIRY
+  REJECTED
 }
 
 enum IdentityStatus {

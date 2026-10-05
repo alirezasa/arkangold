@@ -3,6 +3,11 @@ import { Prisma } from '../../generated/prisma'; // در صورتی که مسی�
 import { PrismaService } from '../../prisma/prisma.service';
 import { ProviderCredentialService } from '../credentials/provider-credential.service';
 import { FinotechTokenService } from '../providers/finotech/finotech-token.service';
+import { FinotechEnvironmentService } from '../providers/finotech/finotech-environment.service';
+import {
+  FINOTECH_SCOPE_LABELS,
+  FINOTECH_SCOPES,
+} from '../providers/finotech/finotech-config';
 
 interface ProviderServiceUpdateInput {
   isActive?: boolean;
@@ -17,6 +22,7 @@ export class IntegrationsAdminService {
     private readonly prisma: PrismaService,
     private readonly credentials: ProviderCredentialService,
     private readonly finotechToken: FinotechTokenService,
+    private readonly finotechEnvironment: FinotechEnvironmentService,
   ) {}
 
   async listServices() {
@@ -165,20 +171,44 @@ export class IntegrationsAdminService {
   }
 
   /**
-   * Health Check فینوتک: فقط یک توکن جدید می‌گیرد (بدون اجرای هیچ عملیات حساس کسب‌وکاری)
-   * تا اعتبار Credentialها و دسترسی شبکه تست شود — دقیقاً طبق اصل:
-   * «Health Check نباید باعث اجرای عملیات واقعی و حساس کسب‌وکاری شود».
+   * Health Check فینوتک: برای هر Scope فقط یک توکن جدید می‌گیرد (بدون اجرای هیچ عملیات
+   * حساس کسب‌وکاری) تا اعتبار Credentialها، دسترسی شبکه و فعال بودن هر Scope روی کلاینت
+   * تست شود — دقیقاً طبق اصل: «Health Check نباید باعث اجرای عملیات واقعی و حساس کسب‌وکاری شود».
    */
   async testFinotechConnection() {
-    try {
-      await this.finotechToken.invalidateCache();
-      await this.finotechToken.getAccessToken();
-      return {
-        success: true,
-        message: 'اتصال به فینوتک و دریافت توکن موفق بود',
-      };
-    } catch (err) {
-      return { success: false, message: (err as Error).message };
-    }
+    await this.finotechToken.invalidateCache();
+    const sandbox = await this.finotechEnvironment.isSandbox();
+    const scopes = await Promise.all(
+      Object.values(FINOTECH_SCOPES).map(async (scope) => {
+        try {
+          await this.finotechToken.getAccessToken(scope);
+          return {
+            scope,
+            label: FINOTECH_SCOPE_LABELS[scope],
+            ok: true,
+            message: 'توکن دریافت شد',
+          };
+        } catch (err) {
+          return {
+            scope,
+            label: FINOTECH_SCOPE_LABELS[scope],
+            ok: false,
+            message: (err as Error).message,
+          };
+        }
+      }),
+    );
+    const okCount = scopes.filter((s) => s.ok).length;
+    return {
+      success: okCount === scopes.length,
+      environment: sandbox ? 'SANDBOX' : 'PRODUCTION',
+      message:
+        okCount === scopes.length
+          ? 'اتصال به فینوتک و دریافت توکن برای همه‌ی سرویس‌ها موفق بود'
+          : okCount === 0
+            ? 'دریافت توکن فینوتک برای هیچ سرویسی موفق نبود — Credentialها را بررسی کنید'
+            : `توکن ${okCount} از ${scopes.length} سرویس دریافت شد؛ Scope سرویس‌های ناموفق را روی کلاینت فینوتک فعال کنید`,
+      scopes,
+    };
   }
 }

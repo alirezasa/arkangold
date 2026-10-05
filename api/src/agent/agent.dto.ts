@@ -270,16 +270,12 @@ export class CreateAgentAccountDto {
   username!: string;
 
   @IsString()
-  @MinLength(12, { message: 'رمز عبور باید حداقل ۱۲ کاراکتر باشد' })
-  password!: string;
-
-  @IsString()
   @Length(3, 80)
   fullName!: string;
 
-  @IsOptional()
+  // مقصد رمز موقت، کد ورود و هشدارهای امنیتی — رمز عبور را مدیر تعیین نمی‌کند (FIA_UID_EXT.1.6)
   @Matches(IRAN_MOBILE, { message: 'شماره موبایل معتبر نیست' })
-  phone?: string;
+  phone!: string;
 }
 
 export class UpdateAgentAccountDto {
@@ -287,10 +283,15 @@ export class UpdateAgentAccountDto {
   @IsBoolean()
   isActive?: boolean;
 
+  /** صدور رمز موقت جدید و ارسال پیامکی به نماینده */
   @IsOptional()
-  @IsString()
-  @MinLength(12, { message: 'رمز عبور باید حداقل ۱۲ کاراکتر باشد' })
-  newPassword?: string;
+  @IsBoolean()
+  resetPassword?: boolean;
+
+  /** ابطال برنامه‌ی احراز هویت (گم شدن/سرقت گوشی) */
+  @IsOptional()
+  @IsBoolean()
+  resetMfa?: boolean;
 
   // شماره‌ی ورود با کد یکبارمصرف در panel.arkan.gold — رشته‌ی خالی یعنی حذف شماره
   @IsOptional()

@@ -35,13 +35,15 @@ export class VerifyOtpDto {
   companyNationalId?: string;
 }
 
+// FIA_UAU_EXT.1.1/1.9: حداقل طول، فهرست رمزهای رایج و … در سیاست واحد رمز عبور سمت API
+// بررسی می‌شود؛ اینجا فقط سقف ۱۲۸ کاراکتر (بیش از ۶۴ کاراکتر الزامی) اعمال می‌شود.
 export class SetPasswordDto {
   @IsString()
   tempToken!: string;
 
   @IsString()
-  @MinLength(6)
-  @MaxLength(50)
+  @MinLength(1)
+  @MaxLength(128, { message: 'رمز عبور حداکثر ۱۲۸ کاراکتر است' })
   password!: string;
 
   // کد دعوت (از لینک دعوت یا ورود دستی) — فاصله‌ها حذف و به حروف بزرگ تبدیل می‌شود
@@ -60,7 +62,14 @@ export class LoginDto {
   phone!: string;
 
   @IsString()
+  @MaxLength(256)
   password!: string;
+
+  /** راه‌حل «بررسی امنیتی» (Proof-of-Work) — فقط وقتی سرور CAPTCHA_REQUIRED برگرداند */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  captcha?: string;
 }
 
 export class ForgotPasswordDto {
@@ -74,8 +83,8 @@ export class ResetPasswordDto {
   resetToken!: string;
 
   @IsString()
-  @MinLength(6)
-  @MaxLength(50)
+  @MinLength(1)
+  @MaxLength(128, { message: 'رمز عبور حداکثر ۱۲۸ کاراکتر است' })
   password!: string;
 }
 

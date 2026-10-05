@@ -12,6 +12,7 @@ import { createHash, randomBytes } from 'crypto';
 import Decimal from 'decimal.js';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SystemConfigService } from '../system-config/system-config.service';
 import { PartyLedgerService } from '../accounting/party-ledger.service';
 import { toDecimal } from '../accounting/accounting.service';
 import { INSTALLMENT_PROVIDERS } from './providers/not-configured.provider';
@@ -34,6 +35,7 @@ export class PartnersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly partyLedger: PartyLedgerService,
+    private readonly systemConfig: SystemConfigService,
   ) {}
 
   providers() {
@@ -121,22 +123,32 @@ export class PartnersService {
     return p;
   }
 
-  /** کلید API جدید — فقط یک‌بار نمایش داده می‌شود و کلید قبلی باطل می‌شود */
+  /**
+   * کلید API جدید — فقط یک‌بار نمایش داده می‌شود و کلید قبلی باطل می‌شود.
+   * FIA_UID_EXT.1.5: هر کلید تاریخ انقضا دارد (security.api_key.lifetime_days، پیش‌فرض ۳۶۵ روز)
+   * و پیش از انقضا یادآوری ارسال می‌شود.
+   */
   async rotateApiKey(id: string) {
     const p = await this.getOrThrow(id);
     const key = `agk_${p.code.replace('-', '').toLowerCase()}_${randomBytes(24).toString('hex')}`;
+    const lifetimeDays = await apiKeyLifetimeDays(this.systemConfig);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + lifetimeDays * 86_400_000);
     await this.prisma.salesPartner.update({
       where: { id },
       data: {
         apiKeyHash: hashApiKey(key),
         apiKeyPrefix: key.slice(0, 14),
         apiEnabled: true,
+        apiKeyCreatedAt: now,
+        apiKeyExpiresAt: expiresAt,
+        apiKeyReminderDays: null,
       },
     });
     return {
-      message:
-        'کلید API جدید ساخته شد؛ آن را همین حالا در جای امن ذخیره کنید — دوباره نمایش داده نمی‌شود',
+      message: `کلید API جدید ساخته شد و تا ${lifetimeDays.toLocaleString('fa-IR')} روز معتبر است؛ آن را همین حالا در جای امن ذخیره کنید — دوباره نمایش داده نمی‌شود`,
       apiKey: key,
+      expiresAt: expiresAt.toISOString(),
     };
   }
 
@@ -144,7 +156,14 @@ export class PartnersService {
     await this.getOrThrow(id);
     await this.prisma.salesPartner.update({
       where: { id },
-      data: { apiKeyHash: null, apiKeyPrefix: null, apiEnabled: false },
+      data: {
+        apiKeyHash: null,
+        apiKeyPrefix: null,
+        apiEnabled: false,
+        apiKeyCreatedAt: null,
+        apiKeyExpiresAt: null,
+        apiKeyReminderDays: null,
+      },
     });
     return { message: 'کلید API باطل شد' };
   }
@@ -162,6 +181,8 @@ export class PartnersService {
       balanceRial: p.balanceRial.toString(),
       contractStartAt: p.contractStartAt?.toISOString() ?? null,
       contractEndAt: p.contractEndAt?.toISOString() ?? null,
+      apiKeyCreatedAt: p.apiKeyCreatedAt?.toISOString() ?? null,
+      apiKeyExpiresAt: p.apiKeyExpiresAt?.toISOString() ?? null,
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
     };
@@ -373,4 +394,10 @@ export class PartnersService {
       }),
     };
   }
+}
+
+/** عمر کلید API شرکا (روز) — بین ۳۰ و ۷۳۰ روز */
+export async function apiKeyLifetimeDays(config: SystemConfigService) {
+  const v = await config.getNumber('security.api_key.lifetime_days', 365);
+  return Math.min(730, Math.max(30, Math.round(v) || 365));
 }

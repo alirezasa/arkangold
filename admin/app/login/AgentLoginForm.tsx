@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle, ArrowRight, KeyRound, Loader2, MessageSquareText, Smartphone } from "lucide-react";
 import { useAgentOtpLogin } from "@/app/hooks/useAdminAuth";
 import AdminLoginForm from "./AdminLoginForm";
+import LoginSteps, { type LoginStep } from "./LoginSteps";
 
 type Method = "otp" | "password";
 
@@ -55,7 +56,11 @@ export default function AgentLoginForm() {
         })}
       </div>
 
-      {method === "otp" ? <OtpLogin /> : <AdminLoginForm submitLabel="ورود به پنل نمایندگان" />}
+      {method === "otp" ? (
+        <OtpLogin />
+      ) : (
+        <AdminLoginForm submitLabel="ورود به پنل نمایندگان" home="/agent-portal" />
+      )}
     </div>
   );
 }
@@ -68,6 +73,8 @@ function OtpLogin() {
   const [info, setInfo] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
   const codeRef = useRef<HTMLInputElement>(null);
+  // کد پیامکی فقط عامل اول است؛ پس از آن برنامه‌ی احراز هویت لازم است (FIA_UAU_EXT.2.3)
+  const [nextStep, setNextStep] = useState<LoginStep | null>(null);
 
   useEffect(() => {
     if (resendIn <= 0) return;
@@ -97,8 +104,23 @@ function OtpLogin() {
   const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length !== 6) return setError("کد ۶ رقمی پیامک‌شده را وارد کنید");
-    await verifyCode(phone, code);
+    const next = await verifyCode(phone, code);
+    if (next) setNextStep(next);
   };
+
+  if (nextStep) {
+    return (
+      <LoginSteps
+        initial={nextStep}
+        home="/agent-portal"
+        onRestart={() => {
+          setNextStep(null);
+          setStep("phone");
+          setCode("");
+        }}
+      />
+    );
+  }
 
   return (
     <>

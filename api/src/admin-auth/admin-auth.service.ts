@@ -12,10 +12,18 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
 import { maskUsername } from '../common/audit/mask.util';
-import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { jwtSignOptions } from '../common/secrets/jwt-keyring';
-import { hashPassword } from '../common/crypto/password.util';
+import { hashPassword, verifyPassword } from '../common/crypto/password.util';
+import { PasswordPolicyService } from '../common/password-policy/password-policy.service';
+import { LoginThrottleService } from '../common/auth-security/login-throttle.service';
+import { PowCaptchaService } from '../common/auth-security/pow-captcha.service';
+import { LoginAlertService } from '../common/auth-security/login-alert.service';
+import {
+  LoginChallenge,
+  LoginChallengeService,
+} from '../common/auth-security/login-challenge.service';
+import { MfaService } from '../common/mfa/mfa.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import {
   ADMIN_ROLES_INCLUDE,
@@ -26,9 +34,6 @@ import {
 
 const AUDIT_SOURCE = 'AdminAuthService';
 
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCK_DURATION_MS = 15 * 60 * 1000; // ۱۵ دقیقه
-
 /** درگاه ورود: admin.arkan.gold (کارشناسان) یا panel.arkan.gold (نمایندگان فروش) */
 export type AdminLoginPortal = 'admin' | 'agent';
 
@@ -36,7 +41,21 @@ interface LoginDto {
   username: string;
   password: string;
   portal?: AdminLoginPortal;
+  captcha?: string;
 }
+
+/**
+ * پاسخ هر مرحله‌ی ورود پنل تا وقتی همه‌ی مراحل کامل نشده؛ نشست فقط در پایان صادر می‌شود.
+ * FIA_UAU_EXT.2.3: برای ادمین‌ها و نمایندگان، رمز عبور + برنامه‌ی احراز هویت (TOTP) اجباری است.
+ */
+export interface AdminLoginStep {
+  next: 'CHANGE_PASSWORD' | 'MFA_SETUP' | 'MFA_VERIFY';
+  challengeToken: string;
+  minPasswordLength?: number;
+  message: string;
+}
+
+const INVALID_CREDS_MSG = 'نام کاربری یا رمز عبور نادرست است';
 
 const ADMIN_PANEL_URL = process.env.ADMIN_PANEL_URL || 'admin.arkan.gold';
 const AGENT_PANEL_URL = process.env.AGENT_PANEL_URL || 'panel.arkan.gold';
@@ -58,48 +77,62 @@ export class AdminAuthService {
     private configService: ConfigService,
     private auditService: AuditService,
     private systemConfig: SystemConfigService,
+    private passwordPolicy: PasswordPolicyService,
+    private loginThrottle: LoginThrottleService,
+    private captcha: PowCaptchaService,
+    private loginAlerts: LoginAlertService,
+    private challenges: LoginChallengeService,
+    private mfa: MfaService,
   ) {}
 
-  async login(dto: LoginDto, ip?: string, userAgent?: string) {
+  async login(
+    dto: LoginDto,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<AdminLoginStep> {
+    const username = dto.username.trim();
+    // FIA_UAU_EXT.2.1: تأخیر فزاینده و بررسی امنیتی برای هر نام کاربری (موجود یا ناموجود، یکسان)
+    await this.loginThrottle.assertAllowed('admin', username, ip);
+    await this.captcha.enforce(
+      await this.loginThrottle.captchaRequired(
+        'admin',
+        username,
+        ip,
+        userAgent,
+      ),
+      dto.captcha,
+    );
+
     const admin = await this.prisma.adminUser.findUnique({
-      where: { username: dto.username },
+      where: { username },
       include: ADMIN_ROLES_INCLUDE,
     });
+    // FIA_UAU_EXT.2.7: مقایسه‌ی bcrypt برای نام کاربری ناموجود هم انجام می‌شود (زمان پاسخ یکسان)
+    const check = await verifyPassword(dto.password, admin?.passwordHash);
 
-    // پیام یکسان برای عدم افشای وجود/عدم وجود نام کاربری
-    const invalidCredsMsg = 'نام کاربری یا رمز عبور نادرست است';
-
-    if (!admin) {
+    if (!admin || !check.valid) {
+      const result = await this.loginThrottle.recordFailure(
+        'admin',
+        username,
+        ip,
+      );
+      if (admin) {
+        await this.mirrorFailure(admin, result, ip, userAgent);
+      }
       await this.auditService.logAdmin({
-        adminUserId: null,
-        actorLabel: maskUsername(dto.username),
+        adminUserId: admin?.id ?? null,
+        actorLabel: admin ? undefined : maskUsername(username),
         action: 'admin_auth.login',
         ip,
         userAgent,
         source: AUDIT_SOURCE,
         success: false,
+        newValue: admin ? { reason: 'invalid_password' } : undefined,
       });
-      throw new UnauthorizedException(invalidCredsMsg);
+      throw new UnauthorizedException(INVALID_CREDS_MSG);
     }
 
-    if (admin.lockedUntil && admin.lockedUntil > new Date()) {
-      const minutesLeft = Math.ceil(
-        (admin.lockedUntil.getTime() - Date.now()) / 60000,
-      );
-      await this.auditService.logAdmin({
-        adminUserId: admin.id,
-        action: 'admin_auth.login',
-        ip,
-        userAgent,
-        source: AUDIT_SOURCE,
-        success: false,
-        newValue: { reason: 'locked' },
-      });
-      throw new ForbiddenException(
-        `حساب شما به دلیل تلاش‌های ناموفق مکرر موقتاً قفل شده است. ${minutesLeft} دقیقه دیگر تلاش کنید`,
-      );
-    }
-
+    // وضعیت حساب فقط پس از اثبات رمز اعلام می‌شود
     if (!admin.isActive) {
       await this.auditService.logAdmin({
         adminUserId: admin.id,
@@ -113,17 +146,12 @@ export class AdminAuthService {
       throw new ForbiddenException('حساب ادمین غیرفعال است');
     }
 
-    const validPassword = await bcrypt.compare(
-      dto.password,
-      admin.passwordHash,
-    );
-    if (!validPassword) {
-      await this.handleFailedLogin(
-        admin.id,
-        admin.failedLoginCount,
-        ip,
-        userAgent,
-      );
+    // FIA_UID_EXT.1.1: رمز موقت فقط ۲۴ ساعت اعتبار دارد
+    if (
+      admin.mustChangePassword &&
+      admin.passwordExpiresAt &&
+      admin.passwordExpiresAt < new Date()
+    ) {
       await this.auditService.logAdmin({
         adminUserId: admin.id,
         action: 'admin_auth.login',
@@ -131,9 +159,11 @@ export class AdminAuthService {
         userAgent,
         source: AUDIT_SOURCE,
         success: false,
-        newValue: { reason: 'invalid_password' },
+        newValue: { reason: 'temp_password_expired' },
       });
-      throw new UnauthorizedException(invalidCredsMsg);
+      throw new UnauthorizedException(
+        'رمز موقت شما منقضی شده است؛ از مدیر سیستم بخواهید رمز موقت جدید برایتان صادر کند',
+      );
     }
 
     // حساب نماینده فقط از پنل نمایندگان و کارشناسان فقط از پنل مدیریت وارد می‌شوند
@@ -144,16 +174,322 @@ export class AdminAuthService {
       userAgent,
     });
 
-    return this.completeLogin(admin, ip, userAgent, 'admin_auth.login');
+    if (check.needsRehash) {
+      await this.prisma.adminUser.update({
+        where: { id: admin.id },
+        data: { passwordHash: await hashPassword(dto.password) },
+      });
+    }
+
+    await this.auditService.logAdmin({
+      adminUserId: admin.id,
+      action: 'admin_auth.login_first_factor',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
+    return this.startSecondStage(admin, 'password', username);
   }
 
-  /** درگاه ورود باید با نوع حساب بخواند؛ portal خالی (کلاینت قدیمی) بررسی نمی‌شود */
+  /**
+   * مرحله‌ی بعد از عامل اول (رمز یا کد پیامکی نماینده): تغییر رمز موقت (فقط مسیر رمز)،
+   * سپس راه‌اندازی اجباری یا بررسی برنامه‌ی احراز هویت.
+   */
+  async startSecondStage(
+    admin: { id: string; mustChangePassword: boolean; totpEnabled: boolean },
+    via: LoginChallenge['via'],
+    identifier: string,
+  ): Promise<AdminLoginStep> {
+    const stage =
+      via === 'password' && admin.mustChangePassword
+        ? 'CHANGE_PASSWORD'
+        : admin.totpEnabled
+          ? 'MFA_VERIFY'
+          : 'MFA_SETUP';
+    const challengeToken = await this.challenges.create({
+      kind: 'admin',
+      accountId: admin.id,
+      stage,
+      via,
+      purpose: 'login',
+      identifier,
+    });
+    return this.stepResponse(stage, challengeToken);
+  }
+
+  private async stepResponse(
+    stage: AdminLoginStep['next'],
+    challengeToken: string,
+  ): Promise<AdminLoginStep> {
+    if (stage === 'CHANGE_PASSWORD') {
+      return {
+        next: stage,
+        challengeToken,
+        minPasswordLength: await this.passwordPolicy.minLength('admin'),
+        message:
+          'رمز فعلی شما موقت است؛ برای ادامه یک رمز عبور جدید تعیین کنید',
+      };
+    }
+    return {
+      next: stage,
+      challengeToken,
+      message:
+        stage === 'MFA_SETUP'
+          ? 'ورود دومرحله‌ای برای حساب‌های پنل اجباری است؛ برنامه‌ی احراز هویت را راه‌اندازی کنید'
+          : 'کد ۶ رقمی برنامه‌ی احراز هویت (یا یکی از کدهای بازیابی) را وارد کنید',
+    };
+  }
+
+  /** مرحله‌ی تغییر اجباری رمز موقت (FIA_UID_EXT.1.1 بند ۳) */
+  async loginChangePassword(
+    challengeToken: string,
+    newPassword: string,
+    ip?: string,
+    userAgent?: string,
+  ): Promise<AdminLoginStep> {
+    const ch = await this.challenges.get(challengeToken, 'admin', [
+      'CHANGE_PASSWORD',
+    ]);
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: ch.accountId },
+    });
+    if (!admin) throw new UnauthorizedException(INVALID_CREDS_MSG);
+    const same = await verifyPassword(newPassword, admin.passwordHash);
+    if (same.valid) {
+      throw new BadRequestException('رمز جدید نباید با رمز موقت یکسان باشد');
+    }
+    await this.passwordPolicy.assertAcceptable(newPassword, 'admin', {
+      username: admin.username,
+      fullName: admin.fullName,
+      phone: admin.phone,
+    });
+    await this.prisma.adminUser.update({
+      where: { id: admin.id },
+      data: {
+        passwordHash: await hashPassword(newPassword),
+        mustChangePassword: false,
+        passwordExpiresAt: null,
+        passwordChangedAt: new Date(),
+      },
+    });
+    await this.auditService.logAdmin({
+      adminUserId: admin.id,
+      action: 'admin_auth.change_temp_password',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
+    const stage = admin.totpEnabled ? 'MFA_VERIFY' : 'MFA_SETUP';
+    await this.challenges.advance(challengeToken, ch, stage);
+    return this.stepResponse(stage, challengeToken);
+  }
+
+  /** راه‌اندازی برنامه‌ی احراز هویت در حین ورود (اولین ورود یا پس از بازنشانی توسط مدیر) */
+  async loginMfaSetup(challengeToken: string) {
+    const ch = await this.challenges.get(challengeToken, 'admin', [
+      'MFA_SETUP',
+    ]);
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: ch.accountId },
+    });
+    if (!admin) throw new UnauthorizedException(INVALID_CREDS_MSG);
+    return this.mfa.beginSetup({ kind: 'admin', id: admin.id }, admin.username);
+  }
+
+  async loginMfaSetupConfirm(
+    challengeToken: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const ch = await this.challenges.get(challengeToken, 'admin', [
+      'MFA_SETUP',
+    ]);
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: ch.accountId },
+      include: ADMIN_ROLES_INCLUDE,
+    });
+    if (!admin) throw new UnauthorizedException(INVALID_CREDS_MSG);
+    let recoveryCodes: string[];
+    try {
+      recoveryCodes = await this.mfa.confirmSetup(
+        { kind: 'admin', id: admin.id },
+        code,
+      );
+    } catch (err) {
+      const remaining = await this.challenges.fail(challengeToken, ch);
+      if (remaining === 0) {
+        throw new UnauthorizedException(
+          'تعداد تلاش‌های مجاز به پایان رسید؛ دوباره وارد شوید',
+        );
+      }
+      throw err;
+    }
+    await this.challenges.consume(challengeToken);
+    await this.auditService.logAdmin({
+      adminUserId: admin.id,
+      action: 'admin_auth.mfa_enabled',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
+    await this.loginAlerts.onSecurityChange(
+      this.alertOwner(admin),
+      'برنامه‌ی احراز هویت برای ورود دومرحله‌ای ثبت شد',
+    );
+    const session = await this.finishLogin(admin, ch, ip, userAgent, 'totp');
+    return { ...session, recoveryCodes };
+  }
+
+  /** بررسی کد برنامه‌ی احراز هویت یا کد بازیابی */
+  async loginMfaVerify(
+    challengeToken: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const ch = await this.challenges.get(challengeToken, 'admin', [
+      'MFA_VERIFY',
+    ]);
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: ch.accountId },
+      include: ADMIN_ROLES_INCLUDE,
+    });
+    if (!admin) throw new UnauthorizedException(INVALID_CREDS_MSG);
+    const mfaKey = `admin:${admin.id}`;
+    await this.loginThrottle.assertAllowed('mfa', mfaKey, ip);
+    const used = await this.mfa.verify({ kind: 'admin', id: admin.id }, code);
+    if (!used) {
+      const remaining = await this.challenges.fail(challengeToken, ch);
+      await this.loginThrottle.recordFailure('mfa', mfaKey, ip);
+      await this.auditService.logAdmin({
+        adminUserId: admin.id,
+        action: 'admin_auth.login_mfa',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'invalid_totp', remaining },
+      });
+      throw new UnauthorizedException(
+        remaining > 0
+          ? `کد نادرست است (${remaining.toLocaleString('fa-IR')} تلاش باقی‌مانده)`
+          : 'تعداد تلاش‌های مجاز به پایان رسید؛ دوباره وارد شوید',
+      );
+    }
+    await this.challenges.consume(challengeToken);
+    await this.loginThrottle.recordSuccess('mfa', mfaKey);
+    if (used === 'recovery_code') {
+      await this.loginAlerts.onSecurityChange(
+        this.alertOwner(admin),
+        'ورود با یکی از کدهای بازیابی انجام شد',
+      );
+    }
+    return this.finishLogin(admin, ch, ip, userAgent, used);
+  }
+
+  private async finishLogin(
+    admin: LoginAdmin & { phone: string | null },
+    ch: LoginChallenge,
+    ip: string | undefined,
+    userAgent: string | undefined,
+    mfa: 'totp' | 'recovery_code',
+  ) {
+    if (ch.identifier) {
+      await this.loginThrottle.recordSuccess(
+        ch.via === 'agent_otp' ? 'agent' : 'admin',
+        ch.identifier,
+      );
+    }
+    const result = await this.completeLogin(
+      admin,
+      ip,
+      userAgent,
+      ch.via === 'agent_otp' ? 'admin_auth.login_otp' : 'admin_auth.login',
+      { mfa },
+    );
+    await this.loginAlerts.onSuccessfulLogin(
+      this.alertOwner(admin),
+      ip,
+      userAgent,
+    );
+    return result;
+  }
+
+  alertOwner(admin: {
+    id: string;
+    phone: string | null;
+    fullName: string;
+    username: string;
+  }) {
+    return {
+      kind: 'admin' as const,
+      id: admin.id,
+      phone: admin.phone,
+      fullName: admin.fullName,
+      username: admin.username,
+    };
+  }
+
+  /** بازتاب شمارنده‌ی Redis در ستون‌های حساب (نمایش در مدیریت ادمین‌ها) + رویداد قفل و هشدار */
+  private async mirrorFailure(
+    admin: {
+      id: string;
+      phone: string | null;
+      fullName: string;
+      username: string;
+    },
+    result: { failures: number; delaySeconds: number; justThrottled: boolean },
+    ip?: string,
+    userAgent?: string,
+  ) {
+    await this.prisma.adminUser.update({
+      where: { id: admin.id },
+      data: {
+        failedLoginCount: result.failures,
+        lockedUntil: result.delaySeconds
+          ? new Date(Date.now() + result.delaySeconds * 1000)
+          : undefined,
+      },
+    });
+    if (result.justThrottled) {
+      this.logger.warn(
+        `[AdminAuth] حساب ${admin.id} به دلیل تلاش‌های ناموفق مکرر وارد دوره‌ی تأخیر شد`,
+      );
+      // FAU_GEN_EXT.1.5: ورود حساب به دوره‌ی تأخیر به دلیل تلاش‌های ناموفق مکرر
+      await this.auditService.logAdmin({
+        adminUserId: admin.id,
+        action: 'admin_auth.account_locked',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: {
+          failedAttempts: result.failures,
+          policy: 'progressive_delay',
+        },
+      });
+      await this.loginAlerts.onRepeatedFailures(
+        this.alertOwner(admin),
+        result.failures,
+        ip,
+      );
+    }
+  }
+
+  /**
+   * درگاه ورود باید با نوع حساب بخواند. FIA_UAU_EXT.2.4: درخواست بدون portal (کلاینت قدیمی یا
+   * فراخوانی مستقیم API) دیگر مسیر بدون بررسی نیست و درگاه «مدیریت» در نظر گرفته می‌شود.
+   */
   assertPortal(
-    portal: AdminLoginPortal | undefined,
+    portalInput: AdminLoginPortal | undefined,
     isAgentAccount: boolean,
     ctx: { adminUserId: string; ip?: string; userAgent?: string },
   ) {
-    if (!portal) return;
+    const portal: AdminLoginPortal = portalInput ?? 'admin';
     const mismatch =
       (portal === 'admin' && isAgentAccount) ||
       (portal === 'agent' && !isAgentAccount);
@@ -180,6 +516,7 @@ export class AdminAuthService {
     ip: string | undefined,
     userAgent: string | undefined,
     action: 'admin_auth.login' | 'admin_auth.login_otp',
+    extra?: Record<string, unknown>,
   ) {
     await this.prisma.adminUser.update({
       where: { id: admin.id },
@@ -191,9 +528,7 @@ export class AdminAuthService {
       },
     });
 
-    // TODO(2FA): وقتی totpEnabled فعال شد، اینجا باید به‌جای صدور مستقیم session
-    // یک tempToken کوتاه‌مدت صادر شود و کاربر به verify-2fa هدایت شود.
-    // فعلاً چون admin.totpEnabled همیشه false است، مستقیم session کامل صادر می‌شود.
+    // فقط پس از گذر از همه‌ی مراحل (رمز/کد پیامکی + TOTP) فراخوانی می‌شود
     const tokens = await this.createSession(admin.id, ip, userAgent);
 
     this.logger.log(`[AdminAuth] ورود موفق: ${admin.username} از IP ${ip}`);
@@ -204,6 +539,7 @@ export class AdminAuthService {
       userAgent,
       source: AUDIT_SOURCE,
       success: true,
+      newValue: extra,
     });
 
     return {
@@ -219,45 +555,6 @@ export class AdminAuthService {
         ),
       },
     };
-  }
-
-  private async handleFailedLogin(
-    adminId: string,
-    currentCount: number,
-    ip?: string,
-    userAgent?: string,
-  ) {
-    const newCount = currentCount + 1;
-    const shouldLock = newCount >= MAX_FAILED_ATTEMPTS;
-
-    await this.prisma.adminUser.update({
-      where: { id: adminId },
-      data: {
-        failedLoginCount: newCount,
-        lockedUntil: shouldLock
-          ? new Date(Date.now() + LOCK_DURATION_MS)
-          : undefined,
-      },
-    });
-
-    if (shouldLock) {
-      this.logger.warn(
-        `[AdminAuth] حساب ${adminId} به دلیل تلاش‌های ناموفق مکرر قفل شد`,
-      );
-      // FAU_GEN_EXT.1.5: قفل‌شدن حساب کاربری به دلیل تلاش‌های ناموفق مکرر
-      await this.auditService.logAdmin({
-        adminUserId: adminId,
-        action: 'admin_auth.account_locked',
-        ip,
-        userAgent,
-        source: AUDIT_SOURCE,
-        success: false,
-        newValue: {
-          failedAttempts: newCount,
-          lockDurationMs: LOCK_DURATION_MS,
-        },
-      });
-    }
   }
 
   async refreshToken(refreshToken: string) {
@@ -580,30 +877,16 @@ export class AdminAuthService {
     ip?: string,
     userAgent?: string,
   ) {
-    if (newPassword.length < 12) {
-      throw new BadRequestException('رمز عبور جدید باید حداقل ۱۲ کاراکتر باشد');
-    }
-    if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
-      throw new BadRequestException(
-        'رمز عبور جدید باید ترکیبی از حروف انگلیسی و عدد باشد',
-      );
-    }
-    if (newPassword === currentPassword) {
-      throw new BadRequestException(
-        'رمز عبور جدید نباید با رمز عبور فعلی یکسان باشد',
-      );
-    }
-
     const admin = await this.prisma.adminUser.findUnique({
       where: { id: adminUserId },
     });
     if (!admin) throw new NotFoundException('ادمین یافت نشد');
 
-    const validCurrent = await bcrypt.compare(
-      currentPassword,
-      admin.passwordHash,
-    );
-    if (!validCurrent) {
+    const throttleKey = `pwchange:${adminUserId}`;
+    await this.loginThrottle.assertAllowed('mfa', throttleKey, ip);
+    const current = await verifyPassword(currentPassword, admin.passwordHash);
+    if (!current.valid) {
+      await this.loginThrottle.recordFailure('mfa', throttleKey, ip);
       await this.auditService.logAdmin({
         adminUserId,
         action: 'admin_auth.change_password',
@@ -611,18 +894,34 @@ export class AdminAuthService {
         userAgent,
         source: AUDIT_SOURCE,
         success: false,
+        newValue: { reason: 'invalid_current_password' },
       });
       throw new UnauthorizedException('رمز عبور فعلی نادرست است');
     }
-
-    const newHash = await hashPassword(newPassword);
-    await this.prisma.adminUser.update({
-      where: { id: adminUserId },
-      data: { passwordHash: newHash },
+    await this.loginThrottle.recordSuccess('mfa', throttleKey);
+    if (newPassword === currentPassword) {
+      throw new BadRequestException(
+        'رمز عبور جدید نباید با رمز عبور فعلی یکسان باشد',
+      );
+    }
+    // FIA_UAU_EXT.1.1/1.4/1.5/1.11/1.12: سیاست واحد — بدون قاعده‌ی ترکیب کاراکتر
+    await this.passwordPolicy.assertAcceptable(newPassword, 'admin', {
+      username: admin.username,
+      fullName: admin.fullName,
+      phone: admin.phone,
     });
 
-    // به‌جز نشست فعلی، بقیه‌ی نشست‌ها باطل شوند (کاربر در همین نشست باقی می‌ماند)
-    // توجه: چون sessionId فعلی را اینجا نداریم مگر پاس داده شود، برای سادگی همه نشست‌ها باطل و کاربر باید دوباره وارد شود
+    await this.prisma.adminUser.update({
+      where: { id: adminUserId },
+      data: {
+        passwordHash: await hashPassword(newPassword),
+        mustChangePassword: false,
+        passwordExpiresAt: null,
+        passwordChangedAt: new Date(),
+      },
+    });
+
+    // همه‌ی نشست‌ها باطل و ادمین باید دوباره (با رمز جدید + TOTP) وارد شود
     await this.prisma.adminSession.deleteMany({ where: { adminUserId } });
 
     this.logger.log(
@@ -636,7 +935,141 @@ export class AdminAuthService {
       source: AUDIT_SOURCE,
       success: true,
     });
+    await this.loginAlerts.onSecurityChange(
+      this.alertOwner(admin),
+      'رمز عبور تغییر کرد و همه‌ی نشست‌ها بسته شدند',
+    );
 
     return { message: 'رمز عبور با موفقیت تغییر یافت. لطفاً دوباره وارد شوید' };
+  }
+
+  // ══════════════════════════════════════════
+  // ── ورود دومرحله‌ای خودِ ادمین (FIA_UAU_EXT.3.6) ──
+  // ══════════════════════════════════════════
+
+  async ownMfaStatus(adminUserId: string) {
+    const owner = { kind: 'admin' as const, id: adminUserId };
+    return {
+      ...(await this.mfa.status(owner)),
+      required: true,
+      devices: await this.loginAlerts.listDevices(owner),
+    };
+  }
+
+  private async requireOwnCode(
+    adminUserId: string,
+    code: string,
+    action: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const key = `admin:${adminUserId}`;
+    await this.loginThrottle.assertAllowed('mfa', key, ip);
+    const used = await this.mfa.verify(
+      { kind: 'admin', id: adminUserId },
+      code,
+    );
+    if (!used) {
+      await this.loginThrottle.recordFailure('mfa', key, ip);
+      await this.auditService.logAdmin({
+        adminUserId,
+        action,
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'invalid_code' },
+      });
+      throw new BadRequestException(
+        'کد برنامه‌ی احراز هویت یا کد بازیابی نادرست است',
+      );
+    }
+    await this.loginThrottle.recordSuccess('mfa', key);
+  }
+
+  async regenerateOwnRecoveryCodes(
+    adminUserId: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    await this.requireOwnCode(
+      adminUserId,
+      code,
+      'admin_auth.mfa_recovery_codes',
+      ip,
+      userAgent,
+    );
+    const recoveryCodes = await this.mfa.regenerateRecoveryCodes({
+      kind: 'admin',
+      id: adminUserId,
+    });
+    await this.auditService.logAdmin({
+      adminUserId,
+      action: 'admin_auth.mfa_recovery_codes_regenerated',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
+    const admin = await this.prisma.adminUser.findUniqueOrThrow({
+      where: { id: adminUserId },
+    });
+    await this.loginAlerts.onSecurityChange(
+      this.alertOwner(admin),
+      'کدهای بازیابی جدید ساخته شد و کدهای قبلی باطل شدند',
+    );
+    return { recoveryCodes };
+  }
+
+  /** جایگزینی برنامه‌ی احراز هویت (گوشی جدید) — نیازمند کد فعلی یا کد بازیابی */
+  async beginOwnMfaReconfigure(
+    adminUserId: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    await this.requireOwnCode(
+      adminUserId,
+      code,
+      'admin_auth.mfa_reconfigure',
+      ip,
+      userAgent,
+    );
+    const admin = await this.prisma.adminUser.findUniqueOrThrow({
+      where: { id: adminUserId },
+    });
+    return this.mfa.beginSetup(
+      { kind: 'admin', id: adminUserId },
+      admin.username,
+    );
+  }
+
+  async confirmOwnMfaReconfigure(
+    adminUserId: string,
+    code: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const recoveryCodes = await this.mfa.confirmSetup(
+      { kind: 'admin', id: adminUserId },
+      code,
+    );
+    await this.auditService.logAdmin({
+      adminUserId,
+      action: 'admin_auth.mfa_reconfigured',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
+    const admin = await this.prisma.adminUser.findUniqueOrThrow({
+      where: { id: adminUserId },
+    });
+    await this.loginAlerts.onSecurityChange(
+      this.alertOwner(admin),
+      'برنامه‌ی احراز هویت روی دستگاه جدید ثبت شد؛ دستگاه قبلی دیگر معتبر نیست',
+    );
+    return { recoveryCodes };
   }
 }

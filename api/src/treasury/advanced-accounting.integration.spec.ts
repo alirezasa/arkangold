@@ -91,7 +91,7 @@ run('حسابداری پیشرفته (یکپارچه با PostgreSQL)', () => {
       pricing,
       invoices,
     );
-    partners = new PartnersService(prisma, party);
+    partners = new PartnersService(prisma, party, config);
     bullion = new BullionInventoryService(prisma);
     trading = new TradingService(prisma, null, config, accounting);
 

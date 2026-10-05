@@ -18,6 +18,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DocumentSequenceService } from '../common/documents/document-sequence.service';
 import { hashPassword } from '../common/crypto/password.util';
 import { AGENT_ROLE_KEY } from '../admin-auth/rbac.const';
+import { issueTempPassword } from '../admin-auth/admin-management.service';
+import { SmsTemplateService } from '../notifications/sms-template.service';
+import { MfaService } from '../common/mfa/mfa.service';
+import { LoginThrottleService } from '../common/auth-security/login-throttle.service';
+import {
+  assertUsernameAllowed,
+  generateTempPassword,
+} from '../common/auth-security/account-hygiene';
 import { AgentAccountingService, agentTag } from './agent-accounting.service';
 import {
   AllocateStockDto,
@@ -84,6 +92,9 @@ export class AgentService {
     private readonly prisma: PrismaService,
     private readonly sequence: DocumentSequenceService,
     private readonly agentAccounting: AgentAccountingService,
+    private readonly sms: SmsTemplateService,
+    private readonly mfa: MfaService,
+    private readonly loginThrottle: LoginThrottleService,
   ) {}
 
   // ══════════════════════════════════════════
@@ -505,11 +516,8 @@ export class AgentService {
         'برای نماینده‌ی خاتمه‌یافته نمی‌توان حساب ورود ساخت',
       );
     }
-    if (!/[A-Za-z]/.test(dto.password) || !/\d/.test(dto.password)) {
-      throw new BadRequestException(
-        'رمز عبور باید ترکیبی از حروف انگلیسی و عدد باشد',
-      );
-    }
+    // FIA_UAU_EXT.2.2: نام کاربری پیش‌فرض/قابل حدس مجاز نیست
+    assertUsernameAllowed(dto.username);
     const role = await this.prisma.adminRole.findUnique({
       where: { key: AGENT_ROLE_KEY },
     });
@@ -523,25 +531,41 @@ export class AgentService {
     });
     if (exists)
       throw new ConflictException('این نام کاربری قبلاً استفاده شده است');
-    if (dto.phone) await this.assertAgentPhoneAvailable(dto.phone);
+    await this.assertAgentPhoneAvailable(dto.phone);
 
-    const account = await this.prisma.adminUser.create({
-      data: {
-        username: dto.username,
-        passwordHash: await hashPassword(dto.password),
-        fullName: dto.fullName.trim(),
-        phone: dto.phone,
-        roles: { create: { roleId: role.id } },
-        agentId,
-        createdById: adminId,
+    // FIA_UID_EXT.1.1/1.6: رمز موقت را سیستم می‌سازد و فقط به موبایل نماینده پیامک می‌کند؛
+    // اگر پیامک نرسد، حسابی ساخته نمی‌شود
+    const { account, delivery } = await this.prisma.$transaction(
+      async (tx) => {
+        const account = await tx.adminUser.create({
+          data: {
+            username: dto.username,
+            passwordHash: await hashPassword(
+              generateTempPassword() + generateTempPassword(),
+            ),
+            fullName: dto.fullName.trim(),
+            phone: dto.phone,
+            mustChangePassword: true,
+            roles: { create: { roleId: role.id } },
+            agentId,
+            createdById: adminId,
+          },
+        });
+        const delivery = await issueTempPassword(
+          { prisma: tx, sms: this.sms, logger: this.logger },
+          account,
+        );
+        return { account, delivery };
       },
-    });
+      { timeout: 30_000 },
+    );
     return {
       id: account.id,
       username: account.username,
       fullName: account.fullName,
       phone: account.phone,
       isActive: account.isActive,
+      message: `حساب ورود ساخته شد و رمز موقت (۲۴ ساعته) به ${delivery.maskedPhone} پیامک شد`,
     };
   }
 
@@ -583,16 +607,6 @@ export class AgentService {
       if (phone) await this.assertAgentPhoneAvailable(phone, accountId);
       data.phone = phone || null;
     }
-    if (dto.newPassword) {
-      if (!/[A-Za-z]/.test(dto.newPassword) || !/\d/.test(dto.newPassword)) {
-        throw new BadRequestException(
-          'رمز عبور باید ترکیبی از حروف انگلیسی و عدد باشد',
-        );
-      }
-      data.passwordHash = await hashPassword(dto.newPassword);
-      data.failedLoginCount = 0;
-      data.lockedUntil = null;
-    }
     if (dto.isActive === true) {
       const agent = await this.getAgentOrThrow(agentId);
       if (agent.status === 'TERMINATED') {
@@ -601,13 +615,35 @@ export class AgentService {
         );
       }
     }
-    await this.prisma.$transaction(async (tx) => {
-      await tx.adminUser.update({ where: { id: accountId }, data });
-      if (dto.isActive === false || dto.newPassword) {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.adminUser.update({ where: { id: accountId }, data });
+      if (dto.isActive === false) {
         await tx.adminSession.deleteMany({ where: { adminUserId: accountId } });
       }
+      return row;
     });
-    return { message: 'حساب ورود نماینده به‌روزرسانی شد' };
+    const notes: string[] = [];
+    // FIA_UID_EXT.1.6: مدیر فقط بازنشانی را آغاز می‌کند؛ رمز موقت فقط به موبایل نماینده می‌رود
+    if (dto.resetPassword) {
+      const delivery = await issueTempPassword(
+        { prisma: this.prisma, sms: this.sms, logger: this.logger },
+        updated,
+      );
+      await this.loginThrottle.clear('admin', updated.username);
+      notes.push(`رمز موقت به ${delivery.maskedPhone} پیامک شد`);
+    }
+    // FIA_UAU_EXT.3.6: ابطال فوری برنامه‌ی احراز هویت (گم شدن/سرقت گوشی)
+    if (dto.resetMfa) {
+      await this.mfa.disable({ kind: 'admin', id: accountId });
+      await this.prisma.adminSession.deleteMany({
+        where: { adminUserId: accountId },
+      });
+      await this.loginThrottle.clear('mfa', `admin:${accountId}`);
+      notes.push('ورود دومرحله‌ای باطل شد و باید دوباره راه‌اندازی شود');
+    }
+    return {
+      message: ['حساب ورود نماینده به‌روزرسانی شد', ...notes].join('؛ '),
+    };
   }
 
   // ══════════════════════════════════════════

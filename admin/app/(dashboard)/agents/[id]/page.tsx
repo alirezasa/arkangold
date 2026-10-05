@@ -403,7 +403,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
                                 onClick={() => setModal({ reset: { id: acc.id, username: acc.username } })}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-gray-100 text-gray-700"
                               >
-                                <KeyRound className="w-3.5 h-3.5" /> رمز جدید
+                                <KeyRound className="w-3.5 h-3.5" /> رمز موقت / ورود دومرحله‌ای
                               </button>
                               <button
                                 type="button"

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import TwoFactorCard from "./TwoFactorCard";
 import {
   Lock,
   KeyRound,
@@ -25,14 +26,15 @@ function errorMessage(e: unknown, fallback: string) {
   return fallback;
 }
 
-// امتیاز ساده قدرت رمز عبور (۰ تا ۴)
+// امتیاز قدرت رمز (۰ تا ۴) بر اساس طول — FIA_UAU_EXT.1.5: ترکیب کاراکتر (حرف بزرگ/عدد/نماد)
+// امتیاز نمی‌دهد؛ رمزهای رایج و افشاشده را سرور رد می‌کند.
 function passwordStrength(pw: string) {
-  let score = 0;
-  if (pw.length >= 8) score++;
-  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
-  if (/\d/.test(pw)) score++;
-  if (/[^A-Za-z0-9]/.test(pw)) score++;
-  return score;
+  const n = [...pw].length;
+  if (n < 8) return 0;
+  if (n < 12) return 1;
+  if (n < 16) return 2;
+  if (n < 24) return 3;
+  return 4;
 }
 
 const STRENGTH_LABELS = ["خیلی ضعیف", "ضعیف", "متوسط", "خوب", "قوی"];
@@ -60,6 +62,7 @@ function PasswordInput({
           onChange={(e) => onChange(e.target.value)}
           autoComplete={autoComplete}
           dir="ltr"
+          maxLength={128}
           required
           className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-3 text-sm font-medium outline-none transition-all focus:border-gold-500"
         />
@@ -95,8 +98,8 @@ export default function SecurityPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.next.length < 6)
-      return setError("رمز عبور جدید باید حداقل ۶ کاراکتر باشد");
+    if ([...form.next].length < 8)
+      return setError("رمز عبور جدید باید حداقل ۸ کاراکتر باشد");
     if (form.next !== form.confirm)
       return setError("تکرار رمز عبور جدید مطابقت ندارد");
     if (form.next === form.current)
@@ -231,6 +234,9 @@ export default function SecurityPage() {
         </p>
       </form>
 
+      {/* ورود دومرحله‌ای و دستگاه‌ها */}
+      <TwoFactorCard />
+
       {/* نشست‌های فعال */}
       <div
         className="space-y-3 rounded-2xl p-5"
@@ -287,7 +293,11 @@ export default function SecurityPage() {
         </h2>
         <ul className="list-disc space-y-1.5 pr-4 text-[12px] leading-relaxed text-gray-600">
           <li>رمز عبور را با کسی به اشتراک نگذارید؛ کارشناسان آرکان گلد هرگز رمز شما را نمی‌پرسند.</li>
-          <li>از رمزی شامل حروف بزرگ و کوچک، عدد و نماد با حداقل ۸ کاراکتر استفاده کنید.</li>
+          <li>
+            رمز طولانی بهتر از رمز پیچیده است: یک عبارت به‌یادماندنی (حتی فارسی) با حداقل ۸ و تا ۱۲۸ کاراکتر
+            انتخاب کنید یا از مدیر رمز عبور مرورگر کمک بگیرید.
+          </li>
+          <li>برای امنیت بیشتر، ورود دومرحله‌ای با برنامه‌ی احراز هویت را فعال کنید.</li>
           <li>کد یک‌بارمصرف پیامکی را فقط در سایت و اپلیکیشن رسمی آرکان گلد وارد کنید.</li>
           <li>پس از استفاده از دستگاه‌های عمومی، حتماً از حساب کاربری خارج شوید.</li>
         </ul>

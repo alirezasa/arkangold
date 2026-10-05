@@ -16,6 +16,8 @@ import {
   LockOpen,
   AlertCircle,
   UserCog,
+  Smartphone,
+  CheckCircle2,
 } from "lucide-react";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -45,6 +47,8 @@ interface AdminItem {
   lastLoginAt: string | null;
   lastLoginIp: string | null;
   isLocked: boolean;
+  mustChangePassword?: boolean;
+  passwordExpiresAt?: string | null;
   lockedUntil: string | null;
   activeSessions: number;
   createdBy: string | null;
@@ -180,11 +184,10 @@ function CreateAdminModal({
 }: {
   roles: RoleItem[];
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (message: string) => void;
 }) {
   const [form, setForm] = useState({
     username: "",
-    password: "",
     fullName: "",
     phone: "",
     roleKeys: [] as string[],
@@ -196,19 +199,19 @@ function CreateAdminModal({
     e.preventDefault();
     if (!form.username.trim()) return setError("نام کاربری را وارد کنید");
     if (!form.fullName.trim()) return setError("نام کامل را وارد کنید");
-    if (form.password.length < 12)
-      return setError("رمز عبور باید حداقل ۱۲ کاراکتر باشد");
+    if (!/^09\d{9}$/.test(form.phone.trim()))
+      return setError("شماره موبایل (۱۱ رقم، شروع با ۰۹) برای ارسال رمز موقت لازم است");
     if (form.roleKeys.length === 0) return setError("حداقل یک نقش برای ادمین انتخاب کنید");
     setLoading(true);
     setError(null);
     try {
-      await axios.post("/api/admin/admins", {
+      const { data } = await axios.post("/api/admin/admins", {
         ...form,
         username: form.username.trim(),
         fullName: form.fullName.trim(),
-        phone: form.phone.trim() || undefined,
+        phone: form.phone.trim(),
       });
-      onCreated();
+      onCreated(data?.message ?? "حساب ساخته شد");
       onClose();
     } catch (err: unknown) {
       setError(getErrorMessage(err, "خطا در ایجاد ادمین"));
@@ -241,7 +244,7 @@ function CreateAdminModal({
         </div>
         <div>
           <label className="text-[12px] font-bold text-gray-500 mb-1 block">
-            شماره موبایل (برای پیامک تیکت‌های ارجاع‌شده)
+            شماره موبایل (اجباری — رمز موقت، هشدارهای امنیتی و پیامک تیکت‌ها)
           </label>
           <input
             dir="ltr"
@@ -251,19 +254,11 @@ function CreateAdminModal({
             className={inputClass}
           />
         </div>
-        <div>
-          <label className="text-[12px] font-bold text-gray-500 mb-1 block">
-            رمز عبور (حداقل ۱۲ کاراکتر)
-          </label>
-          <input
-            type="password"
-            dir="ltr"
-            autoComplete="new-password"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            className={inputClass}
-          />
-        </div>
+        <p className="text-[11px] leading-5 text-gray-500 rounded-xl bg-gray-50 p-3">
+          رمز عبور را شما تعیین نمی‌کنید: سیستم یک رمز موقت تصادفی (۲۴ ساعت اعتبار) می‌سازد و فقط به موبایل
+          همین شخص پیامک می‌کند. او در اولین ورود باید رمز را تغییر دهد و برنامه‌ی احراز هویت را راه‌اندازی کند.
+          نام‌های پیش‌فرض مثل admin، root یا test مجاز نیستند.
+        </p>
         <div>
           <label className="text-[12px] font-bold text-gray-500 mb-1 block">نقش‌ها</label>
           <RoleMultiSelect
@@ -391,44 +386,45 @@ function EditAdminModal({
   );
 }
 
-function ResetPasswordModal({
+/**
+ * اقدام امنیتی روی حساب ادمین دیگر بدون دیدن یا تعیین رمز (FIA_UID_EXT.1.6):
+ * ارسال رمز موقت جدید یا ابطال برنامه‌ی احراز هویت (به‌همراه رمز موقت جدید).
+ */
+function SecurityActionModal({
   admin,
+  kind,
   onClose,
 }: {
   admin: AdminItem;
+  kind: "reset-password" | "reset-mfa";
   onClose: () => void;
 }) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const title =
+    kind === "reset-password"
+      ? `ارسال رمز موقت جدید برای ${admin.username}`
+      : `بازنشانی ورود دومرحله‌ای ${admin.username}`;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password.length < 12) return setError("رمز عبور باید حداقل ۱۲ کاراکتر باشد");
-    if (password !== confirm) return setError("تکرار رمز عبور مطابقت ندارد");
+  const confirmAction = async () => {
     setLoading(true);
     setError(null);
     try {
-      await axios.post(`/api/admin/admins/${admin.id}/reset-password`, {
-        newPassword: password,
-      });
-      setDone(true);
+      const { data } = await axios.post(`/api/admin/admins/${admin.id}/${kind}`);
+      setDone(data?.message ?? "انجام شد");
     } catch (err: unknown) {
-      setError(getErrorMessage(err, "خطا در بازنشانی رمز"));
+      setError(getErrorMessage(err, "انجام عملیات ممکن نشد"));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal title={`بازنشانی رمز ${admin.username}`} onClose={onClose}>
+    <Modal title={title} onClose={onClose}>
       {done ? (
         <div className="space-y-3 text-center">
-          <p className="text-[13px] font-bold text-green-700">
-            رمز عبور بازنشانی شد و همه نشست‌های این ادمین بسته شد.
-          </p>
+          <p className="text-[13px] font-bold text-green-700 leading-6">{done}</p>
           <button
             onClick={onClose}
             className="w-full py-3 rounded-xl font-black text-white"
@@ -438,35 +434,35 @@ function ResetPasswordModal({
           </button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <div className="space-y-3">
           <ErrorBox message={error} />
-          <input
-            type="password"
-            dir="ltr"
-            autoComplete="new-password"
-            placeholder="رمز جدید (حداقل ۱۲ کاراکتر)"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={inputClass}
-          />
-          <input
-            type="password"
-            dir="ltr"
-            autoComplete="new-password"
-            placeholder="تکرار رمز جدید"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            className={inputClass}
-          />
+          <p className="text-[12px] leading-6 text-gray-600">
+            {kind === "reset-password"
+              ? "سیستم یک رمز موقت تصادفی با اعتبار ۲۴ ساعت می‌سازد و فقط به موبایل ثبت‌شده‌ی این حساب پیامک می‌کند؛ شما رمز را نمی‌بینید. همه‌ی نشست‌های فعلی او بسته می‌شود و در ورود بعدی باید رمز را تغییر دهد."
+              : "برای وقتی که گوشی یا برنامه‌ی احراز هویت گم یا سرقت شده است. برنامه‌ی فعلی و کدهای بازیابی فوراً باطل، همه‌ی نشست‌ها بسته و رمز موقت جدید به موبایل ثبت‌شده پیامک می‌شود؛ صاحب حساب در ورود بعدی برنامه را دوباره راه‌اندازی می‌کند. پیش از انجام، هویت درخواست‌کننده را تأیید کنید."}
+          </p>
+          <p className="text-[12px] text-gray-500">
+            موبایل ثبت‌شده: <bdi dir="ltr">{admin.phone ?? "ثبت نشده"}</bdi>
+          </p>
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-xl font-black text-white disabled:opacity-60"
-            style={{ backgroundColor: "var(--color-emerald)" }}
+            type="button"
+            onClick={confirmAction}
+            disabled={loading || !admin.phone}
+            className={`w-full py-3 rounded-xl font-black text-white disabled:opacity-60 ${kind === "reset-mfa" ? "bg-red-600" : ""}`}
+            style={kind === "reset-mfa" ? undefined : { backgroundColor: "var(--color-emerald)" }}
           >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "بازنشانی رمز"}
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+            ) : kind === "reset-password" ? (
+              "ارسال رمز موقت"
+            ) : (
+              "ابطال برنامه‌ی احراز هویت"
+            )}
           </button>
-        </form>
+          {!admin.phone && (
+            <p className="text-[11px] text-amber-700">ابتدا از «ویرایش» شماره موبایل این حساب را ثبت کنید.</p>
+          )}
+        </div>
       )}
     </Modal>
   );
@@ -508,8 +504,12 @@ export default function AdminsPage() {
   const { data: me } = useSWR<Me>("/api/admin-auth/me", fetcher);
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<AdminItem | null>(null);
-  const [resetting, setResetting] = useState<AdminItem | null>(null);
+  const [resetting, setResetting] = useState<{
+    admin: AdminItem;
+    kind: "reset-password" | "reset-mfa";
+  } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const run = async (fn: () => Promise<unknown>, fallback: string) => {
     setActionError(null);
@@ -573,8 +573,15 @@ export default function AdminsPage() {
         </div>
       </div>
       <p className="text-[12px] text-gray-400 mb-5">
-        ایجاد ادمین با یک یا چند نقش، ویرایش، غیرفعال‌سازی، بازنشانی رمز و بستن نشست‌ها
+        ایجاد ادمین با یک یا چند نقش، ویرایش، غیرفعال‌سازی، ارسال رمز موقت، بازنشانی ورود دومرحله‌ای و بستن نشست‌ها
       </p>
+
+      {notice && (
+        <div className="mb-4 p-3 rounded-xl bg-green-50 border border-green-100 text-green-700 text-[13px] font-bold flex items-start gap-2">
+          <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+          {notice}
+        </div>
+      )}
 
       {(actionError || listError || rolesError) && (
         <div className="mb-4">
@@ -639,7 +646,7 @@ export default function AdminsPage() {
                         color: a.totpEnabled ? "#16a34a" : "#9ca3af",
                       }}
                     >
-                      {a.totpEnabled ? "فعال" : "غیرفعال"}
+                      {a.totpEnabled ? "فعال" : "راه‌اندازی نشده"}
                     </span>
                   </td>
                   <td>
@@ -661,6 +668,20 @@ export default function AdminsPage() {
                           قفل موقت
                         </span>
                       )}
+                      {a.mustChangePassword && (
+                        <span
+                          className="badge"
+                          style={
+                            a.passwordExpiresAt && new Date(a.passwordExpiresAt) < new Date()
+                              ? { background: "#fee2e2", color: "#dc2626" }
+                              : { background: "#e0f2fe", color: "#0369a1" }
+                          }
+                        >
+                          {a.passwordExpiresAt && new Date(a.passwordExpiresAt) < new Date()
+                            ? "رمز موقت منقضی"
+                            : "رمز موقت"}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="text-[12px] text-gray-500">
@@ -677,8 +698,18 @@ export default function AdminsPage() {
                       <IconButton title="ویرایش" onClick={() => setEditing(a)}>
                         <Pencil className="w-4 h-4" />
                       </IconButton>
-                      <IconButton title="بازنشانی رمز" onClick={() => setResetting(a)}>
+                      <IconButton
+                        title="ارسال رمز موقت جدید (پیامک)"
+                        onClick={() => setResetting({ admin: a, kind: "reset-password" })}
+                      >
                         <Key className="w-4 h-4" />
+                      </IconButton>
+                      <IconButton
+                        title="بازنشانی ورود دومرحله‌ای (گم شدن گوشی)"
+                        onClick={() => setResetting({ admin: a, kind: "reset-mfa" })}
+                        disabled={isSelf || !a.totpEnabled}
+                      >
+                        <Smartphone className="w-4 h-4" />
                       </IconButton>
                       <IconButton
                         title="بستن همه نشست‌ها"
@@ -716,7 +747,10 @@ export default function AdminsPage() {
         <CreateAdminModal
           roles={roles}
           onClose={() => setShowCreate(false)}
-          onCreated={() => mutate()}
+          onCreated={(message) => {
+            setNotice(message);
+            void mutate();
+          }}
         />
       )}
       {editing && roles && (
@@ -729,8 +763,9 @@ export default function AdminsPage() {
         />
       )}
       {resetting && (
-        <ResetPasswordModal
-          admin={resetting}
+        <SecurityActionModal
+          admin={resetting.admin}
+          kind={resetting.kind}
           onClose={() => {
             setResetting(null);
             void mutate();

@@ -14,14 +14,13 @@ import {
   AlertCircle,
   Loader2,
   Timer,
+  Smartphone,
+  KeyRound,
 } from "lucide-react";
 import { useLogin } from "../hooks/useLogin";
 import OtpInput from "../components/OtpInput";
 import { digitsOnly } from "../utils/digits";
 import { captureReturnPathFromUrl } from "../utils/return-path";
-
-type LoginMethod = "password" | "otp";
-type OtpStep = "request" | "verify";
 
 // آرایه متون اسلایدر
 const SLIDES = ["خرید و فروش طلای آب شده", "خرید شمش طلا", "خرید مصنوعات طلا"];
@@ -29,17 +28,22 @@ const SLIDES = ["خرید و فروش طلای آب شده", "خرید شمش ط
 export default function LoginPage() {
   const {
     loading,
+    checking,
     error,
     setError,
-    loginWithPassword,
-    sendLoginOtpCode,
-    verifyLoginOtpCode,
+    step,
+    challenge,
+    submitCredentials,
+    verifyCode,
+    resend,
+    restart,
   } = useLogin();
 
-  const [method, setMethod] = useState<LoginMethod>("password");
-  const [otpStep, setOtpStep] = useState<OtpStep>("request");
   const [showPassword, setShowPassword] = useState(false);
   const [timer, setTimer] = useState(0);
+  // کاربر دارای برنامه‌ی احراز هویت می‌تواند به‌جای کد ۶ رقمی یکی از کدهای بازیابی را وارد کند
+  const [useRecovery, setUseRecovery] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
 
   // استیت‌های افکت تایپی (Typewriter)
   const [textIndex, setTextIndex] = useState(0);
@@ -124,41 +128,48 @@ export default function LoginPage() {
   };
 
   const handleOtpComplete = async (code: string) => {
-    if (!loading) await verifyLoginOtpCode(phone, code);
+    if (!loading) await verifyCode(code);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!/^09\d{9}$/.test(phone)) {
-      setError("شماره موبایل باید ۱۱ رقم باشد و با 09 شروع شود.");
+    if (step === "credentials") {
+      if (!/^09\d{9}$/.test(phone)) {
+        setError("شماره موبایل باید ۱۱ رقم باشد و با 09 شروع شود.");
+        return;
+      }
+      if (!password) return setError("لطفاً رمز عبور خود را وارد کنید.");
+      const wait = await submitCredentials(phone, password);
+      setOtp(["", "", "", "", "", ""]);
+      setUseRecovery(false);
+      setRecoveryCode("");
+      setTimer(wait);
       return;
     }
 
-    if (method === "password") {
-      if (!password) return setError("لطفاً رمز عبور خود را وارد کنید.");
-      await loginWithPassword(phone, password);
-    } else if (method === "otp") {
-      if (otpStep === "request") {
-        const success = await sendLoginOtpCode(phone);
-        if (success) {
-          setOtpStep("verify");
-          setTimer(120);
-        }
-      } else {
-        const fullCode = otp.join("");
-        if (fullCode.length < 6)
-          return setError("لطفاً کد ۶ رقمی را کامل وارد کنید.");
-        await verifyLoginOtpCode(phone, fullCode);
-      }
+    if (useRecovery) {
+      if (recoveryCode.replace(/[^A-Za-z0-9]/g, "").length < 10)
+        return setError("کد بازیابی ۱۰ کاراکتری را کامل وارد کنید.");
+      await verifyCode(recoveryCode);
+      return;
     }
+    const fullCode = otp.join("");
+    if (fullCode.length < 6)
+      return setError("لطفاً کد ۶ رقمی را کامل وارد کنید.");
+    await verifyCode(fullCode);
+  };
+
+  const handleResend = async () => {
+    setOtp(["", "", "", "", "", ""]);
+    setTimer(await resend());
   };
 
   const resetToPhone = () => {
-    setOtpStep("request");
+    restart();
     setOtp(["", "", "", "", "", ""]);
     setTimer(0);
-    setError(null);
+    setPassword("");
   };
 
   return (
@@ -237,31 +248,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {otpStep === "request" && (
-            <div className="flex bg-gray-100 p-1.5 rounded-2xl mb-8 border border-gray-200">
-              <button
-                type="button"
-                onClick={() => {
-                  setMethod("password");
-                  setError(null);
-                }}
-                className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${method === "password" ? "bg-white shadow-sm text-emerald" : "text-gray-500"}`}
-              >
-                رمز عبور
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMethod("otp");
-                  setError(null);
-                }}
-                className={`flex-1 py-3.5 font-bold rounded-xl transition-all ${method === "otp" ? "bg-white shadow-sm text-emerald" : "text-gray-500"}`}
-              >
-                کد پیامکی
-              </button>
-            </div>
-          )}
-
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl flex items-start gap-3 text-sm font-bold animate-in fade-in">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -270,7 +256,7 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {otpStep === "request" && (
+            {step === "credentials" && (
               <div className="space-y-2 animate-in fade-in">
                 <label className="text-xs font-black text-gray-400 mr-1">
                   شماره موبایل
@@ -291,7 +277,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            {method === "password" && otpStep === "request" && (
+            {step === "credentials" && (
               <div className="space-y-2 animate-in fade-in">
                 <label className="text-xs font-black text-gray-400 mr-1">
                   گذرواژه
@@ -302,6 +288,8 @@ export default function LoginPage() {
                   <input
                     type={showPassword ? "text" : "password"}
                     autoComplete="current-password"
+                    maxLength={128}
+                    aria-label="رمز عبور"
                     dir="ltr"
                     placeholder="••••••••"
                     value={password}
@@ -314,6 +302,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "پنهان کردن رمز" : "نمایش رمز"}
                     className="absolute left-4 text-gray-400 hover:text-emerald transition-colors focus:outline-none"
                   >
                     {showPassword ? (
@@ -335,45 +324,94 @@ export default function LoginPage() {
               </div>
             )}
 
-            {method === "otp" && otpStep === "verify" && (
+            {step === "second_factor" && challenge && (
               <div className="space-y-6 animate-in slide-in-from-left-4">
                 <div className="text-center">
-                  <p className="text-gray-500 font-medium text-sm">
-                    کد تایید به{" "}
-                    <span className="font-bold text-emerald" dir="ltr">
-                      {phone}
-                    </span>{" "}
-                    ارسال شد.
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald/10">
+                    {challenge.method === "TOTP" ? (
+                      <Smartphone className="h-6 w-6 text-emerald" />
+                    ) : (
+                      <ShieldCheck className="h-6 w-6 text-emerald" />
+                    )}
+                  </div>
+                  <p className="font-black text-emerald">تأیید دومرحله‌ای</p>
+                  <p className="mt-1 text-gray-500 font-medium text-sm leading-relaxed">
+                    {challenge.method === "TOTP" ? (
+                      useRecovery ? (
+                        "یکی از کدهای بازیابی خود را وارد کنید (هر کد فقط یک‌بار قابل استفاده است)."
+                      ) : (
+                        "کد ۶ رقمی برنامه‌ی احراز هویت (مثل Google Authenticator) را وارد کنید."
+                      )
+                    ) : (
+                      <>
+                        کد تایید به{" "}
+                        <span className="font-bold text-emerald" dir="ltr">
+                          {challenge.maskedPhone}
+                        </span>{" "}
+                        پیامک شد.
+                      </>
+                    )}
                   </p>
                   <button
                     type="button"
                     onClick={resetToPhone}
                     className="text-gold-500 underline mt-1 font-bold text-xs hover:text-[#a88646]"
                   >
-                    ویرایش شماره موبایل
+                    ورود با حساب دیگر
                   </button>
                 </div>
 
-                <OtpInput
-                  value={otp}
-                  onChange={handleOtpChange}
-                  onComplete={handleOtpComplete}
-                  disabled={loading}
-                />
+                {useRecovery ? (
+                  <input
+                    type="text"
+                    dir="ltr"
+                    autoComplete="one-time-code"
+                    placeholder="XXXXX-XXXXX"
+                    value={recoveryCode}
+                    onChange={(e) => {
+                      setRecoveryCode(e.target.value.toUpperCase());
+                      if (error) setError(null);
+                    }}
+                    className="w-full px-4 py-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 transition-all text-lg font-mono tracking-widest text-center"
+                  />
+                ) : (
+                  <OtpInput
+                    value={otp}
+                    onChange={handleOtpChange}
+                    onComplete={handleOtpComplete}
+                    disabled={loading}
+                  />
+                )}
 
                 <div className="flex items-center justify-center gap-2 text-sm font-bold text-gray-500">
-                  {timer > 0 ? (
-                    <>
-                      <Timer className="w-4 h-4" />
-                      <span>ارسال مجدد کد تا {formatTime(timer)} دیگر</span>
-                    </>
+                  {challenge.method === "SMS" ? (
+                    timer > 0 ? (
+                      <>
+                        <Timer className="w-4 h-4" />
+                        <span>ارسال مجدد کد تا {formatTime(timer)} دیگر</span>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleResend}
+                        className="text-emerald hover:underline flex items-center gap-1"
+                      >
+                        ارسال مجدد کد
+                      </button>
+                    )
                   ) : (
                     <button
                       type="button"
-                      onClick={() => sendLoginOtpCode(phone)}
+                      onClick={() => {
+                        setUseRecovery(!useRecovery);
+                        setError(null);
+                      }}
                       className="text-emerald hover:underline flex items-center gap-1"
                     >
-                      ارسال مجدد کد
+                      <KeyRound className="w-4 h-4" />
+                      {useRecovery
+                        ? "استفاده از کد برنامه‌ی احراز هویت"
+                        : "به برنامه دسترسی ندارم؛ کد بازیابی دارم"}
                     </button>
                   )}
                 </div>
@@ -386,14 +424,15 @@ export default function LoginPage() {
               className="w-full py-4 mt-6 lg:mt-8 bg-emerald text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-emerald/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <>
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  {checking && (
+                    <span className="text-sm font-bold">در حال بررسی امنیتی…</span>
+                  )}
+                </>
               ) : (
                 <>
-                  {method === "password"
-                    ? "ورود به سامانه"
-                    : otpStep === "request"
-                      ? "ارسال پیامک تایید"
-                      : "تایید و ورود"}
+                  {step === "credentials" ? "ادامه" : "تایید و ورود"}
                   <ArrowLeft className="w-5 h-5" />
                 </>
               )}

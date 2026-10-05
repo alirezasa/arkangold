@@ -4,11 +4,12 @@ import { IsString, MaxLength, MinLength } from 'class-validator';
 export class ChangePasswordDto {
   @IsString()
   @MinLength(1)
-  @MaxLength(72)
+  @MaxLength(256)
   currentPassword!: string;
 
+  // حداقل طول و سایر قواعد در سیاست واحد رمز عبور (PasswordPolicyService) بررسی می‌شود
   @IsString()
-  @MinLength(6, { message: 'رمز عبور جدید باید حداقل ۶ کاراکتر باشد' })
-  @MaxLength(50)
+  @MinLength(1)
+  @MaxLength(128, { message: 'رمز عبور حداکثر ۱۲۸ کاراکتر است' })
   newPassword!: string;
 }

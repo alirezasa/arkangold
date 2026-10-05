@@ -109,6 +109,12 @@ export class UsersAdminService {
       type: user.type,
       status: user.status,
       referralCode: user.referralCode,
+      // وضعیت ورود دومرحله‌ای (بدون هیچ راز یا کد بازیابی)
+      mfa: {
+        totpEnabled: user.totpEnabled,
+        totpEnabledAt: user.totpEnabledAt,
+        recoveryCodesRemaining: user.backupCodesHash.length,
+      },
       identity: user.identity,
       legalProfile: user.legalProfile,
       wallet: user.wallet

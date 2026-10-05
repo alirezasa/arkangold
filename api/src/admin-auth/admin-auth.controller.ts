@@ -36,16 +36,51 @@ import { AdminAuthenticatedUser } from './interfaces/admin-jwt-payload.interface
 
 class AdminLoginDto {
   @IsString()
+  @MaxLength(100)
   username!: string;
 
   @IsString()
   @MinLength(1)
+  @MaxLength(256)
   password!: string;
 
-  // درگاه ورود (از روی دامنه در BFF پنل تعیین می‌شود)
+  // درگاه ورود (از روی دامنه در BFF پنل تعیین می‌شود؛ خالی = پنل مدیریت)
   @IsOptional()
   @IsIn(['admin', 'agent'])
   portal?: AdminLoginPortal;
+
+  // راه‌حل «بررسی امنیتی» وقتی سرور CAPTCHA_REQUIRED برگرداند
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  captcha?: string;
+}
+
+class LoginStepDto {
+  @IsString()
+  @MaxLength(100)
+  challengeToken!: string;
+}
+
+class LoginStepCodeDto extends LoginStepDto {
+  @IsString()
+  @MinLength(6)
+  @MaxLength(20)
+  code!: string;
+}
+
+class LoginStepPasswordDto extends LoginStepDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128, { message: 'رمز عبور حداکثر ۱۲۸ کاراکتر است' })
+  newPassword!: string;
+}
+
+class MfaCodeDto {
+  @IsString()
+  @MinLength(6)
+  @MaxLength(20)
+  code!: string;
 }
 
 class AgentOtpRequestDto {
@@ -70,10 +105,13 @@ class AdminRefreshDto {
 }
 class ChangePasswordDto {
   @IsString()
+  @MaxLength(256)
   currentPassword!: string;
 
+  // حداقل طول و سایر قواعد در سیاست واحد رمز عبور بررسی می‌شود (بدون قاعده‌ی ترکیب کاراکتر)
   @IsString()
-  @MinLength(12)
+  @MinLength(1)
+  @MaxLength(128, { message: 'رمز عبور حداکثر ۱۲۸ کاراکتر است' })
   newPassword!: string;
 }
 
@@ -124,11 +162,62 @@ export class AdminAuthController {
     private readonly agentOtpLogin: AgentOtpLoginService,
   ) {}
 
+  // FIA_UAU_EXT.2.4: مسیرهای ورود پنل فقط این‌ها هستند: login (رمز) یا agent-otp (کد پیامکی نماینده)
+  // و سپس login/change-password، login/mfa-setup(/confirm) یا login/mfa. نشست فقط در پایان صادر می‌شود.
   @AdminPublic()
   @Post('login')
-  @Throttle({ default: { limit: 5, ttl: 900_000 } }) // ۵ تلاش در ۱۵ دقیقه
+  @Throttle({ default: { limit: 10, ttl: 900_000 } })
   async login(@Body() dto: AdminLoginDto, @Req() req: Request) {
     return this.adminAuthService.login(dto, req.ip, req.headers['user-agent']);
+  }
+
+  @AdminPublic()
+  @Post('login/change-password')
+  @Throttle({ default: { limit: 10, ttl: 900_000 } })
+  async loginChangePassword(
+    @Body() dto: LoginStepPasswordDto,
+    @Req() req: Request,
+  ) {
+    return this.adminAuthService.loginChangePassword(
+      dto.challengeToken,
+      dto.newPassword,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
+  @AdminPublic()
+  @Post('login/mfa-setup')
+  @Throttle({ default: { limit: 10, ttl: 900_000 } })
+  async loginMfaSetup(@Body() dto: LoginStepDto) {
+    return this.adminAuthService.loginMfaSetup(dto.challengeToken);
+  }
+
+  @AdminPublic()
+  @Post('login/mfa-setup/confirm')
+  @Throttle({ default: { limit: 10, ttl: 900_000 } })
+  async loginMfaSetupConfirm(
+    @Body() dto: LoginStepCodeDto,
+    @Req() req: Request,
+  ) {
+    return this.adminAuthService.loginMfaSetupConfirm(
+      dto.challengeToken,
+      dto.code,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
+  @AdminPublic()
+  @Post('login/mfa')
+  @Throttle({ default: { limit: 10, ttl: 900_000 } })
+  async loginMfa(@Body() dto: LoginStepCodeDto, @Req() req: Request) {
+    return this.adminAuthService.loginMfaVerify(
+      dto.challengeToken,
+      dto.code,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   // ── ورود نمایندگان با کد یکبارمصرف (فقط شماره‌های ثبت‌شده توسط مدیر؛ بدون ثبت‌نام) ──
@@ -246,7 +335,60 @@ export class AdminAuthController {
     return this.adminAuthService.listOwnActivity(req.user.adminUserId, query);
   }
 
+  // ── ورود دومرحله‌ای خودِ ادمین ──
   @UseGuards(AdminJwtAuthGuard)
+  @Get('mfa')
+  async mfaStatus(@Req() req: AuthenticatedAdminRequest) {
+    return this.adminAuthService.ownMfaStatus(req.user.adminUserId);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('mfa/recovery-codes')
+  async regenerateRecoveryCodes(
+    @Req() req: AuthenticatedAdminRequest,
+    @Body() dto: MfaCodeDto,
+  ) {
+    return this.adminAuthService.regenerateOwnRecoveryCodes(
+      req.user.adminUserId,
+      dto.code,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('mfa/reconfigure')
+  async beginReconfigure(
+    @Req() req: AuthenticatedAdminRequest,
+    @Body() dto: MfaCodeDto,
+  ) {
+    return this.adminAuthService.beginOwnMfaReconfigure(
+      req.user.adminUserId,
+      dto.code,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('mfa/reconfigure/confirm')
+  async confirmReconfigure(
+    @Req() req: AuthenticatedAdminRequest,
+    @Body() dto: MfaCodeDto,
+  ) {
+    return this.adminAuthService.confirmOwnMfaReconfigure(
+      req.user.adminUserId,
+      dto.code,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('change-password')
   async changePassword(
     @Req() req: AuthenticatedAdminRequest,

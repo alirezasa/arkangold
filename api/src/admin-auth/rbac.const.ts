@@ -43,6 +43,12 @@ export const ADMIN_PERMISSIONS = [
     group: 'users',
     description: 'استعلام مجدد اطلاعات هویتی کاربر از ثبت احوال',
   },
+  {
+    key: 'users.mfa.reset',
+    group: 'users',
+    description:
+      'بازنشانی ورود دومرحله‌ای کاربر پس از احراز هویت مجدد (گم شدن برنامه‌ی احراز هویت)',
+  },
 
   {
     key: 'physical_delivery.view',
@@ -405,12 +411,14 @@ export const ADMIN_PERMISSIONS = [
   {
     key: 'security.crypto.view',
     group: 'security',
-    description: 'مشاهده وضعیت رمزنگاری، کلیدها و مدیریت اسرار',
+    description:
+      'مشاهده‌ی پنل امنیت: رمزنگاری، کلیدها، اسرار، احراز هویت و ورود دومرحله‌ای',
   },
   {
     key: 'security.crypto.manage',
     group: 'security',
-    description: 'رمزنگاری مجدد Credentialها و اجرای پاک‌سازی داده‌های منقضی',
+    description:
+      'رمزنگاری مجدد Credentialها، پاک‌سازی داده‌های منقضی و ارسال یادآوری انقضا',
   },
 ] as const;
 

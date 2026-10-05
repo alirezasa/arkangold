@@ -1,9 +1,9 @@
 // admin/app/api/admin-auth/agent-otp/verify/route.ts
-// تأیید کد ورود نماینده و ثبت نشست — فقط در دامنه‌ی پنل نمایندگان
+// تأیید کد ورود نماینده (عامل اول) — فقط در دامنه‌ی پنل نمایندگان
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { NEST } from "@/app/lib/adminProxy";
-import { errorResponse, sessionResponse } from "@/app/lib/adminSession";
+import { errorResponse, loginStepOrSession } from "@/app/lib/adminSession";
 import { portalFromHeaders } from "@/lib/portal";
 
 export async function POST(request: Request) {
@@ -16,7 +16,8 @@ export async function POST(request: Request) {
       phone: body.phone,
       code: body.code,
     });
-    return sessionResponse(response.data);
+    // کد پیامکی فقط عامل اول است؛ پاسخ مرحله‌ی برنامه‌ی احراز هویت است (FIA_UAU_EXT.2.3)
+    return loginStepOrSession(response.data);
   } catch (error: unknown) {
     return errorResponse(error);
   }

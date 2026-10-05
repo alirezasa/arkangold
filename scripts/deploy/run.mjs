@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// اجراکننده‌ی استقرار مونوریپو روی سرویس‌های Node.js لیارا.
+// اجراکننده‌ی استقرار مونوریپو روی سرویس‌های Node.js (لیارا و رانفلر).
 //
 // هر سه سرویس (api / app / admin) کل مونوریپو را دریافت می‌کنند و با متغیر محیطی
-// APP_SERVICE مشخص می‌شود کدام بسته ساخته و اجرا شود. لیارا به‌ترتیب
+// APP_SERVICE مشخص می‌شود کدام بسته ساخته و اجرا شود. هر دو پلتفرم به‌ترتیب
 // `npm install` → `npm run build` → `npm start` را در ریشه‌ی پروژه اجرا می‌کنند؛
 // package.json ریشه این دو اسکریپت را به همین فایل می‌سپارد.
 //
@@ -74,11 +74,7 @@ function run(cmd, args, options = {}) {
 function build(targets) {
   restoreLockfile();
   const [pnpm, ...pnpmArgs] = pnpmCommand();
-  // pnpm 11 پیش از هر `pnpm run` / `pnpm exec` وابستگی‌ها را بررسی می‌کند و چون فقط بسته‌های همین سرویس
-  // نصب شده‌اند، بی‌صدا وابستگی‌های هر پنج پروژه‌ی workspace را نصب می‌کند (بیش از دو برابر زمان نصب و
-  // حجم image). نصب یک بار و فقط برای همین سرویس در قدم بعد انجام می‌شود.
-  const pnpmRun = (args, options) =>
-    run(pnpm, [...pnpmArgs, '--config.verify-deps-before-run=false', ...args], options);
+  const pnpmRun = (args, options) => run(pnpm, [...pnpmArgs, ...args], options);
 
   // فقط سرویس‌های هدف و بسته‌های workspace که به آن‌ها وابسته‌اند (مثلاً @arkan-gold/shared برای api).
   // اگر pnpm-lock.yaml آپلود شده باشد از آن استفاده می‌شود و در صورت ناهماهنگی به‌روز می‌شود.

@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@arkan-gold/shared": "workspace:*",
     "@tabler/icons-react": "^3.44.0",
     "@tabler/icons-webfont": "2.44.0",
     "axios": "^1.16.1",

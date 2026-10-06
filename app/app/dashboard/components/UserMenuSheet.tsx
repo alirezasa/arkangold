@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { IdentityStatus } from "@arkan-gold/shared";
 import {
   USER_MENU_GROUPS,
   getActiveNavPath,
   isIdentityFreePath,
 } from "@/app/utils/mock-data";
+import { logoutAndWipe } from "@/app/utils/session-cleanup";
 
 const USER_MENU_PATHS = USER_MENU_GROUPS.flatMap((g) =>
   g.items.map((i) => i.path),
@@ -62,7 +63,6 @@ export default function UserMenuSheet({
   identityStatus = null,
   locked = false,
 }: UserMenuSheetProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const activePath = getActiveNavPath(pathname, USER_MENU_PATHS);
 
@@ -82,13 +82,8 @@ export default function UserMenuSheet({
   }, [isOpen, onClose]);
 
   const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      onClose();
-      router.replace("/login");
-    } catch {
-      console.error("خطا در خروج");
-    }
+    onClose();
+    await logoutAndWipe("/api/auth/logout");
   };
 
   if (!isOpen) return null;

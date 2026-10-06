@@ -10,6 +10,7 @@ import MobileDrawer from "@/app/components/MobileDrawer";
 import BottomNav from "@/app/components/BottomNav";
 import OfflineBanner from "@/app/components/OfflineBanner";
 import { Loader2 } from "lucide-react";
+import { logoutAndWipe } from "@/app/utils/session-cleanup";
 
 export default function DashboardLayout({
   children,
@@ -33,9 +34,7 @@ export default function DashboardLayout({
     (portalFromHost(window.location.host) === "agent") !== !!me.agent;
   useEffect(() => {
     if (!wrongPortal) return;
-    void fetch("/api/admin-auth/logout", { method: "POST" }).finally(() =>
-      router.replace("/login"),
-    );
+    void logoutAndWipe("/api/admin-auth/logout");
   }, [wrongPortal, router]);
 
   // حساب نماینده فقط پرتال نمایندگی و پروفایل خودش را دارد؛ مسیرهای مدیریتی به پرتال هدایت می‌شوند

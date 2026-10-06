@@ -9,6 +9,10 @@ import {
   RateLimitError,
   TimeoutIntegrationError,
 } from '../../errors/integration-error';
+import {
+  CircuitBreaker,
+  isUpstreamFailure,
+} from '../../../common/resilience/circuit-breaker';
 
 interface FinotechErrorBody {
   error?: { code?: string; message?: string };
@@ -62,17 +66,23 @@ export class FinotechHttpClient {
     ]);
 
     try {
-      const response = await axios.request<T>({
-        method,
-        url: `${baseUrl}${path}`,
-        params,
-        data: body,
-        timeout: 15_000,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(body ? { 'Content-Type': 'application/json' } : {}),
-        },
-      });
+      // FPT_FLS_EXT.1.2 — قطع‌کننده: پس از شکست‌های پیاپی (خطای شبکه/۵xx/timeout)
+      // درخواست‌ها تا مدتی بدون تماس با فینوتک رد می‌شوند
+      const response = await CircuitBreaker.for('finotech').execute(
+        () =>
+          axios.request<T>({
+            method,
+            url: `${baseUrl}${path}`,
+            params,
+            data: body,
+            timeout: 15_000,
+            headers: {
+              Authorization: `Bearer ${token}`,
+              ...(body ? { 'Content-Type': 'application/json' } : {}),
+            },
+          }),
+        isUpstreamFailure,
+      );
       return response.data;
     } catch (err) {
       const passthrough =

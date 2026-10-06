@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
 import { NEST } from "@/app/lib/adminProxy";
+import { clearAdminSessionCookies } from "@/app/lib/session-cookies";
 
 export async function POST() {
   const token = (await cookies()).get("adminAccessToken")?.value;
@@ -14,8 +15,5 @@ export async function POST() {
       })
       .catch(() => undefined);
   }
-  const res = NextResponse.json({ success: true });
-  res.cookies.delete("adminAccessToken");
-  res.cookies.delete("adminRefreshToken");
-  return res;
+  return clearAdminSessionCookies(NextResponse.json({ success: true }));
 }

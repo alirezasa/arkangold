@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -21,6 +22,17 @@ export class UsersController {
   @ApiOperation({ summary: 'پروفایل کاربر جاری' })
   getProfile(@Req() req: AuthenticatedRequest) {
     return this.usersService.getProfile(req.user.userId);
+  }
+
+  @Post('me/identity/reveal')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: 'نمایش کامل کد ملی و تاریخ تولد (با درخواست صریح کاربر)' })
+  revealIdentity(@Req() req: AuthenticatedRequest) {
+    return this.usersService.revealIdentity(
+      req.user.userId,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   @Post('me/identity')

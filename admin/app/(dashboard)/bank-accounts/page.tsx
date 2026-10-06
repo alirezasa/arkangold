@@ -81,16 +81,17 @@ export default function BankAccountsPage() {
 
 function BankAccountsView() {
   const can = usePerm();
-  // ورود از صفحه‌ی کاربر با ?search=موبایل → همه‌ی کارت‌های همان کاربر
-  const initialSearch = useSearchParams().get("search") ?? "";
-  const [status, setStatus] = useState<"" | Status>(initialSearch ? "" : "PENDING_INQUIRY");
-  const [search, setSearch] = useState(initialSearch);
-  const [q, setQ] = useState(initialSearch);
+  // ورود از صفحه‌ی کاربر با ?userId= → همه‌ی کارت‌های همان کاربر (شناسه به‌جای موبایل در URL)
+  const userId = useSearchParams().get("userId") ?? "";
+  const [status, setStatus] = useState<"" | Status>(userId ? "" : "PENDING_INQUIRY");
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Row | null>(null);
 
   const params = new URLSearchParams({ page: String(page), limit: "20" });
   if (status) params.set("status", status);
+  if (userId) params.set("userId", userId);
   if (q) params.set("search", q);
   const { data, isLoading, mutate } = useSWR<ListResp>(`/api/admin/bank-accounts?${params}`, fetcher);
 

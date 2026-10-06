@@ -496,9 +496,14 @@ export class HologramService {
         },
         owner: {
           fullName: activeOwnership.fullName,
-          nationalCode: ctx.maskNationalCodeInResponse
-            ? maskNationalCode(activeOwnership.nationalCode)
-            : activeOwnership.nationalCode,
+          // FDP_ACC_EXT.1.5 — کد ملی کامل فقط به خود مالک نشان داده می‌شود؛
+          // برای هر استعلام‌کننده‌ی دیگری (حتی کاربر واردشده) پوشانده است
+          nationalCode:
+            !ctx.maskNationalCodeInResponse &&
+            !!ctx.userId &&
+            activeOwnership.ownerUserId === ctx.userId
+              ? activeOwnership.nationalCode
+              : maskNationalCode(activeOwnership.nationalCode),
           ownershipStartAt: activeOwnership.ownershipStartAt.toISOString(),
         },
       };

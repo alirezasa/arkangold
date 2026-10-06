@@ -19,6 +19,7 @@ import { isValidIranIban, normalizeIban } from '../common/utils/iban.util';
 import { BankAccount, Prisma } from '../generated/prisma/client';
 import { DEPOSIT_STATUS_LABELS } from '../integrations/interfaces/card-to-iban.interface';
 import { SmsTemplateService } from '../notifications/sms-template.service';
+import { maskNationalCode } from '../common/privacy/masking';
 
 const MAX_BANK_ACCOUNTS = 5;
 
@@ -197,6 +198,7 @@ export class BankAccountService {
   async adminList(query: {
     status?: string;
     search?: string;
+    userId?: string;
     page?: number;
     limit?: number;
   }) {
@@ -205,6 +207,7 @@ export class BankAccountService {
     const search = query.search?.trim();
 
     const where: Prisma.BankAccountWhereInput = {
+      ...(query.userId ? { userId: query.userId } : {}),
       ...(query.status &&
       ['VERIFIED', 'PENDING_INQUIRY', 'REJECTED'].includes(query.status)
         ? { status: query.status as BankAccount['status'] }
@@ -260,7 +263,8 @@ export class BankAccountService {
           fullName:
             `${a.user.identity?.firstName ?? ''} ${a.user.identity?.lastName ?? ''}`.trim() ||
             null,
-          nationalCode: a.user.identity?.nationalCode ?? null,
+          // FDP_ACC_EXT.1.5 — پوشانده؛ کد ملی کامل از صفحه‌ی کاربر با «نمایش»
+          nationalCode: maskNationalCode(a.user.identity?.nationalCode),
         },
       })),
       counts: Object.fromEntries(counts.map((c) => [c.status, c._count])),

@@ -54,3 +54,15 @@ export function authErrorResponse(error: unknown) {
   console.error("BFF auth error:", error);
   return NextResponse.json({ message: "خطایی در سرور رخ داد" }, { status: 500 });
 }
+
+// FDP_RIP_EXT.1.1 — پاک‌سازی کامل داده‌های نشست در مرورگر پس از خروج/انقضا:
+// کوکی‌های نشست حذف می‌شوند و با سرآیند Clear-Site-Data مرورگر حافظه‌ی نهان، کوکی‌ها و
+// فضای ذخیره‌سازی (localStorage/sessionStorage/IndexedDB) همین مبدأ را پاک می‌کند.
+// پاک‌سازی سمت کلاینت (lib/session-cleanup) در صورت در دسترس نبودن سرور هم اجرا می‌شود.
+export function clearSessionCookies(res: NextResponse) {
+  res.cookies.delete("accessToken");
+  res.cookies.delete("refreshToken");
+  res.headers.set("Clear-Site-Data", '"cache", "cookies", "storage"');
+  res.headers.set("Cache-Control", "no-store");
+  return res;
+}

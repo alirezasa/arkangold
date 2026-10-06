@@ -2,7 +2,7 @@
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Loader2,
@@ -14,6 +14,8 @@ import {
   Fingerprint,
   RefreshCw,
   Smartphone,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
 
@@ -61,6 +63,9 @@ interface UserIdentity {
   lastName: string | null;
   nationalCode: string | null;
   birthDate: string | null;
+  /** کد ملی پوشانده است و تاریخ تولد فقط با «نمایش» برگردانده می‌شود (FDP_ACC_EXT.1.5) */
+  hasBirthDate?: boolean;
+  masked?: boolean;
   fatherName: string | null;
   gender: string | null;
   deathStatus: string | null;
@@ -385,7 +390,33 @@ function IdentitySection({
 
   const identity = user.identity;
   const meta = identity ? IDENTITY_STATUS_META[identity.status] : null;
-  const canInquire = !!identity?.nationalCode && !!identity?.birthDate;
+  const canInquire =
+    !!identity?.nationalCode && (!!identity?.birthDate || !!identity?.hasBirthDate);
+  const [revealed, setRevealed] = useState<{
+    nationalCode: string | null;
+    birthDate: string | null;
+  } | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  // اطلاعات نمایش‌داده‌شده پس از ۶۰ ثانیه دوباره پوشانده می‌شود
+  useEffect(() => {
+    if (!revealed) return;
+    const t = setTimeout(() => setRevealed(null), 60_000);
+    return () => clearTimeout(t);
+  }, [revealed]);
+  const toggleReveal = async () => {
+    if (revealed) return setRevealed(null);
+    setRevealing(true);
+    setError(null);
+    try {
+      const res = await axios.post(`/api/admin/users/${user.id}/identity/reveal`);
+      setRevealed(res.data);
+    } catch (err) {
+      setError(apiError(err, "نمایش اطلاعات هویتی ممکن نشد"));
+    } finally {
+      setRevealing(false);
+    }
+  };
+  const birthDate = revealed?.birthDate ?? identity?.birthDate ?? null;
 
   const reinquire = async () => {
     if (
@@ -417,12 +448,14 @@ function IdentitySection({
             label: "نام و نام خانوادگی",
             value: [identity.firstName, identity.lastName].filter(Boolean).join(" "),
           },
-          { label: "کد ملی", value: identity.nationalCode, ltr: true },
+          { label: "کد ملی", value: revealed?.nationalCode ?? identity.nationalCode, ltr: true },
           {
             label: "تاریخ تولد",
-            value: identity.birthDate
-              ? new Date(identity.birthDate).toLocaleDateString("fa-IR")
-              : null,
+            value: birthDate
+              ? new Date(birthDate).toLocaleDateString("fa-IR")
+              : identity.hasBirthDate
+                ? "••••/••/••"
+                : null,
           },
           { label: "نام پدر", value: identity.fatherName },
           { label: "جنسیت", value: identity.gender },
@@ -474,6 +507,23 @@ function IdentitySection({
               <RefreshCw className="w-3.5 h-3.5" />
             )}
             استعلام مجدد هویت
+          </button>
+        )}
+        {identity?.nationalCode && (
+          <button
+            type="button"
+            onClick={() => void toggleReveal()}
+            disabled={revealing}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold text-gray-600 border border-gray-200 disabled:opacity-50"
+          >
+            {revealing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : revealed ? (
+              <EyeOff className="w-3.5 h-3.5" />
+            ) : (
+              <Eye className="w-3.5 h-3.5" />
+            )}
+            {revealed ? "پنهان کردن کد ملی" : "نمایش کد ملی"}
           </button>
         )}
       </div>
@@ -788,7 +838,7 @@ export default function UserDetailPage() {
       >
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-[13px] font-black text-gray-700">حساب‌های بانکی</h2>
-          <Link href={`/bank-accounts?search=${data.phone}`} className="text-[11px] font-bold text-gray-500 hover:text-gray-700">
+          <Link href={`/bank-accounts?userId=${data.id}`} className="text-[11px] font-bold text-gray-500 hover:text-gray-700">
             بررسی و استعلام ←
           </Link>
         </div>

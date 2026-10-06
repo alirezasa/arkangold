@@ -9,6 +9,7 @@ import { OtpSendLimiterService } from './otp-send-limiter.service';
 import { LoginAlertService } from './login-alert.service';
 import { LoginChallengeService } from './login-challenge.service';
 import { CredentialExpiryService } from './credential-expiry.service';
+import { SessionContextService } from './session-context.service';
 
 /** مسیرهای عمومی مشترک ورود کاربران و پنل‌ها */
 @Controller('auth-security')
@@ -49,6 +50,7 @@ export class AuthSecurityController {
     LoginAlertService,
     LoginChallengeService,
     CredentialExpiryService,
+    SessionContextService,
   ],
   exports: [
     PasswordPolicyService,
@@ -59,6 +61,7 @@ export class AuthSecurityController {
     LoginAlertService,
     LoginChallengeService,
     CredentialExpiryService,
+    SessionContextService,
   ],
 })
 export class AuthSecurityModule {}

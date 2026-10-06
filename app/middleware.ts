@@ -21,7 +21,13 @@ export function middleware(request: NextRequest) {
       const loginUrl = new URL("/login", request.url);
       const next = sanitizeReturnPath(pathname + request.nextUrl.search);
       if (next) loginUrl.searchParams.set(RETURN_PATH_PARAM, next);
-      return NextResponse.redirect(loginUrl);
+      const res = NextResponse.redirect(loginUrl);
+      // FDP_RIP_EXT.1.1 — نشست به‌طور ضمنی (انقضا) پایان یافته: باقی‌مانده‌ی آن در مرورگر پاک می‌شود
+      if (request.cookies.has("refreshToken")) {
+        res.cookies.delete("refreshToken");
+        res.headers.set("Clear-Site-Data", '"cache", "storage"');
+      }
+      return res;
     }
   }
 

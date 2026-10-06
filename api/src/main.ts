@@ -18,6 +18,8 @@ import {
   resolveTrustProxy,
 } from './common/network/client-ip';
 import { isOtpDebugLogEnabledInProduction } from './common/logging/otp-debug';
+import { securityHeadersMiddleware } from './common/network/security-headers';
+import { sensitiveQueryMiddleware } from './common/network/sensitive-query';
 
 // دامنه‌های مجاز CORS — arkan.gold (سایت اصلی) و app.arkan.gold/admin هر دو باید
 // بتوانند مستقیماً از مرورگر به API عمومی هولوگرام (POST /public/hologram/verify)
@@ -42,8 +44,30 @@ function resolveCorsOrigins(): string[] {
   return [...DEFAULT_CORS_ORIGINS, ...extra];
 }
 
+/**
+ * FPT_FLS_EXT.1.4 — دریافت متمرکز استثناهای مدیریت‌نشده در سطح فرآیند: هیچ Promise رد‌شده یا
+ * استثنای بیرون از چرخه‌ی درخواست (کران‌جاب، رویدادها) بدون ثبت در لاگ نمی‌ماند و یک خطای منفرد
+ * کل سرویس را از دسترس خارج نمی‌کند. خطای ناشی از وضعیت نامعتبر حافظه/راه‌اندازی (پیش از آماده
+ * شدن برنامه) همچنان فرآیند را به‌صورت کنترل‌شده متوقف می‌کند تا ارکستراتور آن را بازآغاز کند.
+ */
+function installProcessErrorHandlers(logger: PinoLoggerService) {
+  let ready = false;
+  process.on('unhandledRejection', (reason) => {
+    const err = reason instanceof Error ? reason : new Error(String(reason));
+    logger.error(`Promise رد‌شده‌ی مدیریت‌نشده: ${err.message}`, err.stack, 'Process');
+  });
+  process.on('uncaughtException', (err) => {
+    logger.error(`استثنای مدیریت‌نشده: ${err.message}`, err.stack, 'Process');
+    if (!ready) process.exit(1);
+  });
+  return () => {
+    ready = true;
+  };
+}
+
 async function bootstrap() {
   const logger = new PinoLoggerService();
+  const markReady = installProcessErrorHandlers(logger);
   // FCS_CKM_EXT.1.4: اسرار پیش از ساخت هر provider از Vault / فایل secret / env بارگذاری و اعتبارسنجی می‌شوند
   await loadSecrets(logger);
 
@@ -76,6 +100,11 @@ async function bootstrap() {
     );
   }
   app.use(clientIpMiddleware());
+  // FDP_ACC_EXT.1.4 / FDP_RIP_EXT.1.2 — no-store روی پاسخ‌های پویا + سرآیندهای امنیتی پایه
+  app.disable('x-powered-by');
+  app.use(securityHeadersMiddleware());
+  // FDP_ACC_EXT.1.1 — جستجوی موبایل/کد ملی در پنل مدیریت و پرتال نمایندگی فقط از سرآیند
+  app.use(['/admin', '/agent-portal'], sensitiveQueryMiddleware());
 
   if (isOtpDebugLogEnabledInProduction()) {
     logger.warn(
@@ -129,6 +158,7 @@ async function bootstrap() {
 
   // لیارا پورت را از طریق PORT مشخص می‌کند؛ پیش‌فرض توسعه‌ی محلی ۵۰۰۰ باقی می‌ماند
   await app.listen(Number(process.env.PORT) || 5000);
+  markReady();
 }
 
 void bootstrap();

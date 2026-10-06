@@ -15,7 +15,10 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import axios from "axios";
 import {
   useProfilePage,
   useLegalProfileForm,
@@ -53,6 +56,80 @@ function InfoField({
         <p className="text-[14px] font-bold text-gray-800">{value || "—"}</p>
       </div>
     </div>
+  );
+}
+
+// ─── کد ملی و تاریخ تولد: پوشانده به‌صورت پیش‌فرض، نمایش کامل فقط با درخواست صریح (FDP_ACC_EXT.1.5) ───
+function SensitiveIdentityFields({
+  maskedNationalCode,
+  formatDate,
+}: {
+  maskedNationalCode: string | null | undefined;
+  formatDate: (d: string | null) => string;
+}) {
+  const [revealed, setRevealed] = useState<{
+    nationalCode: string | null;
+    birthDate: string | null;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // اطلاعات نمایش‌داده‌شده پس از ۶۰ ثانیه دوباره پوشانده می‌شود
+  useEffect(() => {
+    if (!revealed) return;
+    const t = setTimeout(() => setRevealed(null), 60_000);
+    return () => clearTimeout(t);
+  }, [revealed]);
+
+  const toggle = async () => {
+    if (revealed) return setRevealed(null);
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await axios.post("/api/user/identity/reveal");
+      setRevealed(data);
+    } catch {
+      setError("نمایش اطلاعات ممکن نشد");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleButton = maskedNationalCode ? (
+    <button
+      type="button"
+      onClick={() => void toggle()}
+      disabled={loading}
+      className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 disabled:opacity-60"
+    >
+      {loading ? (
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      ) : revealed ? (
+        <EyeOff className="w-3.5 h-3.5" />
+      ) : (
+        <Eye className="w-3.5 h-3.5" />
+      )}
+      {revealed ? "پنهان کردن" : "نمایش"}
+    </button>
+  ) : null;
+
+  return (
+    <>
+      <div className="relative">
+        <InfoField
+          label="کد ملی"
+          value={revealed?.nationalCode ?? maskedNationalCode}
+          icon={Hash}
+        />
+        <div className="absolute top-3 left-3">{toggleButton}</div>
+      </div>
+      <InfoField
+        label="تاریخ تولد"
+        value={revealed ? formatDate(revealed.birthDate) : maskedNationalCode ? "••••/••/••" : null}
+        icon={Calendar}
+      />
+      {error && <p className="text-[11px] text-red-500 sm:col-span-2">{error}</p>}
+    </>
   );
 }
 
@@ -326,15 +403,9 @@ export default function ProfilePage() {
             value={data.identity?.lastName}
             icon={User}
           />
-          <InfoField
-            label="کد ملی"
-            value={data.identity?.nationalCode}
-            icon={Hash}
-          />
-          <InfoField
-            label="تاریخ تولد"
-            value={formatDate(data.identity?.birthDate ?? null)}
-            icon={Calendar}
+          <SensitiveIdentityFields
+            maskedNationalCode={data.identity?.nationalCode}
+            formatDate={formatDate}
           />
           <InfoField label="شماره موبایل" value={data.phone} icon={Phone} />
         </div>

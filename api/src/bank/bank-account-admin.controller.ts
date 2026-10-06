@@ -10,7 +10,13 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  MaxLength,
+} from 'class-validator';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
@@ -20,7 +26,9 @@ import { BankAccountService } from './bank-account.service';
 
 class ListBankAccountsQueryDto {
   @IsOptional() @IsString() status?: string;
-  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsString() @MaxLength(100) search?: string;
+  // ورود از صفحه‌ی کاربر: فیلتر با شناسه (نه موبایل در URL — FDP_ACC_EXT.1.1)
+  @IsOptional() @IsUUID() userId?: string;
   @IsOptional() page?: number;
   @IsOptional() limit?: number;
 }
@@ -50,6 +58,7 @@ export class BankAccountAdminController {
     return this.service.adminList({
       status: query.status,
       search: query.search,
+      userId: query.userId,
       page: query.page ? Number(query.page) : undefined,
       limit: query.limit ? Number(query.limit) : undefined,
     });

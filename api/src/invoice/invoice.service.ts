@@ -9,6 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { createHash } from 'crypto';
+import * as QRCode from 'qrcode';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemConfigService } from '../system-config/system-config.service';
@@ -829,6 +830,14 @@ export class InvoiceService {
     ) as 'landscape' | 'portrait';
 
     const s = (d: Prisma.Decimal | null) => (d == null ? null : d.toString());
+    const verifyUrl = `${verifyBase}/${invoice.invoiceNumber}`;
+    // FDP_ACC_EXT.1.3 — QR استعلام سند روی همین سرور ساخته می‌شود (قبلاً با ارسال لینک سند
+    // به سرویس خارجی api.qrserver.com تولید می‌شد)
+    const verifyQrDataUrl = await QRCode.toDataURL(verifyUrl, {
+      margin: 0,
+      width: 150,
+      errorCorrectionLevel: 'M',
+    });
 
     return {
       id: invoice.id,
@@ -899,7 +908,8 @@ export class InvoiceService {
       totalInWords: invoice.totalInWords,
 
       contentHash: invoice.contentHash,
-      verifyUrl: `${verifyBase}/${invoice.invoiceNumber}`,
+      verifyUrl,
+      verifyQrDataUrl,
       cancelReason: invoice.cancelReason,
     };
   }

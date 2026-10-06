@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { logoutAndWipe } from '../utils/session-cleanup';
 
 // ساخت یک نمونه اختصاصی از اکسیوس
 export const api = axios.create({
@@ -17,16 +18,9 @@ api.interceptors.response.use(
   async (error) => {
     // اگر خطای ۴۰۱ (عدم دسترسی / توکن منقضی یا حذف شده) دریافت کردیم
     if (error.response && error.response.status === 401) {
-      try {
-        // ۱. کوکی را از طریق BFF پاک کن
-        await axios.post('/api/auth/logout');
-        
-        // ۲. کاربر را به صفحه لاگین هدایت کن
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
-      } catch (logoutError) {
-        console.error('خطا در خروج خودکار', logoutError);
+      // پایان نشست (انقضا/ابطال): باطل‌کردن نشست، پاک‌سازی کامل داده‌های مرورگر و هدایت به ورود
+      if (typeof window !== 'undefined') {
+        await logoutAndWipe('/api/auth/logout');
       }
     }
     

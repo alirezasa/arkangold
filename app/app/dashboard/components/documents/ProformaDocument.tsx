@@ -17,7 +17,7 @@ const STATUS_STYLE: Record<string, { cls: string; label: string }> = {
 export default function ProformaDocument({ doc }: { doc: InvoiceDocument }) {
   const { company, customer, extra } = doc;
   const badge = STATUS_STYLE[doc.status] ?? STATUS_STYLE.ISSUED;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&data=${encodeURIComponent(doc.verifyUrl)}`;
+  const qrSrc = doc.verifyQrDataUrl;
 
   return (
     <div className="doc-sheet doc-sheet--portrait">

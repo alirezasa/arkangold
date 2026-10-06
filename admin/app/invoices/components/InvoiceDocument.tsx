@@ -9,7 +9,7 @@ const KARAT_LABEL: Record<string, string> = { K18: "۱۸", K24: "۲۴" };
 
 export default function InvoiceDocumentView({ doc }: { doc: InvoiceDocument }) {
   const { company, customer } = doc;
-  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&data=${encodeURIComponent(doc.verifyUrl)}`;
+  const qrSrc = doc.verifyQrDataUrl;
   const hasGold = doc.items.some((i) => i.weightGrams || i.purityKarat);
 
   return (

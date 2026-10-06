@@ -51,7 +51,8 @@ export class HologramUserController {
   @Throttle({ default: { limit: 15, ttl: 60_000 } })
   @Post('verify')
   @ApiOperation({
-    summary: 'استعلام اصالت از داخل پنل کاربری (نمایش کامل کد ملی مالک)',
+    summary:
+      'استعلام اصالت از داخل پنل کاربری (کد ملی مالک فقط برای خود مالک کامل نمایش داده می‌شود)',
   })
   async verify(
     @Req() req: AuthenticatedRequest,

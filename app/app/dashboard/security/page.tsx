@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import axios from "axios";
 import TwoFactorCard from "./TwoFactorCard";
 import {
@@ -17,6 +16,7 @@ import {
   ShieldCheck,
   LogOut,
 } from "lucide-react";
+import { clearClientSessionData } from "@/app/utils/session-cleanup";
 
 function errorMessage(e: unknown, fallback: string) {
   if (axios.isAxiosError(e)) {
@@ -80,7 +80,6 @@ function PasswordInput({
 }
 
 export default function SecurityPage() {
-  const router = useRouter();
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +127,8 @@ export default function SecurityPage() {
     setLogoutError(null);
     try {
       await axios.post("/api/auth/logout-all");
-      router.replace("/login");
+      await clearClientSessionData();
+      window.location.replace("/login");
     } catch (err) {
       setLogoutError(errorMessage(err, "خطا در خروج از دستگاه‌ها"));
       setLoggingOutAll(false);

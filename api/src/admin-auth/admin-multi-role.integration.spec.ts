@@ -17,6 +17,8 @@ import type { MfaService } from '../common/mfa/mfa.service';
 import { AdminManagementService, AdminActor } from './admin-management.service';
 import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
 import { ADMIN_ROLES } from './rbac.const';
+import type { SessionContextService } from '../common/auth-security/session-context.service';
+import type { Request } from 'express';
 
 const url = process.env.INTEGRATION_DATABASE_URL;
 const run = url ? describe : describe.skip;
@@ -46,7 +48,7 @@ run('ادمین چندنقشی (یکپارچه با PostgreSQL)', () => {
         expiresAt: new Date(Date.now() + 60_000),
       },
     });
-    const user = await strategy.validate({
+    const user = await strategy.validate({ headers: {} } as Request, {
       sub: adminUserId,
       username: 'x',
       sessionId: session.id,
@@ -69,7 +71,12 @@ run('ادمین چندنقشی (یکپارچه با PostgreSQL)', () => {
     const mfa = { disable: () => Promise.resolve() } as unknown as MfaService;
     service = new AdminManagementService(prisma, sms, throttle, mfa);
     process.env.JWT_ADMIN_SECRET ??= 'integration-secret-integration-secret';
-    strategy = new AdminJwtStrategy(new ConfigService(), prisma);
+    // کنترل تطبیقی نشست موضوع این آزمون نیست (آزمون جداگانه دارد)
+    const sessionContext = {
+      evaluate: () => Promise.resolve({ action: 'allow' }),
+      assertAdminAccessAllowed: () => Promise.resolve(),
+    } as unknown as SessionContextService;
+    strategy = new AdminJwtStrategy(new ConfigService(), prisma, sessionContext);
     await prisma.adminUser.create({
       data: {
         id: superActor.adminUserId,

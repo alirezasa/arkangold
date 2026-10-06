@@ -12,6 +12,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -22,6 +23,14 @@ import { Prisma, WithdrawalStatus } from '../generated/prisma/client';
 import { AccountingService } from '../accounting/accounting.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { SmsTemplateService } from '../notifications/sms-template.service';
+
+/** FPT_ITT_EXT.1.7 — آیا این مبلغ به تأیید دو نفر مستقل (تأییدکننده ≠ پرداخت‌کننده) نیاز دارد؟ */
+export function requiresDualControl(
+  amountRial: { toString(): string } | number,
+  thresholdRial: number,
+): boolean {
+  return Number(amountRial.toString()) >= thresholdRial;
+}
 
 interface ListWithdrawalsQuery {
   page?: number;
@@ -392,6 +401,15 @@ export class WalletAdminService {
   // ═══════════════════════════ پرداخت بانکی ═══════════════════════════
 
   /** حساب بانک/صندوق مبدأ: کد 1010 یا یکی از معین‌های فعال زیر آن */
+  /** سقف تأیید دونفره (ریال)؛ ۰ یعنی همه‌ی برداشت‌ها */
+  private async dualControlThreshold(): Promise<number> {
+    const v = await this.systemConfig.getNumber(
+      'withdrawal.dual_control_threshold',
+      500_000_000,
+    );
+    return Number.isFinite(v) && v >= 0 ? v : 500_000_000;
+  }
+
   private async resolveSourceAccount(
     tx: Prisma.TransactionClient,
     code: string | undefined,
@@ -438,6 +456,8 @@ export class WalletAdminService {
       throw new BadRequestException('تاریخ پرداخت نامعتبر است');
     }
 
+    const dualControlThreshold = await this.dualControlThreshold();
+
     const result = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'withdrawal:' + withdrawalId}))`;
       await tx.$executeRaw`SELECT 1 FROM "withdrawal_requests" WHERE "id" = ${withdrawalId}::uuid FOR UPDATE`;
@@ -453,6 +473,15 @@ export class WalletAdminService {
           w.status === 'PENDING'
             ? 'ابتدا درخواست را تأیید کنید، سپس پرداخت را ثبت کنید'
             : `درخواست در وضعیت «${STATUS_FA[w.status]}» قابل پرداخت نیست`,
+        );
+      }
+      // FPT_ITT_EXT.1.7 — تفکیک وظایف: برداشت بالای سقف را کسی که تأییدش کرده نمی‌تواند پرداخت کند
+      if (
+        requiresDualControl(w.amountRial, dualControlThreshold) &&
+        w.reviewedById === adminUserId
+      ) {
+        throw new ForbiddenException(
+          'این برداشت بالای سقف تأیید دونفره است؛ پرداخت باید توسط کارشناسی غیر از تأییدکننده ثبت شود',
         );
       }
 

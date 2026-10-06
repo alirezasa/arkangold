@@ -219,6 +219,31 @@ export const WALLET_CONFIG_DEFAULTS = [
     description:
       'روزهای ارسال یادآوری پیش از انقضای کلیدهای API شرکا و اعتبارنامه‌های سرویس‌های ثالث (جدا با ویرگول)',
   },
+  // FDP_ACC_EXT.2.4 / FDP_ACC_EXT.3.4 — کنترل تطبیقی نشست
+  {
+    key: 'security.session.binding_enabled',
+    value: 'true',
+    description:
+      'مقایسه‌ی مشخصات هر درخواست با نشست: تغییر مرورگر/سیستم‌عامل در میانه‌ی نشست → خاتمه‌ی نشست (کاربر و ادمین)',
+  },
+  {
+    key: 'security.session.admin_ip_binding',
+    value: 'true',
+    description:
+      'تغییر شبکه‌ی اتصال (IP) ادمین/نماینده در میانه‌ی نشست → خاتمه‌ی نشست و ورود مجدد (برای کاربران عادی فقط ثبت می‌شود)',
+  },
+  {
+    key: 'security.admin.ip_allowlist',
+    value: '',
+    description:
+      'فهرست IP/شبکه‌های مجاز ورود کارشناسان به پنل مدیریت، جدا با ویرگول (مثلاً 185.1.2.0/24). خالی = بدون محدودیت',
+  },
+  {
+    key: 'security.admin.allowed_hours',
+    value: '',
+    description:
+      'بازه‌ی ساعت مجاز کار کارشناسان با پنل مدیریت به وقت تهران (مثلاً 07:00-23:00). خالی = بدون محدودیت',
+  },
   {
     key: 'security.api_key.lifetime_days',
     value: '365',
@@ -251,6 +276,13 @@ export const WALLET_CONFIG_DEFAULTS = [
   },
 
   // ══ برداشت ══
+  {
+    // FPT_ITT_EXT.1.7 — تفکیک وظایف (maker-checker)
+    key: 'withdrawal.dual_control_threshold',
+    value: '500000000',
+    description:
+      'سقف تأیید دونفره‌ی برداشت (ریال): پرداخت برداشت‌های برابر یا بیشتر از این مبلغ باید توسط کارشناسی غیر از تأییدکننده ثبت شود (۰ = همه‌ی برداشت‌ها)',
+  },
   {
     key: 'withdrawal.daily_limit',
     value: '2000000000',

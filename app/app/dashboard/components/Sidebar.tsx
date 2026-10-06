@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   SIDEBAR_NAV_GROUPS,
   getActiveNavPath,
@@ -10,6 +10,7 @@ import {
 import { ShieldCheck, ShieldAlert } from "lucide-react";
 import GoldPriceCard from "@/app/dashboard/components/gold/GoldPriceCard";
 import { IdentityStatus } from "@arkan-gold/shared";
+import { logoutAndWipe } from "@/app/utils/session-cleanup";
 
 const ALL_SIDEBAR_PATHS = SIDEBAR_NAV_GROUPS.flatMap((g) =>
   g.items.map((i) => i.path),
@@ -35,15 +36,9 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const activePath = getActiveNavPath(pathname, ALL_SIDEBAR_PATHS);
-  const router = useRouter();
 
   const handleLogout = async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      router.replace("/login");
-    } catch {
-      console.error("خطا در خروج");
-    }
+    await logoutAndWipe("/api/auth/logout");
   };
 
   return (

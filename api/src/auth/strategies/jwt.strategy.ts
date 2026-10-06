@@ -6,7 +6,10 @@ import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SessionContextService } from '../../common/auth-security/session-context.service';
 import { JwtPayload } from '@arkan-gold/shared';
-import { JWT_ALGORITHM, jwtVerificationSecret } from '../../common/secrets/jwt-keyring';
+import {
+  JWT_ALGORITHM,
+  jwtVerificationSecret,
+} from '../../common/secrets/jwt-keyring';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -21,7 +24,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ignoreExpiration: false,
       algorithms: [JWT_ALGORITHM],
       // کلید بر اساس kid توکن (کلید فعلی یا کلید قبلی در دوره‌ی چرخش)
-      secretOrKeyProvider: (_req: unknown, rawJwt: string, done: (err: unknown, secret?: string) => void) => {
+      secretOrKeyProvider: (
+        _req: unknown,
+        rawJwt: string,
+        done: (err: unknown, secret?: string) => void,
+      ) => {
         const secret = jwtVerificationSecret('JWT_ACCESS_SECRET', rawJwt);
         if (secret) done(null, secret);
         else done(new UnauthorizedException('نشست نامعتبر است'));
@@ -70,7 +77,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         .catch(() => undefined);
       throw await this.sessionContext.onTerminated(ctx, decision.reason);
     }
-    if (decision.action === 'allow_flag') await this.sessionContext.onFlagged(ctx);
+    if (decision.action === 'allow_flag')
+      await this.sessionContext.onFlagged(ctx);
 
     return {
       userId: payload.sub,

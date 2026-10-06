@@ -15,7 +15,10 @@ import {
   mergePermissions,
   roleKeysOf,
 } from '../admin-roles.util';
-import { JWT_ALGORITHM, jwtVerificationSecret } from '../../common/secrets/jwt-keyring';
+import {
+  JWT_ALGORITHM,
+  jwtVerificationSecret,
+} from '../../common/secrets/jwt-keyring';
 
 // نام استراتژی جدا از JwtStrategy کاربران - جلوگیری از تداخل passport
 export const ADMIN_JWT_STRATEGY_NAME = 'admin-jwt';
@@ -36,7 +39,11 @@ export class AdminJwtStrategy extends PassportStrategy(
       ignoreExpiration: false,
       algorithms: [JWT_ALGORITHM],
       // کلید بر اساس kid توکن (کلید فعلی یا کلید قبلی در دوره‌ی چرخش)
-      secretOrKeyProvider: (_req: unknown, rawJwt: string, done: (err: unknown, secret?: string) => void) => {
+      secretOrKeyProvider: (
+        _req: unknown,
+        rawJwt: string,
+        done: (err: unknown, secret?: string) => void,
+      ) => {
         const secret = jwtVerificationSecret('JWT_ADMIN_SECRET', rawJwt);
         if (secret) done(null, secret);
         else done(new UnauthorizedException('نشست ادمین نامعتبر است'));

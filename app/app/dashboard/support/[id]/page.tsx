@@ -372,6 +372,8 @@ export default function TicketDetailPage() {
               <input
                 ref={fileInputRef}
                 type="file"
+                // هم‌راستا با فهرست مجاز سرور (TICKET_ATTACHMENT_POLICY)
+                accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.xlsx,.txt,.zip"
                 className="hidden"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />

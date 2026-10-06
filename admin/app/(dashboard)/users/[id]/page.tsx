@@ -454,7 +454,7 @@ function IdentitySection({
             value: birthDate
               ? new Date(birthDate).toLocaleDateString("fa-IR")
               : identity.hasBirthDate
-                ? "••••/••/••"
+                ? "پنهان (با «نمایش کد ملی»)"
                 : null,
           },
           { label: "نام پدر", value: identity.fatherName },

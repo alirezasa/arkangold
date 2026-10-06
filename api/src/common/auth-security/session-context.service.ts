@@ -46,7 +46,8 @@ export type SessionDecision =
       reason: 'device_changed' | 'ip_changed';
     };
 
-const normIp = (ip?: string | null) => (ip ?? '').replace(/^::ffff:/, '').trim();
+const normIp = (ip?: string | null) =>
+  (ip ?? '').replace(/^::ffff:/, '').trim();
 
 /** آیا دو IP در یک شبکه‌اند؟ (IPv4: /24 — IPv6: /64) */
 export function sameNetwork(a?: string | null, b?: string | null): boolean {
@@ -57,12 +58,17 @@ export function sameNetwork(a?: string | null, b?: string | null): boolean {
   const vx = isIP(x);
   const vy = isIP(y);
   if (!vx || vx !== vy) return false;
-  if (vx === 4) return x.split('.').slice(0, 3).join('.') === y.split('.').slice(0, 3).join('.');
+  if (vx === 4)
+    return (
+      x.split('.').slice(0, 3).join('.') === y.split('.').slice(0, 3).join('.')
+    );
   const expand = (ip: string) => {
     const [head, tail = ''] = ip.split('::');
     const h = head ? head.split(':') : [];
     const t = tail ? tail.split(':') : [];
-    const fill = Array(Math.max(0, 8 - h.length - t.length)).fill('0');
+    const fill: string[] = new Array<string>(
+      Math.max(0, 8 - h.length - t.length),
+    ).fill('0');
     return [...h, ...fill, ...t].map((p) => p.padStart(4, '0').toLowerCase());
   };
   return expand(x).slice(0, 4).join(':') === expand(y).slice(0, 4).join(':');
@@ -75,8 +81,12 @@ export function sameDevice(a?: string | null, b?: string | null): boolean {
 }
 
 /** «07:00-22:00» → دقیقه‌ی شروع/پایان؛ مقدار خالی/نامعتبر یعنی بدون محدودیت */
-export function parseAllowedHours(raw?: string | null): { from: number; to: number } | null {
-  const m = (raw ?? '').trim().match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
+export function parseAllowedHours(
+  raw?: string | null,
+): { from: number; to: number } | null {
+  const m = (raw ?? '')
+    .trim()
+    .match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
   if (!m) return null;
   const from = Number(m[1]) * 60 + Number(m[2]);
   const to = Number(m[3]) * 60 + Number(m[4]);
@@ -84,7 +94,10 @@ export function parseAllowedHours(raw?: string | null): { from: number; to: numb
   return { from, to };
 }
 
-export function withinHours(range: { from: number; to: number }, now = new Date()): boolean {
+export function withinHours(
+  range: { from: number; to: number },
+  now = new Date(),
+): boolean {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Tehran',
     hour: '2-digit',
@@ -95,12 +108,19 @@ export function withinHours(range: { from: number; to: number }, now = new Date(
   const min = Number(parts.find((p) => p.type === 'minute')?.value ?? 0);
   const t = h * 60 + min;
   // بازه می‌تواند از نیمه‌شب عبور کند (مثلاً 22:00-06:00)
-  return range.from < range.to ? t >= range.from && t < range.to : t >= range.from || t < range.to;
+  return range.from < range.to
+    ? t >= range.from && t < range.to
+    : t >= range.from || t < range.to;
 }
 
 /** فهرست IP/CIDR جدا با ویرگول یا فاصله → BlockList (null = بدون محدودیت) */
-export function parseIpAllowlist(raw?: string | null): { list: BlockList; invalid: string[] } | null {
-  const items = (raw ?? '').split(/[,،\s]+/).map((s) => s.trim()).filter(Boolean);
+export function parseIpAllowlist(
+  raw?: string | null,
+): { list: BlockList; invalid: string[] } | null {
+  const items = (raw ?? '')
+    .split(/[,،\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (!items.length) return null;
   const list = new BlockList();
   const invalid: string[] = [];
@@ -115,7 +135,8 @@ export function parseIpAllowlist(raw?: string | null): { list: BlockList; invali
     if (prefix === undefined) list.addAddress(addr, family);
     else {
       const p = Number(prefix);
-      if (!Number.isInteger(p) || p < 0 || p > (v === 4 ? 32 : 128)) invalid.push(item);
+      if (!Number.isInteger(p) || p < 0 || p > (v === 4 ? 32 : 128))
+        invalid.push(item);
       else list.addSubnet(addr, p, family);
     }
   }
@@ -145,12 +166,13 @@ export class SessionContextService {
   }
 
   async settings() {
-    const [bindingEnabled, adminIpBinding, allowlist, hours] = await Promise.all([
-      this.systemConfig.getBoolean('security.session.binding_enabled', true),
-      this.systemConfig.getBoolean('security.session.admin_ip_binding', true),
-      this.systemConfig.get('security.admin.ip_allowlist', ''),
-      this.systemConfig.get('security.admin.allowed_hours', ''),
-    ]);
+    const [bindingEnabled, adminIpBinding, allowlist, hours] =
+      await Promise.all([
+        this.systemConfig.getBoolean('security.session.binding_enabled', true),
+        this.systemConfig.getBoolean('security.session.admin_ip_binding', true),
+        this.systemConfig.get('security.admin.ip_allowlist', ''),
+        this.systemConfig.get('security.admin.allowed_hours', ''),
+      ]);
     return {
       bindingEnabled,
       adminIpBinding,
@@ -202,10 +224,15 @@ export class SessionContextService {
   }
 
   /** ثبت رویداد و ساخت خطای خاتمه‌ی نشست */
-  async onTerminated(input: SessionContextInput, reason: 'device_changed' | 'ip_changed') {
+  async onTerminated(
+    input: SessionContextInput,
+    reason: 'device_changed' | 'ip_changed',
+  ) {
     const event = {
       action:
-        input.kind === 'admin' ? 'admin_auth.session_context_changed' : 'auth.session_context_changed',
+        input.kind === 'admin'
+          ? 'admin_auth.session_context_changed'
+          : 'auth.session_context_changed',
       source: SessionContextService.name,
       success: false,
       ip: input.requestIp ?? null,
@@ -220,9 +247,15 @@ export class SessionContextService {
     if (input.kind === 'admin') {
       await this.audit.logAdmin({ ...event, adminUserId: input.ownerId });
     } else {
-      await this.audit.logUser({ ...event, userId: input.ownerId, entityType: 'session' });
+      await this.audit.logUser({
+        ...event,
+        userId: input.ownerId,
+        entityType: 'session',
+      });
     }
-    this.logger.warn(`نشست ${input.kind} به‌دلیل ${reason} خاتمه یافت (${input.sessionId})`);
+    this.logger.warn(
+      `نشست ${input.kind} به‌دلیل ${reason} خاتمه یافت (${input.sessionId})`,
+    );
     return new UnauthorizedException({
       message:
         reason === 'device_changed'
@@ -235,10 +268,12 @@ export class SessionContextService {
   /** ثبت تغییر شبکه‌ی کاربر عادی (بدون خاتمه) — یک‌بار برای هر شبکه‌ی جدید در هر نشست */
   async onFlagged(input: SessionContextInput) {
     const key = `sess-net:${input.sessionId}:${normIp(input.requestIp)}`;
-    const first = await this.redis
-      .set(key, '1', 'EX', 7 * 86_400, 'NX')
-      .catch(() => null);
-    if (first !== 'OK') return;
+    try {
+      const first = await this.redis.set(key, '1', 'EX', 7 * 86_400, 'NX');
+      if (first !== 'OK') return;
+    } catch {
+      return;
+    }
     await this.audit.logUser({
       userId: input.ownerId,
       action: 'auth.session_network_changed',

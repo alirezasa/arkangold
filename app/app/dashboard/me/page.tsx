@@ -35,10 +35,13 @@ function InfoField({
   label,
   value,
   icon: Icon,
+  ltr,
 }: {
   label: string;
   value: string | null | undefined;
   icon: React.ElementType;
+  /** مقادیر پوشانده/عددی (کد ملی) چپ‌به‌راست تا ترتیب ارقام و ستاره‌ها جابه‌جا نشود */
+  ltr?: boolean;
 }) {
   return (
     <div
@@ -53,7 +56,9 @@ function InfoField({
       </div>
       <div>
         <p className="text-[11px] font-bold text-gray-400 mb-0.5">{label}</p>
-        <p className="text-[14px] font-bold text-gray-800">{value || "—"}</p>
+        <p className="text-[14px] font-bold text-gray-800">
+          {ltr ? <bdi dir="ltr">{value || "—"}</bdi> : value || "—"}
+        </p>
       </div>
     </div>
   );
@@ -65,7 +70,7 @@ function SensitiveIdentityFields({
   formatDate,
 }: {
   maskedNationalCode: string | null | undefined;
-  formatDate: (d: string | null) => string;
+  formatDate: (d: string | null) => string | null;
 }) {
   const [revealed, setRevealed] = useState<{
     nationalCode: string | null;
@@ -120,12 +125,13 @@ function SensitiveIdentityFields({
           label="کد ملی"
           value={revealed?.nationalCode ?? maskedNationalCode}
           icon={Hash}
+          ltr
         />
         <div className="absolute top-3 left-3">{toggleButton}</div>
       </div>
       <InfoField
         label="تاریخ تولد"
-        value={revealed ? formatDate(revealed.birthDate) : maskedNationalCode ? "••••/••/••" : null}
+        value={revealed ? formatDate(revealed.birthDate) : maskedNationalCode ? "پنهان — با «نمایش» کد ملی" : null}
         icon={Calendar}
       />
       {error && <p className="text-[11px] text-red-500 sm:col-span-2">{error}</p>}

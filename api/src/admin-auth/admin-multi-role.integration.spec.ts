@@ -76,7 +76,11 @@ run('ادمین چندنقشی (یکپارچه با PostgreSQL)', () => {
       evaluate: () => Promise.resolve({ action: 'allow' }),
       assertAdminAccessAllowed: () => Promise.resolve(),
     } as unknown as SessionContextService;
-    strategy = new AdminJwtStrategy(new ConfigService(), prisma, sessionContext);
+    strategy = new AdminJwtStrategy(
+      new ConfigService(),
+      prisma,
+      sessionContext,
+    );
     await prisma.adminUser.create({
       data: {
         id: superActor.adminUserId,

@@ -1,6 +1,7 @@
 import { PackagingService, ResolvedPackaging } from './packaging.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { SystemConfigService } from '../system-config/system-config.service';
+import type { FileSecurityService } from '../common/file-security/file-security.service';
 
 const option = (over: Partial<ResolvedPackaging> = {}): ResolvedPackaging => ({
   id: 'box',
@@ -20,6 +21,7 @@ describe('PackagingService (محاسبه بسته‌بندی)', () => {
   const service = new PackagingService(
     {} as PrismaService,
     {} as SystemConfigService,
+    {} as FileSecurityService,
   );
 
   it('قیمت per-unit در تعداد ضرب می‌شود و per-line فقط یک‌بار', () => {

@@ -4,7 +4,9 @@
 // کامل فقط با درخواست صریح («نمایش») از endpoint جداگانه و با ثبت رویداد ممیزی انجام می‌شود.
 
 /** ۰۰۱۲۳۴۵۶۷۸ → ۰۰۱****۶۷۸ */
-export function maskNationalCode(code: string | null | undefined): string | null {
+export function maskNationalCode(
+  code: string | null | undefined,
+): string | null {
   if (!code) return null;
   if (code.length < 7) return '*'.repeat(code.length);
   return `${code.slice(0, 3)}${'*'.repeat(code.length - 6)}${code.slice(-3)}`;

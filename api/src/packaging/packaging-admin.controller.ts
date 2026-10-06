@@ -16,16 +16,13 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import * as fs from 'fs';
-import { randomUUID } from 'crypto';
+import { memoryStorage } from 'multer';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
 import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
-import { PACKAGING_UPLOAD_DIR, PackagingService } from './packaging.service';
+import { PackagingService } from './packaging.service';
 import {
   CreatePackagingOptionDto,
   SetProductPackagingDto,
@@ -33,11 +30,7 @@ import {
   UpdatePackagingSettingsDto,
 } from './packaging.dto';
 
-if (!fs.existsSync(PACKAGING_UPLOAD_DIR)) {
-  fs.mkdirSync(PACKAGING_UPLOAD_DIR, { recursive: true });
-}
-
-const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_PACKAGING_IMAGE_BYTES = 3 * 1024 * 1024;
 
 @ApiTags('Admin - Shop Packaging')
 @ApiBearerAuth()
@@ -100,27 +93,9 @@ export class PackagingAdminController {
   @UseInterceptors(
     AuditLogInterceptor,
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: PACKAGING_UPLOAD_DIR,
-        filename: (_req, file, cb) => {
-          cb(
-            null,
-            `${Date.now()}-${randomUUID()}${extname(file.originalname)}`,
-          );
-        },
-      }),
-      limits: { fileSize: 3 * 1024 * 1024 }, // ۳ مگابایت
-      fileFilter: (_req, file, cb) => {
-        if (!ALLOWED_MIME.includes(file.mimetype)) {
-          return cb(
-            new BadRequestException(
-              'فرمت فایل مجاز نیست (فقط JPEG, PNG, WEBP)',
-            ),
-            false,
-          );
-        }
-        cb(null, true);
-      },
+      // فایل پیش از نوشتن در پوشه‌ی عمومی بررسی و بازانکود می‌شود (FileSecurityService)
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_PACKAGING_IMAGE_BYTES, files: 1 },
     }),
   )
   @Post('packaging/:id/image')

@@ -10,7 +10,8 @@ import {
 const CHROME_WIN =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36';
 const CHROME_WIN_NEWER = CHROME_WIN.replace('Chrome/120.0', 'Chrome/121.0');
-const FIREFOX_LINUX = 'Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0';
+const FIREFOX_LINUX =
+  'Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0';
 
 describe('session context helpers', () => {
   it('treats browser version updates as the same device, other browsers as different', () => {
@@ -29,7 +30,7 @@ describe('session context helpers', () => {
   });
 
   it('parses allowlists with CIDR and single addresses', () => {
-    const parsed = parseIpAllowlist('185.1.2.0/24, 10.0.0.5 bad/99')!;
+    const parsed = parseIpAllowlist('185.1.2.0/24, 10.0.0.5 bad/99');
     expect(parsed.invalid).toEqual(['bad/99']);
     expect(ipAllowed(parsed.list, '185.1.2.77')).toBe(true);
     expect(ipAllowed(parsed.list, '10.0.0.5')).toBe(true);
@@ -38,12 +39,12 @@ describe('session context helpers', () => {
   });
 
   it('evaluates working hours in Tehran time, including overnight ranges', () => {
-    const day = parseAllowedHours('07:00-22:00')!;
+    const day = parseAllowedHours('07:00-22:00');
     // 08:00 UTC = 11:30 Tehran
     expect(withinHours(day, new Date('2026-01-01T08:00:00Z'))).toBe(true);
     // 20:00 UTC = 23:30 Tehran
     expect(withinHours(day, new Date('2026-01-01T20:00:00Z'))).toBe(false);
-    const night = parseAllowedHours('22:00-06:00')!;
+    const night = parseAllowedHours('22:00-06:00');
     expect(withinHours(night, new Date('2026-01-01T20:00:00Z'))).toBe(true);
     expect(parseAllowedHours('nonsense')).toBeNull();
   });

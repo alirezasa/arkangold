@@ -21,7 +21,8 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'crypto';
-import sharp from 'sharp';
+import { FileSecurityService } from '../file-security/file-security.service';
+import { DEPOSIT_RECEIPT_POLICY } from '../file-security/upload-policies';
 
 export interface StoredObject {
   storageKey: string;
@@ -44,7 +45,10 @@ export class StorageService implements OnModuleInit {
   private client!: S3Client;
   private bucket!: string;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly fileSecurity: FileSecurityService,
+  ) {}
 
   onModuleInit() {
     const endpoint = this.config.get<string>('S3_ENDPOINT');
@@ -132,30 +136,14 @@ export class StorageService implements OnModuleInit {
 
     const { ext } = this.detectType(file.buffer);
 
-    let normalized: Buffer;
-    let outMime: string;
-    try {
-      const pipeline = sharp(file.buffer, { failOn: 'error' })
-        .rotate() // اعمال جهت EXIF سپس حذف آن
-        .resize({
-          width: 2200,
-          height: 2200,
-          fit: 'inside',
-          withoutEnlargement: true,
-        });
-
-      if (ext === 'png') {
-        normalized = await pipeline.png({ compressionLevel: 8 }).toBuffer();
-        outMime = 'image/png';
-      } else {
-        normalized = await pipeline
-          .jpeg({ quality: 86, mozjpeg: true })
-          .toBuffer();
-        outMime = 'image/jpeg';
-      }
-    } catch {
-      throw new BadRequestException('فایل تصویر معتبر نیست یا آسیب دیده است');
-    }
+    // ابعاد پیکسلی (pixel flood)، پویش ضدبدافزار و بازانکود بدون EXIF/GPS — سازوکار متمرکز
+    // FileSecurityService (نام کاربر نادیده گرفته می‌شود؛ پسوند از بایت‌های جادویی)
+    const clean = await this.fileSecurity.process(
+      { originalname: `receipt.${ext}`, buffer: file.buffer },
+      DEPOSIT_RECEIPT_POLICY,
+    );
+    const normalized = clean.buffer;
+    const outMime = clean.mime;
 
     const outExt = outMime === 'image/png' ? 'png' : 'jpg';
     // نام فایل تصادفی سمت سرور — هرگز originalname کاربر

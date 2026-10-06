@@ -12,7 +12,12 @@ import {
 import { Response } from 'express';
 import { IsOptional, IsString, IsBoolean } from 'class-validator';
 import { UsersService } from './users.service';
-import { LegalDocumentsService } from './legal-documents.service';
+import {
+  LegalDocumentsService,
+  assertInsideLegalDir,
+} from './legal-documents.service';
+import { contentDisposition } from '../common/file-security/content-disposition';
+import { extensionOf } from '../common/file-security/file-signature';
 import { PrismaService } from '../prisma/prisma.service';
 import { LegalProfileStatus, Prisma } from '../generated/prisma/client';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
@@ -144,6 +149,14 @@ export class UsersAdminController {
     @Res() res: Response,
   ) {
     const doc = await this.legalDocumentsService.getForAdmin(documentId);
-    return res.download(doc.filePath, doc.fileName);
+    // FPT_RVM_EXT.2.1 / FPT_RVM_EXT.3.1 — مسیر کنترل‌شده، MIME ثابت سرور، دانلود اجباری با نام
+    // پاک‌سازی‌شده (RFC 6266) و بدون امکان اجرای محتوا در مرورگر
+    const full = assertInsideLegalDir(doc.filePath);
+    const ext = extensionOf(full);
+    res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', contentDisposition(doc.fileName, ext));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    return res.sendFile(full, { dotfiles: 'deny', headers: {} });
   }
 }

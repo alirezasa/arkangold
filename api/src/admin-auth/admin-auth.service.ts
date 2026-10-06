@@ -536,7 +536,9 @@ export class AdminAuthService {
           userAgent,
           source: AUDIT_SOURCE,
           success: false,
-          newValue: { reason: (err as { response?: { code?: string } }).response?.code },
+          newValue: {
+            reason: (err as { response?: { code?: string } }).response?.code,
+          },
         });
         throw err;
       }

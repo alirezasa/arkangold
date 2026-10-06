@@ -8,6 +8,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { join } from 'path';
+import { inspect } from 'util';
 import { PinoLoggerService } from './common/logging/pino-logger.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditService } from './common/audit/audit.service';
@@ -53,8 +54,15 @@ function resolveCorsOrigins(): string[] {
 function installProcessErrorHandlers(logger: PinoLoggerService) {
   let ready = false;
   process.on('unhandledRejection', (reason) => {
-    const err = reason instanceof Error ? reason : new Error(String(reason));
-    logger.error(`Promise رد‌شده‌ی مدیریت‌نشده: ${err.message}`, err.stack, 'Process');
+    const err =
+      reason instanceof Error
+        ? reason
+        : new Error(inspect(reason, { depth: 2 }));
+    logger.error(
+      `Promise رد‌شده‌ی مدیریت‌نشده: ${err.message}`,
+      err.stack,
+      'Process',
+    );
   });
   process.on('uncaughtException', (err) => {
     logger.error(`استثنای مدیریت‌نشده: ${err.message}`, err.stack, 'Process');

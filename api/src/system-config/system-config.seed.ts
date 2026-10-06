@@ -219,6 +219,19 @@ export const WALLET_CONFIG_DEFAULTS = [
     description:
       'روزهای ارسال یادآوری پیش از انقضای کلیدهای API شرکا و اعتبارنامه‌های سرویس‌های ثالث (جدا با ویرگول)',
   },
+  // FPT_RVM_EXT — امنیت فایل‌های بارگذاری‌شده
+  {
+    key: 'upload.antivirus.mode',
+    value: 'auto',
+    description:
+      'پویش ضدبدافزار آپلودها با ClamAV: auto (اگر CLAMAV_HOST تنظیم شده باشد اجباری و fail-closed)، required (بدون پویشگر هیچ آپلودی پذیرفته نمی‌شود)، off (فقط محیط توسعه)',
+  },
+  {
+    key: 'upload.max_image_pixels',
+    value: '40000000',
+    description:
+      'بیشینه‌ی تعداد پیکسل تصویر آپلودی (عرض × ارتفاع) پیش از پردازش — مقابله با pixel flood (حداقل ۱٬۰۰۰٬۰۰۰)',
+  },
   // FDP_ACC_EXT.2.4 / FDP_ACC_EXT.3.4 — کنترل تطبیقی نشست
   {
     key: 'security.session.binding_enabled',

@@ -26,7 +26,9 @@ export class UsersController {
 
   @Post('me/identity/reveal')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @ApiOperation({ summary: 'نمایش کامل کد ملی و تاریخ تولد (با درخواست صریح کاربر)' })
+  @ApiOperation({
+    summary: 'نمایش کامل کد ملی و تاریخ تولد (با درخواست صریح کاربر)',
+  })
   revealIdentity(@Req() req: AuthenticatedRequest) {
     return this.usersService.revealIdentity(
       req.user.userId,

@@ -109,7 +109,11 @@ export class HologramUserController {
     return this.transferService.listIncoming(req.user.phone);
   }
 
-  @OwnedResource({ model: 'ownershipTransferRequest', ownerPath: 'recipientPhoneNumber', actorKey: 'phone' })
+  @OwnedResource({
+    model: 'ownershipTransferRequest',
+    ownerPath: 'recipientPhoneNumber',
+    actorKey: 'phone',
+  })
   @Get('transfer-requests/:id')
   @ApiOperation({ summary: 'جزئیات یک درخواست انتقال ورودی' })
   getOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
@@ -117,7 +121,11 @@ export class HologramUserController {
   }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  @OwnedResource({ model: 'ownershipTransferRequest', ownerPath: 'recipientPhoneNumber', actorKey: 'phone' })
+  @OwnedResource({
+    model: 'ownershipTransferRequest',
+    ownerPath: 'recipientPhoneNumber',
+    actorKey: 'phone',
+  })
   @Post('transfer-requests/:id/confirm')
   @ApiOperation({
     summary: 'تأیید انتقال مالکیت — نیازمند احراز هویت (KYC) گیرنده',
@@ -135,7 +143,11 @@ export class HologramUserController {
     );
   }
 
-  @OwnedResource({ model: 'ownershipTransferRequest', ownerPath: 'recipientPhoneNumber', actorKey: 'phone' })
+  @OwnedResource({
+    model: 'ownershipTransferRequest',
+    ownerPath: 'recipientPhoneNumber',
+    actorKey: 'phone',
+  })
   @Post('transfer-requests/:id/reject')
   @ApiOperation({ summary: 'رد درخواست انتقال مالکیت' })
   reject(

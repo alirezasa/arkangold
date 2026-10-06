@@ -12,9 +12,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import * as fs from 'fs';
+import { memoryStorage } from 'multer';
 import { IsString, IsOptional, IsArray, ArrayNotEmpty } from 'class-validator';
 import { ProductImagesService } from './product-images.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
@@ -22,12 +20,8 @@ import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guar
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
 import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
-import { randomUUID } from 'crypto';
+import { CATALOG_IMAGE_POLICY } from '../common/file-security/upload-policies';
 
-const UPLOAD_DIR = './uploads/products';
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILES = 10;
 
 class UpdateImageDto {
@@ -57,25 +51,9 @@ export class ProductImagesAdminController {
   @UseInterceptors(
     AuditLogInterceptor,
     FilesInterceptor('files', MAX_FILES, {
-      storage: diskStorage({
-        destination: UPLOAD_DIR,
-        filename: (_req, file, cb) => {
-          const unique = `${Date.now()}-${randomUUID()}${extname(file.originalname)}`;
-          cb(null, unique);
-        },
-      }),
-      limits: { fileSize: 5 * 1024 * 1024 }, // ۵ مگابایت هر فایل
-      fileFilter: (_req, file, cb) => {
-        if (!ALLOWED_MIME.includes(file.mimetype)) {
-          return cb(
-            new BadRequestException(
-              'فرمت فایل مجاز نیست (فقط JPEG, PNG, WEBP)',
-            ),
-            false,
-          );
-        }
-        cb(null, true);
-      },
+      // فایل پیش از نوشتن در پوشه‌ی عمومی بررسی و بازانکود می‌شود (FileSecurityService)
+      storage: memoryStorage(),
+      limits: { fileSize: CATALOG_IMAGE_POLICY.maxBytes, files: MAX_FILES },
     }),
   )
   @Post('products/:id/images')

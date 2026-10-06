@@ -129,5 +129,7 @@ export interface InvoiceDocumentDto {
 
   contentHash: string;
   verifyUrl: string;
+  /** تصویر QR لینک استعلام (data:image/png) — تولیدشده در سرور، بدون سرویس ثالث */
+  verifyQrDataUrl: string;
   cancelReason: string | null;
 }

@@ -38,6 +38,7 @@ import {
   getErrorMessage,
 } from "./ui";
 import AuthSection from "./AuthSection";
+import DataProtectionSection from "./DataProtectionSection";
 
 type SecretSource = "vault" | "file" | "env" | "missing";
 
@@ -508,7 +509,7 @@ function CryptoSection() {
   );
 }
 
-type Tab = "auth" | "crypto";
+type Tab = "auth" | "data" | "crypto";
 
 export default function SecurityPage() {
   const [tab, setTab] = useState<Tab>("auth");
@@ -527,6 +528,7 @@ export default function SecurityPage() {
         {(
           [
             { key: "auth", label: "احراز هویت و ورود" },
+            { key: "data", label: "حفاظت داده و فایل" },
             { key: "crypto", label: "رمزنگاری و کلیدها" },
           ] as const
         ).map((t) => (
@@ -544,7 +546,7 @@ export default function SecurityPage() {
           </button>
         ))}
       </div>
-      {tab === "auth" ? <AuthSection /> : <CryptoSection />}
+      {tab === "auth" ? <AuthSection /> : tab === "data" ? <DataProtectionSection /> : <CryptoSection />}
     </div>
   );
 }

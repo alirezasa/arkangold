@@ -31,6 +31,7 @@ import {
   mergePermissions,
   summarizeRoles,
 } from './admin-roles.util';
+import { SessionContextService } from '../common/auth-security/session-context.service';
 
 const AUDIT_SOURCE = 'AdminAuthService';
 
@@ -83,6 +84,7 @@ export class AdminAuthService {
     private loginAlerts: LoginAlertService,
     private challenges: LoginChallengeService,
     private mfa: MfaService,
+    private sessionContext: SessionContextService,
   ) {}
 
   async login(
@@ -518,6 +520,30 @@ export class AdminAuthService {
     action: 'admin_auth.login' | 'admin_auth.login_otp',
     extra?: Record<string, unknown>,
   ) {
+    // FDP_ACC_EXT.3.4 — کارشناسان سازمان فقط از شبکه‌ی مجاز و در ساعات مجاز وارد می‌شوند
+    const { agentId } = await this.prisma.adminUser.findUniqueOrThrow({
+      where: { id: admin.id },
+      select: { agentId: true },
+    });
+    if (!agentId) {
+      try {
+        await this.sessionContext.assertAdminAccessAllowed(ip);
+      } catch (err) {
+        await this.auditService.logAdmin({
+          adminUserId: admin.id,
+          action: 'admin_auth.login_context_denied',
+          ip,
+          userAgent,
+          source: AUDIT_SOURCE,
+          success: false,
+          newValue: {
+            reason: (err as { response?: { code?: string } }).response?.code,
+          },
+        });
+        throw err;
+      }
+    }
+
     await this.prisma.adminUser.update({
       where: { id: admin.id },
       data: {

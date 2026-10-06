@@ -32,6 +32,7 @@ import { businessRuleViolation } from '../common/audit/business-rule.util';
 import { DocumentSequenceService } from '../common/documents/document-sequence.service';
 import { ShopOrderEventsService } from './shop-order-events.service';
 import { ShopOrderFulfillmentService } from './shop-order-fulfillment.service';
+import { maskNationalCode } from '../common/privacy/masking';
 
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 const PENDING_PAYMENT_TTL_MINUTES = 30;
@@ -1316,7 +1317,8 @@ export class ShopOrdersService {
         fullName:
           `${order.user.identity?.firstName ?? ''} ${order.user.identity?.lastName ?? ''}`.trim() ||
           null,
-        nationalCode: order.user.identity?.nationalCode ?? null,
+        // FDP_ACC_EXT.1.5 — پوشانده؛ کد ملی کامل از صفحه‌ی کاربر با «نمایش»
+        nationalCode: maskNationalCode(order.user.identity?.nationalCode),
       },
       payments: order.payments.map((p) => ({
         id: p.id,

@@ -5,6 +5,7 @@ import {
   Post,
   Body,
   Param,
+  ParseUUIDPipe,
   Query,
   Req,
   UseGuards,
@@ -65,6 +66,16 @@ export class UsersAdminListController {
   @Get(':id')
   getOne(@Param('id') id: string) {
     return this.service.getOne(id);
+  }
+
+  // FDP_ACC_EXT.1.5 — نمایش کامل کد ملی/تاریخ تولد فقط با درخواست صریح کارشناس؛ ثبت در ممیزی
+  @RequirePermission('users.view')
+  @AuditLog('user.identity_revealed')
+  @UseInterceptors(AuditLogInterceptor)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post(':id/identity/reveal')
+  revealIdentity(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.revealIdentity(id);
   }
 
   // استعلام مجدد اطلاعات هویتی کاربر از ثبت احوال (هزینه‌ی وب‌سرویس دارد → دسترسی جدا)

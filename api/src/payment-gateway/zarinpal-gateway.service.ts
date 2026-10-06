@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
+import {
+  CircuitBreaker,
+  isUpstreamFailure,
+} from '../common/resilience/circuit-breaker';
 import { SystemConfigService } from '../system-config/system-config.service';
 import {
   PaymentGatewayProvider,
@@ -11,6 +15,8 @@ import {
   PaymentRefundResult,
 } from './interfaces/payment-gateway-provider.interface';
 
+// FPT_FLS_EXT.1.2 — هیچ فراخوانی درگاه بدون سقف زمانی نیست
+const ZARINPAL_TIMEOUT_MS = 15_000;
 const SANDBOX_BASE = 'https://sandbox.zarinpal.com/pg/v4/payment';
 const PROD_BASE = 'https://api.zarinpal.com/pg/v4/payment';
 const SANDBOX_START_PAY = 'https://sandbox.zarinpal.com/pg/StartPay';
@@ -53,6 +59,7 @@ interface ZarinpalReverseResponse {
 export class ZarinpalGatewayService implements PaymentGatewayProvider {
   readonly key = 'ZARINPAL' as const;
   private readonly logger = new Logger(ZarinpalGatewayService.name);
+  private readonly breaker = CircuitBreaker.for('zarinpal');
 
   constructor(private readonly systemConfig: SystemConfigService) {}
 
@@ -85,15 +92,20 @@ export class ZarinpalGatewayService implements PaymentGatewayProvider {
   ): Promise<PaymentRequestResult> {
     const { merchantId, baseUrl, startPayUrl } = await this.getConfig();
 
-    const res = await axios.post<ZarinpalRequestResponse>(
-      `${baseUrl}/request.json`,
-      {
-        merchant_id: merchantId,
-        amount: this.rialToToman(params.amountRial),
-        description: params.description,
-        callback_url: params.callbackUrl,
-        metadata: { order_id: params.orderId },
-      },
+    const res = await this.breaker.execute(
+      () =>
+        axios.post<ZarinpalRequestResponse>(
+          `${baseUrl}/request.json`,
+          {
+            merchant_id: merchantId,
+            amount: this.rialToToman(params.amountRial),
+            description: params.description,
+            callback_url: params.callbackUrl,
+            metadata: { order_id: params.orderId },
+          },
+          { timeout: ZARINPAL_TIMEOUT_MS },
+        ),
+      isUpstreamFailure,
     );
 
     const data = res.data?.data;
@@ -124,13 +136,18 @@ export class ZarinpalGatewayService implements PaymentGatewayProvider {
       };
     }
 
-    const res = await axios.post<ZarinpalVerifyResponse>(
-      `${baseUrl}/verify.json`,
-      {
-        merchant_id: merchantId,
-        amount: this.rialToToman(params.amountRial),
-        authority: params.providerRef,
-      },
+    const res = await this.breaker.execute(
+      () =>
+        axios.post<ZarinpalVerifyResponse>(
+          `${baseUrl}/verify.json`,
+          {
+            merchant_id: merchantId,
+            amount: this.rialToToman(params.amountRial),
+            authority: params.providerRef,
+          },
+          { timeout: ZARINPAL_TIMEOUT_MS },
+        ),
+      isUpstreamFailure,
     );
 
     const data = res.data?.data;
@@ -149,12 +166,17 @@ export class ZarinpalGatewayService implements PaymentGatewayProvider {
   ): Promise<PaymentRefundResult> {
     const { merchantId, baseUrl } = await this.getConfig();
     try {
-      const res = await axios.post<ZarinpalReverseResponse>(
-        `${baseUrl}/reverse.json`,
-        {
-          merchant_id: merchantId,
-          authority: params.providerRef,
-        },
+      const res = await this.breaker.execute(
+        () =>
+          axios.post<ZarinpalReverseResponse>(
+            `${baseUrl}/reverse.json`,
+            {
+              merchant_id: merchantId,
+              authority: params.providerRef,
+            },
+            { timeout: ZARINPAL_TIMEOUT_MS },
+          ),
+        isUpstreamFailure,
       );
       return { success: res.data?.data?.code === 100, rawResponse: res.data };
     } catch (err) {

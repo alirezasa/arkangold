@@ -20,18 +20,19 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { STORAGE_SERVICE, IStorageService } from './storage/storage.service';
+import { TICKET_MAX_FILES_PER_UPLOAD } from './tickets-file.util';
 import {
-  buildTicketStorageKey,
-  validateUploadedFile,
-  getExtension,
-  TICKET_MAX_FILES_PER_UPLOAD,
-} from './tickets-file.util';
+  FileSecurityService,
+  SanitizedFile,
+  UploadActor,
+} from '../common/file-security/file-security.service';
+import { TICKET_ATTACHMENT_POLICY } from '../common/file-security/upload-policies';
 import {
   ticketCreatedSmsText,
   ticketNewUserMessageAdminSmsText,
   ticketStatusChangedSmsText,
 } from './tickets-sms-messages.util';
-import { randomInt } from 'crypto';
+import { randomInt, randomUUID } from 'crypto';
 
 type UploadedFileLike = {
   originalname: string;
@@ -46,6 +47,7 @@ export class TicketsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     @Inject(STORAGE_SERVICE) private readonly storage: IStorageService,
+    private readonly fileSecurity: FileSecurityService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -266,6 +268,7 @@ export class TicketsService {
     ticketId: string,
     files: UploadedFileLike[],
     messageId?: string,
+    actor: UploadActor = {},
   ) {
     const ticket = await this.assertOwnership(userId, ticketId);
     if (ticket.status === TicketStatus.CLOSED) {
@@ -290,18 +293,27 @@ export class TicketsService {
     const created: Array<
       Awaited<ReturnType<typeof this.prisma.ticketAttachment.create>>
     > = [];
+    // ابتدا همه‌ی فایل‌ها بررسی و پاک‌سازی می‌شوند (نوع واقعی، ضدبدافزار، فراداده، آرشیو)؛
+    // اگر یکی رد شود هیچ فایلی ذخیره نمی‌شود
+    const cleaned: SanitizedFile[] = [];
     for (const file of files) {
-      validateUploadedFile(file);
-      const { storageKey } = buildTicketStorageKey(
-        userId,
-        ticketId,
-        file.originalname,
+      cleaned.push(
+        await this.fileSecurity.process(file, TICKET_ATTACHMENT_POLICY, {
+          ...actor,
+          userId,
+        }),
       );
+    }
+
+    for (const clean of cleaned) {
+      // FPT_RVM_EXT.2.2 — کلید ذخیره‌سازی فقط از شناسه‌های داخلی و پسوند تعیین‌شده توسط سرور
+      const storageKey = `${userId}/Ticket/${ticketId}/${randomUUID()}.${clean.ext}`;
 
       await this.storage.upload({
         key: storageKey,
-        buffer: file.buffer,
-        mimeType: file.mimetype,
+        buffer: clean.buffer,
+        mimeType: clean.mime,
+        fileName: clean.displayName,
       });
 
       const record = await this.prisma.ticketAttachment.create({
@@ -309,11 +321,11 @@ export class TicketsService {
           ticketId,
           messageId: messageId ?? null,
           userId,
-          originalFilename: file.originalname,
+          originalFilename: clean.displayName,
           storageKey,
-          mimeType: file.mimetype,
-          fileSize: file.size,
-          extension: getExtension(file.originalname),
+          mimeType: clean.mime,
+          fileSize: clean.size,
+          extension: clean.ext,
         },
       });
       created.push(record);
@@ -321,7 +333,7 @@ export class TicketsService {
       await this.logActivity(ticketId, {
         userId,
         action: TicketActivityAction.FILE_UPLOADED,
-        metadata: { attachmentId: record.id, filename: file.originalname },
+        metadata: { attachmentId: record.id, filename: clean.displayName },
       });
     }
 

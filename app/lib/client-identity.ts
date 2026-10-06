@@ -113,6 +113,17 @@ export async function clientIdentityHeaders(): Promise<Record<string, string>> {
   return result;
 }
 
+const SENSITIVE_QUERY_HEADER = "x-arkan-query";
+
+async function incomingSensitiveQuery(): Promise<string | null> {
+  try {
+    const value = (await headers()).get(SENSITIVE_QUERY_HEADER);
+    return value && value.length <= 4096 ? value : null;
+  } catch {
+    return null; // خارج از چرخه‌ی یک درخواست
+  }
+}
+
 const INSTALLED = Symbol.for("arkan.clientIdentityForwarding");
 
 export function installClientIdentityForwarding(): void {
@@ -134,6 +145,10 @@ export function installClientIdentityForwarding(): void {
       for (const [name, value] of Object.entries(await clientIdentityHeaders())) {
         config.headers.set(name, value);
       }
+      // FDP_ACC_EXT.1.1 — پارامترهای حساس جستجو که مرورگر در سرآیند فرستاده، بدون ورود به URL
+      // به API منتقل می‌شوند (api/src/common/network/sensitive-query.ts)
+      const sensitive = await incomingSensitiveQuery();
+      if (sensitive) config.headers.set(SENSITIVE_QUERY_HEADER, sensitive);
     }
     return config;
   });

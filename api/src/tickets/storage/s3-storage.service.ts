@@ -18,6 +18,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { IStorageService, UploadFileParams } from './storage.service';
+import { contentDisposition } from '../../common/file-security/content-disposition';
 
 @Injectable()
 export class S3StorageService implements IStorageService, OnModuleInit {
@@ -85,6 +86,7 @@ export class S3StorageService implements IStorageService, OnModuleInit {
     key,
     buffer,
     mimeType,
+    fileName,
   }: UploadFileParams): Promise<{ storageKey: string }> {
     this.assertReady();
     try {
@@ -94,6 +96,11 @@ export class S3StorageService implements IStorageService, OnModuleInit {
           Key: key,
           Body: buffer,
           ContentType: mimeType,
+          // FPT_RVM_EXT.2.1 / FPT_RVM_EXT.3.1 — همیشه دانلود (نه اجرا در مرورگر) با نام کنترل‌شده
+          ContentDisposition: contentDisposition(
+            fileName ?? key.split('/').pop() ?? 'file',
+          ),
+          CacheControl: 'private, no-store',
           // Bucket باید از قبل به صورت Private کانفیگ شده باشد (بدون ACL عمومی)
         }),
       );

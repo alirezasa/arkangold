@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import { headers } from "next/headers";
 import { PORTAL_LABEL, portalFromHeaders } from "@/lib/portal";
 import "./globals.css";
+import SensitiveQueryGuard from "./components/SensitiveQueryGuard";
 
 const dana = localFont({
   src: [
@@ -56,13 +57,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fa" dir="rtl" className={`${dana.variable} font-sans`}>
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css"
-        />
-      </head>
       <body className="antialiased bg-gray-50 text-gray-900 overscroll-none">
+        <SensitiveQueryGuard />
         {children}
       </body>
     </html>

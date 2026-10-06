@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, $Enums } from '../generated/prisma/client';
 import { ReferralService } from '../referral/referral.service';
+import { maskNationalCode } from '../common/privacy/masking';
 
 interface ListUsersQuery {
   page?: number;
@@ -116,7 +117,24 @@ export class UsersAdminService {
         totpEnabledAt: user.totpEnabledAt,
         recoveryCodesRemaining: user.backupCodesHash.length,
       },
-      identity: user.identity,
+      // FDP_ACC_EXT.1.5 / FDP_RIP_EXT.1.3 — فقط فیلدهای لازم؛ کد ملی پوشانده و تاریخ تولد حذف
+      // (نمایش کامل با revealIdentity و ثبت در ممیزی)
+      identity: user.identity
+        ? {
+            firstName: user.identity.firstName,
+            lastName: user.identity.lastName,
+            nationalCode: maskNationalCode(user.identity.nationalCode),
+            birthDate: null,
+            hasBirthDate: !!user.identity.birthDate,
+            masked: true,
+            fatherName: user.identity.fatherName,
+            gender: user.identity.gender,
+            deathStatus: user.identity.deathStatus,
+            status: user.identity.status,
+            verifiedAt: user.identity.verifiedAt,
+            verifiedByProvider: user.identity.verifiedByProvider,
+          }
+        : null,
       legalProfile: user.legalProfile,
       wallet: user.wallet
         ? {
@@ -153,6 +171,16 @@ export class UsersAdminService {
       referredBy,
       createdAt: user.createdAt.toISOString(),
     };
+  }
+
+  /** نمایش کامل کد ملی و تاریخ تولد کاربر برای کارشناس (با درخواست صریح؛ ممیزی در کنترلر) */
+  async revealIdentity(userId: string) {
+    const identity = await this.prisma.userIdentity.findUnique({
+      where: { userId },
+      select: { nationalCode: true, birthDate: true },
+    });
+    if (!identity) throw new NotFoundException('اطلاعات هویتی ثبت نشده است');
+    return identity;
   }
 
   async setStatus(userId: string, status: 'ACTIVE' | 'BANNED' | 'INACTIVE') {

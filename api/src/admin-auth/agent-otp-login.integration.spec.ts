@@ -24,6 +24,7 @@ import { PasswordPolicyService } from '../common/password-policy/password-policy
 import { LoginThrottleService } from '../common/auth-security/login-throttle.service';
 import { PowCaptchaService } from '../common/auth-security/pow-captcha.service';
 import { LoginAlertService } from '../common/auth-security/login-alert.service';
+import { SessionContextService } from '../common/auth-security/session-context.service';
 import { LoginChallengeService } from '../common/auth-security/login-challenge.service';
 import { MfaService } from '../common/mfa/mfa.service';
 import { currentStep, hotp } from '../common/mfa/totp.util';
@@ -92,6 +93,7 @@ run('ورود نماینده با کد یکبارمصرف (یکپارچه با P
       new LoginAlertService(prisma, sms, config, redis),
       new LoginChallengeService(redis),
       mfa,
+      new SessionContextService(config, audit, redis),
     );
     otp = new AgentOtpLoginService(prisma, audit, auth, sms, redis);
 

@@ -106,6 +106,13 @@ export class DepositController {
     if (!file) {
       throw new BadRequestException('تصویر فیش را انتخاب کنید');
     }
+    // FPT_ITT_EXT.1.1 — فیلد متنی multipart هم اعتبارسنجی می‌شود
+    if (
+      description !== undefined &&
+      (typeof description !== 'string' || description.length > 500)
+    ) {
+      throw new BadRequestException('توضیحات حداکثر ۵۰۰ کاراکتر است');
+    }
 
     return this.depositService.uploadReceipt(
       req.user.userId,

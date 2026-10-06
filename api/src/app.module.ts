@@ -7,7 +7,9 @@ import { AuditedThrottlerGuard } from './common/audit/audited-throttler.guard';
 import Redis from 'ioredis';
 import { RedisThrottlerStorage } from './common/auth-security/redis-throttler.storage';
 import { AuthSecurityModule } from './common/auth-security/auth-security.module';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { FileSecurityModule } from './common/file-security/file-security.module';
+import { ResponseAllowlistInterceptor } from './common/serialization/response-allowlist.interceptor';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './common/audit/audit.module';
 import { RetentionModule } from './common/retention/retention.module';
@@ -93,7 +95,12 @@ import { NotificationsModule } from './notifications/notifications.module';
     AgentModule,
     TreasuryModule,
     PartnersModule,
+    FileSecurityModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: AuditedThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: AuditedThrottlerGuard },
+    // FDP_RIP_EXT.1.3 — حذف فیلدهای داخلی/امنیتی از همه‌ی پاسخ‌ها
+    { provide: APP_INTERCEPTOR, useClass: ResponseAllowlistInterceptor },
+  ],
 })
 export class AppModule {}

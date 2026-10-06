@@ -18,6 +18,8 @@ import { IdentityVerificationService } from '../integrations/services/identity-v
 import { IdentityVerificationResult } from '../integrations/interfaces/identity-verification.interface';
 import { ReferralService } from '../referral/referral.service';
 import { MobileVerificationService } from '../kyc/mobile-verification.service';
+import { AuditService } from '../common/audit/audit.service';
+import { maskNationalCode } from '../common/privacy/masking';
 
 @Injectable()
 export class UsersService {
@@ -28,6 +30,7 @@ export class UsersService {
     private identityVerification: IdentityVerificationService,
     private referralService: ReferralService,
     private mobileVerification: MobileVerificationService,
+    private audit: AuditService,
   ) {}
 
   // ══════════════════════════════════════════
@@ -79,8 +82,10 @@ export class UsersService {
         ? {
             firstName: user.identity.firstName,
             lastName: user.identity.lastName,
-            nationalCode: user.identity.nationalCode,
-            birthDate: user.identity.birthDate,
+            // FDP_ACC_EXT.1.5 — پوشانده به‌صورت پیش‌فرض؛ نمایش کامل با revealIdentity
+            nationalCode: maskNationalCode(user.identity.nationalCode),
+            birthDate: null,
+            masked: true,
             status: user.identity.status,
             verifiedAt: user.identity.verifiedAt,
           }
@@ -88,6 +93,31 @@ export class UsersService {
       legalProfile: user.legalProfile ?? null,
       limits: user.limits ?? null,
       createdAt: user.createdAt,
+    };
+  }
+
+  /**
+   * FDP_ACC_EXT.1.5 — نمایش کامل کد ملی و تاریخ تولد فقط با درخواست صریح کاربر («نمایش»)؛
+   * هر نمایش در ممیزی ثبت می‌شود
+   */
+  async revealIdentity(userId: string, ip?: string, userAgent?: string) {
+    const identity = await this.prisma.userIdentity.findUnique({
+      where: { userId },
+      select: { nationalCode: true, birthDate: true },
+    });
+    if (!identity) throw new NotFoundException('اطلاعات هویتی ثبت نشده است');
+    await this.audit.logUser({
+      userId,
+      action: 'user.identity_revealed',
+      entityType: 'user_identity',
+      entityId: userId,
+      ip: ip ?? null,
+      userAgent: userAgent ?? null,
+      source: UsersService.name,
+    });
+    return {
+      nationalCode: identity.nationalCode,
+      birthDate: identity.birthDate,
     };
   }
 

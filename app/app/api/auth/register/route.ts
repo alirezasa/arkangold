@@ -50,10 +50,10 @@ export async function POST(request: Request) {
       status = error.response?.status || 500;
       
       // فرض بر این است که ساختار خطای NestJS شامل شیء یا رشته پیام است
+      // FPT_FLS_EXT.1.1 — فقط پیام عمومی/پیام کنترل‌شده‌ی API به کاربر می‌رسد؛ متن خطای فنی
+      // (مثل «connect ECONNREFUSED» یا جزئیات axios) فقط در لاگ سرور ثبت می‌شود
       const errorData = error.response?.data as { message?: string } | undefined;
-      message = errorData?.message || error.message || message;
-    } else if (error instanceof Error) {
-      message = error.message;
+      if (error.response && errorData?.message) message = errorData.message;
     }
 
     return NextResponse.json({ message }, { status });

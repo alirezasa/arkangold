@@ -23,7 +23,13 @@ export function middleware(request: NextRequest) {
   }
 
   if (!token) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const res = NextResponse.redirect(new URL("/login", request.url));
+    // FDP_RIP_EXT.1.1 — نشست به‌طور ضمنی (انقضا) پایان یافته: باقی‌مانده‌ی آن در مرورگر پاک می‌شود
+    if (request.cookies.has("adminRefreshToken")) {
+      res.cookies.delete("adminRefreshToken");
+      res.headers.set("Clear-Site-Data", '"cache", "storage"');
+    }
+    return res;
   }
 
   if (!isStaticFile(pathname)) {

@@ -11,6 +11,9 @@ import * as path from 'path';
 import { PackagingOption, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemConfigService } from '../system-config/system-config.service';
+import { FileSecurityService } from '../common/file-security/file-security.service';
+import { CATALOG_IMAGE_POLICY } from '../common/file-security/upload-policies';
+import { writeSanitizedFile } from '../common/file-security/local-file-store';
 import type {
   CreatePackagingOptionDto,
   SetProductPackagingDto,
@@ -79,6 +82,7 @@ export class PackagingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly systemConfig: SystemConfigService,
+    private readonly fileSecurity: FileSecurityService,
   ) {}
 
   // ═══════════════════════════════════════════════════════════
@@ -335,14 +339,17 @@ export class PackagingService {
     const option = await this.prisma.packagingOption.findUnique({
       where: { id },
     });
-    if (!option) {
-      await fs.unlink(file.path).catch(() => undefined);
-      throw new NotFoundException('طرح بسته‌بندی یافت نشد');
-    }
+    if (!option) throw new NotFoundException('طرح بسته‌بندی یافت نشد');
 
+    const clean = await this.fileSecurity.process(file, {
+      ...CATALOG_IMAGE_POLICY,
+      maxBytes: 3 * 1024 * 1024,
+      maxImageDimension: 1600,
+    });
+    const { filename } = await writeSanitizedFile(PACKAGING_UPLOAD_DIR, clean);
     const updated = await this.prisma.packagingOption.update({
       where: { id },
-      data: { imageUrl: `${PACKAGING_PUBLIC_PREFIX}/${file.filename}` },
+      data: { imageUrl: `${PACKAGING_PUBLIC_PREFIX}/${filename}` },
     });
     await this.deleteImageFile(option.imageUrl);
     return this.toAdminDto(updated);

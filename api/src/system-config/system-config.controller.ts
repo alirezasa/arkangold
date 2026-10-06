@@ -1,8 +1,16 @@
 import { Controller, Get, Put, Body, Param, UseGuards } from '@nestjs/common';
+import { IsString, MaxLength } from 'class-validator';
 import { SystemConfigService } from './system-config.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
+
+// FPT_ITT_EXT.5.3 — فقط فیلد value پذیرفته می‌شود
+class UpdateSystemConfigDto {
+  @IsString()
+  @MaxLength(5000)
+  value!: string;
+}
 
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
 @Controller('admin/system-config')
@@ -17,7 +25,7 @@ export class SystemConfigController {
 
   @RequirePermission('system_config.edit')
   @Put(':key')
-  async update(@Param('key') key: string, @Body() body: { value: string }) {
+  async update(@Param('key') key: string, @Body() body: UpdateSystemConfigDto) {
     await this.configService.set(key, body.value);
     await this.configService.invalidateCache();
     return { message: 'تنظیم با موفقیت بروزرسانی شد', key, value: body.value };

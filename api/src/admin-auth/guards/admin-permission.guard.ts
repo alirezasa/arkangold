@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { REQUIRE_PERMISSION_KEY } from '../decorators/require-permission.decorator';
+import {
+  ADMIN_SELF_SERVICE_KEY,
+  REQUIRE_PERMISSION_KEY,
+} from '../decorators/require-permission.decorator';
 import { PermissionKey } from '../rbac.const';
 import { AdminAuthenticatedUser } from '../interfaces/admin-jwt-payload.interface';
 import { AuditService } from '../../common/audit/audit.service';
@@ -28,9 +31,27 @@ export class AdminPermissionGuard implements CanActivate {
       REQUIRE_PERMISSION_KEY,
       [context.getHandler(), context.getClass()],
     );
-    if (!required || required.length === 0) return true;
-
     const req = context.switchToHttp().getRequest<AdminRequest>();
+
+    // FDP_ACC_EXT.2.1 — رد پیش‌فرض: مسیری که هیچ دسترسی صریحی اعلام نکرده، فقط اگر عمداً
+    // «خدمت به خود ادمین» علامت خورده باشد باز است؛ در غیر این صورت (فراموشی توسعه‌دهنده) رد می‌شود
+    if (!required || required.length === 0) {
+      const selfService = this.reflector.getAllAndOverride<boolean>(
+        ADMIN_SELF_SERVICE_KEY,
+        [context.getHandler(), context.getClass()],
+      );
+      if (selfService && req.user) return true;
+      void this.auditService.logAdmin({
+        adminUserId: req.user?.adminUserId ?? null,
+        action: 'admin_auth.permission_undeclared',
+        ip: req.ip,
+        userAgent: req.headers?.['user-agent'],
+        source: `${context.getClass().name}.${context.getHandler().name}`,
+        success: false,
+      });
+      throw new ForbiddenException('شما دسترسی لازم برای این عملیات را ندارید');
+    }
+
     const permissions = req.user?.permissions ?? [];
 
     const hasAll = required.every((p) => permissions.includes(p));

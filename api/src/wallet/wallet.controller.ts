@@ -14,6 +14,13 @@ import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { InternalTransferDto } from '@arkan-gold/shared';
+import {
+  CardToCardInitiateDto,
+  ConfirmCardToCardDto,
+  LargeTransferInitiateDto,
+  SourceCardDto,
+  WithdrawalRequestDto,
+} from './wallet-requests.dto';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -52,7 +59,7 @@ export class WalletController {
   @ApiOperation({ summary: 'شروع فرآیند واریز کارت به کارت' })
   initiateCardToCard(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { sourceCardId: string; amount: number },
+    @Body() body: CardToCardInitiateDto,
   ) {
     return this.walletService.initiateCardToCard(
       req.user.userId,
@@ -66,7 +73,7 @@ export class WalletController {
   @ApiOperation({ summary: 'تایید انجام واریز کارت به کارت توسط کاربر' })
   confirmCardToCard(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { transactionId: string },
+    @Body() body: ConfirmCardToCardDto,
   ) {
     return this.walletService.confirmCardToCard(
       req.user.userId,
@@ -79,7 +86,7 @@ export class WalletController {
   @ApiOperation({ summary: 'دریافت اطلاعات واریز حساب به حساب' })
   initiateBankTransfer(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { sourceCardId: string },
+    @Body() body: SourceCardDto,
   ) {
     return this.walletService.initiateBankTransfer(
       req.user.userId,
@@ -92,7 +99,7 @@ export class WalletController {
   @ApiOperation({ summary: 'دریافت شناسه واریز اختصاصی' })
   getTrackingIdDeposit(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { sourceCardId: string },
+    @Body() body: SourceCardDto,
   ) {
     return this.walletService.getTrackingIdDeposit(
       req.user.userId,
@@ -105,7 +112,7 @@ export class WalletController {
   @ApiOperation({ summary: 'شروع فرآیند واریز مبالغ بالا (پیش‌فاکتور)' })
   initiateLargeTransfer(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { amount: number },
+    @Body() body: LargeTransferInitiateDto,
   ) {
     return this.walletService.initiateLargeTransfer(
       req.user.userId,
@@ -118,7 +125,7 @@ export class WalletController {
   @ApiOperation({ summary: 'ثبت درخواست برداشت' })
   requestWithdrawal(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { bankAccountId: string; amountRial: number },
+    @Body() body: WithdrawalRequestDto,
   ) {
     return this.walletService.requestWithdrawal(
       req.user.userId,

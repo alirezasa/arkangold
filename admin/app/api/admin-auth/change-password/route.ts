@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
+import { clearAdminSessionCookies } from "@/app/lib/session-cookies";
 const NEST = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 export async function POST(req: Request) {
@@ -15,10 +16,7 @@ export async function POST(req: Request) {
     });
 
     // چون بک‌اند همه‌ی نشست‌ها را باطل می‌کند، کوکی‌های محلی را هم پاک می‌کنیم
-    const nextRes = NextResponse.json(res.data);
-    nextRes.cookies.delete("adminAccessToken");
-    nextRes.cookies.delete("adminRefreshToken");
-    return nextRes;
+    return clearAdminSessionCookies(NextResponse.json(res.data));
   } catch (e: unknown) {
     if (axios.isAxiosError(e)) {
       const data = e.response?.data as

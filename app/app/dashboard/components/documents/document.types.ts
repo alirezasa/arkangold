@@ -88,5 +88,6 @@ export interface InvoiceDocument {
   totalInWords: string;
   contentHash: string;
   verifyUrl: string;
+  verifyQrDataUrl: string;
   cancelReason: string | null;
 }

@@ -147,7 +147,7 @@ export default function ForgotPasswordPage() {
     >
       {/* پنل سمت راست (برندینگ دسکتاپ) */}
       <div className="hidden lg:flex lg:w-[45%] bg-emerald relative overflow-hidden flex-col justify-between p-16">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+        <div className="absolute inset-0 bg-[url('/patterns/cubes.svg')] opacity-10"></div>
         <div className="relative z-10">
           {/* لوگوی دسکتاپ - شفاف و بدون کادر */}
           <div className="mb-8">

@@ -3,7 +3,9 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
+import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SessionContextService } from '../../common/auth-security/session-context.service';
 import {
   AdminJwtPayload,
   AdminAuthenticatedUser,
@@ -13,7 +15,10 @@ import {
   mergePermissions,
   roleKeysOf,
 } from '../admin-roles.util';
-import { JWT_ALGORITHM, jwtVerificationSecret } from '../../common/secrets/jwt-keyring';
+import {
+  JWT_ALGORITHM,
+  jwtVerificationSecret,
+} from '../../common/secrets/jwt-keyring';
 
 // نام استراتژی جدا از JwtStrategy کاربران - جلوگیری از تداخل passport
 export const ADMIN_JWT_STRATEGY_NAME = 'admin-jwt';
@@ -26,13 +31,19 @@ export class AdminJwtStrategy extends PassportStrategy(
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
+    private sessionContext: SessionContextService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      passReqToCallback: true,
       ignoreExpiration: false,
       algorithms: [JWT_ALGORITHM],
       // کلید بر اساس kid توکن (کلید فعلی یا کلید قبلی در دوره‌ی چرخش)
-      secretOrKeyProvider: (_req: unknown, rawJwt: string, done: (err: unknown, secret?: string) => void) => {
+      secretOrKeyProvider: (
+        _req: unknown,
+        rawJwt: string,
+        done: (err: unknown, secret?: string) => void,
+      ) => {
         const secret = jwtVerificationSecret('JWT_ADMIN_SECRET', rawJwt);
         if (secret) done(null, secret);
         else done(new UnauthorizedException('نشست ادمین نامعتبر است'));
@@ -40,7 +51,10 @@ export class AdminJwtStrategy extends PassportStrategy(
     });
   }
 
-  async validate(payload: AdminJwtPayload): Promise<AdminAuthenticatedUser> {
+  async validate(
+    req: Request,
+    payload: AdminJwtPayload,
+  ): Promise<AdminAuthenticatedUser> {
     const session = await this.prisma.adminSession.findUnique({
       where: { id: payload.sessionId },
     });
@@ -60,6 +74,29 @@ export class AdminJwtStrategy extends PassportStrategy(
 
     if (!admin || !admin.isActive) {
       throw new UnauthorizedException('حساب ادمین غیرفعال است');
+    }
+
+    // FDP_ACC_EXT.2.4 / FDP_ACC_EXT.3.4 — کنترل تطبیقی و چندلایه‌ی رابط مدیریتی در هر درخواست:
+    // تغییر دستگاه یا شبکه در میانه‌ی نشست → خاتمه و ورود مجدد؛ IP و ساعت مجاز برای کارشناسان
+    const ctx = {
+      kind: 'admin' as const,
+      staff: !admin.agentId,
+      sessionId: session.id,
+      ownerId: admin.id,
+      sessionIp: session.ip,
+      sessionUa: session.userAgent,
+      requestIp: req.ip,
+      requestUa: req.headers['user-agent'],
+    };
+    const decision = await this.sessionContext.evaluate(ctx);
+    if (decision.action === 'terminate') {
+      await this.prisma.adminSession
+        .delete({ where: { id: session.id } })
+        .catch(() => undefined);
+      throw await this.sessionContext.onTerminated(ctx, decision.reason);
+    }
+    if (!admin.agentId) {
+      await this.sessionContext.assertAdminAccessAllowed(req.ip);
     }
 
     return {

@@ -8,14 +8,24 @@ import { PrismaService } from '../prisma/prisma.service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ProductImage } from '../generated/prisma/client';
+import {
+  FileSecurityService,
+  SanitizedFile,
+} from '../common/file-security/file-security.service';
+import { CATALOG_IMAGE_POLICY } from '../common/file-security/upload-policies';
+import { writeSanitizedFile } from '../common/file-security/local-file-store';
 
 const PUBLIC_URL_PREFIX = '/uploads/products';
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'products');
 
 @Injectable()
 export class ProductImagesService {
   private readonly logger = new Logger(ProductImagesService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private fileSecurity: FileSecurityService,
+  ) {}
 
   async addImages(
     productId: string,
@@ -38,15 +48,22 @@ export class ProductImagesService {
         where: { productId, isPrimary: true },
       })) > 0;
 
+    // نوع واقعی، ابعاد، ضدبدافزار و حذف فراداده پیش از قرار گرفتن در پوشه‌ی عمومی
+    const cleaned: SanitizedFile[] = [];
+    for (const file of files) {
+      cleaned.push(await this.fileSecurity.process(file, CATALOG_IMAGE_POLICY));
+    }
+
     const created: ProductImage[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    for (let i = 0; i < cleaned.length; i++) {
+      const clean = cleaned[i];
+      const { filename } = await writeSanitizedFile(UPLOAD_DIR, clean);
       const image = await this.prisma.productImage.create({
         data: {
           productId,
-          url: `${PUBLIC_URL_PREFIX}/${file.filename}`,
-          fileSize: file.size,
-          mimeType: file.mimetype,
+          url: `${PUBLIC_URL_PREFIX}/${filename}`,
+          fileSize: clean.size,
+          mimeType: clean.mime,
           sortOrder: existingCount + i,
           isPrimary: !alreadyHasPrimary && existingCount === 0 && i === 0,
         },

@@ -12,29 +12,16 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
 import { Request } from 'express';
-import * as fs from 'fs';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { LegalDocumentsService } from './legal-documents.service';
 import { OwnedResource } from '../common/audit/owned-resource.decorator';
-import { randomUUID } from 'crypto';
+import { LEGAL_DOCUMENT_POLICY } from '../common/file-security/upload-policies';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
 }
-
-// ⚠️ فعلاً ذخیره روی دیسک محلی سرور - در آینده جایگزین با S3 می‌شود
-const UPLOAD_DIR = './uploads/legal-documents';
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-
-const ALLOWED_MIME = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-];
 
 @UseGuards(JwtAuthGuard)
 @Controller('users/me/legal-profile/documents')
@@ -43,23 +30,15 @@ export class LegalDocumentsController {
 
   @Post()
   @UseInterceptors(
+    // فایل در حافظه نگه داشته می‌شود تا پیش از نوشتن روی دیسک بررسی و پاک‌سازی شود
+    // (FileSecurityService)؛ سقف حجم پیش از بافر شدن اعمال می‌شود (FPT_RVM_EXT.1.1)
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: UPLOAD_DIR,
-        filename: (_req, file, cb) => {
-          const unique = `${Date.now()}-${randomUUID()}${extname(file.originalname)}`;
-          cb(null, unique);
-        },
-      }),
-      limits: { fileSize: 10 * 1024 * 1024 }, // ۱۰ مگابایت
-      fileFilter: (_req, file, cb) => {
-        if (!ALLOWED_MIME.includes(file.mimetype)) {
-          return cb(
-            new BadRequestException('فرمت فایل مجاز نیست (فقط PDF یا تصویر)'),
-            false,
-          );
-        }
-        cb(null, true);
+      storage: memoryStorage(),
+      limits: {
+        fileSize: LEGAL_DOCUMENT_POLICY.maxBytes,
+        files: 1,
+        fields: 5,
+        fieldSize: 1024,
       },
     }),
   )
@@ -69,7 +48,11 @@ export class LegalDocumentsController {
     @Body('type') type: string,
   ) {
     if (!file) throw new BadRequestException('فایلی ارسال نشده است');
-    return this.service.upload(req.user.userId, type, file);
+    return this.service.upload(req.user.userId, type, file, {
+      userId: req.user.userId,
+      ip: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
   }
 
   @Get()
@@ -77,7 +60,10 @@ export class LegalDocumentsController {
     return this.service.list(req.user.userId);
   }
 
-  @OwnedResource({ model: 'legalProfileDocument', ownerPath: 'legalProfile.userId' })
+  @OwnedResource({
+    model: 'legalProfileDocument',
+    ownerPath: 'legalProfile.userId',
+  })
   @Delete(':id')
   remove(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.remove(req.user.userId, id);

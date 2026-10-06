@@ -5,6 +5,7 @@ import {
   Post,
   Body,
   Param,
+  ParseUUIDPipe,
   Query,
   Req,
   UseGuards,
@@ -12,6 +13,8 @@ import {
   UploadedFiles,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { TICKET_ATTACHMENT_POLICY } from '../common/file-security/upload-policies';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import {
@@ -76,18 +79,31 @@ export class TicketsController {
 
   @OwnedResource({ model: 'ticket', ownerPath: 'userId' })
   @Post(':id/attachments')
-  @UseInterceptors(FilesInterceptor('files', 5))
+  // FPT_RVM_EXT.1.1 — سقف حجم و تعداد پیش از بافر شدن در حافظه
+  @UseInterceptors(
+    FilesInterceptor('files', 5, {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: TICKET_ATTACHMENT_POLICY.maxBytes,
+        files: 5,
+        fields: 5,
+        fieldSize: 1024,
+      },
+    }),
+  )
   uploadAttachments(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
     @UploadedFiles() files: Array<Express.Multer.File>,
-    @Body('messageId') messageId?: string,
+    @Body('messageId', new ParseUUIDPipe({ optional: true }))
+    messageId?: string,
   ) {
     return this.ticketsService.uploadAttachment(
       req.user.userId,
       id,
       files,
       messageId,
+      { ip: req.ip, userAgent: req.headers['user-agent'] },
     );
   }
 

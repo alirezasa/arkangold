@@ -8,6 +8,8 @@ export interface UploadFileParams {
   key: string;
   buffer: Buffer;
   mimeType: string;
+  /** نام نمایشی پاک‌سازی‌شده برای Content-Disposition هنگام دانلود */
+  fileName?: string;
 }
 
 export interface IStorageService {

@@ -79,7 +79,7 @@ function DocumentsUploader() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,image/*"
+        accept=".pdf,.jpg,.jpeg,.png,.webp"
         className="hidden"
         onChange={handleFileChange}
       />

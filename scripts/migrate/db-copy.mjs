@@ -86,7 +86,13 @@ async function appliedMigrations(client) {
 async function listTables(client) {
   const { rows } = await client.query(
     `select c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = $1 and c.relkind in ('r', 'p') and c.relname <> $2 order by c.relname`,
+     where n.nspname = $1 and c.relkind in ('r', 'p') and c.relname <> $2
+       -- جدول‌های افزونه‌ها (مثل spatial_ref_sys افزونه‌ی PostGIS که لیارا از پیش نصب می‌کند) داده‌ی برنامه نیستند
+       and not exists (
+         select 1 from pg_depend d
+         where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'e'
+       )
+     order by c.relname`,
     [SCHEMA, MIGRATIONS_TABLE],
   );
   return rows.map((r) => r.name);
@@ -224,7 +230,11 @@ async function main() {
 
     // شمارنده‌ها (autoincrement و شماره‌گذاری اسناد)
     const { rows: sequences } = await source.query(
-      'select sequencename as name, last_value from pg_sequences where schemaname = $1',
+      `select s.sequencename as name, s.last_value from pg_sequences s
+       where s.schemaname = $1 and not exists (
+         select 1 from pg_depend d
+         where d.classid = 'pg_class'::regclass and d.objid = to_regclass(quote_ident(s.schemaname) || '.' || quote_ident(s.sequencename)) and d.deptype = 'e'
+       )`,
       [SCHEMA],
     );
     let seqCount = 0;

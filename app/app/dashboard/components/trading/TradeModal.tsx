@@ -16,10 +16,9 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   X,
-  TrendingDown,
-  TrendingUp,
   Coins,
   Info,
+  RefreshCw,
 } from "lucide-react";
 
 // ── helper: ریال → تومان نمایشی (بدون اعشار، خوانا) ──
@@ -91,30 +90,43 @@ export function TradeModal({
   } = useCountdown(lock?.expiresAt ?? null);
 
   const lockCalledRef = useRef(false);
+  // شناسه‌ی آخرین درخواست قفل: پاسخ دیررس درخواست قبلی (پس از بستن/قفل مجدد) نادیده گرفته می‌شود
+  const lockSeqRef = useRef(0);
+
+  const requestLock = () => {
+    const seq = ++lockSeqRef.current;
+    setOrderError(null);
+    setStep("locking");
+    lockPrice(tradeType, requestedWeightGrams).then(() => {
+      if (seq === lockSeqRef.current) setStep("invoice");
+    });
+  };
 
   useEffect(() => {
     if (!open) {
+      // بازنشانی مرحله در handleClose انجام می‌شود
       lockCalledRef.current = false;
-      setStep("locking");
+      lockSeqRef.current++;
       return;
     }
     if (requestedWeightGrams <= 0) return;
     if (lockCalledRef.current) return;
 
     lockCalledRef.current = true;
-    lockPrice(tradeType, requestedWeightGrams).then(() => {
-      setStep("invoice");
-    });
+    requestLock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, requestedWeightGrams, tradeType]);
 
   useEffect(() => {
-    if (expired && step === "invoice") {
-      setOrderError("زمان قفل قیمت منقضی شد. لطفاً دوباره امتحان کنید.");
+    if (expired && lock && step === "invoice") {
+      setOrderError(
+        "زمان قفل قیمت منقضی شد. برای ادامه قیمت جدید دریافت کنید.",
+      );
     }
-  }, [expired, step]);
+  }, [expired, lock, step, setOrderError]);
 
   const handleConfirmOrder = async () => {
-    if (!lock || expired) return;
+    if (!lock || expired || orderLoading) return;
     const res = await createOrder(lock.lockId);
     if (res) {
       setOrderResult(res);
@@ -125,21 +137,28 @@ export function TradeModal({
   };
 
   const handleClose = () => {
+    // در حین ثبت سفارش بستن مودال مجاز نیست (نتیجه‌ی معامله نباید از دید کاربر پنهان بماند)
+    if (orderLoading) return;
     onClose();
+    lockSeqRef.current++;
     setTimeout(() => {
       setStep("locking");
       setOrderResult(null);
       clearLock();
+      setOrderError(null);
       lockCalledRef.current = false;
     }, 300);
   };
 
   const totalPayableRial = toNum(lock?.totalPayableRial);
 
+  // پس از ثبت موفق، فرم صفحه ریست می‌شود؛ مقدار ملاک همیشه مقدار قفل‌شده است
   const insufficientBalance =
-    tradeType === "BUY"
+    !!lock &&
+    step === "invoice" &&
+    (tradeType === "BUY"
       ? (wallet?.availableRial ?? 0) < totalPayableRial
-      : (wallet?.availableGrams ?? 0) < requestedWeightGrams;
+      : (wallet?.availableGrams ?? 0) < toNum(lock.amountGrams));
 
   const canConfirm =
     !lockError &&
@@ -148,6 +167,10 @@ export function TradeModal({
     !orderLoading &&
     !!lock &&
     step === "invoice";
+
+  // قفل منقضی‌شده یا خطای قفل: به‌جای بستن و باز کردن دوباره، قیمت جدید گرفته می‌شود
+  const needsRelock =
+    step === "invoice" && !lockLoading && (!!lockError || (!!lock && expired));
 
   const showSkeleton =
     step === "locking" || (step === "invoice" && lockLoading && !lock);
@@ -460,12 +483,26 @@ export function TradeModal({
                     value: `${fmtToman(orderResult.pricePerGramToman)} تومان`,
                   },
                   {
-                    label: isBuy ? "مبلغ پرداخت شد" : "مبلغ دریافت شد",
+                    label: "ارزش طلا",
                     value: `${fmtToman(orderResult.totalToman)} تومان`,
                   },
                   {
                     label: "کارمزد",
                     value: `${fmtToman(orderResult.feeToman)} تومان`,
+                  },
+                  ...(toNum(orderResult.taxToman) > 0
+                    ? [
+                        {
+                          label: "مالیات",
+                          value: `${fmtToman(orderResult.taxToman)} تومان`,
+                        },
+                      ]
+                    : []),
+                  {
+                    label: isBuy
+                      ? "مبلغ پرداخت‌شده"
+                      : "مبلغ واریزشده به کیف پول",
+                    value: `${fmtToman(orderResult.netToman)} تومان`,
                   },
                 ].map((row, i) => (
                   <div
@@ -541,38 +578,53 @@ export function TradeModal({
             >
               انصراف
             </button>
-            <button
-              onClick={handleConfirmOrder}
-              disabled={!canConfirm}
-              /* اصلاح هشدار تیل‌ویند: استفاده از flex-2 به جای flex-[2] */
-              className="flex-2 py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 transition-all disabled:opacity-40"
-              style={{
-                background: canConfirm
-                  ? isBuy
+            {needsRelock ? (
+              <button
+                onClick={requestLock}
+                className="flex-2 py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 transition-all"
+                style={{
+                  background: isBuy
                     ? "linear-gradient(135deg, var(--color-emerald), #4a0d13)"
-                    : "linear-gradient(135deg, #dc2626, #8f1d1d)"
-                  : "#9ca3af",
-                boxShadow: canConfirm
-                  ? isBuy
-                    ? "0 4px 14px rgba(51,5,9,.3)"
-                    : "0 4px 14px rgba(220,38,38,.3)"
-                  : "none",
-              }}
-            >
-              {orderLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : isBuy ? (
-                <>
-                  <ArrowDownCircle className="w-4 h-4" />
-                  تایید و خرید
-                </>
-              ) : (
-                <>
-                  <ArrowUpCircle className="w-4 h-4" />
-                  تایید و فروش
-                </>
-              )}
-            </button>
+                    : "linear-gradient(135deg, #dc2626, #8f1d1d)",
+                }}
+              >
+                <RefreshCw className="w-4 h-4" />
+                {lockError ? "تلاش مجدد" : "دریافت قیمت جدید"}
+              </button>
+            ) : (
+              <button
+                onClick={handleConfirmOrder}
+                disabled={!canConfirm}
+                /* اصلاح هشدار تیل‌ویند: استفاده از flex-2 به جای flex-[2] */
+                className="flex-2 py-3.5 rounded-xl font-black text-white text-[14px] flex items-center justify-center gap-2 transition-all disabled:opacity-40"
+                style={{
+                  background: canConfirm
+                    ? isBuy
+                      ? "linear-gradient(135deg, var(--color-emerald), #4a0d13)"
+                      : "linear-gradient(135deg, #dc2626, #8f1d1d)"
+                    : "#9ca3af",
+                  boxShadow: canConfirm
+                    ? isBuy
+                      ? "0 4px 14px rgba(51,5,9,.3)"
+                      : "0 4px 14px rgba(220,38,38,.3)"
+                    : "none",
+                }}
+              >
+                {orderLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : isBuy ? (
+                  <>
+                    <ArrowDownCircle className="w-4 h-4" />
+                    تایید و خرید
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpCircle className="w-4 h-4" />
+                    تایید و فروش
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
 

@@ -1,7 +1,7 @@
 // app/app/hooks/useTrading.ts
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import axios from "axios";
 import useSWR from "swr";
 
@@ -10,9 +10,38 @@ export interface GoldPriceData {
   metal: string;
   pricePerGramRial: number;
   pricePerGramToman: number;
+  change24h?: number;
   source: string;
   fetchedAt: string;
   fromCache: boolean;
+  /** توقف خرید/فروش اعلام‌شده از سوی منبع قیمت */
+  disableBuy?: boolean;
+  disableSell?: boolean;
+}
+
+/** حدود و نرخ‌های معامله طلای آب‌شده (از تنظیمات پنل ادمین) — مقادیر عددی به‌صورت رشته */
+export interface TradeSideInfo {
+  enabled: boolean;
+  feePercent: string;
+  taxPercent: string;
+  dailyLimitGrams: string;
+  monthlyLimitGrams: string;
+  usedTodayGrams: string;
+  usedThisMonthGrams: string;
+  /** null یعنی بدون سقف */
+  remainingTodayGrams: string | null;
+  remainingThisMonthGrams: string | null;
+}
+
+export interface TradeInfo {
+  serviceEnabled: boolean;
+  priceAvailable: boolean;
+  minGrams: string;
+  maxGrams: string;
+  spreadPercent: string;
+  lockDurationSeconds: number;
+  buy: TradeSideInfo;
+  sell: TradeSideInfo;
 }
 
 export interface PriceLockData {
@@ -37,15 +66,17 @@ export interface PriceLockData {
 
 export interface OrderResult {
   orderId: string;
-  transactionId: string;
   side: "BUY" | "SELL";
-  amountGrams: number;
-  pricePerGramToman: number;
-  totalToman: number;
-  feeToman: number;
-  taxToman: number;
-  netReceiveToman: number;
+  amountGrams: number | string;
+  pricePerGramToman: number | string;
+  /** ارزش طلا (بدون کارمزد و مالیات) */
+  totalToman: number | string;
+  feeToman: number | string;
+  taxToman: number | string;
+  /** مبلغ نهایی پرداخت‌شده (خرید) یا واریزشده به کیف پول (فروش) */
+  netToman: number | string;
   status: string;
+  alreadyProcessed?: boolean;
   message: string;
 }
 
@@ -72,6 +103,16 @@ export const useMarketPrice = () => {
   };
 };
 
+// ── Hook: حدود و سقف‌های معامله (با هر معامله‌ی موفق باید refresh شود) ──
+export const useTradeInfo = () => {
+  const { data, isLoading, mutate } = useSWR<TradeInfo>(
+    "/api/market/trade-info",
+    fetcher,
+    { refreshInterval: 60_000, revalidateOnFocus: true },
+  );
+  return { info: data ?? null, loading: isLoading, refresh: mutate };
+};
+
 // ── Hook: تاریخچه قیمت ──
 export const usePriceHistory = (hours = 24) => {
   const { data, isLoading, error } = useSWR<PriceHistoryPoint[]>(
@@ -83,7 +124,6 @@ export const usePriceHistory = (hours = 24) => {
 };
 
 // ── Hook: تایمر Countdown ──
-// ── Hook: تایمر Countdown (اصلاح‌شده) ──
 export const useCountdown = (expiresAt: string | null) => {
   // تنها زمان فعلی را در state نگه می‌داریم
   const [now, setNow] = useState(() => Date.now());
@@ -120,13 +160,27 @@ export const usePriceLock = () => {
     async (side: "BUY" | "SELL", amountGrams: number) => {
       setLoading(true);
       setError(null);
+      setLock(null);
       try {
         const res = await axios.post("/api/market/lock-price", {
           side,
           amountGrams,
         });
-        setLock(res.data);
-        return res.data as PriceLockData;
+        const data = res.data as PriceLockData;
+        // ساعت گوشی کاربر ممکن است با سرور اختلاف داشته باشد؛ شمارش معکوس بر پایه‌ی
+        // مدت اعتبار (نه زمان مطلق سرور) و با ۳ ثانیه حاشیه‌ی تأخیر شبکه محاسبه می‌شود
+        const seconds = Number(data.expiresInSeconds);
+        const local: PriceLockData =
+          Number.isFinite(seconds) && seconds > 0
+            ? {
+                ...data,
+                expiresAt: new Date(
+                  Date.now() + Math.max(seconds - 3, 1) * 1000,
+                ).toISOString(),
+              }
+            : data;
+        setLock(local);
+        return local;
       } catch (e: unknown) {
         if (axios.isAxiosError(e)) {
           const msg = e.response?.data?.message;

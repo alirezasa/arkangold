@@ -1,57 +1,19 @@
 // app/app/api/market/orders/route.ts
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import axios from "axios";
-const NEST = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
+import { proxy } from "../../_lib/proxy";
 
 // POST: ثبت سفارش
 export async function POST(req: Request) {
-  try {
-    const token = (await cookies()).get("accessToken")?.value;
-    if (!token)
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    const body = await req.json();
-    const res = await axios.post(`${NEST}/market/orders`, body, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return NextResponse.json(res.data);
-  } catch (e: unknown) {
-    if (axios.isAxiosError(e)) {
-      const d = e.response?.data as { message?: string | string[] } | undefined;
-      const msg = Array.isArray(d?.message)
-        ? d.message[0]
-        : d?.message || "خطا";
-      return NextResponse.json(
-        { message: msg },
-        { status: e.response?.status || 500 },
-      );
-    }
-    return NextResponse.json({ message: "خطای سرور" }, { status: 500 });
-  }
+  const body = await req.json().catch(() => ({}));
+  return proxy("/market/orders", { method: "POST", data: body });
 }
 
 // GET: تاریخچه سفارشات
 export async function GET(req: Request) {
-  try {
-    const token = (await cookies()).get("accessToken")?.value;
-    if (!token)
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    const { searchParams } = new URL(req.url);
-    const page = searchParams.get("page") ?? "1";
-    const limit = searchParams.get("limit") ?? "20";
-    const res = await axios.get(
-      `${NEST}/market/orders?page=${page}&limit=${limit}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
-    return NextResponse.json(res.data);
-  } catch (e: unknown) {
-    if (axios.isAxiosError(e))
-      return NextResponse.json(
-        { message: e.response?.data?.message || "خطا" },
-        { status: e.response?.status || 500 },
-      );
-    return NextResponse.json({ message: "خطای سرور" }, { status: 500 });
-  }
+  const { searchParams } = new URL(req.url);
+  return proxy("/market/orders", {
+    params: {
+      page: searchParams.get("page") ?? "1",
+      limit: searchParams.get("limit") ?? "20",
+    },
+  });
 }

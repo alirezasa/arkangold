@@ -87,3 +87,47 @@ export function parseHolidays(raw?: string | null): Set<string> {
       .filter(Boolean),
   );
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** اجزای تاریخ/ساعت دیواری تهران و اختلاف آن با UTC (میلی‌ثانیه) */
+function tehranWallClock(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Tehran',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (t: string) =>
+    Number(parts.find((p) => p.type === t)?.value ?? 0);
+  const y = get('year');
+  const m = get('month');
+  const d = get('day');
+  const wallAsUtc = Date.UTC(
+    y,
+    m - 1,
+    d,
+    get('hour'),
+    get('minute'),
+    get('second'),
+  );
+  const offsetMs = wallAsUtc - Math.floor(date.getTime() / 1000) * 1000;
+  return { y, m, d, offsetMs };
+}
+
+/** لحظه‌ی شروع (۰۰:۰۰) روز جاری به وقت تهران — مستقل از منطقه زمانی سرور */
+export function startOfTehranDay(date = new Date()): Date {
+  const { y, m, d, offsetMs } = tehranWallClock(date);
+  return new Date(Date.UTC(y, m - 1, d) - offsetMs);
+}
+
+/** لحظه‌ی شروع (۰۰:۰۰ روز اول) ماه شمسی جاری به وقت تهران */
+export function startOfJalaliMonthTehran(date = new Date()): Date {
+  const { y, m, d, offsetMs } = tehranWallClock(date);
+  const { jd } = jalaali.toJalaali(y, m, d);
+  return new Date(Date.UTC(y, m - 1, d) - offsetMs - (jd - 1) * DAY_MS);
+}

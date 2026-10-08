@@ -21,8 +21,10 @@ export function useTradeCalculator(currentPrice: number | null) {
       setAmountToman(normalized);
 
       if (normalized && currentPrice && currentPrice > 0) {
-        const grams = parseFloat(normalized) / currentPrice;
-        setWeightGrams(isNaN(grams) ? "" : grams.toFixed(4));
+        // گرد کردن رو به پایین: وزن معادل هرگز از مبلغ واردشده بیشتر نمی‌شود
+        const grams =
+          Math.floor((parseFloat(normalized) / currentPrice) * 10_000) / 10_000;
+        setWeightGrams(isNaN(grams) || grams <= 0 ? "" : grams.toFixed(4));
       } else {
         setWeightGrams("");
       }
@@ -34,7 +36,8 @@ export function useTradeCalculator(currentPrice: number | null) {
   const handleWeightChange = useCallback(
     (val: string) => {
       // پشتیبانی از کیبورد فارسی (ارقام و جداکننده اعشار «٫»)
-      const normalized = decimalOnly(val);
+      // دقت موجودی طلا ۴ رقم اعشار است؛ رقم پنجم به بعد پذیرفته نمی‌شود
+      const normalized = decimalOnly(val).replace(/(\.\d{4})\d+$/, "$1");
 
       setWeightGrams(normalized);
 

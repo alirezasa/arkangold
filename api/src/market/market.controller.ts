@@ -74,6 +74,14 @@ export class MarketController {
     return this.priceService.getPriceHistory(safeHours);
   }
 
+  @Get('trade-info')
+  @ApiOperation({
+    summary: 'حدود، نرخ‌ها و سقف مصرف‌شده‌ی معامله طلای آب‌شده برای کاربر',
+  })
+  getTradeInfo(@Req() req: AuthenticatedRequest) {
+    return this.tradingService.getTradeInfo(req.user.userId);
+  }
+
   // ── Rate limit سخت‌گیرانه روی lock-price: جلوگیری از spam قفل کردن ──
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('lock-price')

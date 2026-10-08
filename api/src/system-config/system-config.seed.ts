@@ -366,6 +366,18 @@ export const WALLET_CONFIG_DEFAULTS = [
     description: 'مدت زمان قفل قیمت (ثانیه)',
   },
   {
+    key: 'trade.gold.max_price_age_seconds',
+    value: '180',
+    description:
+      'حداکثر عمر قیمت بازار برای قفل قیمت (ثانیه، حداقل ۶۰) — در قطعی منبع قیمت، معامله با قیمت کهنه متوقف می‌شود',
+  },
+  {
+    key: 'trade.gold.respect_source_disable',
+    value: 'true',
+    description:
+      'توقف خرید/فروش وقتی منبع قیمت (طلاسی) بازار را بسته اعلام کند (true/false)',
+  },
+  {
     key: 'trade.gold.daily_buy_limit_grams',
     value: '50',
     description: 'سقف خرید روزانه (گرم)',

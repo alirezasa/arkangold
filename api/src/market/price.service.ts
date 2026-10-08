@@ -347,6 +347,29 @@ export class PriceService implements OnModuleInit {
     return priceRial;
   }
 
+  /**
+   * قیمت قابل معامله به‌همراه زمان دریافت و وضعیت توقف خرید/فروش منبع.
+   * برخلاف getCurrentGoldPriceDecimal، fetchedAt واقعی برگردانده می‌شود تا
+   * لایه‌ی معاملات بتواند قیمت کهنه (قطعی منبع قیمت) را رد کند.
+   */
+  async getTradableGoldQuote(): Promise<{
+    priceRial: Decimal;
+    fetchedAt: Date;
+    disableBuy: boolean;
+    disableSell: boolean;
+  } | null> {
+    const res = await this.getGoldPriceResponse();
+    if (!res) return null;
+    const fetchedAt = new Date(res.fetchedAt);
+    if (Number.isNaN(fetchedAt.getTime())) return null;
+    return {
+      priceRial: toDecimal(res.pricePerGramRial),
+      fetchedAt,
+      disableBuy: res.disableBuy,
+      disableSell: res.disableSell,
+    };
+  }
+
   /** پاسخ آماده برای MarketController. */
   async getGoldPriceResponse(): Promise<GoldPriceResponse | null> {
     try {

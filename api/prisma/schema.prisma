@@ -473,6 +473,8 @@ model Product {
   maxWeightGrams   Decimal?           @map("max_weight_grams") @db.Decimal(18, 4)
   weightStepGrams  Decimal?           @default(0.1) @map("weight_step_grams") @db.Decimal(18, 4)
   pricePerGramRial Decimal?           @map("price_per_gram_rial") @db.Decimal(18, 0)
+  // بارکد EAN-13 محصول (برای محصولات بدون تنوع ثابت، مثل بازه وزنی) — روی برچسب چاپ می‌شود
+  barcode          String?            @unique
 
   createdAt         DateTime                  @default(now()) @map("created_at")
   updatedAt         DateTime                  @updatedAt @map("updated_at")
@@ -501,6 +503,8 @@ model ProductVariant {
   priceAdjustment Decimal         @default(0) @map("price_adjustment") @db.Decimal(18, 0)
   stockQuantity   Int             @default(0) @map("stock_quantity")
   sku             String?         @unique
+  // بارکد EAN-13 تنوع — روی برچسب ارسال/محصول چاپ می‌شود
+  barcode         String?         @unique
   createdAt       DateTime        @default(now()) @map("created_at")
   id              String          @id @default(uuid()) @db.Uuid
   productId       String          @map("product_id") @db.Uuid
@@ -602,6 +606,9 @@ model ShopOrder {
   transactions        Transaction[]
   shippings           Shipping[]
   hologramOwnerships  HologramOwnership[]
+  /// دفعات چاپ برچسب ارسال و آخرین زمان چاپ (برای جلوگیری از جاماندن/تکرار)
+  labelPrintCount     Int                      @default(0) @map("label_print_count")
+  labelPrintedAt      DateTime?                @map("label_printed_at")
 
   @@index([userId])
   @@index([discountCodeId])
@@ -1011,6 +1018,53 @@ model ShopOrderStatusHistory {
 
   @@index([orderId, createdAt])
   @@map("shop_order_status_history")
+}
+
+/// اندازه‌ی استاندارد برچسب دستگاه لیبل پرینتر (میلی‌متر)
+model LabelSize {
+  id        String          @id @default(uuid()) @db.Uuid
+  name      String
+  widthMm   Float           @map("width_mm")
+  heightMm  Float           @map("height_mm")
+  /// تفکیک‌پذیری دستگاه (۲۰۳ یا ۳۰۰ نقطه در اینچ) — پهنای میله‌های بارکد بر اساس آن تنظیم می‌شود
+  dpi       Int             @default(203)
+  isActive  Boolean         @default(true) @map("is_active")
+  sortOrder Int             @default(0) @map("sort_order")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  templates LabelTemplate[]
+
+  @@map("label_sizes")
+}
+
+/// طرح محتوای برچسب (عناصر متن، بارکد، اقلام، خط و تصویر با موقعیت میلی‌متری)
+model LabelTemplate {
+  id          String      @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  /// تعداد برچسب: یکی برای هر سفارش، هر ردیف کالا یا هر عدد کالا
+  repeat      LabelRepeat @default(ORDER)
+  sizeId      String      @map("size_id") @db.Uuid
+  size        LabelSize   @relation(fields: [sizeId], references: [id], onDelete: Restrict)
+  /// [{ id, type: text|barcode|items|line|box|image, x, y, w, h, ... }]
+  elements    Json
+  isDefault   Boolean     @default(false) @map("is_default")
+  isActive    Boolean     @default(true) @map("is_active")
+  sortOrder   Int         @default(0) @map("sort_order")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@index([sizeId])
+  @@map("label_templates")
+}
+
+enum LabelRepeat {
+  /// یک برچسب برای هر سفارش
+  ORDER
+  /// یک برچسب برای هر ردیف سفارش
+  ITEM
+  /// یک برچسب برای هر عدد کالا
+  UNIT
 }
 
 enum ShippingMethodType {

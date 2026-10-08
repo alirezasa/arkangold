@@ -42,6 +42,7 @@ import { HologramModule } from './hologram/hologram.module';
 import { ReferralModule } from './referral/referral.module';
 import { DiscountModule } from './discount/discount.module';
 import { PackagingModule } from './packaging/packaging.module';
+import { ShopLabelsModule } from './shop-labels/shop-labels.module';
 import { AgentModule } from './agent/agent.module';
 import { TreasuryModule } from './treasury/treasury.module';
 import { PartnersModule } from './partners/partners.module';
@@ -92,6 +93,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     ReferralModule,
     DiscountModule,
     PackagingModule,
+    ShopLabelsModule,
     AgentModule,
     TreasuryModule,
     PartnersModule,

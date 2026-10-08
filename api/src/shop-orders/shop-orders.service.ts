@@ -1253,6 +1253,8 @@ export class ShopOrdersService {
           shippedAt: order.shippedAt,
           deliveredAt: order.deliveredAt,
           invoiceId: invoiceIds.get(order.id) ?? null,
+          labelPrintCount: order.labelPrintCount,
+          labelPrintedAt: order.labelPrintedAt,
         };
       }),
       statusCounts: Object.fromEntries(
@@ -1311,6 +1313,8 @@ export class ShopOrdersService {
     return {
       ...this.toDto({ ...order, shippings: undefined }),
       adminNote: order.adminNote,
+      labelPrintCount: order.labelPrintCount,
+      labelPrintedAt: order.labelPrintedAt,
       user: {
         id: order.user.id,
         phone: order.user.phone,

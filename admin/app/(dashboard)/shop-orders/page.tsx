@@ -15,6 +15,7 @@ import {
   MapPin,
   MessageSquareText,
   PackageCheck,
+  Printer,
   Search,
   ShoppingBag,
   Truck,
@@ -76,6 +77,8 @@ interface OrderRow {
   items: OrderItem[];
   user: { id: string; phone: string; fullName: string | null };
   shipping: { methodName: string | null; methodType: string | null; trackingCode: string | null; courierName: string | null } | null;
+  labelPrintCount: number;
+  labelPrintedAt: string | null;
   createdAt: string;
 }
 interface ListResp {
@@ -151,6 +154,10 @@ const VIA_FA: Record<string, string> = {
 const ACTOR_FA: Record<string, string> = { USER: "مشتری", ADMIN: "پنل", SYSTEM: "سیستم", COURIER: "پیک" };
 const SMS_STATUS_FA: Record<string, string> = { SENT: "ارسال شد", FAILED: "ناموفق", DRY_RUN: "آزمایشی", SKIPPED: "ارسال نشد" };
 
+/** وضعیت‌هایی که برچسب ارسال برایشان چاپ می‌شود */
+const LABEL_STATUSES: OrderStatus[] = ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"];
+const labelUrl = (ids: string[], auto = false) => `/labels/print?orders=${ids.join(",")}${auto ? "&auto=1" : ""}`;
+
 const tomanFa = (v: string | number) => `${Math.round(Number(v)).toLocaleString("fa-IR")} تومان`;
 
 export default function ShopOrdersPage() {
@@ -161,6 +168,9 @@ export default function ShopOrdersPage() {
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const can = usePerm();
+  const canPrint = can("shop.label.print");
 
   const qs = new URLSearchParams({ page: String(page), limit: "20" });
   if (status) qs.set("status", status);
@@ -168,6 +178,14 @@ export default function ShopOrdersPage() {
   if (from) qs.set("from", from);
   if (to) qs.set("to", to);
   const { data, isLoading, mutate } = useSWR<ListResp>(`/api/admin/shop-orders?${qs.toString()}`, fetcher);
+  const printable = (data?.data ?? []).filter((o) => LABEL_STATUSES.includes(o.status));
+  const toggle = (id: string) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -176,9 +194,22 @@ export default function ShopOrdersPage() {
         title="سفارشات فروشگاه"
         subtitle="آماده‌سازی، ارسال با مرجع دلخواه (پست، پیک، پست خصوصی، تحویل حضوری) و تأیید تحویل با کد تحویل مشتری. در هر مرحله پیامک مطابق متن تعریف‌شده در مرکز پیامک برای مشتری ارسال می‌شود."
         actions={
-          <Link href="/shop/shipping-methods" className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[12px] font-bold border-2 border-gray-200 bg-white text-gray-700">
-            <Truck className="w-4 h-4" /> مراجع ارسال
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {canPrint && selected.size > 0 && (
+              <a
+                href={labelUrl([...selected])}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[12px] font-bold text-white"
+                style={{ backgroundColor: "var(--color-emerald)" }}
+              >
+                <Printer className="w-4 h-4" /> چاپ برچسب {selected.size.toLocaleString("fa-IR")} سفارش
+              </a>
+            )}
+            <Link href="/shop/shipping-methods" className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[12px] font-bold border-2 border-gray-200 bg-white text-gray-700">
+              <Truck className="w-4 h-4" /> مراجع ارسال
+            </Link>
+          </div>
         }
       />
 
@@ -243,39 +274,66 @@ export default function ShopOrdersPage() {
         <Empty text="سفارشی یافت نشد" />
       ) : (
         <div className="space-y-2">
+          {canPrint && printable.length > 0 && (
+            <label className="flex items-center gap-2 px-1 text-[12px] font-bold text-gray-600">
+              <input
+                type="checkbox"
+                checked={printable.every((o) => selected.has(o.id))}
+                onChange={(e) =>
+                  setSelected((cur) => {
+                    const next = new Set(cur);
+                    printable.forEach((o) => (e.target.checked ? next.add(o.id) : next.delete(o.id)));
+                    return next;
+                  })
+                }
+              />
+              انتخاب همه‌ی سفارش‌های قابل چاپ برچسب در این صفحه
+            </label>
+          )}
           {data.data.map((o) => (
-            <button
-              key={o.id}
-              type="button"
-              onClick={() => setOpenId(o.id)}
-              className="w-full text-right rounded-2xl p-4 hover:shadow-sm transition-shadow"
-              style={cardStyle}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-3">
-                  <span className="font-black text-[13px]" dir="ltr">
-                    {o.orderNumber ?? o.id.slice(0, 8)}
-                  </span>
-                  <Badge map={ORDER_STATUS} value={o.status} />
+            <div key={o.id} className="flex items-stretch gap-2">
+              {canPrint && (
+                <label className="flex items-center px-1" title="انتخاب برای چاپ گروهی برچسب">
+                  <input type="checkbox" disabled={!LABEL_STATUSES.includes(o.status)} checked={selected.has(o.id)} onChange={() => toggle(o.id)} />
+                </label>
+              )}
+              <button
+                type="button"
+                onClick={() => setOpenId(o.id)}
+                className="flex-1 min-w-0 text-right rounded-2xl p-4 hover:shadow-sm transition-shadow"
+                style={cardStyle}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <span className="font-black text-[13px]" dir="ltr">
+                      {o.orderNumber ?? o.id.slice(0, 8)}
+                    </span>
+                    <Badge map={ORDER_STATUS} value={o.status} />
+                    {o.labelPrintCount > 0 && (
+                      <span className="badge bg-emerald-50 text-emerald-700 flex items-center gap-1">
+                        <Printer className="w-3 h-3" /> برچسب چاپ شد
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-black text-[14px]">{tomanFa(o.totalToman)}</span>
                 </div>
-                <span className="font-black text-[14px]">{tomanFa(o.totalToman)}</span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-gray-500">
-                <span>
-                  {o.user.fullName ?? "—"} <span dir="ltr">{o.user.phone}</span>
-                </span>
-                <span>{faDateTime(o.createdAt)}</span>
-                <span>
-                  {o.items.length.toLocaleString("fa-IR")} قلم — {o.items.map((i) => i.productName).join("، ").slice(0, 60)}
-                </span>
-                {o.shipping && (
-                  <span className="flex items-center gap-1">
-                    <Truck className="w-3.5 h-3.5" /> {o.shipping.methodName}
-                    {o.shipping.trackingCode && <span dir="ltr">({o.shipping.trackingCode})</span>}
+                <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-gray-500">
+                  <span>
+                    {o.user.fullName ?? "—"} <span dir="ltr">{o.user.phone}</span>
                   </span>
-                )}
-              </div>
-            </button>
+                  <span>{faDateTime(o.createdAt)}</span>
+                  <span>
+                    {o.items.length.toLocaleString("fa-IR")} قلم — {o.items.map((i) => i.productName).join("، ").slice(0, 60)}
+                  </span>
+                  {o.shipping && (
+                    <span className="flex items-center gap-1">
+                      <Truck className="w-3.5 h-3.5" /> {o.shipping.methodName}
+                      {o.shipping.trackingCode && <span dir="ltr">({o.shipping.trackingCode})</span>}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </div>
           ))}
           <Pagination page={data.page} totalPages={data.totalPages} onChange={setPage} />
         </div>
@@ -321,6 +379,16 @@ function OrderDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
             {o.invoiceId && (
               <a href={`/invoices/${o.invoiceId}/print`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-emerald-700 font-bold text-[12px]">
                 <FileText className="w-3.5 h-3.5" /> فاکتور
+              </a>
+            )}
+            {can("shop.label.print") && LABEL_STATUSES.includes(o.status) && (
+              <a href={labelUrl([o.id])} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-emerald-700 font-bold text-[12px]">
+                <Printer className="w-3.5 h-3.5" /> چاپ برچسب
+                {o.labelPrintCount > 0 && (
+                  <span className="text-gray-400 font-normal">
+                    ({o.labelPrintCount.toLocaleString("fa-IR")} بار — آخرین {faDateTime(o.labelPrintedAt)})
+                  </span>
+                )}
               </a>
             )}
           </div>
@@ -591,9 +659,14 @@ function ShipModal({ order, onClose, onDone }: { order: OrderDetail; onClose: ()
   const [eta, setEta] = useState("");
   const [note, setNote] = useState("");
   const act = useAction();
+  const can = usePerm();
+  const canPrint = can("shop.label.print");
+  const [printLabel, setPrintLabel] = useState(true);
   const m = methods?.find((x) => x.id === methodId);
 
   const submit = async () => {
+    // پنجره همین حالا (هم‌زمان با کلیک) باز می‌شود تا مسدودکننده‌ی پاپ‌آپ جلویش را نگیرد
+    const win = canPrint && printLabel ? window.open("about:blank", "_blank") : null;
     const ok = await act.run(() =>
       api.post(`/api/admin/shop-orders/${order.id}/ship`, {
         shippingMethodId: methodId,
@@ -605,8 +678,12 @@ function ShipModal({ order, onClose, onDone }: { order: OrderDetail; onClose: ()
       }),
     );
     if (ok) {
+      // پس از ثبت ارسال، برچسب با کد رهگیری و مرجع ارسال چاپ می‌شود
+      if (win) win.location.href = labelUrl([order.id], true);
       onDone();
       onClose();
+    } else {
+      win?.close();
     }
   };
 
@@ -654,6 +731,12 @@ function ShipModal({ order, onClose, onDone }: { order: OrderDetail; onClose: ()
               {m.type === "PICKUP" && <p>• پیامک «آماده‌ی تحویل حضوری» برای مشتری ارسال می‌شود.</p>}
             </div>
           </>
+        )}
+        {canPrint && (
+          <label className="flex items-center gap-2 text-[12px] font-bold">
+            <input type="checkbox" checked={printLabel} onChange={(e) => setPrintLabel(e.target.checked)} />
+            چاپ برچسب ارسال پس از ثبت
+          </label>
         )}
         {act.error && <Alert kind="error" text={act.error} />}
         <ActionButton busy={act.busy} disabled={!methodId} onClick={() => void submit()}>

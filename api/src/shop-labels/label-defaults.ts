@@ -161,7 +161,11 @@ export const DEFAULT_LABEL_TEMPLATES: {
     sizeKey: 'A6',
     isDefault: false,
     elements: [
-      text('from-t', 4, 3, 92, 5, 'فرستنده', 8, { invert: true, bold: true }),
+      text('from-t', 4, 3, 92, 5, 'فرستنده', 8, {
+        invert: true,
+        bold: true,
+        valign: 'middle',
+      }),
       text(
         'from',
         4,
@@ -171,7 +175,11 @@ export const DEFAULT_LABEL_TEMPLATES: {
         '{{sender.name}} — تلفن {{sender.phone}}\n{{sender.address}} — کدپستی {{sender.postalCode}}',
         8,
       ),
-      text('to-t', 4, 22, 92, 5, 'گیرنده', 8, { invert: true, bold: true }),
+      text('to-t', 4, 22, 92, 5, 'گیرنده', 8, {
+        invert: true,
+        bold: true,
+        valign: 'middle',
+      }),
       text('to', 4, 28, 92, 8, '{{receiver.name}}', 15, { bold: true }),
       text('to-phone', 4, 36, 92, 6, 'تلفن: {{receiver.phone}}', 11, {
         bold: true,

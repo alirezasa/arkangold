@@ -13,7 +13,13 @@ import {
   Unlock,
   Printer,
   Settings2,
+  Siren,
+  Search,
+  ShieldCheck,
+  ShieldQuestion,
+  ShieldAlert,
 } from "lucide-react";
+import Link from "next/link";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -39,7 +45,34 @@ interface HologramCodeItem {
   purityKarat: "K18" | "K24" | null;
   factorySerialNumber: string | null;
   ownerships: { fullName: string; nationalCode: string; ownershipStartAt: string }[];
+  incidentReports?: ActiveIncident[];
   createdAt: string;
+}
+
+interface ActiveIncident {
+  id: string;
+  reportNumber: string;
+  type: "THEFT" | "LOSS";
+  status: "OPEN" | "CONFIRMED" | "RECOVERED" | "REJECTED" | "CANCELLED";
+  createdAt: string;
+}
+
+const INCIDENT_TYPE_FA: Record<string, string> = { THEFT: "سرقت", LOSS: "مفقودی" };
+const INCIDENT_STATUS_FA: Record<string, string> = {
+  OPEN: "در انتظار بررسی",
+  CONFIRMED: "تأییدشده",
+  RECOVERED: "بازیابی‌شده",
+  REJECTED: "ردشده",
+  CANCELLED: "لغوشده",
+};
+
+function IncidentBadge({ incident }: { incident: Pick<ActiveIncident, "type" | "status"> }) {
+  return (
+    <span className="badge inline-flex items-center gap-1" style={{ background: "#fee2e2", color: "#b91c1c" }}>
+      <Siren className="w-3 h-3" />
+      {INCIDENT_TYPE_FA[incident.type]} — {INCIDENT_STATUS_FA[incident.status]}
+    </span>
+  );
 }
 
 interface HologramBatchItem {
@@ -70,11 +103,21 @@ interface InquiryLogItem {
   id: string;
   code: string;
   ipAddress: string;
-  channel: "PUBLIC_WEB" | "APP_PANEL" | "API_DIRECT";
+  channel: "PUBLIC_WEB" | "APP_PANEL" | "API_DIRECT" | "ADMIN_PANEL" | "AGENT_PORTAL";
   result: "VALID_ASSIGNED" | "VALID_UNASSIGNED" | "INVALID_CODE";
   user: { id: string; phone: string } | null;
+  adminUser: { id: string; fullName: string; agent: { id: string; code: string; name: string } | null } | null;
+  incidentReport: { id: string; reportNumber: string; type: "THEFT" | "LOSS" } | null;
   createdAt: string;
 }
+
+const CHANNEL_FA: Record<string, string> = {
+  PUBLIC_WEB: "سایت عمومی",
+  APP_PANEL: "پنل کاربر",
+  API_DIRECT: "API",
+  ADMIN_PANEL: "پنل مدیریت",
+  AGENT_PORTAL: "پنل نماینده",
+};
 
 interface RateLimitBlockItem {
   ipAddress: string;
@@ -124,6 +167,7 @@ const RESULT_META: Record<string, { label: string; bg: string; color: string }> 
 };
 
 const TABS = [
+  { key: "inquiry", label: "استعلام شمش" },
   { key: "codes", label: "کدها" },
   { key: "batches", label: "دسته‌ها" },
   { key: "transfers", label: "درخواست‌های انتقال" },
@@ -158,6 +202,187 @@ function ErrorBox({ message }: { message: string }) {
     <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 text-red-600 text-[13px] font-bold">
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
       {message}
+    </div>
+  );
+}
+
+// ─────────────────────────── استعلام کارشناس ───────────────────────────
+
+interface AdminInquiryResult {
+  status: "INVALID_CODE" | "VALID_UNASSIGNED" | "VALID_ASSIGNED";
+  message: string;
+  product?: { weightGrams: string | null; purityKarat: string | null; factorySerialNumber: string | null; batchNumber: string };
+  owner?: { fullName: string; nationalCode: string; ownershipStartAt: string } | null;
+  incident?: {
+    type: "THEFT" | "LOSS";
+    typeLabel: string;
+    statusLabel: string;
+    reportNumber: string;
+    reportedAt: string;
+    message: string;
+  } | null;
+  detail: {
+    code: string;
+    status: string;
+    batch: { batchNumber: string };
+    product: { name: string } | null;
+    agent: { id: string; code: string; name: string } | null;
+    ownerships: { id: string; fullName: string; status: string; ownershipStartAt: string }[];
+    incidentReports: (ActiveIncident & { description: string; closedAt: string | null })[];
+  } | null;
+}
+
+function InquiryTab() {
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<AdminInquiryResult | null>(null);
+
+  const submit = async () => {
+    const clean = code.replace(/[^\d۰-۹]/g, "").replace(/[۰-۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)));
+    if (!/^\d{8}$/.test(clean)) return setError("کد هولوگرام باید دقیقاً ۸ رقم باشد");
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await axios.post("/api/admin/holograms/inquiry", { code: clean });
+      setResult(res.data as AdminInquiryResult);
+    } catch (err) {
+      setError(getErrorMessage(err, "خطا در استعلام"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statusMeta = result?.detail ? CODE_STATUS_META[result.detail.status] : null;
+
+  return (
+    <div className="max-w-xl space-y-4">
+      <div
+        className="rounded-2xl p-4 flex gap-2"
+        style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+      >
+        <input
+          dir="ltr"
+          inputMode="numeric"
+          maxLength={8}
+          placeholder="کد ۸ رقمی هولوگرام"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 outline-none text-center font-black tracking-[0.2em]"
+        />
+        <button
+          onClick={submit}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-5 rounded-xl text-[13px] font-black text-white disabled:opacity-60"
+          style={{ backgroundColor: "var(--color-emerald)" }}
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Search className="w-4 h-4" /> استعلام</>}
+        </button>
+      </div>
+      {error && <ErrorBox message={error} />}
+
+      {result?.incident && (
+        <div className="rounded-2xl p-4 border-2 border-red-300 bg-red-50 space-y-1">
+          <p className="flex items-center gap-2 text-red-700 text-[15px] font-black">
+            <Siren className="w-5 h-5" /> شمش «{result.incident.typeLabel}» گزارش شده است
+          </p>
+          <p className="text-[12px] text-red-700">
+            گزارش <b dir="ltr">{result.incident.reportNumber}</b> — {result.incident.statusLabel} — ثبت{" "}
+            {new Date(result.incident.reportedAt).toLocaleString("fa-IR")}
+          </p>
+          <p className="text-[12px] text-red-600">
+            این استعلام در پرونده‌ی گزارش ثبت شد. در صورت مراجعه‌ی حضوری، شمش را تحویل نگیرید و موضوع را به واحد
+            امنیت اطلاع دهید.
+          </p>
+          {result.detail?.incidentReports.find((r) => r.reportNumber === result.incident?.reportNumber) && (
+            <Link
+              href={`/holograms/incidents?id=${result.detail.incidentReports.find((r) => r.reportNumber === result.incident?.reportNumber)!.id}`}
+              className="inline-block mt-1 text-[12px] font-black text-red-700 underline"
+            >
+              مشاهده‌ی پرونده‌ی گزارش
+            </Link>
+          )}
+        </div>
+      )}
+
+      {result && (
+        <div
+          className="rounded-2xl p-4 space-y-2 text-[13px]"
+          style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+        >
+          <div className="flex items-center gap-2">
+            {result.status === "INVALID_CODE" ? (
+              <ShieldAlert className="w-6 h-6 text-red-500" />
+            ) : result.status === "VALID_UNASSIGNED" ? (
+              <ShieldQuestion className="w-6 h-6 text-gray-400" />
+            ) : result.incident ? (
+              <ShieldAlert className="w-6 h-6 text-red-500" />
+            ) : (
+              <ShieldCheck className="w-6 h-6 text-emerald-500" />
+            )}
+            <span className="font-black text-gray-900">
+              {result.status === "INVALID_CODE"
+                ? "کد نامعتبر"
+                : result.status === "VALID_UNASSIGNED"
+                  ? "معتبر — بدون مالک"
+                  : "معتبر — دارای مالک"}
+            </span>
+            {statusMeta && (
+              <span className="badge mr-auto" style={{ background: statusMeta.bg, color: statusMeta.color }}>
+                {statusMeta.label}
+              </span>
+            )}
+          </div>
+          {result.detail && (
+            <div className="space-y-1 text-gray-600">
+              <p>دسته: {result.detail.batch.batchNumber}</p>
+              {result.detail.product && <p>محصول: {result.detail.product.name}</p>}
+              {result.product?.weightGrams && (
+                <p>
+                  وزن: {Number(result.product.weightGrams).toLocaleString("fa-IR")} گرم
+                  {result.product.purityKarat ? ` — عیار ${result.product.purityKarat === "K18" ? "۱۸" : "۲۴"}` : ""}
+                </p>
+              )}
+              {result.product?.factorySerialNumber && <p>سریال کارخانه: {result.product.factorySerialNumber}</p>}
+              {result.owner && (
+                <p>
+                  مالک فعلی: <b>{result.owner.fullName}</b> — <bdi dir="ltr">{result.owner.nationalCode}</bdi> — از{" "}
+                  {new Date(result.owner.ownershipStartAt).toLocaleDateString("fa-IR")}
+                </p>
+              )}
+              {result.detail.agent && (
+                <p className="text-sky-700">
+                  امانی نزد نماینده:{" "}
+                  <Link href={`/agents/${result.detail.agent.id}`} className="font-bold underline">
+                    {result.detail.agent.name} ({result.detail.agent.code})
+                  </Link>
+                </p>
+              )}
+              <p>تعداد مالکان در تاریخچه: {result.detail.ownerships.length.toLocaleString("fa-IR")}</p>
+            </div>
+          )}
+          {!!result.detail?.incidentReports.length && (
+            <div className="pt-2 border-t border-gray-100 space-y-1">
+              <p className="text-[12px] font-black text-gray-700">سوابق گزارش سرقت/مفقودی</p>
+              {result.detail.incidentReports.map((r) => (
+                <Link
+                  key={r.id}
+                  href={`/holograms/incidents?id=${r.id}`}
+                  className="flex items-center justify-between text-[12px] rounded-lg px-2 py-1.5 hover:bg-gray-50"
+                >
+                  <span dir="ltr">{r.reportNumber}</span>
+                  <span>
+                    {INCIDENT_TYPE_FA[r.type]} — {INCIDENT_STATUS_FA[r.status]} —{" "}
+                    {new Date(r.createdAt).toLocaleDateString("fa-IR")}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -263,6 +488,7 @@ function RevokeModal({ code, onClose, onDone }: { code: string; onClose: () => v
 
 function CodesTab() {
   const [status, setStatus] = useState("");
+  const [flagged, setFlagged] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [assignTarget, setAssignTarget] = useState<string | null>(null);
@@ -270,6 +496,7 @@ function CodesTab() {
 
   const qs = new URLSearchParams({ page: String(page), limit: "20" });
   if (status) qs.set("status", status);
+  if (flagged) qs.set("flagged", "true");
   if (search.trim()) qs.set("search", search.trim());
 
   const { data, isLoading, mutate } = useSWR<Paged<HologramCodeItem>>(
@@ -304,6 +531,17 @@ function CodesTab() {
             </option>
           ))}
         </select>
+        <label className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-[12px] font-bold text-red-600">
+          <input
+            type="checkbox"
+            checked={flagged}
+            onChange={(e) => {
+              setFlagged(e.target.checked);
+              setPage(1);
+            }}
+          />
+          فقط سرقتی/مفقودی
+        </label>
       </div>
 
       {isLoading ? (
@@ -327,11 +565,23 @@ function CodesTab() {
                   <span dir="ltr" className="text-[15px] font-black text-gray-900">
                     {c.code}
                   </span>
-                  <span className="badge" style={{ background: meta.bg, color: meta.color }}>
-                    {meta.label}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {c.incidentReports?.[0] && <IncidentBadge incident={c.incidentReports[0]} />}
+                    <span className="badge" style={{ background: meta.bg, color: meta.color }}>
+                      {meta.label}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-[11px] text-gray-400 mb-1">دسته: {c.batch.batchNumber}</p>
+                {c.incidentReports?.[0] && (
+                  <p className="text-[12px] text-red-600 mb-1">
+                    گزارش{" "}
+                    <Link href={`/holograms/incidents?id=${c.incidentReports[0].id}`} className="font-bold underline">
+                      {c.incidentReports[0].reportNumber}
+                    </Link>{" "}
+                    — انتقال و فروش این شمش مسدود است
+                  </p>
+                )}
                 {(c.product || c.variant) && (
                   <p className="text-[12px] text-gray-600 mb-1">
                     {c.product?.name} {c.weightGrams ? `— ${Number(c.weightGrams).toLocaleString("fa-IR")} گرم` : ""}{" "}
@@ -712,10 +962,14 @@ function TransfersTab() {
 function LogsTab() {
   const [ipAddress, setIpAddress] = useState("");
   const [result, setResult] = useState("");
+  const [channel, setChannel] = useState("");
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [page, setPage] = useState(1);
   const qs = new URLSearchParams({ page: String(page), limit: "20" });
   if (ipAddress.trim()) qs.set("ipAddress", ipAddress.trim());
   if (result) qs.set("result", result);
+  if (channel) qs.set("channel", channel);
+  if (flaggedOnly) qs.set("flaggedOnly", "true");
 
   const { data, isLoading } = useSWR<Paged<InquiryLogItem>>(
     `/api/admin/holograms/inquiry-logs?${qs.toString()}`,
@@ -750,6 +1004,32 @@ function LogsTab() {
             </option>
           ))}
         </select>
+        <select
+          value={channel}
+          onChange={(e) => {
+            setChannel(e.target.value);
+            setPage(1);
+          }}
+          className="px-3 py-2 rounded-xl border border-gray-200 outline-none text-sm"
+        >
+          <option value="">همه کانال‌ها</option>
+          {Object.entries(CHANNEL_FA).map(([key, label]) => (
+            <option key={key} value={key}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <label className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-[12px] font-bold text-red-600">
+          <input
+            type="checkbox"
+            checked={flaggedOnly}
+            onChange={(e) => {
+              setFlaggedOnly(e.target.checked);
+              setPage(1);
+            }}
+          />
+          فقط شمش‌های سرقتی/مفقودی
+        </label>
       </div>
 
       {isLoading ? (
@@ -775,10 +1055,24 @@ function LogsTab() {
                   <span className="text-gray-400 mx-2" dir="ltr">
                     {log.ipAddress}
                   </span>
-                  <span className="text-gray-400">{log.channel}</span>
+                  <span className="text-gray-400">{CHANNEL_FA[log.channel] ?? log.channel}</span>
                   {log.user && <span className="text-gray-400 mx-1" dir="ltr">({log.user.phone})</span>}
+                  {log.adminUser && (
+                    <span className="text-gray-500 mx-1">
+                      ({log.adminUser.agent ? `نماینده ${log.adminUser.agent.name}` : log.adminUser.fullName})
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
+                  {log.incidentReport && (
+                    <Link
+                      href={`/holograms/incidents?id=${log.incidentReport.id}`}
+                      className="badge inline-flex items-center gap-1"
+                      style={{ background: "#fee2e2", color: "#b91c1c" }}
+                    >
+                      <Siren className="w-3 h-3" /> {INCIDENT_TYPE_FA[log.incidentReport.type]}
+                    </Link>
+                  )}
                   <span className="text-[10px] text-gray-400">
                     {new Date(log.createdAt).toLocaleString("fa-IR")}
                   </span>
@@ -959,7 +1253,7 @@ function SecurityTab() {
 // ─────────────────────────── صفحه اصلی ───────────────────────────
 
 export default function HologramsPage() {
-  const [tab, setTab] = useState<TabKey>("codes");
+  const [tab, setTab] = useState<TabKey>("inquiry");
 
   return (
     <div>
@@ -968,7 +1262,10 @@ export default function HologramsPage() {
         <h1 className="text-lg font-black text-gray-900">اصالت‌سنجی هولوگرام</h1>
       </div>
       <p className="text-[12px] text-gray-400 mb-4">
-        مدیریت کدهای هولوگرام، تخصیص به سفارش، انتقال مالکیت و امنیت استعلام عمومی
+        استعلام شمش، مدیریت کدهای هولوگرام، تخصیص به سفارش، انتقال مالکیت و امنیت استعلام عمومی —{" "}
+        <Link href="/holograms/incidents" className="font-bold text-red-600 underline">
+          گزارش‌های سرقت و مفقودی
+        </Link>
       </p>
 
       <div className="flex gap-2 overflow-x-auto pb-1 mb-4">
@@ -988,6 +1285,7 @@ export default function HologramsPage() {
         ))}
       </div>
 
+      {tab === "inquiry" && <InquiryTab />}
       {tab === "codes" && <CodesTab />}
       {tab === "batches" && <BatchesTab />}
       {tab === "transfers" && <TransfersTab />}

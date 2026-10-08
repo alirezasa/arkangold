@@ -7,9 +7,10 @@ import {
 } from './wallet-admin.controller';
 import { WalletAdminService } from './wallet-admin.service';
 import { AccountingModule } from '../accounting/accounting.module';
+import { DepositModule } from '../deposit/deposit.module';
 
 @Module({
-  imports: [AccountingModule],
+  imports: [AccountingModule, DepositModule],
   controllers: [
     WalletController,
     WalletAdminController,

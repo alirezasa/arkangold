@@ -341,7 +341,45 @@ export enum HologramInquiryChannel {
   PUBLIC_WEB = 'PUBLIC_WEB',
   APP_PANEL = 'APP_PANEL',
   API_DIRECT = 'API_DIRECT',
+  /** استعلام کارشناس از پنل مدیریت */
+  ADMIN_PANEL = 'ADMIN_PANEL',
+  /** استعلام نماینده فروش از پرتال نمایندگان */
+  AGENT_PORTAL = 'AGENT_PORTAL',
 }
+
+/** نوع گزارش امنیتی شمش */
+export enum HologramIncidentType {
+  THEFT = 'THEFT',
+  LOSS = 'LOSS',
+}
+
+export enum HologramIncidentStatus {
+  /** ثبت‌شده و در انتظار بررسی — هشدار از همین لحظه فعال است */
+  OPEN = 'OPEN',
+  CONFIRMED = 'CONFIRMED',
+  RECOVERED = 'RECOVERED',
+  REJECTED = 'REJECTED',
+  CANCELLED = 'CANCELLED',
+}
+
+/** وضعیت‌هایی که شمش را «گزارش‌شده» نگه می‌دارند */
+export const HOLOGRAM_INCIDENT_ACTIVE_STATUSES: HologramIncidentStatus[] = [
+  HologramIncidentStatus.OPEN,
+  HologramIncidentStatus.CONFIRMED,
+];
+
+export const HOLOGRAM_INCIDENT_TYPE_FA: Record<HologramIncidentType, string> = {
+  [HologramIncidentType.THEFT]: 'سرقت',
+  [HologramIncidentType.LOSS]: 'مفقودی',
+};
+
+export const HOLOGRAM_INCIDENT_STATUS_FA: Record<HologramIncidentStatus, string> = {
+  [HologramIncidentStatus.OPEN]: 'ثبت‌شده — در انتظار بررسی',
+  [HologramIncidentStatus.CONFIRMED]: 'تأییدشده',
+  [HologramIncidentStatus.RECOVERED]: 'بازیابی‌شده',
+  [HologramIncidentStatus.REJECTED]: 'ردشده',
+  [HologramIncidentStatus.CANCELLED]: 'لغوشده توسط گزارش‌دهنده',
+};
 
 export enum HologramInquiryResult {
   VALID_ASSIGNED = 'VALID_ASSIGNED',

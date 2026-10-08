@@ -8,7 +8,7 @@ import {
   AlertCircle, Check, ChevronLeft, Copy, FileText, Loader2, Upload, X,
 } from "lucide-react";
 import {
-  useCancelDeposit, useDeposit, type DepositStatus,
+  DEPOSIT_METHOD_LABEL, useCancelDeposit, useDeposit, type DepositStatus,
 } from "@/app/hooks/useDeposits";
 import { openInvoicePrint } from "@/app/hooks/useInvoices";
 import ReceiptUploadModal from "@/app/dashboard/components/deposit/ReceiptUploadModal";
@@ -86,23 +86,41 @@ export default function DepositDetailPage({
   }
 
   const isFailed = ["REJECTED", "CANCELLED", "EXPIRED"].includes(deposit.status);
-  const activeIndex = TIMELINE.findIndex((t) => t.key === deposit.status);
+  const isProforma = deposit.method === "LARGE_TRANSFER";
+  // کارت به کارت / حساب به حساب پیش‌فاکتور ندارند — اولین گام «ثبت درخواست» است
+  const timeline = isProforma
+    ? TIMELINE
+    : [
+        {
+          key: "PENDING_PAYMENT" as DepositStatus,
+          title: "درخواست واریز ثبت شد",
+          hint: "تصویر فیش واریزی را ارسال کنید",
+        },
+        ...TIMELINE.slice(1),
+      ];
+  const activeIndex = timeline.findIndex((t) => t.key === deposit.status);
+  const dest = deposit.destination;
 
   const details: { label: string; value: string; copyable?: boolean }[] = [
     { label: "شماره درخواست", value: deposit.requestNumber },
-    {
-      label: "شماره پیش‌فاکتور",
-      value: deposit.proformaInvoiceNumber ?? "—",
-    },
-    {
-      label: "شناسه واریز",
-      value: deposit.depositTrackingId,
-      copyable: true,
-    },
-    { label: "نام صاحب حساب", value: deposit.destination.owner },
-    { label: "شماره شبا", value: deposit.destination.sheba, copyable: true },
+    { label: "روش واریز", value: DEPOSIT_METHOD_LABEL[deposit.method] ?? deposit.method },
+    ...(isProforma
+      ? [
+          { label: "شماره پیش‌فاکتور", value: deposit.proformaInvoiceNumber ?? "—" },
+          { label: "شناسه واریز", value: deposit.depositTrackingId, copyable: true },
+        ]
+      : []),
+    ...(dest.source?.cardNumber
+      ? [{ label: "کارت/حساب مبدأ", value: `${dest.source.bankName} — ${dest.source.cardNumber}` }]
+      : []),
+    { label: "نام صاحب حساب مقصد", value: dest.owner || "—" },
+    ...(dest.card ? [{ label: "کارت مقصد", value: dest.card, copyable: true }] : []),
+    ...(dest.sheba ? [{ label: "شماره شبا", value: dest.sheba, copyable: true }] : []),
     { label: "تاریخ ثبت", value: deposit.createdAtJalali },
-    { label: "مهلت اعتبار", value: deposit.expiresAtJalali },
+    {
+      label: isProforma ? "مهلت اعتبار" : "مهلت ارسال فیش",
+      value: deposit.expiresAtJalali,
+    },
   ];
 
   return (
@@ -158,7 +176,7 @@ export default function DepositDetailPage({
         </div>
       ) : (
         <ol className="rounded-2xl bg-white border border-gray-100 p-5 mb-4 space-y-0">
-          {TIMELINE.map((step, i) => {
+          {timeline.map((step, i) => {
             const done = activeIndex > i;
             const current = activeIndex === i;
             return (
@@ -184,7 +202,7 @@ export default function DepositDetailPage({
                       </span>
                     )}
                   </span>
-                  {i < TIMELINE.length - 1 && (
+                  {i < timeline.length - 1 && (
                     <span
                       className={`w-0.5 flex-1 min-h-8 ${done ? "bg-gray-300" : "bg-gray-100"}`}
                     />
@@ -293,7 +311,7 @@ export default function DepositDetailPage({
           (confirmCancel ? (
             <div className="rounded-xl border border-red-100 bg-red-50 p-3">
               <p className="text-[12px] font-bold text-red-700 mb-3">
-                این درخواست لغو شود؟ پیش‌فاکتور هم باطل می‌شود.
+                این درخواست لغو شود؟{isProforma ? " پیش‌فاکتور هم باطل می‌شود." : ""}
               </p>
               <div className="flex gap-2">
                 <button

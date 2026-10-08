@@ -29,6 +29,14 @@ import {
 import type { ProformaExtraData } from '../invoice/invoice.types';
 import { businessRuleViolation } from '../common/audit/business-rule.util';
 
+export type ManualDepositMethod = 'CARD_TO_CARD' | 'BANK_TRANSFER';
+
+/** پیشوند کلیدهای تنظیمات سیستم برای هر روش (deposit.<key>.enabled و ...) */
+const MANUAL_CONFIG_KEY: Record<ManualDepositMethod, string> = {
+  CARD_TO_CARD: 'card_to_card',
+  BANK_TRANSFER: 'bank_transfer',
+};
+
 @Injectable()
 export class DepositService {
   private readonly logger = new Logger(DepositService.name);
@@ -207,15 +215,235 @@ export class DepositService {
     }
   }
 
-  private async assertIdentityVerified(userId: string) {
+  // ═══════════════════════════════════════════════════════════
+  // ── واریز کارت به کارت / حساب به حساب ──
+  // ═══════════════════════════════════════════════════════════
+  //
+  // کاربر ابتدا فقط اطلاعات حساب مقصد را می‌بیند (prepareManual — هیچ رکوردی ساخته
+  // نمی‌شود). پس از انجام واریز و ارسال فیش، یک DepositRequest با همان ماشین وضعیت
+  // واریز مبالغ بالا ساخته می‌شود و پس از بررسی و تأیید کارشناس کیف پول شارژ و سند
+  // حسابداری ثبت می‌شود. تا پیش از تأیید هیچ تراکنشی در «تراکنش‌ها»ی کاربر ثبت نمی‌شود.
+
+  /** اعتبارسنجی و اطلاعات مقصد — بدون نوشتن در دیتابیس */
+  async prepareManual(
+    userId: string,
+    method: ManualDepositMethod,
+    sourceCardId: string,
+    amountRial?: number,
+  ) {
+    const key = MANUAL_CONFIG_KEY[method];
+    const enabled = await this.systemConfig.getBoolean(
+      `deposit.${key}.enabled`,
+      true,
+    );
+    if (!enabled) {
+      throw new ForbiddenException(
+        'این روش واریز در حال حاضر غیرفعال است. لطفاً از روش دیگری استفاده کنید',
+      );
+    }
+    await this.assertIdentityVerified(
+      userId,
+      'برای واریز وجه ابتدا احراز هویت خود را تکمیل کنید',
+    );
+
+    const bankAccount = await this.prisma.bankAccount.findFirst({
+      where: { id: sourceCardId, userId },
+    });
+    if (!bankAccount) throw new NotFoundException('کارت بانکی یافت نشد');
+    if (!bankAccount.isVerified) {
+      throw new BadRequestException(
+        'واریز فقط از کارت/حساب تأییدشده‌ی خودتان امکان‌پذیر است',
+      );
+    }
+
+    const destination = await this.manualDestination(method);
+
+    if (amountRial !== undefined) {
+      await this.assertManualAmount(userId, method, amountRial);
+    }
+
+    return { bankAccount, destination };
+  }
+
+  async createManual(
+    userId: string,
+    dto: {
+      method: ManualDepositMethod;
+      amountRial: number;
+      sourceCardId: string;
+    },
+    idempotencyKey?: string,
+  ) {
+    if (!Number.isSafeInteger(dto.amountRial) || dto.amountRial <= 0) {
+      throw new BadRequestException('مبلغ معتبر نیست');
+    }
+
+    if (idempotencyKey) {
+      const existing = await this.prisma.depositRequest.findUnique({
+        where: { idempotencyKey },
+      });
+      if (existing) {
+        if (existing.userId !== userId) {
+          throw businessRuleViolation(
+            new ForbiddenException('کلید درخواست معتبر نیست'),
+            'deposit.idempotency_key_foreign',
+          );
+        }
+        return this.getOne(userId, existing.id);
+      }
+    }
+
+    const { bankAccount, destination } = await this.prepareManual(
+      userId,
+      dto.method,
+      dto.sourceCardId,
+      dto.amountRial,
+    );
+
+    const windowHours = Math.max(
+      1,
+      await this.systemConfig.getNumber(
+        'deposit.manual.receipt_window_hours',
+        24,
+      ),
+    );
+    const expiresAt = new Date(Date.now() + windowHours * 60 * 60 * 1000);
+
+    try {
+      const created = await this.prisma.$transaction(async (tx) => {
+        const wallet = await tx.wallet.findUnique({ where: { userId } });
+        if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
+
+        const deposit = await tx.depositRequest.create({
+          data: {
+            requestNumber: await this.sequence.next(tx, 'DEP'),
+            userId,
+            walletId: wallet.id,
+            amountRial: dto.amountRial,
+            method: dto.method,
+            status: 'PENDING_PAYMENT',
+            depositTrackingId: await this.tracking.generate(tx),
+            destinationSnapshot: {
+              ...destination,
+              source: {
+                bankName: bankAccount.bankName,
+                cardNumber: bankAccount.cardNumber,
+                sheba: bankAccount.sheba,
+              },
+            },
+            idempotencyKey: idempotencyKey ?? null,
+            expiresAt,
+          },
+        });
+        return deposit.id;
+      });
+
+      this.logger.log(
+        `[Deposit] درخواست واریز ${dto.method} ایجاد شد — کاربر ${userId} مبلغ ${dto.amountRial}`,
+      );
+      return this.getOne(userId, created);
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002' &&
+        idempotencyKey
+      ) {
+        const existing = await this.prisma.depositRequest.findUnique({
+          where: { idempotencyKey },
+        });
+        if (existing) return this.getOne(userId, existing.id);
+      }
+      throw err;
+    }
+  }
+
+  private async manualDestination(method: ManualDepositMethod) {
+    if (method === 'CARD_TO_CARD') {
+      const [card, owner] = await Promise.all([
+        this.systemConfig.get('deposit.card_to_card.destination_card'),
+        this.systemConfig.get('deposit.card_to_card.destination_owner'),
+      ]);
+      if (!card) {
+        throw new BadRequestException(
+          'اطلاعات کارت مقصد در تنظیمات سیستم کامل نشده است',
+        );
+      }
+      return { owner, bank: '', accountNumber: '', sheba: '', card };
+    }
+    const [owner, accountNumber, sheba] = await Promise.all([
+      this.systemConfig.get('deposit.bank_transfer.destination_owner'),
+      this.systemConfig.get('deposit.bank_transfer.destination_account'),
+      this.systemConfig.get('deposit.bank_transfer.destination_sheba'),
+    ]);
+    if (!sheba && !accountNumber) {
+      throw new BadRequestException(
+        'اطلاعات حساب مقصد در تنظیمات سیستم کامل نشده است',
+      );
+    }
+    return { owner, bank: '', accountNumber, sheba, card: '' };
+  }
+
+  /** حداقل/حداکثر و سقف روزانه — بر اساس درخواست‌های واریز همین روش، نه متن تراکنش */
+  private async assertManualAmount(
+    userId: string,
+    method: ManualDepositMethod,
+    amountRial: number,
+  ) {
+    const key = MANUAL_CONFIG_KEY[method];
+    const [min, max, dailyLimit] = await Promise.all([
+      this.systemConfig.getNumber(`deposit.${key}.min_amount`, 100_000),
+      this.systemConfig.getNumber(
+        `deposit.${key}.max_amount`,
+        method === 'CARD_TO_CARD' ? 150_000_000 : 0,
+      ),
+      this.systemConfig.getNumber(`deposit.${key}.daily_limit`, 0),
+    ]);
+    const toman = (rial: number) => (rial / 10).toLocaleString('fa-IR');
+
+    if (amountRial < min) {
+      throw new BadRequestException(`حداقل مبلغ ${toman(min)} تومان است`);
+    }
+    if (max > 0 && amountRial > max) {
+      throw new BadRequestException(`حداکثر مبلغ ${toman(max)} تومان است`);
+    }
+    if (dailyLimit <= 0) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const used = await this.prisma.depositRequest.aggregate({
+      where: {
+        userId,
+        method,
+        createdAt: { gte: today },
+        status: {
+          in: [
+            'PENDING_PAYMENT',
+            'RECEIPT_UPLOADED',
+            'UNDER_REVIEW',
+            'APPROVED',
+          ],
+        },
+      },
+      _sum: { amountRial: true },
+    });
+    const usedRial = Number(used._sum.amountRial ?? 0);
+    if (usedRial + amountRial > dailyLimit) {
+      throw new BadRequestException(
+        `سقف واریز روزانه این روش ${toman(dailyLimit)} تومان است. باقی‌مانده: ${toman(Math.max(0, dailyLimit - usedRial))} تومان`,
+      );
+    }
+  }
+
+  private async assertIdentityVerified(
+    userId: string,
+    message = 'برای واریز مبالغ بالا ابتدا احراز هویت خود را تکمیل کنید',
+  ) {
     const identity = await this.prisma.userIdentity.findUnique({
       where: { userId },
       select: { status: true },
     });
     if (identity?.status !== 'VERIFIED') {
-      throw new ForbiddenException(
-        'برای واریز مبالغ بالا ابتدا احراز هویت خود را تکمیل کنید',
-      );
+      throw new ForbiddenException(message);
     }
   }
 
@@ -374,6 +602,7 @@ export class DepositService {
         id: r.id,
         requestNumber: r.requestNumber,
         amountRial: r.amountRial.toString(),
+        method: r.method,
         status: r.status,
         statusLabel: STATUS_LABEL[r.status],
         depositTrackingId: r.depositTrackingId,

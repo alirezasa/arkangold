@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useDepositConfig, useCardToCardDeposit } from "@/app/hooks/useWallet";
 import { useBankAccounts } from "@/app/hooks/useBankAccounts";
 import { useGoldPrice } from "@/app/hooks/useGoldPrice";
+import ManualDepositReceiptStep from "@/app/dashboard/components/deposit/ManualDepositReceiptStep";
 import {
   ChevronLeft,
   Copy,
@@ -59,19 +60,18 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-type Step = "select-card" | "enter-amount" | "show-destination" | "confirmed";
+type Step = "select-card" | "enter-amount" | "show-destination" | "receipt";
 
 export default function CardToCardPage() {
   const { config } = useDepositConfig();
   const { accounts } = useBankAccounts();
   const { data: goldPrice } = useGoldPrice();
-  const { loading, error, setError, initiate, confirm } = useCardToCardDeposit();
+  const { loading, error, setError, initiate } = useCardToCardDeposit();
 
   const [step, setStep] = useState<Step>("select-card");
   const [selectedCardId, setSelectedCardId] = useState("");
   const [amountToman, setAmountToman] = useState("");
   const [depositInfo, setDepositInfo] = useState<{
-    transactionId: string;
     destinationCard: string;
     destinationCardFull: string;
     destinationOwner: string;
@@ -110,11 +110,6 @@ export default function CardToCardPage() {
     }
   };
 
-  const handleConfirm = async () => {
-    if (!depositInfo) return;
-    const result = await confirm(depositInfo.transactionId);
-    if (result) setStep("confirmed");
-  };
 
   const formatCard = (c: string) => c.replace(/(.{4})/g, "$1 ").trim();
 
@@ -125,7 +120,7 @@ export default function CardToCardPage() {
     Math.min(15_000_000, maxToman),
   ].filter((v, i, arr) => arr.indexOf(v) === i && v <= maxToman);
 
-  const stepLabels: Step[] = ["select-card", "enter-amount", "show-destination"];
+  const stepLabels: Step[] = ["select-card", "enter-amount", "show-destination", "receipt"];
 
   return (
     <div className="max-w-lg mx-auto" dir="rtl">
@@ -146,18 +141,16 @@ export default function CardToCardPage() {
       </div>
 
       {/* نوار پیشرفت */}
-      {step !== "confirmed" && (
-        <div className="flex items-center gap-2 mb-5">
-          {stepLabels.map((s, i) => (
-            <div key={s} className="flex items-center gap-2 flex-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-black transition-all ${stepLabels.indexOf(step) > i ? "bg-green-500 text-white" : step === s ? "text-white" : "bg-gray-100 text-gray-400"}`} style={step === s ? { backgroundColor: "var(--color-emerald)" } : undefined}>
-                {stepLabels.indexOf(step) > i ? "✓" : i + 1}
-              </div>
-              {i < 2 && <div className={`flex-1 h-0.5 rounded-full ${stepLabels.indexOf(step) > i ? "bg-green-400" : "bg-gray-200"}`} />}
+      <div className="flex items-center gap-2 mb-5">
+        {stepLabels.map((s, i) => (
+          <div key={s} className="flex items-center gap-2 flex-1">
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-black transition-all ${stepLabels.indexOf(step) > i ? "bg-green-500 text-white" : step === s ? "text-white" : "bg-gray-100 text-gray-400"}`} style={step === s ? { backgroundColor: "var(--color-emerald)" } : undefined}>
+              {stepLabels.indexOf(step) > i ? "✓" : i + 1}
             </div>
-          ))}
-        </div>
-      )}
+            {i < stepLabels.length - 1 && <div className={`flex-1 h-0.5 rounded-full ${stepLabels.indexOf(step) > i ? "bg-green-400" : "bg-gray-200"}`} />}
+          </div>
+        ))}
+      </div>
 
       {/* خطا */}
       {error && (
@@ -281,7 +274,7 @@ export default function CardToCardPage() {
 
           <div className="rounded-xl p-4 space-y-3 text-[12px]" style={{ backgroundColor: "#fefce8", border: "1px solid #fef08a", color: "#713f12" }}>
             <p className="font-black text-[13px]">راهنمای واریز کارت به کارت</p>
-            {["از کارتی که در حساب‌های بانکی آرکان گلد ثبت کرده‌اید واریز کنید.", "شماره کارت مقصد (حساب آرکان گلد) را کپی کنید.", "از اپلیکیشن بانکی یا خودپرداز مبلغ مورد نظر را واریز کنید.", "بعد از واریز، کیف پول شما تا حداکثر ۱۰ دقیقه شارژ خواهد شد."].map((t, i) => (
+            {["فقط از همان کارتی که انتخاب کرده‌اید (ثبت‌شده در آرکان گلد) واریز کنید.", "شماره کارت مقصد (حساب آرکان گلد) را کپی کنید.", "از اپلیکیشن بانکی یا خودپرداز دقیقاً همین مبلغ را واریز کنید.", "پس از واریز، «واریز را انجام دادم» را بزنید و تصویر رسید را ارسال کنید؛ کیف پول پس از تأیید کارشناس شارژ می‌شود."].map((t, i) => (
               <div key={i} className="flex items-start gap-2">
                 <span className="w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5" style={{ backgroundColor: "var(--color-emerald)", color: "white" }}>{i + 1}</span>
                 <p>{t}</p>
@@ -294,23 +287,23 @@ export default function CardToCardPage() {
             <span className="text-[12px] text-gray-600 font-medium">{depositInfo.processingTime}</span>
           </div>
 
-          <button onClick={handleConfirm} disabled={loading} className="w-full py-4 rounded-xl font-black text-white text-[15px] flex items-center justify-center gap-2 disabled:opacity-60" style={{ backgroundColor: "var(--color-emerald)" }}>
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "واریز را انجام دادم"}
+          <button onClick={() => setStep("receipt")} className="w-full py-4 rounded-xl font-black text-white text-[15px] flex items-center justify-center gap-2" style={{ backgroundColor: "var(--color-emerald)" }}>
+            واریز را انجام دادم
           </button>
+          <Link href="/dashboard/wallet" className="block w-full py-3 rounded-xl font-bold text-[13px] text-center text-gray-500">
+            انصراف (هیچ درخواستی ثبت نشده است)
+          </Link>
         </div>
       )}
 
-      {/* ══ مرحله ۴: تایید ══ */}
-      {step === "confirmed" && (
-        <div className="rounded-2xl p-8 text-center" style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}>
-          <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-[18px] font-black text-gray-900 mb-2">درخواست ثبت شد</h2>
-          <p className="text-[13px] text-gray-500 leading-relaxed mb-6">پس از تایید کارشناسان، مبلغ به کیف پول شما افزوده می‌شود.</p>
-          <div className="flex flex-col gap-3">
-            <Link href="/dashboard/wallet" className="py-3.5 rounded-xl font-black text-white! text-[14px] text-center" style={{ backgroundColor: "var(--color-emerald)" }}>بازگشت به کیف پول</Link>
-            <Link href="/dashboard/transactions" className="py-3.5 rounded-xl font-bold text-[13px] text-center border border-gray-200 text-gray-600">مشاهده تراکنش‌ها</Link>
-          </div>
-        </div>
+      {/* ══ مرحله ۴: ارسال فیش — فقط اینجا درخواست واریز ثبت می‌شود ══ */}
+      {step === "receipt" && depositInfo && (
+        <ManualDepositReceiptStep
+          method="CARD_TO_CARD"
+          sourceCardId={selectedCardId}
+          amountRial={depositInfo.amount}
+          onBack={() => setStep("show-destination")}
+        />
       )}
     </div>
   );

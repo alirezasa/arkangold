@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  MaxLength,
   Matches,
   Max,
   Min,
@@ -16,6 +17,9 @@ import {
 } from 'class-validator';
 import {
   HologramCodeStatus,
+  HologramIncidentStatus,
+  HologramIncidentType,
+  HologramInquiryChannel,
   HologramInquiryResult,
   HologramTransferRequestStatus,
   ShopOrderItemRecipientType,
@@ -94,6 +98,11 @@ export class GetHologramCodesQueryDto {
   @IsUUID()
   batchId?: string;
 
+  /** فقط شمش‌هایی که گزارش سرقت/مفقودی فعال دارند */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  flagged?: boolean;
+
   // جستجو بر اساس کد، شماره سریال کارخانه یا نام/کدملی مالک فعلی
   @IsOptional()
   @IsString()
@@ -138,6 +147,15 @@ export class GetHologramInquiryLogsQueryDto {
   @IsOptional()
   @IsIn(Object.values(HologramInquiryResult))
   result?: HologramInquiryResult;
+
+  @IsOptional()
+  @IsIn(Object.values(HologramInquiryChannel))
+  channel?: HologramInquiryChannel;
+
+  /** فقط استعلام‌های شمش‌هایی که در آن لحظه گزارش سرقت/مفقودی فعال داشتند */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  flaggedOnly?: boolean;
 
   @IsOptional()
   @IsDateString()
@@ -248,4 +266,99 @@ export class RejectHologramTransferDto {
   @IsOptional()
   @IsString()
   reason?: string;
+}
+
+// ─────────────────────────── گزارش سرقت / مفقودی ───────────────────────────
+
+class HologramIncidentDetailsDto {
+  @IsIn(Object.values(HologramIncidentType), { message: 'نوع گزارش معتبر نیست' })
+  type!: HologramIncidentType;
+
+  @IsString()
+  @Length(10, 1000, { message: 'شرح ماجرا باید بین ۱۰ تا ۱۰۰۰ کاراکتر باشد' })
+  description!: string;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'تاریخ وقوع معتبر نیست' })
+  incidentAt?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  incidentLocation?: string;
+
+  /** شماره‌ی صورتجلسه/گزارش کلانتری (برای سرقت توصیه می‌شود) */
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  policeReportNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(IRAN_MOBILE_PATTERN, { message: 'شماره تماس معتبر نیست' })
+  contactPhone?: string;
+}
+
+/** اعلام سرقت/مفقودی توسط مالک از پنل کاربری */
+export class CreateHologramIncidentDto extends HologramIncidentDetailsDto {
+  @IsUUID()
+  hologramCodeId!: string;
+}
+
+/** ثبت گزارش توسط کارشناس (مثلاً سرقت از خزانه یا نماینده) */
+export class AdminCreateHologramIncidentDto extends HologramIncidentDetailsDto {
+  @IsString()
+  @Matches(HOLOGRAM_CODE_PATTERN, { message: 'کد هولوگرام باید ۸ رقم باشد' })
+  code!: string;
+}
+
+export class CancelHologramIncidentDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
+export class ReviewHologramIncidentDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
+}
+
+export class CloseHologramIncidentDto {
+  @IsString()
+  @Length(5, 1000, { message: 'توضیح باید حداقل ۵ کاراکتر باشد' })
+  reason!: string;
+}
+
+export class GetHologramIncidentsQueryDto {
+  @Transform(({ value }) => Number(value ?? 1))
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @Transform(({ value }) => Number(value ?? 20))
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit = 20;
+
+  @IsOptional()
+  @IsIn(Object.values(HologramIncidentStatus))
+  status?: HologramIncidentStatus;
+
+  /** فقط گزارش‌های فعال (ثبت‌شده/تأییدشده) */
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  activeOnly?: boolean;
+
+  @IsOptional()
+  @IsIn(Object.values(HologramIncidentType))
+  type?: HologramIncidentType;
+
+  /** کد هولوگرام، شماره گزارش، نام/کدملی مالک یا موبایل گزارش‌دهنده */
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

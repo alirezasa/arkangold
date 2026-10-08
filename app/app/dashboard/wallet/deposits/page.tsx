@@ -6,7 +6,9 @@ import Link from "next/link";
 import {
   ChevronLeft, FileText, Inbox, Loader2, Plus,
 } from "lucide-react";
-import { useDeposits, type DepositStatus } from "@/app/hooks/useDeposits";
+import {
+  DEPOSIT_METHOD_LABEL, useDeposits, type DepositStatus,
+} from "@/app/hooks/useDeposits";
 
 const TABS: { key: DepositStatus | "ALL"; label: string }[] = [
   { key: "ALL", label: "همه" },
@@ -47,10 +49,10 @@ export default function DepositsListPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-[17px] font-black text-gray-900">درخواست‌های واریز</h1>
-          <p className="text-[11px] text-gray-400">پیگیری واریزهای مبالغ بالا</p>
+          <p className="text-[11px] text-gray-400">پیگیری واریزهای کارت به کارت، حساب به حساب و مبالغ بالا</p>
         </div>
         <Link
-          href="/dashboard/wallet/deposit/large-transfer"
+          href="/dashboard/wallet/deposit"
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[12px] font-black text-white"
           style={{ backgroundColor: "var(--color-emerald)" }}
         >
@@ -87,7 +89,7 @@ export default function DepositsListPage() {
             هنوز درخواست واریزی ثبت نکرده‌اید
           </p>
           <Link
-            href="/dashboard/wallet/deposit/large-transfer"
+            href="/dashboard/wallet/deposit"
             className="mt-1 px-5 py-2.5 rounded-xl text-[13px] font-black text-white"
             style={{ backgroundColor: "var(--color-emerald)" }}
           >
@@ -111,6 +113,9 @@ export default function DepositsListPage() {
                     </span>
                   </p>
                   <p className="text-[11px] text-gray-400 mt-0.5">
+                    {d.method && DEPOSIT_METHOD_LABEL[d.method]
+                      ? `${DEPOSIT_METHOD_LABEL[d.method]} · `
+                      : ""}
                     {d.requestNumber} · {d.createdAtJalali}
                   </p>
                 </div>

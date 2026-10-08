@@ -90,6 +90,17 @@ export const WALLET_CONFIG_DEFAULTS = [
     value: 'true',
     description: 'فعال بودن واریز حساب به حساب',
   },
+  {
+    key: 'deposit.bank_transfer.min_amount',
+    value: '100000',
+    description: 'حداقل مبلغ واریز حساب به حساب (ریال)',
+  },
+  {
+    key: 'deposit.manual.receipt_window_hours',
+    value: '24',
+    description:
+      'مهلت ارسال فیش برای درخواست واریز کارت به کارت / حساب به حساب (ساعت) — پس از آن درخواست بدون فیش منقضی می‌شود',
+  },
 
   // ══ واریز شناسه‌دار ══
   {

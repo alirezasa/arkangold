@@ -28,6 +28,7 @@ import {
   GetHologramTransferRequestsQueryDto,
   InitiateHologramTransferDto,
 } from '@arkan-gold/shared';
+import { assertNoActiveIncident } from './hologram-incident.util';
 
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 
@@ -156,6 +157,7 @@ export class HologramTransferService {
             'این شمش در حال حاضر قابل انتقال نیست (وضعیت فعلی: در انتظار تأیید انتقال دیگری)',
           );
         }
+        await assertNoActiveIncident(tx, code.id);
 
         const recipientUser = await tx.user.findUnique({
           where: { phone: dto.recipientPhoneNumber },
@@ -249,6 +251,8 @@ export class HologramTransferService {
       await this.expireOne(request.id);
       throw new GoneException('مهلت تأیید این درخواست به پایان رسیده است');
     }
+    // پیش از فراخوانی سرویس پولی احراز هویت: شمش گزارش‌شده قابل دریافت نیست
+    await assertNoActiveIncident(this.prisma, request.hologramCodeId);
 
     let civilResult: IdentityVerificationResult;
     try {
@@ -293,6 +297,7 @@ export class HologramTransferService {
         if (fresh.expiresAt.getTime() < Date.now()) {
           throw new GoneException('مهلت تأیید این درخواست به پایان رسیده است');
         }
+        await assertNoActiveIncident(tx, fresh.hologramCodeId);
 
         // اگر مالکیت فعال قبلی وجود دارد (انتقال بعدی/فروش)، بسته می‌شود
         await tx.hologramOwnership.updateMany({

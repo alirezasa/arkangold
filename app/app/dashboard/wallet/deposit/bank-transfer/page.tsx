@@ -8,6 +8,7 @@ import {
 } from "@/app/hooks/useWallet";
 import { useBankAccounts } from "@/app/hooks/useBankAccounts";
 import { useGoldPrice } from "@/app/hooks/useGoldPrice";
+import ManualDepositReceiptStep from "@/app/dashboard/components/deposit/ManualDepositReceiptStep";
 import {
   ChevronLeft,
   Copy,
@@ -38,7 +39,9 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
-type Step = "select-card" | "show-info" | "confirmed";
+// «show-info» فقط اطلاعات حساب مقصد است و هیچ درخواستی نمی‌سازد؛ درخواست واریز فقط
+// در مرحله‌ی «receipt» و همراه با فیش ثبت می‌شود.
+type Step = "select-card" | "show-info" | "receipt";
 
 export default function BankTransferPage() {
   const { config } = useDepositConfig();
@@ -246,11 +249,11 @@ export default function BankTransferPage() {
             {[
               {
                 title: "انتخاب کارت مبدأ",
-                desc: "واریز فقط از طریق کارت‌هایی که در ملی‌گلد ثبت کرده‌اید انجام می‌شود.",
+                desc: "واریز فقط از طریق کارت‌هایی که در آرکان گلد ثبت کرده‌اید انجام می‌شود.",
               },
               {
                 title: "کپی شماره حساب مقصد",
-                desc: "شماره حساب یا شبای مقصد (حساب ملی‌گلد) را کپی کنید.",
+                desc: "شماره حساب یا شبای مقصد (حساب آرکان گلد) را کپی کنید.",
               },
               {
                 title: "انجام واریز",
@@ -258,7 +261,7 @@ export default function BankTransferPage() {
               },
               {
                 title: "انتظار برای تایید",
-                desc: "در صورتیکه مبدا بانک کشاورزی باشد تا ۱۵ دقیقه، در غیر اینصورت در سیکل پایا شارژ می‌شوید.",
+                desc: "پس از واریز، «واریز را انجام دادم» را بزنید و مبلغ و تصویر رسید را ارسال کنید؛ کیف پول پس از تطبیق و تأیید کارشناس شارژ می‌شود.",
               },
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-2">
@@ -280,39 +283,28 @@ export default function BankTransferPage() {
           </div>
 
           <button
-            onClick={() => setStep("confirmed")}
+            onClick={() => setStep("receipt")}
             className="w-full py-4 rounded-xl font-black text-white text-[15px]"
-            style={{ backgroundColor: "var(--color-yellow)" }}
+            style={{ backgroundColor: "var(--color-emerald)" }}
           >
-            متوجه شدم
+            واریز را انجام دادم
           </button>
+          <Link
+            href="/dashboard/wallet"
+            className="block w-full py-3 rounded-xl font-bold text-[13px] text-center text-gray-500"
+          >
+            بعداً واریز می‌کنم (هیچ درخواستی ثبت نشده است)
+          </Link>
         </div>
       )}
 
-      {/* ══ تایید ══ */}
-      {step === "confirmed" && (
-        <div
-          className="rounded-2xl p-8 text-center"
-          style={{
-            backgroundColor: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-          }}
-        >
-          <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h2 className="text-[18px] font-black text-gray-900 mb-2">
-            منتظر واریز شما هستیم
-          </h2>
-          <p className="text-[13px] text-gray-500 leading-relaxed mb-6">
-            پس از واریز، مبلغ در سیکل پایا به کیف پول شما افزوده می‌شود.
-          </p>
-          <Link
-            href="/dashboard/wallet"
-            className="block py-3.5 rounded-xl font-black text-white! text-[14px] text-center mt-2"
-            style={{ backgroundColor: "var(--color-green)" }}
-          >
-            بازگشت به کیف پول
-          </Link>
-        </div>
+      {/* ══ مرحله ۳: ثبت مبلغ و ارسال فیش ══ */}
+      {step === "receipt" && (
+        <ManualDepositReceiptStep
+          method="BANK_TRANSFER"
+          sourceCardId={selectedCardId}
+          onBack={() => setStep("show-info")}
+        />
       )}
     </div>
   );

@@ -24,6 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
 import Decimal from 'decimal.js';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertNoActiveIncident } from '../hologram/hologram-incident.util';
 import { DocumentSequenceService } from '../common/documents/document-sequence.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { PricingEngineService } from '../catalog/pricing-engine.service';
@@ -130,6 +131,7 @@ export class AgentSaleService {
     if (!bar || bar.status !== 'AT_AGENT' || bar.agentId !== agentId) {
       throw new NotFoundException('این شمش در موجودی امانی شما نیست');
     }
+    await assertNoActiveIncident(this.prisma, bar.id);
     if (!bar.weightGrams || !bar.purityKarat) {
       throw new ConflictException(
         'مشخصات وزن/عیار این شمش ثبت نشده است؛ با واحد مالی تماس بگیرید',
@@ -284,6 +286,7 @@ export class AgentSaleService {
           'این شمش دیگر در موجودی امانی شما نیست (احتمالاً قبلاً فروخته یا عودت شده است)',
         );
       }
+      await assertNoActiveIncident(tx, bar.id);
 
       await tx.$executeRaw`SELECT 1 FROM "agents" WHERE "id" = ${actor.agentId}::uuid FOR UPDATE`;
       const agent = await tx.agent.findUniqueOrThrow({

@@ -11,6 +11,7 @@ import { Prisma } from '../generated/prisma/client';
 import { AccountingService } from '../accounting/accounting.service';
 import { DocumentSequenceService } from '../common/documents/document-sequence.service';
 import { SmsTemplateService } from '../notifications/sms-template.service';
+import { DepositService } from '../deposit/deposit.service';
 
 @Injectable()
 export class WalletService {
@@ -22,6 +23,7 @@ export class WalletService {
     private accountingService: AccountingService,
     private documentSequence: DocumentSequenceService,
     private smsTemplates: SmsTemplateService,
+    private deposits: DepositService,
   ) {}
 
   // ══════════════════════════════════════════
@@ -232,167 +234,55 @@ export class WalletService {
   }
 
   // ══════════════════════════════════════════
-  // ── بررسی سقف واریز روزانه ──
+  // ── واریز کارت به کارت ──
   // ══════════════════════════════════════════
-  async checkDailyDepositLimit(userId: string, method: string, amount: number) {
-    const dailyLimitKey = `deposit.${method}.daily_limit`;
-    const dailyLimit = await this.systemConfig.getNumber(dailyLimitKey, 0);
-    if (dailyLimit === 0) return; // بدون محدودیت
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // پیدا کردن تراکنش‌های امروز همین روش
-    const todayDeposit = await this.prisma.transaction.aggregate({
-      where: {
-        userId,
-        type: 'DEPOSIT',
-        status: { in: ['PENDING', 'COMPLETED'] },
-        createdAt: { gte: today },
-        description: { contains: method },
-      },
-      _sum: { amountRial: true },
-    });
-
-    const used = Number(todayDeposit._sum.amountRial ?? 0);
-    if (used + amount > dailyLimit) {
-      const remaining = dailyLimit - used;
-      throw new BadRequestException(
-        `سقف واریز روزانه این روش ${(dailyLimit / 10).toLocaleString('fa-IR')} تومان است. باقی‌مانده: ${(remaining / 10).toLocaleString('fa-IR')} تومان`,
-      );
-    }
-  }
-
-  // ══════════════════════════════════════════
-  // ── ثبت درخواست واریز کارت به کارت ──
-  // ══════════════════════════════════════════
+  //
+  // ⚠ این مرحله فقط اطلاعات کارت مقصد را برمی‌گرداند و هیچ رکوردی نمی‌سازد. قبلاً
+  // همین‌جا یک تراکنش PENDING ساخته می‌شد که حتی بدون هیچ واریزی در «تراکنش‌ها»ی کاربر
+  // می‌ماند و هیچ مسیر تأییدی در پنل ادمین نداشت. اکنون پس از واریز، کاربر فیش را ارسال
+  // می‌کند (POST /wallet/deposits/manual + آپلود رسید) و درخواست در صف «درخواست‌های واریز»
+  // ادمین بررسی می‌شود؛ تراکنش فقط هنگام تأیید و شارژ واقعی کیف پول ثبت می‌شود.
   async initiateCardToCard(
     userId: string,
     sourceCardId: string,
     amount: number,
   ) {
-    await this.assertDepositMethodEnabled('card_to_card');
-    await this.checkUserIdentity(userId);
-    await this.checkDailyDepositLimit(userId, 'card_to_card', amount);
-
-    const minAmount = await this.systemConfig.getNumber(
-      'deposit.card_to_card.min_amount',
-      100000,
+    const { bankAccount, destination } = await this.deposits.prepareManual(
+      userId,
+      'CARD_TO_CARD',
+      sourceCardId,
+      amount,
     );
-    const maxAmount = await this.systemConfig.getNumber(
-      'deposit.card_to_card.max_amount',
-      150000000,
-    );
-
-    if (amount < minAmount)
-      throw new BadRequestException(
-        `حداقل مبلغ ${(minAmount / 10).toLocaleString('fa-IR')} تومان است`,
-      );
-    if (amount > maxAmount)
-      throw new BadRequestException(
-        `حداکثر مبلغ ${(maxAmount / 10).toLocaleString('fa-IR')} تومان است`,
-      );
-
-    // بررسی کارت مبدا
-    const bankAccount = await this.prisma.bankAccount.findFirst({
-      where: { id: sourceCardId, userId },
-    });
-    if (!bankAccount) throw new NotFoundException('کارت بانکی یافت نشد');
-
-    const destCard = await this.systemConfig.get(
-      'deposit.card_to_card.destination_card',
-    );
-    const destOwner = await this.systemConfig.get(
-      'deposit.card_to_card.destination_owner',
-    );
-
-    // ثبت تراکنش در انتظار
-    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
-    if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
-
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        userId,
-        walletId: wallet.id,
-        type: 'DEPOSIT',
-        amountRial: amount,
-        status: 'PENDING',
-        description: `card_to_card|from:${bankAccount.cardNumber}|to:${destCard}`,
-      },
-    });
 
     return {
-      transactionId: transaction.id,
-      destinationCard: this.maskCard(destCard),
-      destinationCardFull: destCard,
-      destinationOwner: destOwner,
+      destinationCard: this.maskCard(destination.card),
+      destinationCardFull: destination.card,
+      destinationOwner: destination.owner,
+      sourceCardNumber: bankAccount.cardNumber,
       amount,
       processingTime: await this.systemConfig.get(
         'deposit.card_to_card.processing_time',
+        'پس از بررسی فیش توسط کارشناس',
       ),
-      message: 'پس از انجام واریز روی "واریز را انجام دادم" کلیک کنید',
-    };
-  }
-
-  // ── تایید انجام واریز کارت به کارت توسط کاربر ──
-  async confirmCardToCard(userId: string, transactionId: string) {
-    const tx = await this.prisma.transaction.findFirst({
-      where: { id: transactionId, userId, type: 'DEPOSIT', status: 'PENDING' },
-    });
-    if (!tx) throw new NotFoundException('تراکنش یافت نشد');
-
-    // وضعیت PENDING می‌مونه تا ادمین تایید کنه
-    await this.prisma.transaction.update({
-      where: { id: transactionId },
-      data: { description: (tx.description ?? '') + '|confirmed_by_user' },
-    });
-
-    return {
       message:
-        'درخواست واریز ثبت شد. پس از تایید کارشناسان، مبلغ به کیف پول شما افزوده می‌شود.',
+        'پس از انجام واریز، تصویر فیش را ارسال کنید تا پس از بررسی، کیف پول شما شارژ شود',
     };
   }
 
   // ══════════════════════════════════════════
-  // ── ثبت درخواست واریز حساب به حساب ──
+  // ── واریز حساب به حساب — فقط اطلاعات حساب مقصد ──
   // ══════════════════════════════════════════
   async initiateBankTransfer(userId: string, sourceCardId: string) {
-    await this.assertDepositMethodEnabled('bank_transfer');
-    await this.checkUserIdentity(userId);
-
-    const bankAccount = await this.prisma.bankAccount.findFirst({
-      where: { id: sourceCardId, userId },
-    });
-    if (!bankAccount) throw new NotFoundException('کارت بانکی یافت نشد');
-
-    const destAccount = await this.systemConfig.get(
-      'deposit.bank_transfer.destination_account',
+    const { bankAccount, destination } = await this.deposits.prepareManual(
+      userId,
+      'BANK_TRANSFER',
+      sourceCardId,
     );
-    const destSheba = await this.systemConfig.get(
-      'deposit.bank_transfer.destination_sheba',
-    );
-    const destOwner = await this.systemConfig.get(
-      'deposit.bank_transfer.destination_owner',
-    );
-
-    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
-    if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
-
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        userId,
-        walletId: wallet.id,
-        type: 'DEPOSIT',
-        status: 'PENDING',
-        description: `bank_transfer|from:${bankAccount.cardNumber}`,
-      },
-    });
 
     return {
-      transactionId: transaction.id,
-      destinationAccount: destAccount,
-      destinationSheba: destSheba,
-      destinationOwner: destOwner,
+      destinationAccount: destination.accountNumber,
+      destinationSheba: destination.sheba,
+      destinationOwner: destination.owner,
       sourceCardNumber: bankAccount.cardNumber,
       processingTime: await this.systemConfig.get(
         'deposit.bank_transfer.processing_time',
@@ -433,66 +323,6 @@ export class WalletService {
       destinationOwner: destOwner,
       sourceCard: bankAccount.cardNumber,
       instruction: 'شناسه واریز را حتماً در قسمت شناسه پایا وارد کنید',
-    };
-  }
-
-  // ══════════════════════════════════════════
-  // ── واریز مبالغ بالا (پیش‌فاکتور) ──
-  // ══════════════════════════════════════════
-  async initiateLargeTransfer(userId: string, amount: number) {
-    await this.assertDepositMethodEnabled('large_transfer');
-    await this.checkUserIdentity(userId);
-
-    const minAmount = await this.systemConfig.getNumber(
-      'deposit.large_transfer.min_amount',
-      4000000000,
-    );
-    if (amount < minAmount) {
-      throw new BadRequestException(
-        `برای واریز مبالغ بالا، حداقل مبلغ ${(minAmount / 10).toLocaleString('fa-IR')} تومان است`,
-      );
-    }
-
-    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
-    if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { identity: true },
-    });
-
-    const destAccount = await this.systemConfig.get(
-      'deposit.large_transfer.destination_account',
-    );
-    const destSheba = await this.systemConfig.get(
-      'deposit.large_transfer.destination_sheba',
-    );
-
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        userId,
-        walletId: wallet.id,
-        type: 'DEPOSIT',
-        amountRial: amount,
-        status: 'PENDING',
-        description: `large_transfer|amount:${amount}`,
-      },
-    });
-
-    // پیش‌فاکتور (در واقع اطلاعاتی که کاربر باید ببره بانک)
-    return {
-      transactionId: transaction.id,
-      proformaData: {
-        amount,
-        destinationAccount: destAccount,
-        destinationSheba: destSheba,
-        trackingId: wallet.cardNumber,
-        recipientName: 'یارا تجارت الکترونیک بنیان',
-        userFullName: user?.identity
-          ? `${user.identity.firstName} ${user.identity.lastName}`
-          : '',
-        generatedAt: new Date().toISOString(),
-      },
     };
   }
 

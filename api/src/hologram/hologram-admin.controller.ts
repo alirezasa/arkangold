@@ -7,6 +7,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
   Query,
@@ -19,6 +20,8 @@ import { Request } from 'express';
 import { HologramService } from './hologram.service';
 import { HologramTransferService } from './hologram-transfer.service';
 import { HologramSecurityService } from './hologram-security.service';
+import { HologramIncidentService } from './hologram-incident.service';
+import { extractClientIp } from './hologram-ip.util';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
@@ -26,15 +29,20 @@ import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
 import { AdminAuthenticatedUser } from '../admin-auth/interfaces/admin-jwt-payload.interface';
 import {
+  AdminCreateHologramIncidentDto,
   AssignHologramCodeDto,
+  CloseHologramIncidentDto,
   CreateHologramBatchDto,
   GetHologramBatchesQueryDto,
   GetHologramCodesQueryDto,
+  GetHologramIncidentsQueryDto,
   GetHologramInquiryLogsQueryDto,
   GetHologramRateLimitBlocksQueryDto,
   GetHologramTransferRequestsQueryDto,
+  ReviewHologramIncidentDto,
   RevokeHologramCodeDto,
   UpdateHologramSecuritySettingsDto,
+  VerifyHologramCodeDto,
 } from '@arkan-gold/shared';
 
 interface AdminRequest extends Request {
@@ -50,7 +58,20 @@ export class HologramAdminController {
     private readonly hologramService: HologramService,
     private readonly transferService: HologramTransferService,
     private readonly security: HologramSecurityService,
+    private readonly incidents: HologramIncidentService,
   ) {}
+
+  // ── استعلام کارشناس (با هشدار سرقت/مفقودی و پرونده‌ی کامل کد) ──
+  @RequirePermission('hologram.code.view')
+  @AuditLog('hologram.inquiry.admin')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post('inquiry')
+  inquiry(@Req() req: AdminRequest, @Body() dto: VerifyHologramCodeDto) {
+    return this.hologramService.inquireAsAdmin(req.user.adminUserId, dto.code, {
+      ipAddress: extractClientIp(req),
+      userAgent: req.headers['user-agent'],
+    });
+  }
 
   // ── دسته‌های هولوگرام ──
   @RequirePermission('hologram.batch.manage')
@@ -112,6 +133,72 @@ export class HologramAdminController {
       code,
       dto.reason,
     );
+  }
+
+  // ── گزارش‌های سرقت / مفقودی ──
+  @RequirePermission('hologram.incident.view')
+  @Get('incidents')
+  listIncidents(@Query() query: GetHologramIncidentsQueryDto) {
+    return this.incidents.list(query);
+  }
+
+  @RequirePermission('hologram.incident.view')
+  @Get('incidents/summary')
+  incidentsSummary() {
+    return this.incidents.summary();
+  }
+
+  @RequirePermission('hologram.incident.view')
+  @Get('incidents/:id')
+  getIncident(@Param('id', ParseUUIDPipe) id: string) {
+    return this.incidents.getDetail(id);
+  }
+
+  @RequirePermission('hologram.incident.manage')
+  @AuditLog('hologram.incident.create')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post('incidents')
+  createIncident(
+    @Req() req: AdminRequest,
+    @Body() dto: AdminCreateHologramIncidentDto,
+  ) {
+    return this.incidents.createByAdmin(req.user.adminUserId, dto);
+  }
+
+  @RequirePermission('hologram.incident.manage')
+  @AuditLog('hologram.incident.confirm')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post('incidents/:id/confirm')
+  confirmIncident(
+    @Req() req: AdminRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReviewHologramIncidentDto,
+  ) {
+    return this.incidents.confirm(req.user.adminUserId, id, dto.note);
+  }
+
+  @RequirePermission('hologram.incident.manage')
+  @AuditLog('hologram.incident.reject')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post('incidents/:id/reject')
+  rejectIncident(
+    @Req() req: AdminRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CloseHologramIncidentDto,
+  ) {
+    return this.incidents.reject(req.user.adminUserId, id, dto.reason);
+  }
+
+  @RequirePermission('hologram.incident.manage')
+  @AuditLog('hologram.incident.recover')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post('incidents/:id/recover')
+  recoverIncident(
+    @Req() req: AdminRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CloseHologramIncidentDto,
+  ) {
+    return this.incidents.recover(req.user.adminUserId, id, dto.reason);
   }
 
   // ── لاگ استعلام‌ها ──

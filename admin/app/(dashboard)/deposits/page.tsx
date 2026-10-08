@@ -11,10 +11,17 @@ type Status =
   | "PENDING_PAYMENT" | "RECEIPT_UPLOADED" | "UNDER_REVIEW"
   | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
 
+const METHOD_FA: Record<string, string> = {
+  CARD_TO_CARD: "کارت به کارت",
+  BANK_TRANSFER: "حساب به حساب",
+  LARGE_TRANSFER: "مبالغ بالا",
+};
+
 interface Row {
   id: string;
   requestNumber: string;
   amountRial: string;
+  method?: string;
   status: Status;
   statusLabel: string;
   depositTrackingId: string;
@@ -157,6 +164,11 @@ export default function AdminDepositsPage() {
                       {faNum(Number(r.amountRial) / 10)}
                       <span className="text-[10px] text-gray-400 mr-1">تومان</span>
                     </p>
+                    {r.method && (
+                      <p className="text-[10px] text-gray-400">
+                        {METHOD_FA[r.method] ?? r.method}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <bdi dir="ltr" className="font-bold text-gray-700">

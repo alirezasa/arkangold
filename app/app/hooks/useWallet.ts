@@ -178,7 +178,7 @@ export const useInternalTransfer = () => {
   return { loading, error, setError, transfer };
 };
 
-// ── Hook: واریز کارت به کارت ──
+// ── Hook: واریز کارت به کارت (فقط اطلاعات کارت مقصد — ثبت پس از ارسال فیش) ──
 export const useCardToCardDeposit = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -197,21 +197,7 @@ export const useCardToCardDeposit = () => {
     } finally { setLoading(false); }
   }, []);
 
-  const confirm = useCallback(async (transactionId: string) => {
-    setLoading(true); setError(null);
-    try {
-      const res = await axios.post('/api/wallet/deposit/card-to-card/confirm', { transactionId });
-      return res.data;
-    } catch (e: unknown) {
-      if (axios.isAxiosError(e)) {
-        const msg = e.response?.data?.message;
-        setError(Array.isArray(msg) ? msg[0] : msg || 'خطا');
-      } else setError('خطای ناشناخته');
-      return null;
-    } finally { setLoading(false); }
-  }, []);
-
-  return { loading, error, setError, initiate, confirm };
+  return { loading, error, setError, initiate };
 };
 
 // ── Hook: واریز حساب به حساب ──
@@ -256,28 +242,6 @@ export const useTrackingIdDeposit = () => {
   }, []);
 
   return { loading, error, setError, getTrackingInfo };
-};
-
-// ── Hook: واریز مبالغ بالا ──
-export const useLargeTransferDeposit = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const initiate = useCallback(async (amount: number) => {
-    setLoading(true); setError(null);
-    try {
-      const res = await axios.post('/api/wallet/deposit/large-transfer', { amount });
-      return res.data;
-    } catch (e: unknown) {
-      if (axios.isAxiosError(e)) {
-        const msg = e.response?.data?.message;
-        setError(Array.isArray(msg) ? msg[0] : msg || 'خطا');
-      } else setError('خطای ناشناخته');
-      return null;
-    } finally { setLoading(false); }
-  }, []);
-
-  return { loading, error, setError, initiate };
 };
 
 // ── Hook: برداشت ──

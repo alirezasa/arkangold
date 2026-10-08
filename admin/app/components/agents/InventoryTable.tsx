@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Search, ShoppingCart } from "lucide-react";
+import { Search, ShoppingCart, Siren } from "lucide-react";
 import { Empty, Pagination, PURITY_FA, Spinner, faDateTime, faNum, fetcher, toman } from "./ui";
 
 export interface InventoryItem {
@@ -17,6 +17,8 @@ export interface InventoryItem {
   agentPremiumRial: string | null;
   product: { id: string; name: string } | null;
   batch: { batchNumber: string };
+  /** گزارش سرقت/مفقودی فعال — شمش قابل فروش/عودت عادی نیست */
+  incidentReports?: { reportNumber: string; type: "THEFT" | "LOSS"; status: string }[];
 }
 
 /** موجودی امانی نماینده — در مدیریت قابل انتخاب برای عودت؛ در پرتال با دکمه‌ی فروش */
@@ -122,7 +124,19 @@ export default function InventoryTable({
                       <input type="checkbox" checked={sel.has(i.code)} onChange={() => toggle(i.code)} aria-label={i.code} />
                     </td>
                   )}
-                  <td className="font-mono font-bold">{i.code}</td>
+                  <td className="font-mono font-bold">
+                    {i.code}
+                    {i.incidentReports?.[0] && (
+                      <span
+                        className="badge mt-1 flex w-fit items-center gap-1 font-sans"
+                        style={{ background: "#fee2e2", color: "#b91c1c" }}
+                        title={`گزارش ${i.incidentReports[0].reportNumber}`}
+                      >
+                        <Siren className="w-3 h-3" />
+                        {i.incidentReports[0].type === "THEFT" ? "گزارش سرقت" : "گزارش مفقودی"}
+                      </span>
+                    )}
+                  </td>
                   <td className="text-[12px]">
                     {i.product?.name ?? "شمش طلا"}
                     <p className="text-[10px] text-gray-400" dir="ltr">
@@ -135,6 +149,9 @@ export default function InventoryTable({
                   <td className="text-[11px] text-gray-500">{faDateTime(i.agentAllocatedAt)}</td>
                   {sellLink && (
                     <td>
+                      {i.incidentReports?.[0] ? (
+                        <span className="text-[11px] font-bold text-red-600">فروش مسدود</span>
+                      ) : (
                       <Link
                         href={`/agent-portal/sell?code=${i.code}`}
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-black text-white"
@@ -142,6 +159,7 @@ export default function InventoryTable({
                       >
                         <ShoppingCart className="w-3.5 h-3.5" /> فروش
                       </Link>
+                      )}
                     </td>
                   )}
                 </tr>

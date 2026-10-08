@@ -16,8 +16,6 @@ import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { InternalTransferDto } from '@arkan-gold/shared';
 import {
   CardToCardInitiateDto,
-  ConfirmCardToCardDto,
-  LargeTransferInitiateDto,
   SourceCardDto,
   WithdrawalRequestDto,
 } from './wallet-requests.dto';
@@ -56,7 +54,10 @@ export class WalletController {
 
   // ── شروع واریز کارت به کارت ──
   @Post('deposit/card-to-card/initiate')
-  @ApiOperation({ summary: 'شروع فرآیند واریز کارت به کارت' })
+  @ApiOperation({
+    summary:
+      'اطلاعات کارت مقصد برای واریز کارت به کارت (بدون ثبت تراکنش — ثبت پس از ارسال فیش)',
+  })
   initiateCardToCard(
     @Req() req: AuthenticatedRequest,
     @Body() body: CardToCardInitiateDto,
@@ -65,19 +66,6 @@ export class WalletController {
       req.user.userId,
       body.sourceCardId,
       body.amount,
-    );
-  }
-
-  // ── تایید انجام واریز کارت به کارت ──
-  @Post('deposit/card-to-card/confirm')
-  @ApiOperation({ summary: 'تایید انجام واریز کارت به کارت توسط کاربر' })
-  confirmCardToCard(
-    @Req() req: AuthenticatedRequest,
-    @Body() body: ConfirmCardToCardDto,
-  ) {
-    return this.walletService.confirmCardToCard(
-      req.user.userId,
-      body.transactionId,
     );
   }
 
@@ -104,19 +92,6 @@ export class WalletController {
     return this.walletService.getTrackingIdDeposit(
       req.user.userId,
       body.sourceCardId,
-    );
-  }
-
-  // ── واریز مبالغ بالا ──
-  @Post('deposit/large-transfer/initiate')
-  @ApiOperation({ summary: 'شروع فرآیند واریز مبالغ بالا (پیش‌فاکتور)' })
-  initiateLargeTransfer(
-    @Req() req: AuthenticatedRequest,
-    @Body() body: LargeTransferInitiateDto,
-  ) {
-    return this.walletService.initiateLargeTransfer(
-      req.user.userId,
-      body.amount,
     );
   }
 

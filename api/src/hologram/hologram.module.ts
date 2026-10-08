@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { HologramService } from './hologram.service';
 import { HologramTransferService } from './hologram-transfer.service';
 import { HologramSecurityService } from './hologram-security.service';
+import { HologramIncidentService } from './hologram-incident.service';
 import { HologramPublicController } from './hologram-public.controller';
 import { HologramUserController } from './hologram-user.controller';
 import { HologramAdminController } from './hologram-admin.controller';
@@ -18,7 +19,8 @@ import { IdentityVerificationModule } from '../integrations/services/identity-ve
     HologramService,
     HologramTransferService,
     HologramSecurityService,
+    HologramIncidentService,
   ],
-  exports: [HologramService, HologramTransferService],
+  exports: [HologramService, HologramTransferService, HologramIncidentService],
 })
 export class HologramModule {}

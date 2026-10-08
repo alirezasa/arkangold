@@ -21,7 +21,10 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { DepositService } from './deposit.service';
 import type { DepositStatusValue } from './deposit.state';
-import { CreateDepositRequestDto } from '@arkan-gold/shared';
+import {
+  CreateDepositRequestDto,
+  CreateManualDepositDto,
+} from '@arkan-gold/shared';
 import { OwnedResource } from '../common/audit/owned-resource.decorator';
 
 interface AuthedRequest extends Request {
@@ -52,6 +55,25 @@ export class DepositController {
     return this.depositService.create(
       req.user.userId,
       dto.amountRial,
+      idempotencyKey,
+    );
+  }
+
+  // ⚠ پیش از مسیرهای :id تعریف شود
+  @Post('manual')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({
+    summary:
+      'ثبت واریز کارت به کارت / حساب به حساب پس از انجام واریز (سپس ارسال فیش و بررسی کارشناس)',
+  })
+  createManual(
+    @Req() req: AuthedRequest,
+    @Body() dto: CreateManualDepositDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.depositService.createManual(
+      req.user.userId,
+      dto,
       idempotencyKey,
     );
   }

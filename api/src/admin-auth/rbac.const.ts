@@ -364,6 +364,17 @@ export const ADMIN_PERMISSIONS = [
     description: 'مشاهده لاگ استعلام‌های اصالت‌سنجی',
   },
   {
+    key: 'hologram.incident.view',
+    group: 'hologram',
+    description:
+      'مشاهده گزارش‌های سرقت/مفقودی شمش و ردپای استعلام شمش‌های گزارش‌شده',
+  },
+  {
+    key: 'hologram.incident.manage',
+    group: 'hologram',
+    description: 'ثبت، تأیید، رد و اعلام بازیابی گزارش‌های سرقت/مفقودی شمش',
+  },
+  {
     key: 'hologram.security.manage',
     group: 'hologram',
     description: 'مدیریت IPهای مسدودشده و تنظیمات امنیتی استعلام هولوگرام',
@@ -489,6 +500,7 @@ export const ADMIN_ROLES = [
       'hologram.code.assign',
       'hologram.code.revoke',
       'hologram.transfer.view',
+      'hologram.incident.view',
       'agent.view',
       'agent.settlement.manage',
       'accounting.manage',
@@ -593,6 +605,8 @@ export const ADMIN_ROLES = [
       'hologram.transfer.view',
       'hologram.logs.view',
       'hologram.security.manage',
+      'hologram.incident.view',
+      'hologram.incident.manage',
       'agent.view',
       'agent.stock.manage',
       'inventory.view',
@@ -614,6 +628,7 @@ export const ADMIN_ROLES = [
       'agent.contract.manage',
       'hologram.code.view',
       'hologram.transfer.view',
+      'hologram.incident.view',
       'users.view',
       'invoice.view',
       'accounting.view',

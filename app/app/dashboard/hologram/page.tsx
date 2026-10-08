@@ -16,6 +16,9 @@ import {
   CreditCard,
   Calendar,
   CheckCircle2,
+  Siren,
+  AlertTriangle,
+  FileWarning,
 } from 'lucide-react';
 import { jalaliToIsoDate } from '@/app/utils/jalali';
 import { newIdempotencyKey } from "../../utils/idempotency";
@@ -31,11 +34,58 @@ function getErrorMessage(err: unknown, fallback: string): string {
   return fallback;
 }
 
+type IncidentType = 'THEFT' | 'LOSS';
+type IncidentStatus = 'OPEN' | 'CONFIRMED' | 'RECOVERED' | 'REJECTED' | 'CANCELLED';
+
+const INCIDENT_TYPE_FA: Record<IncidentType, string> = { THEFT: 'سرقت', LOSS: 'مفقودی' };
+const INCIDENT_STATUS_META: Record<IncidentStatus, { label: string; bg: string; color: string }> = {
+  OPEN: { label: 'ثبت‌شده — در انتظار بررسی', bg: '#fef3c7', color: '#b45309' },
+  CONFIRMED: { label: 'تأییدشده توسط مدیریت', bg: '#fee2e2', color: '#b91c1c' },
+  RECOVERED: { label: 'بازیابی‌شده', bg: '#dcfce7', color: '#15803d' },
+  REJECTED: { label: 'ردشده', bg: '#f3f4f6', color: '#4b5563' },
+  CANCELLED: { label: 'لغوشده', bg: '#f3f4f6', color: '#6b7280' },
+};
+
+interface ActiveIncident {
+  id: string;
+  reportNumber: string;
+  type: IncidentType;
+  status: IncidentStatus;
+  createdAt: string;
+}
+
+interface IncidentReportItem extends ActiveIncident {
+  description: string;
+  incidentAt: string | null;
+  incidentLocation: string | null;
+  policeReportNumber: string | null;
+  closeReason: string | null;
+  closedAt: string | null;
+  hologramCode: {
+    id: string;
+    code: string;
+    weightGrams: string | null;
+    purityKarat: 'K18' | 'K24' | null;
+    batch: { batchNumber: string };
+  };
+}
+
+interface VerifyIncident {
+  type: IncidentType;
+  typeLabel: string;
+  status: 'OPEN' | 'CONFIRMED';
+  statusLabel: string;
+  reportNumber: string;
+  reportedAt: string;
+  message: string;
+}
+
 interface HologramOwnershipItem {
   id: string;
   fullName: string;
   nationalCode: string;
   ownershipStartAt: string;
+  activeIncident: ActiveIncident | null;
   hologramCode: {
     id: string;
     code: string;
@@ -65,12 +115,14 @@ interface VerifyResult {
   message: string;
   product?: { weightGrams: string | null; purityKarat: string | null; batchNumber: string };
   owner?: { fullName: string; nationalCode: string; ownershipStartAt: string } | null;
+  incident?: VerifyIncident | null;
 }
 
 const TABS = [
   { key: 'mine', label: 'شمش‌های من' },
   { key: 'verify', label: 'استعلام کد' },
   { key: 'incoming', label: 'تأیید و انتقال مالکیت' },
+  { key: 'incidents', label: 'گزارش سرقت / مفقودی' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -163,12 +215,269 @@ function TransferInitiateModal({
   );
 }
 
+// ─────────────────────────── اعلام سرقت / مفقودی ───────────────────────────
+
+function IncidentAlertBox({ incident }: { incident: VerifyIncident }) {
+  return (
+    <div className="rounded-2xl p-4 text-right border-2 border-red-200 bg-red-50 space-y-1.5">
+      <div className="flex items-center gap-2 text-red-700">
+        <Siren className="w-5 h-5 shrink-0" />
+        <span className="text-[14px] font-black">
+          این شمش به‌عنوان «{incident.typeLabel}» گزارش شده است
+        </span>
+      </div>
+      <p className="text-[12px] text-red-700 leading-relaxed">{incident.message}</p>
+      <p className="text-[11px] text-red-500">
+        شماره گزارش: <bdi dir="ltr">{incident.reportNumber}</bdi> — وضعیت: {incident.statusLabel} — تاریخ ثبت:{' '}
+        {new Date(incident.reportedAt).toLocaleDateString('fa-IR')}
+      </p>
+    </div>
+  );
+}
+
+function IncidentReportModal({
+  hologramCodeId,
+  code,
+  onClose,
+  onDone,
+}: {
+  hologramCodeId: string;
+  code: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [type, setType] = useState<IncidentType>('THEFT');
+  const [description, setDescription] = useState('');
+  const [location, setLocation] = useState('');
+  const [policeReportNumber, setPoliceReportNumber] = useState('');
+  const [date, setDate] = useState({ y: '', m: '', d: '' });
+  const [accepted, setAccepted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reportNumber, setReportNumber] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (description.trim().length < 10) return setError('شرح ماجرا را دست‌کم در ۱۰ کاراکتر بنویسید');
+    const anyDate = date.y || date.m || date.d;
+    if (anyDate && !(date.y && date.m && date.d)) return setError('تاریخ وقوع را کامل وارد کنید یا خالی بگذارید');
+    if (!accepted) return setError('صحت اطلاعات را تأیید کنید');
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axios.post('/api/user/hologram/incidents', {
+        hologramCodeId,
+        type,
+        description: description.trim(),
+        incidentLocation: location.trim() || undefined,
+        policeReportNumber: policeReportNumber.trim() || undefined,
+        incidentAt: anyDate
+          ? jalaliToIsoDate(Number(date.y), Number(date.m), Number(date.d))
+          : undefined,
+      });
+      setReportNumber((res.data as { reportNumber: string }).reportNumber);
+      onDone();
+    } catch (err) {
+      setError(getErrorMessage(err, 'خطا در ثبت گزارش'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (reportNumber) {
+    return (
+      <Modal title="گزارش ثبت شد" onClose={onClose}>
+        <div className="text-center py-2 space-y-2">
+          <CheckCircle2 className="w-14 h-14 text-emerald-500 mx-auto" />
+          <p className="text-[13px] text-gray-700">
+            گزارش {INCIDENT_TYPE_FA[type]} شمش <bdi dir="ltr">{code}</bdi> با شماره{' '}
+            <b dir="ltr">{reportNumber}</b> ثبت شد.
+          </p>
+          <p className="text-[11px] text-gray-500 leading-relaxed">
+            از همین لحظه هر استعلام این شمش (در سایت، پنل کاربران، پنل نمایندگان و مدیریت) با هشدار همراه است و
+            انتقال یا فروش آن ممکن نیست. وضعیت گزارش را در زبانه‌ی «گزارش سرقت / مفقودی» پیگیری کنید.
+          </p>
+        </div>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title={`اعلام سرقت / مفقودی شمش ${code}`} onClose={onClose}>
+      {error && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 text-red-600 text-[12px] font-bold">
+          <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+          {error}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2">
+        {(['THEFT', 'LOSS'] as IncidentType[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => setType(t)}
+            className={`py-2.5 rounded-xl text-[13px] font-black border-2 ${
+              type === t ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 text-gray-600'
+            }`}
+          >
+            {INCIDENT_TYPE_FA[t]}
+          </button>
+        ))}
+      </div>
+      <textarea
+        rows={3}
+        maxLength={1000}
+        placeholder="شرح ماجرا (چه زمانی و چگونه متوجه شدید؟)"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none text-sm resize-none"
+      />
+      <div className="space-y-1.5">
+        <label className="text-[11px] font-bold text-gray-500 flex items-center gap-1">
+          <Calendar className="w-3.5 h-3.5" /> تاریخ تقریبی وقوع (شمسی، اختیاری)
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {(['d', 'm', 'y'] as const).map((k) => (
+            <input
+              key={k}
+              placeholder={k === 'd' ? 'روز' : k === 'm' ? 'ماه' : 'سال'}
+              maxLength={k === 'y' ? 4 : 2}
+              value={date[k]}
+              onChange={(e) => setDate((p) => ({ ...p, [k]: digitsOnly(e.target.value) }))}
+              className="px-3 py-2.5 rounded-xl border border-gray-200 outline-none text-sm text-center"
+            />
+          ))}
+        </div>
+      </div>
+      <input
+        placeholder="محل وقوع (اختیاری)"
+        maxLength={200}
+        value={location}
+        onChange={(e) => setLocation(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none text-sm"
+      />
+      <input
+        placeholder={type === 'THEFT' ? 'شماره گزارش کلانتری (توصیه می‌شود)' : 'شماره گزارش کلانتری (اختیاری)'}
+        maxLength={50}
+        value={policeReportNumber}
+        onChange={(e) => setPoliceReportNumber(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 outline-none text-sm"
+      />
+      <label className="flex items-start gap-2 text-[11px] text-gray-500 leading-relaxed">
+        <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} className="mt-0.5" />
+        اطلاعات بالا را صحیح می‌دانم و می‌دانم ثبت گزارش خلاف واقع پیگرد قانونی دارد. پس از ثبت، انتقال مالکیت این
+        شمش تا بسته‌شدن گزارش ممکن نیست.
+      </label>
+      <button
+        onClick={submit}
+        disabled={loading}
+        className="w-full py-3 rounded-xl font-black text-white disabled:opacity-60"
+        style={{ backgroundColor: '#dc2626' }}
+      >
+        {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'ثبت گزارش'}
+      </button>
+    </Modal>
+  );
+}
+
+function IncidentsTab() {
+  const { data, isLoading, mutate } = useSWR<{ data: IncidentReportItem[] }>(
+    '/api/user/hologram/incidents',
+    fetcher,
+  );
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const cancel = async (id: string) => {
+    if (!confirm('آیا شمش پیدا شده و می‌خواهید گزارش را لغو کنید؟')) return;
+    setBusyId(id);
+    setError(null);
+    try {
+      await axios.post(`/api/user/hologram/incidents/${id}/cancel`, { reason: 'شمش توسط مالک پیدا شد' });
+      mutate();
+    } catch (err) {
+      setError(getErrorMessage(err, 'خطا در لغو گزارش'));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl p-4 text-[12px] leading-relaxed bg-amber-50 border border-amber-100 text-amber-800">
+        برای اعلام سرقت یا مفقودی، در زبانه‌ی «شمش‌های من» روی دکمه‌ی «اعلام سرقت / مفقودی» همان شمش بزنید. تا گزارش
+        فعال است، شمش در همه‌ی استعلام‌ها با هشدار نمایش داده می‌شود و قابل انتقال یا فروش نیست.
+      </div>
+      {error && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 text-red-600 text-[12px] font-bold">
+          <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+          {error}
+        </div>
+      )}
+      {!data?.data?.length ? (
+        <div className="flex flex-col items-center gap-2 py-12 text-center">
+          <FileWarning className="w-10 h-10 text-gray-200" />
+          <p className="text-[13px] text-gray-400">گزارشی ثبت نکرده‌اید</p>
+        </div>
+      ) : (
+        data.data.map((r) => {
+          const meta = INCIDENT_STATUS_META[r.status];
+          return (
+            <div
+              key={r.id}
+              className="rounded-2xl p-4 space-y-1.5"
+              style={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)' }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[14px] font-black text-gray-900">
+                  {INCIDENT_TYPE_FA[r.type]} — <bdi dir="ltr">{r.hologramCode.code}</bdi>
+                </span>
+                <span className="badge" style={{ background: meta.bg, color: meta.color }}>
+                  {meta.label}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-400">
+                شماره گزارش <bdi dir="ltr">{r.reportNumber}</bdi> — {new Date(r.createdAt).toLocaleDateString('fa-IR')}
+              </p>
+              <p className="text-[12px] text-gray-600 leading-relaxed">{r.description}</p>
+              {r.closeReason && (
+                <p className="text-[11px] text-gray-500">نتیجه: {r.closeReason}</p>
+              )}
+              {r.status === 'OPEN' && (
+                <button
+                  onClick={() => cancel(r.id)}
+                  disabled={busyId === r.id}
+                  className="mt-1 px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-gray-200 text-gray-700 disabled:opacity-60"
+                >
+                  {busyId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'شمش پیدا شد — لغو گزارش'}
+                </button>
+              )}
+              {r.status === 'CONFIRMED' && (
+                <p className="text-[11px] text-gray-500">
+                  این گزارش تأیید شده است؛ در صورت پیدا شدن شمش با پشتیبانی تماس بگیرید.
+                </p>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 function MyHologramsTab() {
   const { data, isLoading, mutate } = useSWR<{ data: HologramOwnershipItem[] }>(
     '/api/user/hologram/my-holograms',
     fetcher,
   );
   const [transferTarget, setTransferTarget] = useState<HologramOwnershipItem | null>(null);
+  const [incidentTarget, setIncidentTarget] = useState<HologramOwnershipItem | null>(null);
 
   if (isLoading) {
     return (
@@ -210,14 +519,46 @@ function MyHologramsTab() {
           <p className="text-[11px] text-gray-400 mt-1">
             تاریخ مالکیت: {new Date(o.ownershipStartAt).toLocaleDateString('fa-IR')}
           </p>
-          <button
-            onClick={() => setTransferTarget(o)}
-            className="flex items-center gap-1.5 mt-3 px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-gray-200 text-gray-700"
-          >
-            <Gift className="w-3.5 h-3.5" /> انتقال مالکیت
-          </button>
+          {o.activeIncident ? (
+            <div className="mt-3 flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-100 text-red-700 text-[12px]">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-black">
+                  گزارش {INCIDENT_TYPE_FA[o.activeIncident.type]} ثبت شده —{' '}
+                  {INCIDENT_STATUS_META[o.activeIncident.status].label}
+                </p>
+                <p className="text-[11px] text-red-500 mt-0.5">
+                  شماره <bdi dir="ltr">{o.activeIncident.reportNumber}</bdi> — تا بسته‌شدن گزارش، انتقال مالکیت ممکن نیست.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2 mt-3">
+              <button
+                onClick={() => setTransferTarget(o)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-gray-200 text-gray-700"
+              >
+                <Gift className="w-3.5 h-3.5" /> انتقال مالکیت
+              </button>
+              <button
+                onClick={() => setIncidentTarget(o)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-red-100 text-red-600"
+              >
+                <Siren className="w-3.5 h-3.5" /> اعلام سرقت / مفقودی
+              </button>
+            </div>
+          )}
         </div>
       ))}
+
+      {incidentTarget && (
+        <IncidentReportModal
+          hologramCodeId={incidentTarget.hologramCode.id}
+          code={incidentTarget.hologramCode.code}
+          onClose={() => setIncidentTarget(null)}
+          onDone={() => mutate()}
+        />
+      )}
 
       {transferTarget && (
         <TransferInitiateModal
@@ -286,6 +627,8 @@ function VerifyTab() {
         </button>
       </div>
 
+      {result?.incident && <IncidentAlertBox incident={result.incident} />}
+
       {result && (
         <div
           className="rounded-2xl p-6 text-center"
@@ -293,8 +636,14 @@ function VerifyTab() {
         >
           {result.status === 'VALID_ASSIGNED' && (
             <>
-              <ShieldCheck className="w-14 h-14 text-emerald-500 mx-auto mb-3" />
-              <h2 className="text-[15px] font-black text-gray-900 mb-1">اصالت تأیید شد</h2>
+              {result.incident ? (
+                <ShieldAlert className="w-14 h-14 text-red-500 mx-auto mb-3" />
+              ) : (
+                <ShieldCheck className="w-14 h-14 text-emerald-500 mx-auto mb-3" />
+              )}
+              <h2 className="text-[15px] font-black text-gray-900 mb-1">
+                {result.incident ? `شمش اصل است اما «${result.incident.typeLabel}» گزارش شده` : 'اصالت تأیید شد'}
+              </h2>
               <div className="text-right space-y-1.5 text-[13px] text-gray-600 bg-gray-50 rounded-xl p-4 mt-3">
                 {result.product?.weightGrams && (
                   <p>وزن: <b>{Number(result.product.weightGrams).toLocaleString('fa-IR')} گرم</b></p>
@@ -596,6 +945,7 @@ export default function HologramDashboardPage() {
       {tab === 'mine' && <MyHologramsTab />}
       {tab === 'verify' && <VerifyTab />}
       {tab === 'incoming' && <IncomingTab />}
+      {tab === 'incidents' && <IncidentsTab />}
     </div>
   );
 }

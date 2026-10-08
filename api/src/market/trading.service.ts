@@ -15,6 +15,10 @@ import {
   LedgerLineInput,
 } from '../accounting/accounting.service';
 import { businessRuleViolation } from '../common/audit/business-rule.util';
+import {
+  startOfJalaliMonthTehran,
+  startOfTehranDay,
+} from '../common/utils/jalali.util';
 
 type Side = 'BUY' | 'SELL';
 
@@ -29,6 +33,19 @@ interface OrderLike {
   totalRial: Prisma.Decimal;
   fee: Prisma.Decimal;
   tax: Prisma.Decimal;
+}
+
+interface TradeConfig {
+  minGrams: Prisma.Decimal;
+  maxGrams: Prisma.Decimal;
+  spreadPercent: Prisma.Decimal;
+  lockDurationSec: number;
+  feePercent: Prisma.Decimal;
+  taxPercent: Prisma.Decimal;
+  dailyLimit: Prisma.Decimal;
+  monthlyLimit: Prisma.Decimal;
+  maxPriceAgeSec: number;
+  respectSourceDisable: boolean;
 }
 
 type PrismaKnownRequestErrorLike = {
@@ -52,6 +69,7 @@ export class TradingService {
   // ════════════════════════════════════════════════════════
   async lockPrice(userId: string, side: Side, amountGramsInput: number) {
     await this.assertUserVerified(userId);
+    await this.assertServiceEnabled();
 
     if (!Number.isFinite(amountGramsInput) || amountGramsInput <= 0) {
       throw new BadRequestException('مقدار وارد شده نامعتبر است');
@@ -60,54 +78,60 @@ export class TradingService {
       throw new BadRequestException('مقدار وارد شده خارج از محدوده مجاز است');
     }
 
-    const amountGrams = new Prisma.Decimal(amountGramsInput).toDecimalPlaces(4);
+    // گرد کردن رو به پایین: مقدار قفل‌شده هرگز از مقدار درخواستی (و موجودی) بیشتر نمی‌شود
+    const amountGrams = new Prisma.Decimal(amountGramsInput).toDecimalPlaces(
+      4,
+      Prisma.Decimal.ROUND_DOWN,
+    );
     if (amountGrams.lessThanOrEqualTo(0)) {
       throw new BadRequestException('مقدار وارد شده نامعتبر است');
     }
 
-    const [
-      minGrams,
-      maxGrams,
-      spreadPercent,
-      lockDurationSec,
-      feePercent,
-      taxPercent,
-    ] = await Promise.all([
-      this.systemConfig.getDecimal('trade.gold.min_grams', '0.1'),
-      this.systemConfig.getDecimal('trade.gold.max_grams', '1000'),
-      this.systemConfig.getDecimal('trade.gold.spread_percent', '0'),
-      this.systemConfig.getNumber('trade.lock_duration_seconds', 120),
-      this.systemConfig.getDecimal(
-        side === 'BUY' ? 'fee.buy_gold' : 'fee.sell_gold',
-        '1.0',
-      ),
-      this.systemConfig.getDecimal(
-        side === 'BUY' ? 'tax.buy' : 'tax.sell',
-        '0',
-      ),
-    ]);
+    const cfg = await this.getTradeConfig(side);
 
-    if (amountGrams.lessThan(minGrams)) {
+    if (amountGrams.lessThan(cfg.minGrams)) {
       throw new BadRequestException(
-        `حداقل مقدار معامله ${minGrams.toString()} گرم است`,
+        `حداقل مقدار معامله ${cfg.minGrams.toString()} گرم است`,
       );
     }
-    if (amountGrams.greaterThan(maxGrams)) {
+    if (amountGrams.greaterThan(cfg.maxGrams)) {
       throw new BadRequestException(
-        `حداکثر مقدار معامله ${maxGrams.toString()} گرم است`,
+        `حداکثر مقدار معامله ${cfg.maxGrams.toString()} گرم است`,
       );
     }
 
-    const safeLockDuration = Math.min(Math.max(lockDurationSec, 30), 600);
+    // بررسی زودهنگام سقف روزانه/ماهانه تا کاربر پیش از دیدن پیش‌فاکتور مطلع شود
+    // (بررسی قطعی دوباره داخل تراکنش ثبت سفارش و با قفل کیف پول انجام می‌شود)
+    await this.assertWithinDailyLimit(this.prisma, userId, side, amountGrams);
+    await this.assertWithinMonthlyLimit(this.prisma, userId, side, amountGrams);
 
-    const currentPrice = await this.priceService.getCurrentGoldPriceDecimal();
-    if (!currentPrice || currentPrice.lessThanOrEqualTo(0)) {
+    const quote = await this.priceService.getTradableGoldQuote();
+    if (!quote || quote.priceRial.lessThanOrEqualTo(0)) {
       throw new BadRequestException(
         'قیمت لحظه‌ای در دسترس نیست. لطفاً چند لحظه دیگر تلاش کنید',
       );
     }
+    // قطعی منبع قیمت: معامله با قیمت کهنه (آربیتراژ روی قیمت قدیمی) ممنوع است
+    const priceAgeSec = (Date.now() - quote.fetchedAt.getTime()) / 1000;
+    if (priceAgeSec > cfg.maxPriceAgeSec) {
+      this.logger.warn(
+        `[Price] قفل قیمت رد شد: قیمت ${Math.round(priceAgeSec)} ثانیه قدیمی است`,
+      );
+      throw new BadRequestException(
+        'قیمت بازار در حال به‌روزرسانی است. لطفاً چند لحظه دیگر تلاش کنید',
+      );
+    }
+    if (
+      cfg.respectSourceDisable &&
+      (side === 'BUY' ? quote.disableBuy : quote.disableSell)
+    ) {
+      throw new BadRequestException(
+        `${side === 'BUY' ? 'خرید' : 'فروش'} طلا در حال حاضر به دلیل بسته بودن بازار امکان‌پذیر نیست`,
+      );
+    }
 
-    const spreadFactor = spreadPercent.dividedBy(100);
+    const currentPrice = quote.priceRial;
+    const spreadFactor = cfg.spreadPercent.dividedBy(100);
     const effectivePrice =
       side === 'BUY'
         ? currentPrice
@@ -119,27 +143,20 @@ export class TradingService {
 
     if (effectivePrice.lessThanOrEqualTo(0)) {
       this.logger.error(
-        `[Price] قیمت موثر نامعتبر محاسبه شد: ${effectivePrice.toString()} (spread=${spreadPercent.toString()}%)`,
+        `[Price] قیمت موثر نامعتبر محاسبه شد: ${effectivePrice.toString()} (spread=${cfg.spreadPercent.toString()}%)`,
       );
       throw new BadRequestException(
         'خطا در محاسبه قیمت. لطفاً با پشتیبانی تماس بگیرید',
       );
     }
 
-    const totalRial = amountGrams.times(effectivePrice);
-    const feeRial = totalRial
-      .times(feePercent)
-      .dividedBy(100)
-      .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP);
-    const taxRial = totalRial
-      .times(taxPercent)
-      .dividedBy(100)
-      .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP);
-
-    const totalPayable =
-      side === 'BUY'
-        ? totalRial.plus(feeRial).plus(taxRial)
-        : totalRial.minus(feeRial).minus(taxRial);
+    const { totalRial, feeRial, taxRial, totalPayable } = this.computeAmounts(
+      side,
+      amountGrams,
+      effectivePrice,
+      cfg.feePercent,
+      cfg.taxPercent,
+    );
 
     if (side === 'SELL' && totalPayable.lessThan(0)) {
       this.logger.error(
@@ -150,8 +167,10 @@ export class TradingService {
       );
     }
 
-    const expiresAt = new Date(Date.now() + safeLockDuration * 1000);
+    const expiresAt = new Date(Date.now() + cfg.lockDurationSec * 1000);
 
+    // کارمزد و مالیات همان لحظه در قفل ذخیره می‌شود تا مبلغ کسرشده دقیقاً
+    // با پیش‌فاکتور نمایش داده‌شده یکی باشد (حتی اگر ادمین در این فاصله نرخ را تغییر دهد)
     const lock = await this.prisma.priceLock.create({
       data: {
         userId,
@@ -159,6 +178,8 @@ export class TradingService {
         amountGrams,
         side,
         lockedPrice: effectivePrice,
+        feeRial,
+        taxRial,
         expiresAt,
         used: false,
       },
@@ -175,13 +196,89 @@ export class TradingService {
       totalToman: totalRial.dividedBy(10).toString(),
       feeRial: feeRial.toString(),
       feeToman: feeRial.dividedBy(10).toString(),
-      feePercent: feePercent.toString(),
+      feePercent: cfg.feePercent.toString(),
       taxRial: taxRial.toString(),
       taxToman: taxRial.dividedBy(10).toString(),
       totalPayableRial: totalPayable.toString(),
       totalPayableToman: totalPayable.dividedBy(10).toString(),
       expiresAt: expiresAt.toISOString(),
-      expiresInSeconds: safeLockDuration,
+      expiresInSeconds: cfg.lockDurationSec,
+    };
+  }
+
+  // ════════════════════════════════════════════════════════
+  // اطلاعات معامله برای فرم کاربر: حدود، نرخ‌ها و مصرف سقف روزانه/ماهانه
+  // ════════════════════════════════════════════════════════
+  async getTradeInfo(userId: string) {
+    const [buy, sell, serviceEnabled, quote, wallet] = await Promise.all([
+      this.getTradeConfig('BUY'),
+      this.getTradeConfig('SELL'),
+      this.systemConfig.getBoolean('service.melted_gold.enabled', true),
+      this.priceService.getTradableGoldQuote(),
+      this.prisma.wallet.findUnique({
+        where: { userId },
+        select: { id: true },
+      }),
+    ]);
+    const now = new Date();
+    const dayStart = startOfTehranDay(now);
+    const monthStart = startOfJalaliMonthTehran(now);
+
+    const usedGrams = async (type: 'BUY_GOLD' | 'SELL_GOLD', since: Date) => {
+      const r = await this.prisma.transaction.aggregate({
+        where: { userId, type, status: 'COMPLETED', createdAt: { gte: since } },
+        _sum: { amountGrams: true },
+      });
+      return r._sum.amountGrams ?? new Prisma.Decimal(0);
+    };
+    const [buyDay, buyMonth, sellDay, sellMonth] = await Promise.all([
+      usedGrams('BUY_GOLD', dayStart),
+      usedGrams('BUY_GOLD', monthStart),
+      usedGrams('SELL_GOLD', dayStart),
+      usedGrams('SELL_GOLD', monthStart),
+    ]);
+
+    const priceStale =
+      !quote ||
+      (now.getTime() - quote.fetchedAt.getTime()) / 1000 > buy.maxPriceAgeSec;
+
+    const sideInfo = (
+      cfg: TradeConfig,
+      usedDay: Prisma.Decimal,
+      usedMonth: Prisma.Decimal,
+      sourceDisabled: boolean,
+    ) => {
+      const remaining = (limit: Prisma.Decimal, used: Prisma.Decimal) =>
+        limit.lessThanOrEqualTo(0)
+          ? null
+          : Prisma.Decimal.max(limit.minus(used), 0).toString();
+      return {
+        enabled:
+          serviceEnabled &&
+          !!wallet &&
+          !priceStale &&
+          !(cfg.respectSourceDisable && sourceDisabled),
+        feePercent: cfg.feePercent.toString(),
+        taxPercent: cfg.taxPercent.toString(),
+        dailyLimitGrams: cfg.dailyLimit.toString(),
+        monthlyLimitGrams: cfg.monthlyLimit.toString(),
+        usedTodayGrams: usedDay.toString(),
+        usedThisMonthGrams: usedMonth.toString(),
+        // null = بدون سقف
+        remainingTodayGrams: remaining(cfg.dailyLimit, usedDay),
+        remainingThisMonthGrams: remaining(cfg.monthlyLimit, usedMonth),
+      };
+    };
+
+    return {
+      serviceEnabled,
+      priceAvailable: !priceStale,
+      minGrams: buy.minGrams.toString(),
+      maxGrams: buy.maxGrams.toString(),
+      spreadPercent: buy.spreadPercent.toString(),
+      lockDurationSeconds: buy.lockDurationSec,
+      buy: sideInfo(buy, buyDay, buyMonth, quote?.disableBuy ?? false),
+      sell: sideInfo(sell, sellDay, sellMonth, quote?.disableSell ?? false),
     };
   }
 
@@ -201,6 +298,9 @@ export class TradingService {
     if (existingCompletedOrder) {
       return this.buildOrderResponse(existingCompletedOrder, true);
     }
+
+    // غیرفعال شدن خدمت توسط ادمین بین قفل قیمت و تأیید هم باید معامله را متوقف کند
+    await this.assertServiceEnabled();
 
     try {
       return await this.prisma.$transaction(
@@ -232,6 +332,10 @@ export class TradingService {
             );
           }
 
+          if (lock.metal !== 'GOLD') {
+            throw new BadRequestException('این قفل قیمت مربوط به طلا نیست');
+          }
+
           if (lock.expiresAt.getTime() <= Date.now()) {
             throw new BadRequestException(
               'زمان قفل قیمت منقضی شده است. لطفاً مجدداً تلاش کنید',
@@ -241,27 +345,35 @@ export class TradingService {
           const amountGrams = lock.amountGrams;
           const pricePerGram = lock.lockedPrice;
           const side = lock.side;
-          const totalRial = amountGrams.times(pricePerGram);
 
-          const [feePercent, taxPercent] = await Promise.all([
-            this.systemConfig.getDecimal(
-              side === 'BUY' ? 'fee.buy_gold' : 'fee.sell_gold',
-              '1.0',
-            ),
-            this.systemConfig.getDecimal(
-              side === 'BUY' ? 'tax.buy' : 'tax.sell',
-              '0',
-            ),
-          ]);
-
-          const feeRial = totalRial
-            .times(feePercent)
-            .dividedBy(100)
-            .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP);
-          const taxRial = totalRial
-            .times(taxPercent)
-            .dividedBy(100)
-            .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP);
+          // مبالغ دقیقاً همان پیش‌فاکتور قفل‌شده است؛ فقط قفل‌های قدیمی (پیش از ذخیره‌ی
+          // کارمزد در قفل) که هر دو مقدار صفر دارند، با نرخ فعلی محاسبه می‌شوند
+          let feeRial = lock.feeRial;
+          let taxRial = lock.taxRial;
+          if (feeRial.isZero() && taxRial.isZero()) {
+            const [feePercent, taxPercent] = await Promise.all([
+              this.systemConfig.getDecimal(
+                side === 'BUY' ? 'fee.buy_gold' : 'fee.sell_gold',
+                '1.0',
+              ),
+              this.systemConfig.getDecimal(
+                side === 'BUY' ? 'tax.buy' : 'tax.sell',
+                '0',
+              ),
+            ]);
+            ({ feeRial, taxRial } = this.computeAmounts(
+              side,
+              amountGrams,
+              pricePerGram,
+              feePercent,
+              taxPercent,
+            ));
+          }
+          const totalRial = this.roundRial(amountGrams.times(pricePerGram));
+          const totalPayable =
+            side === 'BUY'
+              ? totalRial.plus(feeRial).plus(taxRial)
+              : totalRial.minus(feeRial).minus(taxRial);
 
           await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${userId}::uuid FOR UPDATE`;
           const wallet = await tx.wallet.findUnique({ where: { userId } });
@@ -270,17 +382,29 @@ export class TradingService {
           await this.assertWithinDailyLimit(tx, userId, side, amountGrams);
           await this.assertWithinMonthlyLimit(tx, userId, side, amountGrams);
 
+          // موجودی بلوکه‌شده (برداشت در انتظار، سفارش فروشگاه، تحویل فیزیکی)
+          // قابل معامله نیست؛ فقط موجودی آزاد ملاک است
+          const holds = await tx.walletHold.aggregate({
+            where: { walletId: wallet.id, expiresAt: { gt: new Date() } },
+            _sum: { amountRial: true, amountGrams: true },
+          });
+          const availableRial = wallet.rialBalance.minus(
+            holds._sum.amountRial ?? 0,
+          );
+          const availableGrams = wallet.goldBalanceGrams.minus(
+            holds._sum.amountGrams ?? 0,
+          );
+
           if (side === 'BUY') {
-            const totalPayable = totalRial.plus(feeRial).plus(taxRial);
-            if (wallet.rialBalance.lessThan(totalPayable)) {
+            if (availableRial.lessThan(totalPayable)) {
               throw new BadRequestException(
-                `موجودی کافی نیست. نیاز به ${totalPayable.dividedBy(10).toString()} تومان`,
+                `موجودی قابل استفاده کافی نیست. مبلغ لازم: ${this.fmtToman(totalPayable)} تومان، موجودی قابل استفاده: ${this.fmtToman(Prisma.Decimal.max(availableRial, 0))} تومان`,
               );
             }
           } else {
-            if (wallet.goldBalanceGrams.lessThan(amountGrams)) {
+            if (availableGrams.lessThan(amountGrams)) {
               throw new BadRequestException(
-                `موجودی طلا کافی نیست. موجودی فعلی: ${wallet.goldBalanceGrams.toString()} گرم`,
+                `موجودی طلای قابل استفاده کافی نیست. موجودی قابل استفاده: ${Prisma.Decimal.max(availableGrams, 0).toString()} گرم`,
               );
             }
           }
@@ -317,21 +441,19 @@ export class TradingService {
           });
 
           if (side === 'BUY') {
-            const totalDeduct = totalRial.plus(feeRial).plus(taxRial);
             await tx.wallet.update({
               where: { id: wallet.id },
               data: {
-                rialBalance: { decrement: totalDeduct },
+                rialBalance: { decrement: totalPayable },
                 goldBalanceGrams: { increment: amountGrams },
               },
             });
           } else {
-            const totalReceive = totalRial.minus(feeRial).minus(taxRial);
             await tx.wallet.update({
               where: { id: wallet.id },
               data: {
                 goldBalanceGrams: { decrement: amountGrams },
-                rialBalance: { increment: totalReceive },
+                rialBalance: { increment: totalPayable },
               },
             });
           }
@@ -460,6 +582,10 @@ export class TradingService {
   // ════════════════════════════════════════════════════════
   private buildOrderResponse(order: OrderLike, alreadyExisted: boolean) {
     const side = order.side as Side;
+    const netRial =
+      side === 'BUY'
+        ? order.totalRial.plus(order.fee).plus(order.tax)
+        : order.totalRial.minus(order.fee).minus(order.tax);
 
     return {
       orderId: order.id,
@@ -473,6 +599,8 @@ export class TradingService {
       feeToman: order.fee.dividedBy(10).toString(),
       taxRial: order.tax.toString(),
       taxToman: order.tax.dividedBy(10).toString(),
+      // مبلغ نهایی پرداخت‌شده (خرید) یا واریزشده به کیف پول (فروش)
+      netToman: netRial.dividedBy(10).toString(),
       status: 'COMPLETED' as const,
       alreadyProcessed: alreadyExisted,
       message: alreadyExisted
@@ -622,6 +750,102 @@ export class TradingService {
   // ════════════════════════════════════════════════════════
   // helpers
   // ════════════════════════════════════════════════════════
+  private async getTradeConfig(side: Side): Promise<TradeConfig> {
+    const [
+      minGrams,
+      maxGrams,
+      spreadPercent,
+      lockDurationSec,
+      feePercent,
+      taxPercent,
+      dailyLimit,
+      monthlyLimit,
+      maxPriceAgeSec,
+      respectSourceDisable,
+    ] = await Promise.all([
+      this.systemConfig.getDecimal('trade.gold.min_grams', '0.1'),
+      this.systemConfig.getDecimal('trade.gold.max_grams', '1000'),
+      this.systemConfig.getDecimal('trade.gold.spread_percent', '0'),
+      this.systemConfig.getNumber('trade.lock_duration_seconds', 120),
+      this.systemConfig.getDecimal(
+        side === 'BUY' ? 'fee.buy_gold' : 'fee.sell_gold',
+        '1.0',
+      ),
+      this.systemConfig.getDecimal(
+        side === 'BUY' ? 'tax.buy' : 'tax.sell',
+        '0',
+      ),
+      this.systemConfig.getDecimal(
+        side === 'BUY'
+          ? 'trade.gold.daily_buy_limit_grams'
+          : 'trade.gold.daily_sell_limit_grams',
+        '50',
+      ),
+      this.systemConfig.getDecimal(
+        side === 'BUY'
+          ? 'trade.gold.monthly_buy_limit_grams'
+          : 'trade.gold.monthly_sell_limit_grams',
+        '500',
+      ),
+      this.systemConfig.getNumber('trade.gold.max_price_age_seconds', 180),
+      this.systemConfig.getBoolean('trade.gold.respect_source_disable', true),
+    ]);
+    return {
+      minGrams,
+      maxGrams,
+      spreadPercent,
+      lockDurationSec: Math.min(Math.max(lockDurationSec, 30), 600),
+      feePercent,
+      taxPercent,
+      dailyLimit,
+      monthlyLimit,
+      // کمتر از ۶۰ ثانیه با چرخه‌ی ۳۰ ثانیه‌ای دریافت قیمت تداخل دارد
+      maxPriceAgeSec: Math.max(maxPriceAgeSec, 60),
+      respectSourceDisable,
+    };
+  }
+
+  /** مبالغ ریالی همگی عدد صحیح‌اند (ستون‌های Decimal(18,0)) */
+  private roundRial(v: Prisma.Decimal): Prisma.Decimal {
+    return v.toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP);
+  }
+
+  private computeAmounts(
+    side: Side,
+    amountGrams: Prisma.Decimal,
+    pricePerGram: Prisma.Decimal,
+    feePercent: Prisma.Decimal,
+    taxPercent: Prisma.Decimal,
+  ) {
+    const totalRial = this.roundRial(amountGrams.times(pricePerGram));
+    const feeRial = this.roundRial(totalRial.times(feePercent).dividedBy(100));
+    const taxRial = this.roundRial(totalRial.times(taxPercent).dividedBy(100));
+    const totalPayable =
+      side === 'BUY'
+        ? totalRial.plus(feeRial).plus(taxRial)
+        : totalRial.minus(feeRial).minus(taxRial);
+    return { totalRial, feeRial, taxRial, totalPayable };
+  }
+
+  private fmtToman(rial: Prisma.Decimal): string {
+    return Number(
+      rial.dividedBy(10).toDecimalPlaces(0, Prisma.Decimal.ROUND_DOWN),
+    ).toLocaleString('en-US');
+  }
+
+  /** خدمت «طلای آب‌شده» از پنل ادمین قابل غیرفعال شدن است؛ فقط پنهان کردن صفحه کافی نیست */
+  private async assertServiceEnabled() {
+    const enabled = await this.systemConfig.getBoolean(
+      'service.melted_gold.enabled',
+      true,
+    );
+    if (!enabled) {
+      throw new ForbiddenException(
+        'خرید و فروش طلای آب‌شده در حال حاضر غیرفعال است',
+      );
+    }
+  }
+
   private async assertUserVerified(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -653,8 +877,8 @@ export class TradingService {
     const dailyLimit = await this.systemConfig.getDecimal(limitKey, '50');
     if (dailyLimit.lessThanOrEqualTo(0)) return;
 
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    // روز معاملاتی به وقت تهران (سرور معمولاً روی UTC است)
+    const startOfDay = startOfTehranDay();
 
     const type = side === 'BUY' ? 'BUY_GOLD' : 'SELL_GOLD';
     const result = await tx.transaction.aggregate({
@@ -691,9 +915,8 @@ export class TradingService {
     const monthlyLimit = await this.systemConfig.getDecimal(limitKey, '500');
     if (monthlyLimit.lessThanOrEqualTo(0)) return;
 
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+    // ماه شمسی جاری به وقت تهران
+    const startOfMonth = startOfJalaliMonthTehran();
 
     const type = side === 'BUY' ? 'BUY_GOLD' : 'SELL_GOLD';
     const result = await tx.transaction.aggregate({
@@ -709,8 +932,10 @@ export class TradingService {
     const used = result._sum.amountGrams ?? new Prisma.Decimal(0);
 
     if (used.plus(amountGrams).greaterThan(monthlyLimit)) {
+      const remaining = Prisma.Decimal.max(monthlyLimit.minus(used), 0);
       throw new BadRequestException(
-        `سقف ${side === 'BUY' ? 'خرید' : 'فروش'} ماهانه شما به پایان رسیده است`,
+        `سقف ${side === 'BUY' ? 'خرید' : 'فروش'} ماهانه ${monthlyLimit.toString()} گرم است. ` +
+          `باقیمانده: ${remaining.toString()} گرم`,
       );
     }
   }

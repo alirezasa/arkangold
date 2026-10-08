@@ -3,7 +3,11 @@
 import React, { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useMarketPrice, usePriceHistory } from "@/app/hooks/useTrading";
+import {
+  useMarketPrice,
+  usePriceHistory,
+  useTradeInfo,
+} from "@/app/hooks/useTrading";
 import { useWallet } from "@/app/hooks/useWallet";
 import { useTradeCalculator } from "@/app/hooks/useTradeCalculator";
 import { TradeModal } from "@/app/dashboard/components/trading/TradeModal";
@@ -71,6 +75,14 @@ function MiniChart({ data }: { data: { priceToman: string | number }[] }) {
   );
 }
 
+/** عدد (رشته/عدد) → نمایش فارسی با حداکثر ۴ رقم اعشار */
+function faNum(v: string | number | null | undefined, digits = 4): string {
+  const n = Number(v ?? 0);
+  return (Number.isFinite(n) ? n : 0).toLocaleString("fa-IR", {
+    maximumFractionDigits: digits,
+  });
+}
+
 // ── مقادیر پیشنهادی ──
 const BUY_QUICK = [0.5, 1, 2, 5];
 const SELL_QUICK_TOMAN = [500_000, 1_000_000, 5_000_000, 10_000_000];
@@ -101,12 +113,13 @@ function MeltedGoldContent() {
   } = useMarketPrice();
   const { history } = usePriceHistory(24);
   const { wallet, loading: walletLoading } = useWallet();
+  const { info: tradeInfo, refresh: refreshTradeInfo } = useTradeInfo();
 
   const currentPriceToman = marketPriceData?.pricePerGramToman
     ? parseFloat(String(marketPriceData.pricePerGramToman))
     : null;
 
-  const change24h = (marketPriceData as { change24h?: number })?.change24h ?? 0;
+  const change24h = Number(marketPriceData?.change24h ?? 0) || 0;
 
   const {
     amountToman,
@@ -116,40 +129,109 @@ function MeltedGoldContent() {
     reset,
   } = useTradeCalculator(currentPriceToman);
 
+  const isBuy = tradeType === "BUY";
+  const sideInfo = tradeInfo ? (isBuy ? tradeInfo.buy : tradeInfo.sell) : null;
+  const minGrams = Number(tradeInfo?.minGrams ?? 0.1);
+  const maxGrams = Number(tradeInfo?.maxGrams ?? 0);
+  const feePercent = Number(sideInfo?.feePercent ?? 0);
+  const taxPercent = Number(sideInfo?.taxPercent ?? 0);
+  const spreadPercent = Number(tradeInfo?.spreadPercent ?? 0);
+  const availableGrams = wallet?.availableGrams ?? 0;
+
+  // برآورد مبلغ نهایی با اسپرد، کارمزد و مالیات (مبلغ قطعی در پیش‌فاکتور قفل می‌شود)
+  const grams = parseFloat(weightGrams) || 0;
+  const estimate = (() => {
+    if (!currentPriceToman || grams <= 0) return null;
+    const unit =
+      currentPriceToman * (1 + ((isBuy ? 1 : -1) * spreadPercent) / 100);
+    const value = grams * unit;
+    const charges = (value * (feePercent + taxPercent)) / 100;
+    return {
+      value,
+      charges,
+      net: isBuy ? value + charges : value - charges,
+    };
+  })();
+
+  // دلیل غیرفعال بودن معامله (خدمت خاموش، قیمت کهنه، بسته بودن بازار)
+  const blockedReason = !tradeInfo
+    ? null
+    : !tradeInfo.serviceEnabled
+      ? "خرید و فروش طلای آب‌شده در حال حاضر غیرفعال است."
+      : !tradeInfo.priceAvailable
+        ? "قیمت بازار در حال به‌روزرسانی است. لطفاً چند لحظه دیگر تلاش کنید."
+        : sideInfo && !sideInfo.enabled
+          ? `${isBuy ? "خرید" : "فروش"} طلا در حال حاضر به دلیل بسته بودن بازار امکان‌پذیر نیست.`
+          : null;
+
   // ── validation و باز کردن مودال ──
   const handleOpenModal = () => {
     setFormError(null);
-    const grams = parseFloat(weightGrams);
 
+    if (blockedReason) {
+      setFormError(blockedReason);
+      return;
+    }
     if (!grams || grams <= 0) {
       setFormError("مقدار طلا را وارد کنید.");
       return;
     }
-    if (grams < 0.1) {
-      setFormError("حداقل مقدار معامله ۰.۱ گرم است.");
+    if (grams < minGrams) {
+      setFormError(`حداقل مقدار معامله ${faNum(minGrams)} گرم است.`);
+      return;
+    }
+    if (maxGrams > 0 && grams > maxGrams) {
+      setFormError(`حداکثر مقدار هر معامله ${faNum(maxGrams)} گرم است.`);
       return;
     }
     if (!currentPriceToman) {
       setFormError("قیمت لحظه‌ای در دسترس نیست. لطفاً صفحه را رفرش کنید.");
       return;
     }
+    const remainingToday = sideInfo?.remainingTodayGrams;
+    if (remainingToday != null && grams > Number(remainingToday)) {
+      setFormError(
+        `سقف ${isBuy ? "خرید" : "فروش"} روزانه ${faNum(sideInfo?.dailyLimitGrams)} گرم است. باقیمانده امروز: ${faNum(remainingToday)} گرم`,
+      );
+      return;
+    }
+    const remainingMonth = sideInfo?.remainingThisMonthGrams;
+    if (remainingMonth != null && grams > Number(remainingMonth)) {
+      setFormError(
+        `سقف ${isBuy ? "خرید" : "فروش"} ماهانه ${faNum(sideInfo?.monthlyLimitGrams)} گرم است. باقیمانده این ماه: ${faNum(remainingMonth)} گرم`,
+      );
+      return;
+    }
 
-    if (tradeType === "BUY") {
-      const totalRial = grams * currentPriceToman * 10;
-      if (wallet && wallet.availableRial < totalRial * 0.99) {
-        setFormError("موجودی ریال شما احتمالاً کافی نیست. ادامه می‌دهید؟");
-      }
-    } else {
-      if (wallet && wallet.availableGrams < grams) {
-        setFormError("موجودی طلای شما کافی نیست.");
+    if (isBuy) {
+      // برآورد با کارمزد؛ مبلغ دقیق در پیش‌فاکتور مشخص و دوباره بررسی می‌شود
+      if (wallet && estimate && wallet.availableRial < estimate.net * 10) {
+        setFormError(
+          `موجودی قابل استفاده کافی نیست. برآورد مبلغ لازم: ${Math.ceil(estimate.net).toLocaleString("fa-IR")} تومان`,
+        );
         return;
       }
+    } else if (wallet && availableGrams < grams) {
+      setFormError(
+        `موجودی طلای قابل استفاده کافی نیست. موجودی: ${faNum(availableGrams)} گرم`,
+      );
+      return;
     }
 
     setIsModalOpen(true);
   };
 
-  const isBuy = tradeType === "BUY";
+  // فروش کل موجودی آزاد (گرد به پایین تا ۴ رقم اعشار)
+  const handleSellAll = () => {
+    const all = Math.floor(availableGrams * 10_000) / 10_000;
+    if (all <= 0) {
+      setFormError("موجودی طلای قابل فروش ندارید.");
+      return;
+    }
+    handleWeightChange(all.toFixed(4));
+    setInputMode("gram");
+    setFormError(null);
+  };
 
   return (
     <div
@@ -244,7 +326,7 @@ function MeltedGoldContent() {
                       <TrendingDown className="w-3 h-3" />
                     )}
                     {change24h >= 0 ? "+" : ""}
-                    {change24h}٪ امروز
+                    {faNum(change24h, 2)}٪ امروز
                   </div>
                 )}
               </div>
@@ -544,7 +626,56 @@ function MeltedGoldContent() {
                         </button>
                       ))}
                 </div>
+                {!isBuy && (
+                  <button
+                    onClick={handleSellAll}
+                    disabled={walletLoading || availableGrams <= 0}
+                    className="w-full py-2 rounded-xl text-[12px] font-bold border border-dashed border-rose-300 text-rose-600 hover:bg-rose-50 transition-all disabled:opacity-40"
+                  >
+                    فروش کل موجودی ({faNum(availableGrams)} گرم)
+                  </button>
+                )}
               </div>
+
+              {/* ── برآورد مبلغ نهایی ── */}
+              {estimate && (
+                <div className="rounded-xl bg-gray-50 border border-gray-100 px-3.5 py-3 space-y-1.5 text-[12px]">
+                  <div className="flex justify-between text-gray-500">
+                    <span>
+                      کارمزد{taxPercent > 0 ? " و مالیات" : ""} (
+                      {faNum(feePercent + taxPercent, 2)}٪)
+                    </span>
+                    <span className="tabular-nums">
+                      {Math.round(estimate.charges).toLocaleString("fa-IR")}{" "}
+                      تومان
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-black text-gray-800">
+                    <span>
+                      برآورد مبلغ {isBuy ? "پرداختی" : "دریافتی"} نهایی
+                    </span>
+                    <span className="tabular-nums">
+                      {Math.round(estimate.net).toLocaleString("fa-IR")} تومان
+                    </span>
+                  </div>
+                  {sideInfo?.remainingTodayGrams != null && (
+                    <div className="flex justify-between text-[11px] text-gray-400">
+                      <span>باقیمانده سقف {isBuy ? "خرید" : "فروش"} امروز</span>
+                      <span className="tabular-nums">
+                        {faNum(sideInfo.remainingTodayGrams)} گرم
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── توقف معامله ── */}
+              {blockedReason && !formError && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-700 text-[12px] font-bold">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  {blockedReason}
+                </div>
+              )}
 
               {/* ── خطای فرم ── */}
               {formError && (
@@ -559,9 +690,10 @@ function MeltedGoldContent() {
                 onClick={handleOpenModal}
                 disabled={
                   !weightGrams ||
-                  parseFloat(weightGrams) <= 0 ||
+                  grams <= 0 ||
                   priceLoading ||
-                  !currentPriceToman
+                  !currentPriceToman ||
+                  !!blockedReason
                 }
                 className="w-full py-4 rounded-xl text-[15px] font-black text-white transition-all active:scale-[0.98] shadow-lg disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 style={{
@@ -700,24 +832,49 @@ function MeltedGoldContent() {
             <div className="space-y-2.5 text-[11px] leading-relaxed font-medium text-gray-500">
               <p>
                 • قیمت هر ۳۰ ثانیه از بازار واقعی دریافت می‌شود. هنگام ثبت
-                سفارش، قیمت به مدت ۲ دقیقه قفل می‌گردد.
+                سفارش، قیمت به مدت{" "}
+                {faNum(
+                  Math.round((tradeInfo?.lockDurationSeconds ?? 120) / 60),
+                  1,
+                )}{" "}
+                دقیقه قفل می‌گردد.
               </p>
+              {spreadPercent > 0 && (
+                <p>
+                  • قیمت قفل‌شده شامل اسپرد معاملاتی ({faNum(spreadPercent, 2)}٪
+                  خرید بالاتر / فروش پایین‌تر) است؛ بنابراین کمی با قیمت لحظه‌ای
+                  بالای صفحه تفاوت دارد.
+                </p>
+              )}
               <p>
-                • قیمت قفل‌شده شامل اسپرد استاندارد معاملاتی (خرید/فروش) است؛
-                بنابراین ممکن است کمی با قیمت لحظه‌ای نمایش داده‌شده در بالای
-                صفحه تفاوت داشته باشد.
-              </p>
-              <p>
-                • کارمزد معاملات ۱٪ از ارزش کل معامله است و جداگانه محاسبه
-                می‌شود.
+                • کارمزد خرید {faNum(tradeInfo?.buy.feePercent ?? 1, 2)}٪ و
+                کارمزد فروش {faNum(tradeInfo?.sell.feePercent ?? 1, 2)}٪ از ارزش
+                معامله است و جداگانه محاسبه می‌شود.
               </p>
               <p>
                 • برای خرید، کیف پول ریالی خود را ابتدا شارژ کنید. برای فروش،
-                طلا در صندوق امانات شما باید موجود باشد.
+                طلا در صندوق امانات شما باید موجود باشد. موجودی بلوکه‌شده
+                (برداشت یا تحویل فیزیکی در جریان) قابل معامله نیست.
               </p>
               <p>
-                • حداقل مقدار معامله <strong>۰.۱ گرم</strong> و حداکثر روزانه{" "}
-                <strong>۵۰ گرم</strong> است.
+                • حداقل مقدار معامله <strong>{faNum(minGrams)} گرم</strong>
+                {Number(tradeInfo?.buy.dailyLimitGrams ?? 0) > 0 && (
+                  <>
+                    {" "}
+                    و سقف خرید روزانه{" "}
+                    <strong>{faNum(tradeInfo?.buy.dailyLimitGrams)} گرم</strong>
+                  </>
+                )}
+                {Number(tradeInfo?.sell.dailyLimitGrams ?? 0) > 0 && (
+                  <>
+                    {" "}
+                    و سقف فروش روزانه{" "}
+                    <strong>
+                      {faNum(tradeInfo?.sell.dailyLimitGrams)} گرم
+                    </strong>
+                  </>
+                )}{" "}
+                است.
               </p>
             </div>
           </div>
@@ -733,6 +890,7 @@ function MeltedGoldContent() {
         onSuccess={() => {
           reset();
           setFormError(null);
+          refreshTradeInfo();
         }}
       />
     </div>

@@ -4,7 +4,7 @@
 // موجودی شمش، شرکای فروش) — مسیر و query string عیناً به API منتقل می‌شود.
 import { adminProxy } from "@/app/lib/adminProxy";
 
-export type ProxyMethod = "GET" | "POST" | "PATCH" | "DELETE";
+export type ProxyMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 export async function forward(req: Request, base: string, path: string[] | undefined, method: ProxyMethod) {
   const suffix = (path ?? []).map(encodeURIComponent).join("/");
@@ -21,13 +21,14 @@ export async function forward(req: Request, base: string, path: string[] | undef
   });
 }
 
-/** سازنده‌ی handlerهای GET/POST/PATCH برای یک مسیر catch-all */
+/** سازنده‌ی handlerهای GET/POST/PATCH/PUT/DELETE برای یک مسیر catch-all */
 export function catchAll(base: string) {
   type Ctx = { params: Promise<{ path?: string[] }> };
   return {
     GET: async (req: Request, { params }: Ctx) => forward(req, base, (await params).path, "GET"),
     POST: async (req: Request, { params }: Ctx) => forward(req, base, (await params).path, "POST"),
     PATCH: async (req: Request, { params }: Ctx) => forward(req, base, (await params).path, "PATCH"),
+    PUT: async (req: Request, { params }: Ctx) => forward(req, base, (await params).path, "PUT"),
     DELETE: async (req: Request, { params }: Ctx) => forward(req, base, (await params).path, "DELETE"),
   };
 }

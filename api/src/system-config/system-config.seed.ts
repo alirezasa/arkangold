@@ -649,6 +649,40 @@ export const WALLET_CONFIG_DEFAULTS = [
       'آستانه عمومی رایگان شدن بسته‌بندی: اگر جمع اقلام سفارش (ریال، پیش از کد تخفیف) به این مبلغ برسد، بسته‌بندی‌های مشمول رایگان می‌شوند — ۰ = غیرفعال',
   },
 
+  // ══ برچسب ارسال سفارش (لیبل پرینتر) ══
+  {
+    key: 'shop.label.sender_name',
+    value: 'آرکان گلد',
+    description: 'نام فرستنده روی برچسب ارسال ({{sender.name}})',
+  },
+  {
+    key: 'shop.label.sender_phone',
+    value: '',
+    description: 'تلفن فرستنده روی برچسب ارسال ({{sender.phone}})',
+  },
+  {
+    key: 'shop.label.sender_address',
+    value: '',
+    description: 'نشانی فرستنده روی برچسب ارسال ({{sender.address}})',
+  },
+  {
+    key: 'shop.label.sender_postal_code',
+    value: '',
+    description: 'کدپستی فرستنده روی برچسب ارسال ({{sender.postalCode}})',
+  },
+  {
+    key: 'shop.label.ean_prefix',
+    value: '200',
+    description:
+      'پیشوند بارکد EAN-13 داخلی کالاها (۲ تا ۹ رقم) — ۲۰۰ تا ۲۹۹ محدوده‌ی مصرف داخلی GS1؛ در صورت داشتن کد شرکت از GS1 ایران (۶۲۶...) آن را وارد کنید',
+  },
+  {
+    key: 'shop.label.auto_assign_barcode',
+    value: 'true',
+    description:
+      'ساخت خودکار بارکد EAN-13 داخلی برای کالاهای بدون بارکد هنگام چاپ برچسب (true/false)',
+  },
+
   // ══ حسابداری ══
   {
     key: 'accounting.locked_until',

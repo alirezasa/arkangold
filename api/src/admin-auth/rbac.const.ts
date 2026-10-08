@@ -93,6 +93,18 @@ export const ADMIN_PERMISSIONS = [
       'تأیید تحویل سفارش بدون کد تحویل مشتری (با ثبت دلیل) — فقط برای موارد استثنایی',
   },
   {
+    key: 'shop.label.print',
+    group: 'shop',
+    description:
+      'چاپ برچسب ارسال سفارش (آدرس، مشخصات خریدار و بارکد کالا) با دستگاه لیبل پرینتر',
+  },
+  {
+    key: 'shop.label.manage',
+    group: 'shop',
+    description:
+      'طراحی محتوای برچسب، تعریف اندازه‌های استاندارد برچسب، مشخصات فرستنده و بارکد EAN-13 کالاها',
+  },
+  {
     key: 'discount.view',
     group: 'shop',
     description: 'مشاهده کدهای تخفیف و گزارش استفاده از آن‌ها',
@@ -570,6 +582,8 @@ export const ADMIN_ROLES = [
     permissions: [
       'shop.manage',
       'shop.view',
+      'shop.label.print',
+      'shop.label.manage',
       'discount.view',
       'discount.manage',
       'hologram.batch.manage',

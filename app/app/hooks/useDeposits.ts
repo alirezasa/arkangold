@@ -7,10 +7,24 @@ export type DepositStatus =
   | "PENDING_PAYMENT" | "RECEIPT_UPLOADED" | "UNDER_REVIEW"
   | "APPROVED" | "REJECTED" | "CANCELLED" | "EXPIRED";
 
+export type DepositMethod =
+  | "LARGE_TRANSFER" | "CARD_TO_CARD" | "BANK_TRANSFER"
+  | "ONLINE" | "TRACKING_ID" | "DIRECT";
+
+export const DEPOSIT_METHOD_LABEL: Record<string, string> = {
+  LARGE_TRANSFER: "واریز مبالغ بالا (پیش‌فاکتور)",
+  CARD_TO_CARD: "کارت به کارت",
+  BANK_TRANSFER: "حساب به حساب",
+  ONLINE: "درگاه پرداخت",
+  TRACKING_ID: "واریز شناسه‌دار",
+  DIRECT: "واریز مستقیم",
+};
+
 export interface DepositSummary {
   id: string;
   requestNumber: string;
   amountRial: string;
+  method?: DepositMethod;
   status: DepositStatus;
   statusLabel: string;
   depositTrackingId: string;
@@ -21,12 +35,16 @@ export interface DepositSummary {
 }
 
 export interface DepositDetail extends DepositSummary {
-  method: string;
+  method: DepositMethod;
   destination: {
     owner: string;
     bank: string;
     accountNumber: string;
     sheba: string;
+    /** فقط کارت به کارت */
+    card?: string;
+    /** کارت/حساب مبدأ کاربر (کارت به کارت و حساب به حساب) */
+    source?: { bankName: string; cardNumber: string; sheba: string | null };
   };
   proformaInvoiceNumber: string | null;
   rejectionReason: string | null;
@@ -101,6 +119,45 @@ export function useCreateDeposit() {
       setLoading(false);
     }
   }, []);
+
+  return { create, loading, error, setError };
+}
+
+/** ثبت واریز کارت به کارت / حساب به حساب پس از انجام واریز */
+export function useCreateManualDeposit() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const create = useCallback(
+    async (input: {
+      method: "CARD_TO_CARD" | "BANK_TRANSFER";
+      amountRial: number;
+      sourceCardId: string;
+      idempotencyKey: string;
+    }) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await axios.post<DepositDetail>(
+          "/api/wallet/deposits/manual",
+          {
+            method: input.method,
+            amountRial: input.amountRial,
+            sourceCardId: input.sourceCardId,
+          },
+          // کلید ثابتِ همان فرم: تلاش مجدد پس از خطای آپلود، درخواست دوم نمی‌سازد
+          { headers: { "idempotency-key": input.idempotencyKey } },
+        );
+        return res.data;
+      } catch (err) {
+        setError(errText(err, "ثبت درخواست واریز ناموفق بود"));
+        return null;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
 
   return { create, loading, error, setError };
 }

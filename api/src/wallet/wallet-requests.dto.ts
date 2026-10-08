@@ -24,19 +24,6 @@ export class CardToCardInitiateDto extends SourceCardDto {
   amount!: number;
 }
 
-export class ConfirmCardToCardDto {
-  @IsUUID('all', { message: 'شناسه تراکنش نامعتبر است' })
-  transactionId!: string;
-}
-
-export class LargeTransferInitiateDto {
-  @Type(() => Number)
-  @IsInt({ message: AMOUNT_MSG })
-  @IsPositive({ message: AMOUNT_MSG })
-  @Max(MAX_AMOUNT_RIAL, { message: 'مبلغ بیش از حد مجاز است' })
-  amount!: number;
-}
-
 export class WithdrawalRequestDto {
   @IsUUID('all', { message: 'حساب بانکی نامعتبر است' })
   bankAccountId!: string;

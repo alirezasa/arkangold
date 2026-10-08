@@ -158,6 +158,7 @@ export class DepositAdminService {
         id: r.id,
         requestNumber: r.requestNumber,
         amountRial: r.amountRial.toString(),
+        method: r.method,
         status: r.status,
         statusLabel: STATUS_LABEL[r.status],
         depositTrackingId: r.depositTrackingId,

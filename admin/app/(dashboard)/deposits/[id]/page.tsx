@@ -17,7 +17,16 @@ interface Detail {
   status: string;
   statusLabel: string;
   depositTrackingId: string;
-  destination: { owner: string; bank: string; accountNumber: string; sheba: string };
+  method: string;
+  destination: {
+    owner: string;
+    bank: string;
+    accountNumber: string;
+    sheba: string;
+    card?: string;
+    /** کارت/حساب مبدأ کاربر — فیش باید از همین مبدأ باشد */
+    source?: { bankName: string; cardNumber: string; sheba: string | null };
+  };
   proformaInvoiceId: string | null;
   proformaInvoiceNumber: string | null;
   transactionId: string | null;
@@ -43,6 +52,15 @@ interface Detail {
     checksumPrefix: string; uploadedAtJalali: string;
   }[];
 }
+
+const METHOD_FA: Record<string, string> = {
+  LARGE_TRANSFER: "واریز مبالغ بالا (پیش‌فاکتور)",
+  CARD_TO_CARD: "کارت به کارت",
+  BANK_TRANSFER: "حساب به حساب",
+  ONLINE: "درگاه پرداخت",
+  TRACKING_ID: "واریز شناسه‌دار",
+  DIRECT: "واریز مستقیم",
+};
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 const faNum = (v: string | number) => Number(v).toLocaleString("fa-IR");
@@ -227,15 +245,32 @@ export default function AdminDepositDetailPage({
           </div>
 
           <div className="rounded-2xl bg-white border border-gray-100 overflow-hidden">
-            {[
-              ["شناسه واریز", data.depositTrackingId, true],
-              ["شماره پیش‌فاکتور", data.proformaInvoiceNumber ?? "—", false],
-              ["صاحب حساب مقصد", data.destination.owner, false],
-              ["شبا مقصد", data.destination.sheba, true],
-              ["تاریخ ثبت", data.createdAtJalali, false],
-              ["مهلت اعتبار", data.expiresAtJalali, false],
-              ["تراکنش کیف پول", data.transactionId ?? "—", true],
-            ].map(([k, v, ltr], i) => (
+            {(
+              [
+                ["روش واریز", METHOD_FA[data.method] ?? data.method, false],
+                ...(data.method === "LARGE_TRANSFER"
+                  ? [
+                      ["شناسه واریز", data.depositTrackingId, true],
+                      ["شماره پیش‌فاکتور", data.proformaInvoiceNumber ?? "—", false],
+                    ]
+                  : []),
+                ...(data.destination.source
+                  ? [
+                      [
+                        "مبدأ ثبت‌شده‌ی کاربر",
+                        `${data.destination.source.bankName} — ${data.destination.source.cardNumber}`,
+                        false,
+                      ],
+                    ]
+                  : []),
+                ["صاحب حساب مقصد", data.destination.owner || "—", false],
+                ...(data.destination.card ? [["کارت مقصد", data.destination.card, true]] : []),
+                ...(data.destination.sheba ? [["شبا مقصد", data.destination.sheba, true]] : []),
+                ["تاریخ ثبت", data.createdAtJalali, false],
+                ["مهلت اعتبار", data.expiresAtJalali, false],
+                ["تراکنش کیف پول", data.transactionId ?? "—", true],
+              ] as [string, string, boolean][]
+            ).map(([k, v, ltr], i) => (
               <div
                 key={k as string}
                 className={`flex justify-between gap-3 px-4 py-3 text-[12px] ${i > 0 ? "border-t border-gray-50" : ""}`}

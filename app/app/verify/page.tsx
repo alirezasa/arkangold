@@ -10,6 +10,7 @@ import {
   ShieldQuestion,
   Loader2,
   ArrowLeft,
+  Siren,
 } from 'lucide-react';
 import { digitsOnly } from '@/app/utils/digits';
 
@@ -26,6 +27,15 @@ interface VerifyResult {
     fullName: string;
     nationalCode: string;
     ownershipStartAt: string;
+  } | null;
+  /** شمش گزارش سرقت/مفقودی فعال دارد */
+  incident?: {
+    type: 'THEFT' | 'LOSS';
+    typeLabel: string;
+    statusLabel: string;
+    reportNumber: string;
+    reportedAt: string;
+    message: string;
   } | null;
 }
 
@@ -109,6 +119,21 @@ export default function PublicHologramVerifyPage() {
           </button>
         </form>
 
+        {result?.incident && (
+          <div className="mt-4 rounded-2xl p-4 text-right border-2 border-red-200 bg-red-50 space-y-1.5">
+            <div className="flex items-center gap-2 text-red-700">
+              <Siren className="w-5 h-5 shrink-0" />
+              <span className="text-[14px] font-black">
+                این شمش به‌عنوان «{result.incident.typeLabel}» گزارش شده است
+              </span>
+            </div>
+            <p className="text-[12px] text-red-700 leading-relaxed">{result.incident.message}</p>
+            <p className="text-[11px] text-red-500">
+              تاریخ ثبت گزارش: {new Date(result.incident.reportedAt).toLocaleDateString('fa-IR')}
+            </p>
+          </div>
+        )}
+
         {result && (
           <div
             className="mt-4 rounded-2xl p-6 text-center"
@@ -116,8 +141,14 @@ export default function PublicHologramVerifyPage() {
           >
             {result.status === 'VALID_ASSIGNED' && (
               <>
-                <ShieldCheck className="w-14 h-14 text-emerald-500 mx-auto mb-3" />
-                <h2 className="text-[16px] font-black text-gray-900 mb-1">اصالت تأیید شد</h2>
+                {result.incident ? (
+                  <ShieldAlert className="w-14 h-14 text-red-500 mx-auto mb-3" />
+                ) : (
+                  <ShieldCheck className="w-14 h-14 text-emerald-500 mx-auto mb-3" />
+                )}
+                <h2 className="text-[16px] font-black text-gray-900 mb-1">
+                  {result.incident ? `شمش اصل است اما «${result.incident.typeLabel}» گزارش شده` : 'اصالت تأیید شد'}
+                </h2>
                 <p className="text-[12px] text-gray-400 mb-4">{result.message}</p>
                 <div className="text-right space-y-1.5 text-[13px] text-gray-600 bg-gray-50 rounded-xl p-4">
                   {result.product?.weightGrams && (

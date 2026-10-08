@@ -888,6 +888,12 @@ export class AgentService {
           agentPremiumRial: true,
           product: { select: { id: true, name: true } },
           batch: { select: { batchNumber: true } },
+          // گزارش سرقت/مفقودی فعال — شمش گزارش‌شده قابل فروش نیست
+          incidentReports: {
+            where: { status: { in: ['OPEN', 'CONFIRMED'] } },
+            take: 1,
+            select: { reportNumber: true, type: true, status: true },
+          },
         },
       }),
       this.prisma.hologramCode.count({ where }),

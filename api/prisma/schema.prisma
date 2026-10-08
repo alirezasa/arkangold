@@ -74,6 +74,7 @@ model User {
   hologramInquiryLogs        HologramInquiryLog[]
   initiatedHologramTransfers OwnershipTransferRequest[] @relation("TransferInitiatedBy")
   receivedHologramTransfers  OwnershipTransferRequest[] @relation("TransferRecipient")
+  hologramIncidentReports    HologramIncidentReport[]   @relation("HologramIncidentReportedBy")
   discountCodes              DiscountCode[]
   agentPurchases             AgentSale[]                @relation("AgentSaleBuyer")
   partnerOrders              PartnerOrder[]
@@ -1317,6 +1318,9 @@ model AdminUser {
   hologramCodesRevoked       HologramCode[]             @relation("HologramCodeRevokedBy")
   initiatedHologramTransfers OwnershipTransferRequest[] @relation("TransferInitiatedByAdmin")
   unblockedRateLimitBlocks   HologramRateLimitBlock[]
+  hologramIncidentsReported  HologramIncidentReport[]   @relation("HologramIncidentReportedByAdmin")
+  hologramIncidentsReviewed  HologramIncidentReport[]   @relation("HologramIncidentReviewedBy")
+  hologramInquiryLogs        HologramInquiryLog[]       @relation("HologramInquiryLogAdmin")
   createdDiscountCodes       DiscountCode[]
   createdAgents              Agent[]                    @relation("AgentCreatedBy")
   agentStockMovements        AgentStockMovement[]       @relation("AgentStockMovementBy")
@@ -1896,6 +1900,7 @@ model HologramCode {
   inquiryLogs         HologramInquiryLog[]
   agentStockMovements AgentStockMovement[]
   agentSales          AgentSale[]
+  incidentReports     HologramIncidentReport[]
 
   @@index([batchId])
   @@index([status])
@@ -1972,22 +1977,78 @@ model OwnershipTransferRequest {
 
 /// لاگ append-only هر استعلام اصالت (موفق یا ناموفق) — هیچ UPDATE/DELETE‌ای مجاز نیست
 model HologramInquiryLog {
-  id             String                 @id @default(uuid()) @db.Uuid
+  id               String                  @id @default(uuid()) @db.Uuid
   /// کد واردشده، حتی اگر نامعتبر بود
-  code           String
-  hologramCodeId String?                @map("hologram_code_id") @db.Uuid
-  hologramCode   HologramCode?          @relation(fields: [hologramCodeId], references: [id])
-  ipAddress      String                 @map("ip_address")
-  userAgent      String?                @map("user_agent")
-  channel        HologramInquiryChannel
-  result         HologramInquiryResult
-  userId         String?                @map("user_id") @db.Uuid
-  user           User?                  @relation(fields: [userId], references: [id])
-  createdAt      DateTime               @default(now()) @map("created_at")
+  code             String
+  hologramCodeId   String?                 @map("hologram_code_id") @db.Uuid
+  hologramCode     HologramCode?           @relation(fields: [hologramCodeId], references: [id])
+  ipAddress        String                  @map("ip_address")
+  userAgent        String?                 @map("user_agent")
+  channel          HologramInquiryChannel
+  result           HologramInquiryResult
+  userId           String?                 @map("user_id") @db.Uuid
+  user             User?                   @relation(fields: [userId], references: [id])
+  /// استعلام از پنل ادمین یا پرتال نماینده — حساب کارشناس/نماینده‌ای که استعلام گرفته
+  adminUserId      String?                 @map("admin_user_id") @db.Uuid
+  adminUser        AdminUser?              @relation("HologramInquiryLogAdmin", fields: [adminUserId], references: [id])
+  /// اگر در لحظه‌ی استعلام، شمش گزارش سرقت/مفقودی فعال داشت — ردپای استعلام‌های شمش گزارش‌شده
+  incidentReportId String?                 @map("incident_report_id") @db.Uuid
+  incidentReport   HologramIncidentReport? @relation(fields: [incidentReportId], references: [id])
+  createdAt        DateTime                @default(now()) @map("created_at")
 
   @@index([ipAddress, createdAt])
   @@index([code])
+  @@index([incidentReportId, createdAt])
   @@map("hologram_inquiry_logs")
+}
+
+/// گزارش سرقت یا مفقودی شمش. تا وقتی گزارش «فعال» است (OPEN یا CONFIRMED) شمش در همه‌ی
+/// استعلام‌ها (عمومی، پنل کاربر، پنل ادمین و پرتال نماینده) با هشدار نمایش داده می‌شود و
+/// انتقال مالکیت، تخصیص و فروش آن مسدود است. در هر لحظه حداکثر یک گزارش فعال برای هر شمش
+/// مجاز است (partial unique index در migration.sql).
+model HologramIncidentReport {
+  id             String                 @id @default(uuid()) @db.Uuid
+  /// شماره‌ی گزارش، مثلاً AG-1405-HIR-000012
+  reportNumber   String                 @unique @map("report_number")
+  hologramCodeId String                 @map("hologram_code_id") @db.Uuid
+  hologramCode   HologramCode           @relation(fields: [hologramCodeId], references: [id])
+  type           HologramIncidentType
+  status         HologramIncidentStatus @default(OPEN)
+
+  // دقیقاً یکی پر است: مالک (از پنل کاربری) یا کارشناس (مثلاً سرقت از خزانه/نماینده)
+  reportedByUserId  String?    @map("reported_by_user_id") @db.Uuid
+  reportedByUser    User?      @relation("HologramIncidentReportedBy", fields: [reportedByUserId], references: [id])
+  reportedByAdminId String?    @map("reported_by_admin_id") @db.Uuid
+  reportedByAdmin   AdminUser? @relation("HologramIncidentReportedByAdmin", fields: [reportedByAdminId], references: [id])
+
+  /// snapshot مالک فعال در لحظه‌ی گزارش (برای شمش بدون مالک خالی است)
+  ownerFullName     String? @map("owner_full_name")
+  ownerNationalCode String? @map("owner_national_code")
+
+  incidentAt         DateTime? @map("incident_at")
+  incidentLocation   String?   @map("incident_location")
+  description        String
+  policeReportNumber String?   @map("police_report_number")
+  contactPhone       String?   @map("contact_phone")
+
+  // تصمیم مدیریت (تأیید / رد / اعلام بازیابی)
+  reviewedByAdminId String?    @map("reviewed_by_admin_id") @db.Uuid
+  reviewedByAdmin   AdminUser? @relation("HologramIncidentReviewedBy", fields: [reviewedByAdminId], references: [id])
+  reviewedAt        DateTime?  @map("reviewed_at")
+  adminNote         String?    @map("admin_note")
+  /// زمان بسته‌شدن گزارش (بازیابی، رد یا لغو توسط مالک)
+  closedAt          DateTime?  @map("closed_at")
+  closeReason       String?    @map("close_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  inquiryLogs HologramInquiryLog[]
+
+  @@index([hologramCodeId])
+  @@index([status, createdAt])
+  @@index([reportedByUserId])
+  @@map("hologram_incident_reports")
 }
 
 /// مسدودسازی IP در برابر brute-force استعلام کد هولوگرام
@@ -2542,6 +2603,26 @@ enum HologramInquiryChannel {
   PUBLIC_WEB
   APP_PANEL
   API_DIRECT
+  ADMIN_PANEL
+  AGENT_PORTAL
+}
+
+enum HologramIncidentType {
+  THEFT
+  LOSS
+}
+
+enum HologramIncidentStatus {
+  /// ثبت‌شده — در انتظار بررسی مدیریت (هشدار از همین لحظه فعال است)
+  OPEN
+  /// تأییدشده توسط مدیریت
+  CONFIRMED
+  /// شمش پیدا/بازیابی شد — گزارش بسته شد
+  RECOVERED
+  /// گزارش توسط مدیریت رد شد
+  REJECTED
+  /// لغو توسط گزارش‌دهنده پیش از تأیید
+  CANCELLED
 }
 
 enum HologramInquiryResult {

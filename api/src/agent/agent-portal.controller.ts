@@ -25,6 +25,12 @@ import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interc
 import { AgentScopeGuard, AgentPortalRequest } from './agent-scope.guard';
 import { AgentService } from './agent.service';
 import { AgentSaleService } from './agent-sale.service';
+import { HologramService } from '../hologram/hologram.service';
+import { extractClientIp } from '../hologram/hologram-ip.util';
+import {
+  HologramInquiryChannel,
+  VerifyHologramCodeDto,
+} from '@arkan-gold/shared';
 import {
   BuyerLookupQueryDto,
   CreateAgentSaleDto,
@@ -45,6 +51,7 @@ export class AgentPortalController {
   constructor(
     private readonly agents: AgentService,
     private readonly sales: AgentSaleService,
+    private readonly holograms: HologramService,
   ) {}
 
   private assertActive(req: AgentPortalRequest) {
@@ -83,6 +90,29 @@ export class AgentPortalController {
     @Param('voucherNumber') voucherNumber: string,
   ) {
     return this.agents.voucher(voucherNumber, req.user.agentId);
+  }
+
+  // ── استعلام اصالت و وضعیت سرقت/مفقودی شمش ──
+  @RequirePermission('agent_portal.view')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('hologram-inquiry')
+  @ApiOperation({
+    summary:
+      'استعلام اصالت شمش توسط نماینده — شامل هشدار سرقت/مفقودی و وضعیت امانت نزد همین نماینده',
+  })
+  hologramInquiry(
+    @Req() req: AgentPortalRequest,
+    @Body() dto: VerifyHologramCodeDto,
+  ) {
+    return this.holograms.verify(dto.code, {
+      ipAddress: extractClientIp(req),
+      userAgent: req.headers['user-agent'],
+      channel: HologramInquiryChannel.AGENT_PORTAL,
+      adminUserId: req.user.adminUserId,
+      agentId: req.user.agentId,
+      // کد ملی مالک برای نماینده همیشه ماسک است
+      maskNationalCodeInResponse: true,
+    });
   }
 
   // ── فروش ──

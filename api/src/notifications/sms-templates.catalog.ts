@@ -126,6 +126,13 @@ const V = {
   },
   days: { name: 'days', label: 'روزهای باقی‌مانده', sample: '۱۵' },
   date: { name: 'date', label: 'تاریخ انقضا', sample: '۱۴۰۵/۰۸/۰۱' },
+  hologramCode: {
+    name: 'hologramCode',
+    label: 'کد هولوگرام شمش',
+    sample: '48291537',
+  },
+  incidentType: { name: 'incidentType', label: 'نوع گزارش', sample: 'سرقت' },
+  status: { name: 'status', label: 'وضعیت', sample: 'تأییدشده' },
 } satisfies Record<string, SmsVariableDef>;
 
 export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
@@ -401,6 +408,34 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
     category: 'AGENT',
     body: '{agentName} گرامی، قرارداد نمایندگی شماره {contractNumber} برای شما صادر شد. لطفاً از پنل نمایندگی بخش «قراردادها» آن را مطالعه و امضا کنید.\n{brand}',
     variables: [V.agentName, V.contractNumber, V.brand],
+  },
+  // ─────────────────────────── گزارش سرقت/مفقودی شمش ───────────────────────────
+  {
+    key: 'HOLOGRAM_INCIDENT_REPORTED',
+    title: 'ثبت گزارش سرقت/مفقودی شمش',
+    category: 'GENERAL',
+    body: '{name} عزیز، گزارش {incidentType} شمش با کد {hologramCode} به شماره {requestNumber} ثبت شد. از این لحظه هر استعلام این شمش با هشدار همراه است.\n{brand}',
+    variables: [
+      V.name,
+      V.incidentType,
+      V.hologramCode,
+      V.requestNumber,
+      V.brand,
+    ],
+  },
+  {
+    key: 'HOLOGRAM_INCIDENT_UPDATED',
+    title: 'تغییر وضعیت گزارش سرقت/مفقودی شمش',
+    category: 'GENERAL',
+    body: '{name} عزیز، وضعیت گزارش {incidentType} شمش {hologramCode} (شماره {requestNumber}): {status}\n{brand}',
+    variables: [
+      V.name,
+      V.incidentType,
+      V.hologramCode,
+      V.requestNumber,
+      V.status,
+      V.brand,
+    ],
   },
   {
     key: 'AGENT_CONTRACT_SIGN_OTP',

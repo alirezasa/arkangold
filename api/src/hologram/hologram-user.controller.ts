@@ -9,6 +9,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Post,
   Req,
   UseGuards,
@@ -19,12 +20,15 @@ import { Request } from 'express';
 import { HologramService } from './hologram.service';
 import { HologramTransferService } from './hologram-transfer.service';
 import { HologramSecurityService } from './hologram-security.service';
+import { HologramIncidentService } from './hologram-incident.service';
 import { extractClientIp } from './hologram-ip.util';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  CancelHologramIncidentDto,
   ConfirmHologramTransferDto,
+  CreateHologramIncidentDto,
   HologramInquiryChannel,
   InitiateHologramTransferDto,
   RejectHologramTransferDto,
@@ -45,6 +49,7 @@ export class HologramUserController {
     private readonly hologramService: HologramService,
     private readonly transferService: HologramTransferService,
     private readonly security: HologramSecurityService,
+    private readonly incidents: HologramIncidentService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -82,7 +87,51 @@ export class HologramUserController {
         },
       },
     });
-    return { data: ownerships };
+    const active = await this.incidents.activeByCodeIds(
+      ownerships.map((o) => o.hologramCodeId),
+    );
+    return {
+      data: ownerships.map((o) => ({
+        ...o,
+        activeIncident: active.get(o.hologramCodeId) ?? null,
+      })),
+    };
+  }
+
+  // ── اعلام سرقت / مفقودی ──
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('incidents')
+  @ApiOperation({
+    summary:
+      'اعلام سرقت یا مفقودی شمش توسط مالک — از همین لحظه در همه‌ی استعلام‌ها هشدار نمایش داده می‌شود',
+  })
+  reportIncident(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateHologramIncidentDto,
+  ) {
+    return this.incidents.createByOwner(req.user.userId, dto);
+  }
+
+  @Get('incidents')
+  @ApiOperation({ summary: 'گزارش‌های سرقت/مفقودی ثبت‌شده توسط من' })
+  myIncidents(@Req() req: AuthenticatedRequest) {
+    return this.incidents.listMine(req.user.userId);
+  }
+
+  @OwnedResource({
+    model: 'hologramIncidentReport',
+    ownerPath: 'reportedByUserId',
+  })
+  @Post('incidents/:id/cancel')
+  @ApiOperation({
+    summary: 'لغو گزارش سرقت/مفقودی توسط مالک (فقط پیش از تأیید مدیریت)',
+  })
+  cancelIncident(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelHologramIncidentDto,
+  ) {
+    return this.incidents.cancelByOwner(req.user.userId, id, dto.reason);
   }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })

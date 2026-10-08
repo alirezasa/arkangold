@@ -22,6 +22,13 @@ import {
   maskNationalCode,
 } from './hologram-code.util';
 import {
+  ACTIVE_INCIDENT_STATUSES,
+  assertNoActiveIncident,
+  findActiveIncident,
+  INCIDENT_STATUS_FA,
+  INCIDENT_TYPE_FA,
+} from './hologram-incident.util';
+import {
   AssignHologramCodeDto,
   CreateHologramBatchDto,
   GetHologramCodesQueryDto,
@@ -37,7 +44,45 @@ export interface VerifyContext {
   userAgent?: string;
   channel: HologramInquiryChannel;
   userId?: string;
+  /** کارشناس/نماینده‌ای که از پنل ادمین یا پرتال نماینده استعلام گرفته */
+  adminUserId?: string;
+  /** نماینده‌ی استعلام‌کننده — برای اعلام اینکه شمش در امانت همین نماینده است یا نه */
+  agentId?: string;
   maskNationalCodeInResponse: boolean;
+  /** کد ملی کامل مالک نمایش داده شود (فقط پنل ادمین) */
+  revealNationalCode?: boolean;
+}
+
+/** هشدار سرقت/مفقودی در پاسخ استعلام */
+export interface VerifyIncidentAlert {
+  type: 'THEFT' | 'LOSS';
+  typeLabel: string;
+  status: 'OPEN' | 'CONFIRMED';
+  statusLabel: string;
+  reportNumber: string;
+  reportedAt: string;
+  message: string;
+}
+
+export interface VerifyResponse {
+  status: 'INVALID_CODE' | 'VALID_UNASSIGNED' | 'VALID_ASSIGNED';
+  message: string;
+  product?: {
+    weightGrams: string | null;
+    purityKarat: string | null;
+    factorySerialNumber: string | null;
+    mintedAt: string | null;
+    batchNumber: string;
+  };
+  owner?: {
+    fullName: string;
+    nationalCode: string;
+    ownershipStartAt: string;
+  } | null;
+  /** فقط وقتی شمش گزارش سرقت/مفقودی فعال دارد */
+  incident?: VerifyIncidentAlert | null;
+  /** فقط در پرتال نماینده */
+  custody?: { atThisAgent: boolean; atAnotherAgent: boolean };
 }
 
 @Injectable()
@@ -171,6 +216,13 @@ export class HologramService {
     const where: Prisma.HologramCodeWhereInput = {
       ...(query.status ? { status: query.status } : {}),
       ...(query.batchId ? { batchId: query.batchId } : {}),
+      ...(query.flagged
+        ? {
+            incidentReports: {
+              some: { status: { in: [...ACTIVE_INCIDENT_STATUSES] } },
+            },
+          }
+        : {}),
       ...(query.search
         ? {
             OR: [
@@ -214,6 +266,17 @@ export class HologramService {
           variant: { select: { id: true, weightGrams: true } },
           ownerships: { where: { status: 'ACTIVE' }, take: 1 },
           agent: { select: { id: true, code: true, name: true } },
+          incidentReports: {
+            where: { status: { in: [...ACTIVE_INCIDENT_STATUSES] } },
+            take: 1,
+            select: {
+              id: true,
+              reportNumber: true,
+              type: true,
+              status: true,
+              createdAt: true,
+            },
+          },
         },
       }),
       this.prisma.hologramCode.count({ where }),
@@ -238,6 +301,18 @@ export class HologramService {
         ownerships: { orderBy: { ownershipStartAt: 'desc' } },
         transferRequests: { orderBy: { requestedAt: 'desc' } },
         agent: { select: { id: true, code: true, name: true } },
+        incidentReports: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            reportNumber: true,
+            type: true,
+            status: true,
+            description: true,
+            createdAt: true,
+            closedAt: true,
+          },
+        },
         agentSales: {
           orderBy: { createdAt: 'desc' },
           select: {
@@ -276,6 +351,7 @@ export class HologramService {
             'این کد هولوگرام قبلاً تخصیص یافته یا باطل شده است',
           );
         }
+        await assertNoActiveIncident(tx, hologramCode.id);
 
         const item = await tx.shopOrderItem.findUnique({
           where: { id: dto.shopOrderItemId },
@@ -423,26 +499,12 @@ export class HologramService {
   // ══════════════════════════════════════════
   // استعلام عمومی اصالت — بند ۳.۶ / ۴.۱
   // ══════════════════════════════════════════
-  async verify(rawCode: string, ctx: VerifyContext) {
+  async verify(rawCode: string, ctx: VerifyContext): Promise<VerifyResponse> {
     const start = Date.now();
-    let result: HologramInquiryResult;
+    let result: HologramInquiryResult | undefined;
     let hologramCodeId: string | undefined;
-    let response: {
-      status: 'INVALID_CODE' | 'VALID_UNASSIGNED' | 'VALID_ASSIGNED';
-      message: string;
-      product?: {
-        weightGrams: string | null;
-        purityKarat: string | null;
-        factorySerialNumber: string | null;
-        mintedAt: string | null;
-        batchNumber: string;
-      };
-      owner?: {
-        fullName: string;
-        nationalCode: string;
-        ownershipStartAt: string;
-      } | null;
-    };
+    let incidentReportId: string | undefined;
+    let response: VerifyResponse;
 
     try {
       if (!isValidHologramCodeFormat(rawCode)) {
@@ -473,20 +535,38 @@ export class HologramService {
 
       hologramCodeId = hologramCode.id;
       const activeOwnership = hologramCode.ownerships[0];
+      const incident = await findActiveIncident(this.prisma, hologramCode.id);
+      incidentReportId = incident?.id;
+      const incidentAlert = incident ? this.toIncidentAlert(incident) : null;
+      const custody = ctx.agentId
+        ? {
+            atThisAgent:
+              hologramCode.status === 'AT_AGENT' &&
+              hologramCode.agentId === ctx.agentId,
+            atAnotherAgent:
+              hologramCode.status === 'AT_AGENT' &&
+              hologramCode.agentId !== ctx.agentId,
+          }
+        : undefined;
 
       if (!activeOwnership) {
         result = HologramInquiryResult.VALID_UNASSIGNED;
         response = {
           status: 'VALID_UNASSIGNED',
-          message: 'این شمش هنوز به مالکی تخصیص نیافته است',
+          message:
+            incidentAlert?.message ?? 'این شمش هنوز به مالکی تخصیص نیافته است',
+          incident: incidentAlert,
+          ...(custody ? { custody } : {}),
         };
         return response;
       }
 
+      const isOwner =
+        !!ctx.userId && activeOwnership.ownerUserId === ctx.userId;
       result = HologramInquiryResult.VALID_ASSIGNED;
       response = {
         status: 'VALID_ASSIGNED',
-        message: 'اصالت این شمش تأیید می‌شود',
+        message: incidentAlert?.message ?? 'اصالت این شمش تأیید می‌شود',
         product: {
           weightGrams: hologramCode.weightGrams?.toString() ?? null,
           purityKarat: hologramCode.purityKarat,
@@ -496,16 +576,17 @@ export class HologramService {
         },
         owner: {
           fullName: activeOwnership.fullName,
-          // FDP_ACC_EXT.1.5 — کد ملی کامل فقط به خود مالک نشان داده می‌شود؛
-          // برای هر استعلام‌کننده‌ی دیگری (حتی کاربر واردشده) پوشانده است
+          // FDP_ACC_EXT.1.5 — کد ملی کامل فقط به خود مالک (و کارشناس پنل ادمین) نشان
+          // داده می‌شود؛ برای هر استعلام‌کننده‌ی دیگری (حتی کاربر واردشده) پوشانده است
           nationalCode:
-            !ctx.maskNationalCodeInResponse &&
-            !!ctx.userId &&
-            activeOwnership.ownerUserId === ctx.userId
+            ctx.revealNationalCode ||
+            (!ctx.maskNationalCodeInResponse && isOwner)
               ? activeOwnership.nationalCode
               : maskNationalCode(activeOwnership.nationalCode),
           ownershipStartAt: activeOwnership.ownershipStartAt.toISOString(),
         },
+        incident: incidentAlert,
+        ...(custody ? { custody } : {}),
       };
       return response;
     } finally {
@@ -522,15 +603,69 @@ export class HologramService {
             channel: ctx.channel,
             result: finalResult,
             userId: ctx.userId,
+            adminUserId: ctx.adminUserId,
+            incidentReportId,
           },
         }),
-        this.security.recordAttempt(
-          ctx.ipAddress,
-          finalResult !== HologramInquiryResult.INVALID_CODE,
-        ),
+        // استعلام کارشناس/نماینده‌ی واردشده در شمارش brute-force عمومی لحاظ نمی‌شود
+        ctx.adminUserId
+          ? Promise.resolve()
+          : this.security.recordAttempt(
+              ctx.ipAddress,
+              finalResult !== HologramInquiryResult.INVALID_CODE,
+            ),
       ]);
-      await this.padResponseTime(start);
+      if (incidentReportId) {
+        this.logger.warn(
+          `[Hologram] استعلام شمش گزارش‌شده ${rawCode} — کانال ${ctx.channel}، IP ${ctx.ipAddress}` +
+            (ctx.userId ? `، کاربر ${ctx.userId}` : '') +
+            (ctx.adminUserId ? `، حساب پنل ${ctx.adminUserId}` : ''),
+        );
+      }
+      if (!ctx.adminUserId) await this.padResponseTime(start);
     }
+  }
+
+  private toIncidentAlert(incident: {
+    type: 'THEFT' | 'LOSS';
+    status: string;
+    reportNumber: string;
+    createdAt: Date;
+  }): VerifyIncidentAlert {
+    const typeLabel = INCIDENT_TYPE_FA[incident.type];
+    return {
+      type: incident.type,
+      typeLabel,
+      status: incident.status as 'OPEN' | 'CONFIRMED',
+      statusLabel: INCIDENT_STATUS_FA[incident.status],
+      reportNumber: incident.reportNumber,
+      reportedAt: incident.createdAt.toISOString(),
+      message:
+        incident.type === 'THEFT'
+          ? 'هشدار: این شمش به‌عنوان «سرقتی» گزارش شده است. از خرید یا پذیرش آن خودداری کنید و موضوع را به آرکان گلد اطلاع دهید.'
+          : 'هشدار: این شمش به‌عنوان «مفقودی» گزارش شده است. از خرید یا پذیرش آن خودداری کنید و موضوع را به آرکان گلد اطلاع دهید.',
+    };
+  }
+
+  /**
+   * استعلام کارشناس از پنل ادمین — همان پاسخ استعلام (با کد ملی کامل و هشدار سرقت/مفقودی)
+   * به‌همراه پرونده‌ی کامل کد؛ در لاگ استعلام با کانال ADMIN_PANEL ثبت می‌شود.
+   */
+  async inquireAsAdmin(
+    adminUserId: string,
+    code: string,
+    meta: { ipAddress: string; userAgent?: string },
+  ) {
+    const result = await this.verify(code, {
+      ...meta,
+      channel: HologramInquiryChannel.ADMIN_PANEL,
+      adminUserId,
+      maskNationalCodeInResponse: false,
+      revealNationalCode: true,
+    });
+    const detail =
+      result.status === 'INVALID_CODE' ? null : await this.getCodeDetail(code);
+    return { ...result, detail };
   }
 
   /**
@@ -550,6 +685,8 @@ export class HologramService {
     const where: Prisma.HologramInquiryLogWhereInput = {
       ...(query.ipAddress ? { ipAddress: query.ipAddress } : {}),
       ...(query.result ? { result: query.result } : {}),
+      ...(query.channel ? { channel: query.channel } : {}),
+      ...(query.flaggedOnly ? { incidentReportId: { not: null } } : {}),
       ...(query.dateFrom || query.dateTo
         ? {
             createdAt: {
@@ -566,7 +703,19 @@ export class HologramService {
         orderBy: { createdAt: 'desc' },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
-        include: { user: { select: { id: true, phone: true } } },
+        include: {
+          user: { select: { id: true, phone: true } },
+          adminUser: {
+            select: {
+              id: true,
+              fullName: true,
+              agent: { select: { id: true, code: true, name: true } },
+            },
+          },
+          incidentReport: {
+            select: { id: true, reportNumber: true, type: true },
+          },
+        },
       }),
       this.prisma.hologramInquiryLog.count({ where }),
     ]);

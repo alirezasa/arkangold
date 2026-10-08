@@ -46,6 +46,8 @@ import {
   FileSignature,
   CreditCard,
   Printer,
+  Siren,
+  SearchCheck,
 } from "lucide-react";
 
 export interface NavItem {
@@ -77,6 +79,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "داشبورد نمایندگی", href: "/agent-portal", icon: Store, perm: "agent_portal.view", agentOnly: true },
       { label: "ثبت فروش شمش", href: "/agent-portal/sell", icon: ShoppingCart, perm: "agent_portal.sell", agentOnly: true },
+      { label: "استعلام شمش", href: "/agent-portal/inquiry", icon: SearchCheck, perm: "agent_portal.view", agentOnly: true },
       { label: "موجودی امانی", href: "/agent-portal/inventory", icon: Boxes, perm: "agent_portal.view", agentOnly: true },
       { label: "فروش‌های من", href: "/agent-portal/sales", icon: Receipt, perm: "agent_portal.view", agentOnly: true },
       { label: "تسویه و واریز", href: "/agent-portal/settlements", icon: HandCoins, perm: "agent_portal.view", agentOnly: true },
@@ -153,6 +156,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: "تحویل فیزیکی طلا", href: "/physical-deliveries", icon: Package, perm: "physical_delivery.view" },
       { label: "اصالت‌سنجی هولوگرام", href: "/holograms", icon: ScanLine, perm: "hologram.code.view" },
+      { label: "گزارش سرقت و مفقودی شمش", href: "/holograms/incidents", icon: Siren, perm: "hologram.incident.view" },
       { label: "پی‌رول (شارژ دستی)", href: "/payroll", icon: Wallet, perm: "payroll.view" },
     ],
   },

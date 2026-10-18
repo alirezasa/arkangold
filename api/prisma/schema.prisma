@@ -1396,6 +1396,8 @@ model AdminSession {
   userAgent        String?   @map("user_agent")
   expiresAt        DateTime  @map("expires_at")
   createdAt        DateTime  @default(now()) @map("created_at")
+  /// آخرین فعالیت واقعی کاربر در پنل (نه درخواست‌های خودکار پس‌زمینه) — مبنای قفل عدم فعالیت
+  lastActivityAt   DateTime  @default(now()) @map("last_activity_at")
 
   @@index([adminUserId])
   @@map("admin_sessions")

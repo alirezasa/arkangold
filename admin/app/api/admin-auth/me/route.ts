@@ -18,8 +18,15 @@ export async function GET() {
     return NextResponse.json(res.data);
   } catch (error) {
     if (axios.isAxiosError(error)) {
+      const data = error.response?.data as
+        | { code?: string; idleTimeoutSeconds?: number }
+        | undefined;
       return NextResponse.json(
-        { message: error.response?.data?.message || "خطا" },
+        {
+          message: error.response?.data?.message || "خطا",
+          ...(data?.code ? { code: data.code } : {}),
+          ...(data?.idleTimeoutSeconds ? { idleTimeoutSeconds: data.idleTimeoutSeconds } : {}),
+        },
         { status: error.response?.status || 500 },
       );
     }

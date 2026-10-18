@@ -22,6 +22,8 @@ export interface AdminMe {
   /** همه‌ی نقش‌های ادمین — دسترسی‌ها اجتماع دسترسی‌های همین نقش‌هاست */
   roles: { key: string; name: string; description?: string | null }[];
   permissions: string[];
+  /** قفل نشست پس از این مدت بدون فعالیت (ثانیه؛ session.admin.timeout_minutes) */
+  idleTimeoutSeconds?: number;
   permissionDetails: { key: string; group: string; description: string | null }[];
   /** اگر حساب متعلق به یک نماینده فروش باشد */
   agent: {

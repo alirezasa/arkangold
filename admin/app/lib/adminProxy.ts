@@ -24,8 +24,10 @@ export async function adminProxy(
     return NextResponse.json(res.data);
   } catch (e) {
     if (axios.isAxiosError(e)) {
+      // کد خطا (مثل SESSION_LOCKED برای قفل عدم فعالیت) به کلاینت می‌رسد
+      const code = (e.response?.data as { code?: string } | undefined)?.code;
       return NextResponse.json(
-        { message: e.response?.data?.message ?? "خطا" },
+        { message: e.response?.data?.message ?? "خطا", ...(code ? { code } : {}) },
         { status: e.response?.status ?? 500 },
       );
     }

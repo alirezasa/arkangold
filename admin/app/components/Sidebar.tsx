@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_SECTIONS, canSeeNavItem, isNavActive } from "@/app/utils/nav";
-import { ShieldCheck } from "lucide-react";
 import type { AdminMe } from "@/app/hooks/useAdminMe";
 import UserMenuCard from "./UserMenuCard";
 
@@ -16,12 +15,9 @@ export default function Sidebar({ me }: { me: AdminMe }) {
       style={{ backgroundColor: "var(--color-emerald)" }}
     >
       <div className="px-5 py-5 border-b border-white/10 flex items-center gap-2.5">
-        <div
-          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ backgroundColor: "var(--color-gold-500)" }}
-        >
-          <ShieldCheck className="w-5 h-5" style={{ color: "var(--color-emerald)" }} />
-        </div>
+        {/* لوگوی پویا (تنظیمات سیستم ← لوگو، مهر و امضا) */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/logo" alt="" className="w-10 h-10 shrink-0 object-contain" />
         <div>
           <h1 className="text-white font-black text-[15px] leading-tight">
             {me.agent ? "پنل نمایندگی" : "پنل مدیریت"}

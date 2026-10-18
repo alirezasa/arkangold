@@ -16,6 +16,7 @@ import {
   Timer,
   Smartphone,
   KeyRound,
+  MessageSquareText,
 } from "lucide-react";
 import { useLogin } from "../hooks/useLogin";
 import OtpInput from "../components/OtpInput";
@@ -23,7 +24,10 @@ import { digitsOnly } from "../utils/digits";
 import { captureReturnPathFromUrl } from "../utils/return-path";
 
 // آرایه متون اسلایدر
-const SLIDES = ["خرید و فروش طلای آب شده", "خرید شمش طلا", "خرید مصنوعات طلا"];
+const SLIDES = [
+  "خرید و فروش طلای آب شده",
+  "خرید و فروش شمش طلا",
+];
 
 export default function LoginPage() {
   const {
@@ -34,11 +38,14 @@ export default function LoginPage() {
     step,
     challenge,
     submitCredentials,
+    requestOtp,
     verifyCode,
     resend,
     restart,
   } = useLogin();
 
+  // روش ورود: رمز عبور (+ برنامه‌ی احراز هویت/کد پیامکی مرحله‌ی دوم) یا فقط کد پیامکی
+  const [mode, setMode] = useState<"password" | "otp">("password");
   const [showPassword, setShowPassword] = useState(false);
   const [timer, setTimer] = useState(0);
   // کاربر دارای برنامه‌ی احراز هویت می‌تواند به‌جای کد ۶ رقمی یکی از کدهای بازیابی را وارد کند
@@ -139,6 +146,13 @@ export default function LoginPage() {
         setError("شماره موبایل باید ۱۱ رقم باشد و با 09 شروع شود.");
         return;
       }
+      if (mode === "otp") {
+        const wait = await requestOtp(phone);
+        setOtp(["", "", "", "", "", ""]);
+        setUseRecovery(false);
+        setTimer(wait);
+        return;
+      }
       if (!password) return setError("لطفاً رمز عبور خود را وارد کنید.");
       const wait = await submitCredentials(phone, password);
       setOtp(["", "", "", "", "", ""]);
@@ -184,7 +198,8 @@ export default function LoginPage() {
           {/* لوگوی دسکتاپ - بزرگ و شفاف */}
           <div className="mb-8">
             <Image
-              src="/logo.png"
+              src="/brand/logo"
+              unoptimized
               alt="آرکان گلد"
               width={160}
               height={160}
@@ -221,7 +236,8 @@ export default function LoginPage() {
           <div className="flex flex-col items-center justify-center mb-6 lg:hidden">
             <div className="mb-2">
               <Image
-                src="/logo.png"
+                src="/brand/logo"
+                unoptimized
                 alt="آرکان گلد"
                 width={110}
                 height={110}
@@ -257,6 +273,40 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {step === "credentials" && (
+              <div
+                role="tablist"
+                aria-label="روش ورود"
+                className="grid grid-cols-2 gap-1 rounded-2xl bg-gray-100 p-1"
+              >
+                {(
+                  [
+                    { id: "password", label: "ورود با رمز عبور", Icon: Lock },
+                    { id: "otp", label: "ورود با کد پیامکی", Icon: MessageSquareText },
+                  ] as const
+                ).map(({ id, label, Icon }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={mode === id}
+                    onClick={() => {
+                      setMode(id);
+                      setError(null);
+                    }}
+                    className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs sm:text-sm font-black transition-all ${
+                      mode === id
+                        ? "bg-white text-emerald shadow-sm"
+                        : "text-gray-500 hover:text-emerald"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {step === "credentials" && (
               <div className="space-y-2 animate-in fade-in">
                 <label className="text-xs font-black text-gray-400 mr-1">
                   شماره موبایل
@@ -277,7 +327,14 @@ export default function LoginPage() {
               </div>
             )}
 
-            {step === "credentials" && (
+            {step === "credentials" && mode === "otp" && (
+              <p className="text-xs font-medium leading-relaxed text-gray-500">
+                کد ورود یکبارمصرف به شماره‌ی موبایل ثبت‌شده در حساب شما پیامک
+                می‌شود.
+              </p>
+            )}
+
+            {step === "credentials" && mode === "password" && (
               <div className="space-y-2 animate-in fade-in">
                 <label className="text-xs font-black text-gray-400 mr-1">
                   گذرواژه
@@ -334,7 +391,9 @@ export default function LoginPage() {
                       <ShieldCheck className="h-6 w-6 text-emerald" />
                     )}
                   </div>
-                  <p className="font-black text-emerald">تأیید دومرحله‌ای</p>
+                  <p className="font-black text-emerald">
+                    {mode === "otp" ? "کد ورود پیامکی" : "تأیید دومرحله‌ای"}
+                  </p>
                   <p className="mt-1 text-gray-500 font-medium text-sm leading-relaxed">
                     {challenge.method === "TOTP" ? (
                       useRecovery ? (
@@ -432,7 +491,11 @@ export default function LoginPage() {
                 </>
               ) : (
                 <>
-                  {step === "credentials" ? "ادامه" : "تایید و ورود"}
+                  {step !== "credentials"
+                    ? "تایید و ورود"
+                    : mode === "otp"
+                      ? "دریافت کد ورود"
+                      : "ادامه"}
                   <ArrowLeft className="w-5 h-5" />
                 </>
               )}
@@ -440,12 +503,18 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-8 text-center space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-gray-200" />
+              <span className="text-xs font-bold text-gray-400">
+                هنوز حساب کاربری ندارید؟
+              </span>
+              <span className="h-px flex-1 bg-gray-200" />
+            </div>
             <Link
               href="/register"
-              className="text-sm font-bold text-emerald hover:text-[#085f48] transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3.5 border-2 border-gold-500 text-[#8a6d35] bg-gold-500/5 rounded-2xl font-black text-base hover:bg-gold-500 hover:text-white transition-all flex items-center justify-center gap-2"
             >
-              <UserPlus className="w-4 h-4" /> هنوز حساب کاربری ندارید؟ ثبت‌نام
-              کنید
+              <UserPlus className="w-5 h-5" /> ثبت‌نام در آرکان گلد
             </Link>
 
             <p className="text-xm text-gray-400 font-medium leading-relaxed px-3 ">

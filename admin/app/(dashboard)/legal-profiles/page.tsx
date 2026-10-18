@@ -4,6 +4,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import axios from "axios";
+import { usePerm } from "@/app/components/finance/ui";
 import {
   Loader2,
   Building2,
@@ -246,6 +247,7 @@ function RejectModal({
 }
 
 export default function LegalProfilesPage() {
+  const canApprove = usePerm()("legal_profile.approve");
   const [page, setPage] = useState(1);
   const [rejectTarget, setRejectTarget] = useState<LegalProfileItem | null>(
     null,
@@ -448,7 +450,7 @@ export default function LegalProfilesPage() {
                   </div>
                 )}
 
-                <div className="flex gap-2 border-t border-gray-50 pt-2">
+                {canApprove && <div className="flex gap-2 border-t border-gray-50 pt-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -478,7 +480,7 @@ export default function LegalProfilesPage() {
                       </>
                     )}
                   </button>
-                </div>
+                </div>}
               </div>
             );
           })}

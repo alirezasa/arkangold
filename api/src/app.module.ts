@@ -9,6 +9,7 @@ import { RedisThrottlerStorage } from './common/auth-security/redis-throttler.st
 import { AuthSecurityModule } from './common/auth-security/auth-security.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { FileSecurityModule } from './common/file-security/file-security.module';
+import { BrandingModule } from './branding/branding.module';
 import { ResponseAllowlistInterceptor } from './common/serialization/response-allowlist.interceptor';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './common/audit/audit.module';
@@ -98,6 +99,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     TreasuryModule,
     PartnersModule,
     FileSecurityModule,
+    BrandingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuditedThrottlerGuard },

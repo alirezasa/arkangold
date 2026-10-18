@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SessionContextService } from '../../common/auth-security/session-context.service';
+import { SystemConfigService } from '../../system-config/system-config.service';
 import {
   AdminJwtPayload,
   AdminAuthenticatedUser,
@@ -23,6 +24,9 @@ import {
 // نام استراتژی جدا از JwtStrategy کاربران - جلوگیری از تداخل passport
 export const ADMIN_JWT_STRATEGY_NAME = 'admin-jwt';
 
+/** مسیرهایی که در حالت قفل عدم فعالیت هم پذیرفته می‌شوند */
+const IDLE_EXEMPT_PATHS = ['/admin-auth/session/unlock', '/admin-auth/logout'];
+
 @Injectable()
 export class AdminJwtStrategy extends PassportStrategy(
   Strategy,
@@ -32,6 +36,7 @@ export class AdminJwtStrategy extends PassportStrategy(
     private configService: ConfigService,
     private prisma: PrismaService,
     private sessionContext: SessionContextService,
+    private systemConfig: SystemConfigService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -65,6 +70,22 @@ export class AdminJwtStrategy extends PassportStrategy(
           .catch(() => {});
       }
       throw new UnauthorizedException('نشست ادمین نامعتبر است');
+    }
+
+    // قفل پس از عدم فعالیت (session.admin.timeout_minutes): نشست باطل نمی‌شود ولی تا وارد کردن
+    // دوباره‌ی رمز عبور هیچ درخواستی پذیرفته نمی‌شود؛ فقط بازگشایی و خروج مجازند.
+    const path = req.path ?? req.url ?? '';
+    if (!IDLE_EXEMPT_PATHS.some((p) => path.endsWith(p))) {
+      const { accessTtlSeconds: idleSeconds } =
+        await this.systemConfig.getSessionPolicy('admin');
+      if (Date.now() - session.lastActivityAt.getTime() > idleSeconds * 1000) {
+        throw new UnauthorizedException({
+          message:
+            'نشست به‌دلیل عدم فعالیت قفل شد؛ برای ادامه رمز عبور خود را وارد کنید',
+          code: 'SESSION_LOCKED',
+          idleTimeoutSeconds: idleSeconds,
+        });
+      }
     }
 
     const admin = await this.prisma.adminUser.findUnique({

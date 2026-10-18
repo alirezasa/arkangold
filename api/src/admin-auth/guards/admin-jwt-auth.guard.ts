@@ -30,7 +30,11 @@ export class AdminJwtAuthGuard extends AuthGuard(ADMIN_JWT_STRATEGY_NAME) {
     info: { name?: string; message?: string } | undefined,
     context: ExecutionContext,
   ): TUser {
-    if (err || !user) {
+    const errBody = (
+      err as { getResponse?: () => unknown } | null
+    )?.getResponse?.() as { code?: string } | undefined;
+    // قفل عدم فعالیت رویداد «توکن نامعتبر» نیست (هر درخواست پس‌زمینه‌ی پنل قفل‌شده آن را می‌سازد)
+    if ((err || !user) && errBody?.code !== 'SESSION_LOCKED') {
       // FAU_GEN_EXT.1.5 (انقضای نشست) / FAU_GEN_EXT.1.6 (تلاش با توکن نامعتبر)
       const req = context.switchToHttp().getRequest();
       const action =

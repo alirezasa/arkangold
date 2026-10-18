@@ -7,6 +7,7 @@ import axios from "axios";
 import { useState } from "react";
 import { Loader2, Send, EyeOff, Star, Paperclip } from "lucide-react";
 import { STATUS_META, PRIORITY_META, NEXT_STATUS_OPTIONS } from "../ticket-meta";
+import { usePerm } from "@/app/components/finance/ui";
 
 interface Attachment {
   id: string;
@@ -38,8 +39,6 @@ interface TicketDetail {
 interface AdminItem {
   id: string;
   fullName: string;
-  username: string;
-  isActive: boolean;
 }
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
@@ -63,7 +62,13 @@ export default function AdminTicketDetailPage() {
     fetcher,
     { refreshInterval: 15000 },
   );
-  const { data: admins } = useSWR<AdminItem[]>("/api/admin/admins", fetcher);
+  const can = usePerm();
+  const canAssign = can("tickets.assign");
+  // فهرست کارشناسان قابل ارجاع (نه فهرست کامل ادمین‌ها که admin.manage می‌خواهد)
+  const { data: admins } = useSWR<AdminItem[]>(
+    canAssign ? "/api/admin/tickets/assignees" : null,
+    fetcher,
+  );
 
   const [reply, setReply] = useState("");
   const [isInternal, setIsInternal] = useState(false);
@@ -117,7 +122,7 @@ export default function AdminTicketDetailPage() {
     window.open(res.data.url, "_blank", "noopener,noreferrer");
   };
 
-  const activeAdmins = admins?.filter((a) => a.isActive) ?? [];
+  const activeAdmins = admins ?? [];
   const standaloneAttachments = data.attachments.filter(
     (a) => !data.messages.some((m) => m.attachments.some((ma) => ma.id === a.id)),
   );
@@ -291,7 +296,7 @@ export default function AdminTicketDetailPage() {
           <p className="text-[13px] mb-3 text-gray-900 font-bold">
             {data.assignedAdmin?.fullName ?? "اختصاص نیافته"}
           </p>
-          <div className="flex gap-2">
+          {canAssign && <div className="flex gap-2">
             <select
               value={assignAdminId}
               onChange={(e) => setAssignAdminId(e.target.value)}
@@ -312,7 +317,7 @@ export default function AdminTicketDetailPage() {
             >
               ارجاع
             </button>
-          </div>
+          </div>}
         </SidebarCard>
 
         {data.rating && (

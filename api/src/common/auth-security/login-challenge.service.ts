@@ -16,7 +16,7 @@ export interface LoginChallenge {
   accountId: string;
   stage: ChallengeStage;
   /** روش ورود اولیه برای ثبت در گزارش (رمز یا کد پیامکی نماینده) */
-  via: 'password' | 'agent_otp';
+  via: 'password' | 'agent_otp' | 'sms_otp';
   /** ورود یا بازنشانی رمز (بازنشانی هم باید عامل دوم فعال را بگذراند — FIA_UID_EXT.1.3) */
   purpose?: 'login' | 'reset';
   /** شناسه‌ی ورود (شماره/نام کاربری) برای پاک کردن شمارنده‌ی تلاش‌ها پس از موفقیت */

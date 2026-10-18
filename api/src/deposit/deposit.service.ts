@@ -87,6 +87,7 @@ export class DepositService {
     }
 
     await this.assertIdentityVerified(userId);
+    await this.assertHasVerifiedBankAccount(userId);
 
     const minAmount = await this.systemConfig.getNumber(
       'deposit.large_transfer.min_amount',
@@ -444,6 +445,23 @@ export class DepositService {
     });
     if (identity?.status !== 'VERIFIED') {
       throw new ForbiddenException(message);
+    }
+  }
+
+  /**
+   * پس از احراز هویت، واریز و برداشت فقط با داشتن دست‌کم یک حساب/کارت بانکی تأییدشده
+   * (تطبیق مالکیت با کد ملی) به نام خود کاربر ممکن است.
+   */
+  private async assertHasVerifiedBankAccount(userId: string) {
+    const count = await this.prisma.bankAccount.count({
+      where: { userId, isVerified: true },
+    });
+    if (count === 0) {
+      throw new ForbiddenException({
+        message:
+          'برای واریز و برداشت وجه ابتدا حساب بانکی به نام خودتان را در بخش «کارت‌های بانکی» ثبت کنید',
+        code: 'BANK_ACCOUNT_REQUIRED',
+      });
     }
   }
 

@@ -12,7 +12,10 @@ export interface CompanySnapshot {
   phone: string;
   website: string;
   logoPath: string;
+  /** مهر شرکت (مرجع branding:… در snapshot؛ در خروجی سند data URI) */
   sealImagePath: string;
+  /** امضای صاحب امضای مجاز — در اسناد قدیمی‌تر وجود ندارد */
+  signatureImagePath?: string;
 }
 
 export interface CustomerSnapshot {

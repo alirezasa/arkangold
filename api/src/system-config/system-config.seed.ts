@@ -184,13 +184,13 @@ export const WALLET_CONFIG_DEFAULTS = [
     key: 'session.admin.timeout_minutes',
     value: '30',
     description:
-      'مدت اعتبار نشست ادمین‌ها پس از ورود (دقیقه؛ بین ۵ تا ۴۸۰) — پس از آن ادمین باید دوباره وارد شود',
+      'زمان عدم فعالیت ادمین‌ها (دقیقه؛ بین ۵ تا ۴۸۰) — پس از این مدت بدون کار با پنل، نشست قفل و رمز عبور خواسته می‌شود (رمز اشتباه = خروج)',
   },
   {
     key: 'session.admin.refresh_hours',
     value: '24',
     description:
-      'حداکثر عمر توکن تمدید (Refresh) ادمین‌ها (ساعت؛ بین ۱ تا ۱۶۸)',
+      'حداکثر عمر کل نشست ادمین‌ها از لحظه‌ی ورود (ساعت؛ بین ۱ تا ۱۶۸) — پس از آن ورود مجدد لازم است',
   },
 
   // ══ امنیت ورود و احراز هویت (FIA) ══
@@ -217,6 +217,24 @@ export const WALLET_CONFIG_DEFAULTS = [
     value: '',
     description:
       'کلمات ممنوع اضافه در رمز عبور، جدا با ویرگول (علاوه بر نام برنامه، شرکت، دامنه و واژه‌هایی مثل admin و password)',
+  },
+  {
+    key: 'physical_delivery.min_gold_grams',
+    value: '0.5',
+    description:
+      'حداقل موجودی طلای آب‌شده‌ی قابل استفاده برای تحویل فیزیکی (خرید شمش) — گرم (۰٫۵ = ۵۰۰ سوت)',
+  },
+  {
+    key: 'physical_delivery.legacy_enabled',
+    value: 'false',
+    description:
+      'پذیرش درخواست تحویل وزنی قدیمی (به‌جای خرید شمش موجود). پیش‌فرض خاموش',
+  },
+  {
+    key: 'security.login.user_sms_otp_enabled',
+    value: 'true',
+    description:
+      'ورود کاربران با کد یکبارمصرف پیامکی (بدون رمز و بدون برنامه‌ی احراز هویت) در کنار ورود با رمز',
   },
   {
     key: 'security.login_alerts.enabled',
@@ -537,12 +555,20 @@ export const WALLET_CONFIG_DEFAULTS = [
   {
     key: 'company.logo_path',
     value: '/logo.png',
-    description: 'مسیر لوگو در public',
+    description:
+      'لوگوی شرکت (از بخش «لوگو، مهر و امضا» بارگذاری شود؛ روی صفحات ورود، پنل‌ها و اسناد)',
   },
   {
     key: 'company.seal_image_path',
-    value: '/brand/seal.png',
-    description: 'مسیر تصویر مهر و امضا در public',
+    value: '',
+    description:
+      'مهر شرکت روی فاکتور/پیش‌فاکتور (از بخش «لوگو، مهر و امضا» بارگذاری شود)',
+  },
+  {
+    key: 'company.signature_image_path',
+    value: '',
+    description:
+      'امضای صاحب امضای مجاز روی فاکتور/پیش‌فاکتور (از بخش «لوگو، مهر و امضا» بارگذاری شود)',
   },
 
   // ══ اسناد ══

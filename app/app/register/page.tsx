@@ -12,6 +12,7 @@ import {
   EyeOff,
   ShieldCheck,
   Gift,
+  LogIn,
 } from "lucide-react";
 import { useRegister } from "../hooks/useRegister";
 import OtpInput from "../components/OtpInput";
@@ -47,8 +48,7 @@ function readInviteCode(): string {
 // آرایه متون اسلایدر
 const SLIDES = [
   "خرید و فروش طلای آب شده",
-  "خرید شمش طلا",
-  "خرید مصنوعات طلا",
+  "خرید و فروش شمش طلا",
 ];
 
 export default function RegisterPage() {
@@ -207,7 +207,8 @@ export default function RegisterPage() {
           {/* لوگوی دسکتاپ - شفاف و بدون کادر */}
           <div className="mb-8">
             <Image
-              src="/logo.png"
+              src="/brand/logo"
+              unoptimized
               alt="آرکان گلد"
               width={160}
               height={160}
@@ -242,7 +243,8 @@ export default function RegisterPage() {
           <div className="flex flex-col items-center justify-center mb-6 lg:hidden">
             <div className="mb-2">
               <Image
-                src="/logo.png"
+                src="/brand/logo"
+                unoptimized
                 alt="آرکان گلد"
                 width={110}
                 height={110}
@@ -432,14 +434,19 @@ export default function RegisterPage() {
           </button>
 
           <div className="mt-8 text-center">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="h-px flex-1 bg-gray-200" />
+              <span className="text-xs font-bold text-gray-400">
+                حساب کاربری دارید؟
+              </span>
+              <span className="h-px flex-1 bg-gray-200" />
+            </div>
             <Link
               href="/login"
-              className="text-sm font-bold text-emerald hover:text-[#085f48] transition-colors"
+              className="w-full py-3.5 border-2 border-emerald text-emerald rounded-2xl font-black text-base hover:bg-emerald hover:text-white transition-all flex items-center justify-center gap-2"
             >
-              حساب کاربری دارید؟{" "}
-              <span className="underline decoration-2 underline-offset-4">
-                ورود
-              </span>
+              <LogIn className="w-5 h-5" />
+              ورود به حساب کاربری
             </Link>
             <p className="text-xm text-gray-400 font-medium leading-relaxed px-3 mt-4">
               ورود یا ثبت‌نام در سایت به منزله مطالعه و پذیرش{" "}

@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import UserPicker, { type UserSearchItem } from "@/app/components/UserPicker";
+import { usePerm } from "@/app/components/finance/ui";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -316,6 +317,8 @@ function PlanCard({
   plan: PayrollPlan;
   onChanged: () => void;
 }) {
+  // اجرا، فعال‌سازی و ویرایش کاربران پلن فقط با payroll.manage
+  const canManage = usePerm()("payroll.manage");
   const [expanded, setExpanded] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -451,6 +454,7 @@ function PlanCard({
       )}
 
       <div className="flex flex-wrap gap-2 mb-3">
+        {canManage && (<>
         <button
           onClick={execute}
           disabled={executing || !plan.isActive || plan.users.length === 0}
@@ -470,6 +474,7 @@ function PlanCard({
         >
           {plan.isActive ? "غیرفعال‌سازی" : "فعال‌سازی"}
         </button>
+        </>)}
         <button
           onClick={() => setExpanded((v) => !v)}
           className="px-3 py-2 rounded-xl text-[12px] font-bold border border-gray-200 text-gray-600"
@@ -487,9 +492,11 @@ function PlanCard({
                 className="flex items-center justify-between px-3 py-2 rounded-xl bg-gray-50 text-[12px] font-bold"
               >
                 <span dir="ltr">{pu.user.phone}</span>
-                <button onClick={() => removeUser(pu.userId)}>
-                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                </button>
+                {canManage && (
+                  <button onClick={() => removeUser(pu.userId)} aria-label="حذف کاربر از پلن">
+                    <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                  </button>
+                )}
               </div>
             ))}
             {plan.users.length === 0 && (
@@ -497,7 +504,7 @@ function PlanCard({
             )}
           </div>
 
-          {addOpen ? (
+          {!canManage ? null : addOpen ? (
             <div className="space-y-2">
               <UserPicker
                 selected={newUsers}
@@ -539,6 +546,7 @@ function PlanCard({
 }
 
 export default function PayrollPage() {
+  const canManage = usePerm()("payroll.manage");
   const [createOpen, setCreateOpen] = useState(false);
   const { data, isLoading, mutate } = useSWR<PayrollPlan[]>(
     "/api/admin/payroll/plans",
@@ -549,14 +557,16 @@ export default function PayrollPage() {
     <div>
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-lg font-black text-gray-900">پی‌رول (شارژ دستی کیف‌پول)</h1>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold text-white"
-          style={{ backgroundColor: "var(--color-emerald)" }}
-        >
-          <Plus className="w-4 h-4" />
-          پلن جدید
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold text-white"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+          >
+            <Plus className="w-4 h-4" />
+            پلن جدید
+          </button>
+        )}
       </div>
       <p className="text-[12px] text-gray-400 mb-5">
         هر پلن، لیستی از کاربران و مقدار طلای ثابت برای هرکدام است. اجرای پرداخت

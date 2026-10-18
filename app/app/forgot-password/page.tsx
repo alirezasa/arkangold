@@ -21,7 +21,10 @@ import OtpInput from "../components/OtpInput";
 import { digitsOnly } from "../utils/digits";
 
 // آرایه متون اسلایدر برای افکت تایپی
-const SLIDES = ["خرید و فروش طلای آب شده", "خرید شمش طلا", "خرید مصنوعات طلا"];
+const SLIDES = [
+  "خرید و فروش طلای آب شده",
+  "خرید و فروش شمش طلا",
+];
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -152,7 +155,8 @@ export default function ForgotPasswordPage() {
           {/* لوگوی دسکتاپ - شفاف و بدون کادر */}
           <div className="mb-8">
             <Image
-              src="/logo.png"
+              src="/brand/logo"
+              unoptimized
               alt="آرکان گلد"
               width={160}
               height={160}
@@ -189,7 +193,8 @@ export default function ForgotPasswordPage() {
           <div className="flex flex-col items-center justify-center mb-6 lg:hidden">
             <div className="mb-2">
               <Image
-                src="/logo.png"
+                src="/brand/logo"
+                unoptimized
                 alt="آرکان گلد"
                 width={110}
                 height={110}

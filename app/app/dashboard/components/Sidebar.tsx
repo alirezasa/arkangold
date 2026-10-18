@@ -69,13 +69,18 @@ export default function Sidebar({
           style={{ background: "var(--color-gold-500)" }}
         />
 
-        <div className="relative px-6 pt-6 pb-5 border-b border-white/10">
-          <h1 className="text-[22px] font-black text-white leading-tight">
-            آرکان <span style={{ color: "var(--color-gold-500)" }}>گلد</span>
-          </h1>
-          <p className="mt-1 text-[11px] font-medium text-white/70">
-            پلتفرم طلای آب‌شده
-          </p>
+        <div className="relative px-6 pt-6 pb-5 border-b border-white/10 flex items-center gap-3">
+          {/* لوگوی پویا (قابل تغییر از پنل مدیریت) */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo" alt="" className="h-11 w-11 shrink-0 object-contain" />
+          <div>
+            <h1 className="text-[22px] font-black text-white leading-tight">
+              آرکان <span style={{ color: "var(--color-gold-500)" }}>گلد</span>
+            </h1>
+            <p className="mt-1 text-[11px] font-medium text-white/70">
+              پلتفرم طلای آب‌شده
+            </p>
+          </div>
         </div>
 
         

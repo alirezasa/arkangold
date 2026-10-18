@@ -207,6 +207,12 @@
 }
 .doc-seal { text-align: center; font-size: 10px; line-height: 1.8; }
 .doc-seal__img { width: 44mm; max-height: 34mm; object-fit: contain; margin-top: 3px; }
+/* مهر و امضا روی هم: امضا کمی پایین‌تر و روی مهر (مانند سند کاغذی) */
+.doc-seal__stack { position: relative; width: 48mm; height: 34mm; margin: 3px auto 0; }
+.doc-seal__stack .doc-seal__img { position: absolute; margin: 0; }
+.doc-seal__stack .doc-seal__img--seal { top: 0; right: 0; width: 34mm; max-height: 34mm; }
+.doc-seal__stack .doc-seal__img--sign { bottom: 0; left: 0; width: 36mm; max-height: 22mm; }
+.doc-seal__stack--single .doc-seal__img { position: static; width: 44mm; max-height: 34mm; }
 .doc-sign-box {
   border: 1px dashed var(--doc-line);
   border-radius: 4px;

@@ -583,6 +583,14 @@ model ShopOrder {
   packagingRial       Decimal                  @default(0) @map("packaging_rial") @db.Decimal(18, 0)
   // هزینه بسته‌بندی‌ای که به‌دلیل رسیدن خرید به آستانه، رایگان شد (ریال)
   packagingWaivedRial Decimal                  @default(0) @map("packaging_waived_rial") @db.Decimal(18, 0)
+  /// تحویل فیزیکی طلای آب‌شده = خرید شمش با کیف طلایی: MELTED_GOLD (سفارش عادی: null)
+  fundingSource       String?                  @map("funding_source")
+  /// مقدار طلای کسرشده از کیف طلایی کاربر برای این سفارش (گرم)
+  goldAppliedGrams    Decimal                  @default(0) @map("gold_applied_grams") @db.Decimal(18, 4)
+  /// ارزش ریالی همان طلا با نرخ لحظه‌ی ثبت سفارش؛ مبلغ قابل پرداخت ریالی = totalRial - goldAppliedRial
+  goldAppliedRial     Decimal                  @default(0) @map("gold_applied_rial") @db.Decimal(18, 0)
+  /// نرخ هر گرم طلای آب‌شده در لحظه‌ی ثبت سفارش (ریال)
+  goldRateRial        Decimal?                 @map("gold_rate_rial") @db.Decimal(18, 0)
   trackingCode        String?                  @map("tracking_code")
   /// شماره سفارش قابل ارائه به مشتری (AG-1405-SHO-000128)
   orderNumber         String?                  @unique @map("order_number")
@@ -1388,6 +1396,8 @@ model AdminSession {
   userAgent        String?   @map("user_agent")
   expiresAt        DateTime  @map("expires_at")
   createdAt        DateTime  @default(now()) @map("created_at")
+  /// آخرین فعالیت واقعی کاربر در پنل (نه درخواست‌های خودکار پس‌زمینه) — مبنای قفل عدم فعالیت
+  lastActivityAt   DateTime  @default(now()) @map("last_activity_at")
 
   @@index([adminUserId])
   @@map("admin_sessions")
@@ -2351,6 +2361,8 @@ enum HoldType {
   ORDER
   WITHDRAWAL
   PHYSICAL_DELIVERY
+  /// رزرو طلای کیف طلایی برای خرید شمش (تحویل فیزیکی) تا تأیید پرداخت درگاه
+  ORDER_GOLD
 }
 
 enum TransactionType {

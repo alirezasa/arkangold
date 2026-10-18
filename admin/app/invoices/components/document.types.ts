@@ -12,7 +12,10 @@ export interface CompanySnapshot {
   phone: string;
   website: string;
   logoPath: string;
+  /** مهر شرکت (data URI) */
   sealImagePath: string;
+  /** امضای صاحب امضای مجاز (data URI) */
+  signatureImagePath?: string;
 }
 
 export interface CustomerSnapshot {

@@ -103,6 +103,17 @@ export class PhysicalDeliveryService {
   }
 
   private async createInternal(userId: string, dto: CreatePhysicalDeliveryDto) {
+    // تحویل فیزیکی طلای آب‌شده اکنون «خرید شمش معادل از فروشگاه» است (gold-delivery)؛
+    // درخواست تحویل وزنی قدیمی فقط با روشن کردن صریح این تنظیم پذیرفته می‌شود
+    const legacyEnabled = await this.systemConfig.getBoolean(
+      'physical_delivery.legacy_enabled',
+      false,
+    );
+    if (!legacyEnabled) {
+      throw new BadRequestException(
+        'تحویل فیزیکی فقط به‌صورت شمش‌های موجود امکان‌پذیر است؛ از بخش «تحویل فیزیکی» شمش مورد نظر را انتخاب کنید',
+      );
+    }
     await this.assertUserVerified(userId);
 
     if (!Number.isFinite(dto.amountGrams) || dto.amountGrams <= 0) {

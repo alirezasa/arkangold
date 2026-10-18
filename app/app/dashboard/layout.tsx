@@ -15,6 +15,7 @@ import IdentityBanner from "./components/IdentityBanner";
 import { saveReturnPath } from "@/app/utils/return-path";
 import LegalProfileBanner from "./components/LegalProfileBanner";
 import MobileVerificationBanner from "./components/MobileVerificationBanner";
+import { BankAccountBanner } from "./components/BankAccountGate";
 
 const IDENTITY_PATH = "/dashboard/identity";
 const MOBILE_VERIFICATION_PATH = "/dashboard/identity/mobile";
@@ -262,6 +263,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           }
         />
       );
+    } else if (isIdentityVerified) {
+      // پس از احراز هویت: یادآوری ثبت حساب بانکی به نام خود کاربر (به‌جز در صفحه‌ی کارت‌ها)
+      bannerNode = pathname.startsWith("/dashboard/cards") ? null : <BankAccountBanner />;
     } else {
       bannerNode = <IdentityBanner status={identityStatus} />;
     }

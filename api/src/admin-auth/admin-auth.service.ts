@@ -665,6 +665,8 @@ export class AdminAuthService {
       createdBy: admin.createdBy?.fullName ?? null,
       activeSessions: admin._count.sessions,
       currentSessionId: currentSessionId ?? null,
+      // قفل نشست پس از این مدت بدون فعالیت (پنل شمارش معکوس را با همین مقدار انجام می‌دهد)
+      idleTimeoutSeconds: await this.idleTimeoutSeconds(),
       ...summarizeRoles(
         admin.roles.map((r) => ({
           role: {
@@ -854,14 +856,18 @@ export class AdminAuthService {
   ) {
     const sessionId = crypto.randomUUID();
     // عمر نشست از تنظیمات سیستم (session.admin.*) — expiresIn پاسخ مبنای maxAge کوکی در BFF است
-    const { accessTtlSeconds, refreshTtlSeconds } =
+    const { refreshTtlSeconds } =
       await this.systemConfig.getSessionPolicy('admin');
 
+    // توکن دسترسی ادمین تا پایان عمر کل نشست معتبر است؛ قفل پس از عدم فعالیت
+    // (session.admin.timeout_minutes) در AdminJwtStrategy بر اساس lastActivityAt اعمال می‌شود.
+    // قبلاً توکن دقیقاً timeout دقیقه پس از ورود منقضی می‌شد و چون پنل توکن را تمدید نمی‌کرد،
+    // ادمین فعال هم پس از همان مدت از پنل بیرون انداخته می‌شد.
     const accessToken = this.jwtService.sign(
       { sub: adminUserId, sessionId },
       {
         ...jwtSignOptions('JWT_ADMIN_SECRET'),
-        expiresIn: accessTtlSeconds,
+        expiresIn: refreshTtlSeconds,
       },
     );
     const refreshToken = this.jwtService.sign(
@@ -892,8 +898,82 @@ export class AdminAuthService {
     return {
       accessToken,
       refreshToken,
-      expiresIn: accessTtlSeconds,
+      expiresIn: refreshTtlSeconds,
       refreshExpiresIn: refreshTtlSeconds,
+    };
+  }
+
+  // ══════════════════════════════════════════
+  // ── قفل نشست پس از عدم فعالیت ──
+  // ══════════════════════════════════════════
+
+  /** زمان عدم فعالیت مجاز (ثانیه) از session.admin.timeout_minutes */
+  async idleTimeoutSeconds(): Promise<number> {
+    return (await this.systemConfig.getSessionPolicy('admin')).accessTtlSeconds;
+  }
+
+  /**
+   * ثبت فعالیت واقعی کاربر (کلیک/تایپ در پنل) — درخواست‌های خودکار پس‌زمینه نشست را باز نگه
+   * نمی‌دارند. برای کاهش نوشتن در پایگاه داده، حداکثر هر ۳۰ ثانیه یک‌بار ذخیره می‌شود.
+   */
+  async touchSession(sessionId: string) {
+    await this.prisma.adminSession.updateMany({
+      where: {
+        id: sessionId,
+        lastActivityAt: { lt: new Date(Date.now() - 30_000) },
+      },
+      data: { lastActivityAt: new Date() },
+    });
+    return { idleTimeoutSeconds: await this.idleTimeoutSeconds() };
+  }
+
+  /**
+   * بازگشایی نشست قفل‌شده با رمز عبور. رمز نادرست → نشست همان لحظه باطل می‌شود (خروج).
+   */
+  async unlockSession(
+    adminUserId: string,
+    sessionId: string,
+    password: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: adminUserId },
+    });
+    const check = await verifyPassword(password ?? '', admin?.passwordHash);
+    if (!admin || !check.valid) {
+      await this.prisma.adminSession
+        .delete({ where: { id: sessionId } })
+        .catch(() => undefined);
+      await this.auditService.logAdmin({
+        adminUserId,
+        action: 'admin_auth.session_unlock',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: false,
+        newValue: { reason: 'invalid_password', sessionTerminated: true },
+      });
+      throw new UnauthorizedException({
+        message: 'رمز عبور نادرست است؛ برای امنیت از پنل خارج شدید',
+        code: 'SESSION_TERMINATED',
+      });
+    }
+    await this.prisma.adminSession.update({
+      where: { id: sessionId },
+      data: { lastActivityAt: new Date() },
+    });
+    await this.auditService.logAdmin({
+      adminUserId,
+      action: 'admin_auth.session_unlock',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+    });
+    return {
+      message: 'نشست باز شد',
+      idleTimeoutSeconds: await this.idleTimeoutSeconds(),
     };
   }
   async changeOwnPassword(

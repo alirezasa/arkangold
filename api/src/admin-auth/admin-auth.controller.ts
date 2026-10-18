@@ -103,6 +103,12 @@ class AdminRefreshDto {
   @IsString()
   refreshToken!: string;
 }
+
+class UnlockSessionDto {
+  @IsString()
+  @MaxLength(256)
+  password!: string;
+}
 class ChangePasswordDto {
   @IsString()
   @MaxLength(256)
@@ -245,6 +251,31 @@ export class AdminAuthController {
   @Post('refresh')
   async refresh(@Body() dto: AdminRefreshDto) {
     return this.adminAuthService.refreshToken(dto.refreshToken);
+  }
+
+  // ثبت فعالیت واقعی کاربر (کلیک/تایپ) — پنل حداکثر هر دقیقه یک‌بار فراخوانی می‌کند
+  @UseGuards(AdminJwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('session/ping')
+  async pingSession(@Req() req: AuthenticatedAdminRequest) {
+    return this.adminAuthService.touchSession(req.user.sessionId);
+  }
+
+  // بازگشایی نشست قفل‌شده پس از عدم فعالیت؛ رمز نادرست → خروج
+  @UseGuards(AdminJwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('session/unlock')
+  async unlockSession(
+    @Req() req: AuthenticatedAdminRequest,
+    @Body() dto: UnlockSessionDto,
+  ) {
+    return this.adminAuthService.unlockSession(
+      req.user.adminUserId,
+      req.user.sessionId,
+      dto.password,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   @UseGuards(AdminJwtAuthGuard)

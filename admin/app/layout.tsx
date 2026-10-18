@@ -39,6 +39,13 @@ export async function generateMetadata(): Promise<Metadata> {
     title: `${label} | آرکان گلد`,
     description: `${label} پلتفرم آرکان گلد`,
     manifest: "/manifest.json",
+    // پنل‌های مدیریت/نمایندگان در نتایج جستجو نمایش داده نمی‌شوند (به‌همراه X-Robots-Tag و robots.txt)
+    robots: {
+      index: false,
+      follow: false,
+      nocache: true,
+      googleBot: { index: false, follow: false, noimageindex: true },
+    },
   };
 }
 

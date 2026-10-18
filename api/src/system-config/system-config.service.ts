@@ -35,7 +35,10 @@ const SESSION_LIMITS = {
 } as const;
 
 export interface SessionPolicy {
-  /** عمر توکن دسترسی و کوکی نشست (ثانیه) */
+  /**
+   * عمر توکن دسترسی و کوکی نشست (ثانیه). برای ادمین همین مقدار «زمان عدم فعالیت» است
+   * (قفل نشست پس از این مدت بدون فعالیت)؛ عمر کل نشست ادمین refreshTtlSeconds است.
+   */
   accessTtlSeconds: number;
   /** عمر توکن تمدید و رکورد نشست (ثانیه) — هرگز کمتر از عمر توکن دسترسی نیست */
   refreshTtlSeconds: number;

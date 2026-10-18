@@ -112,6 +112,13 @@ export class ShopOrdersAdminController {
     return this.service.adminList(query);
   }
 
+  // ── اعلان صوتی سفارش جدید در پنل (نظرسنجی سبک؛ قبل از :id) ──
+  @RequirePermission('shop.view')
+  @Get('alerts/summary')
+  alertsSummary() {
+    return this.service.adminAlertSummary();
+  }
+
   // ── مراجع ارسال (قبل از :id تا با مسیر جزئیات اشتباه گرفته نشود) ──
   @RequirePermission('shop.view')
   @Get('shipping-methods')

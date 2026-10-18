@@ -4,7 +4,7 @@
 import React from "react";
 import type { InvoiceDocument } from "./document.types";
 import {
-  Num, fa, faGrouped, formatSheba, formatTrackingId, rialToToman,
+  Num, SealAndSignature, fa, faGrouped, formatSheba, formatTrackingId, rialToToman,
 } from "./document.utils";
 
 const STATUS_STYLE: Record<string, { cls: string; label: string }> = {
@@ -186,9 +186,7 @@ export default function ProformaDocument({ doc }: { doc: InvoiceDocument }) {
         <div />
         <div className="doc-seal">
           با تشکر — {company.legalName}
-          {company.sealImagePath && (
-            <img src={company.sealImagePath} alt="مهر و امضا" className="doc-seal__img" />
-          )}
+          <SealAndSignature company={company} />
         </div>
       </div>
 

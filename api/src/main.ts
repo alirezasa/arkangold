@@ -143,17 +143,23 @@ async function bootstrap() {
     ],
   });
 
-  // Swagger
-  const config = new DocumentBuilder()
-    .setTitle('آرکان گلد')
-    .setDescription('مستندات API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
+  // Swagger غیرفعال است (افشای فهرست کامل endpointها برای مهاجم)؛ فقط در محیط توسعه و با
+  // SWAGGER_ENABLED=true روشن می‌شود و در production تحت هیچ شرایطی راه‌اندازی نمی‌شود.
+  if (
+    process.env.SWAGGER_ENABLED === 'true' &&
+    process.env.NODE_ENV !== 'production'
+  ) {
+    const config = new DocumentBuilder()
+      .setTitle('آرکان گلد')
+      .setDescription('مستندات API')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
 
-  const document = SwaggerModule.createDocument(app, config);
+    const document = SwaggerModule.createDocument(app, config);
 
-  SwaggerModule.setup('api/docs', app, document);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   // اعتبارسنجی و تبدیل DTOها
   app.useGlobalPipes(

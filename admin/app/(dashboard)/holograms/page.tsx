@@ -3,6 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import axios from "axios";
+import { usePerm } from "@/app/components/finance/ui";
 import {
   Loader2,
   AlertCircle,
@@ -166,13 +167,14 @@ const RESULT_META: Record<string, { label: string; bg: string; color: string }> 
   INVALID_CODE: { label: "نامعتبر", bg: "#fee2e2", color: "#dc2626" },
 };
 
+// هر تب فقط برای نقشی که دسترسی API همان تب را دارد نمایش داده می‌شود
 const TABS = [
-  { key: "inquiry", label: "استعلام شمش" },
-  { key: "codes", label: "کدها" },
-  { key: "batches", label: "دسته‌ها" },
-  { key: "transfers", label: "درخواست‌های انتقال" },
-  { key: "logs", label: "لاگ استعلام‌ها" },
-  { key: "security", label: "امنیت" },
+  { key: "inquiry", label: "استعلام شمش", perm: "hologram.code.view" },
+  { key: "codes", label: "کدها", perm: "hologram.code.view" },
+  { key: "batches", label: "دسته‌ها", perm: "hologram.batch.manage" },
+  { key: "transfers", label: "درخواست‌های انتقال", perm: "hologram.transfer.view" },
+  { key: "logs", label: "لاگ استعلام‌ها", perm: "hologram.logs.view" },
+  { key: "security", label: "امنیت", perm: "hologram.security.manage" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -493,6 +495,9 @@ function CodesTab() {
   const [page, setPage] = useState(1);
   const [assignTarget, setAssignTarget] = useState<string | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
+  const can = usePerm();
+  const canAssign = can("hologram.code.assign");
+  const canRevoke = can("hologram.code.revoke");
 
   const qs = new URLSearchParams({ page: String(page), limit: "20" });
   if (status) qs.set("status", status);
@@ -604,22 +609,26 @@ function CodesTab() {
                 <div className="flex gap-2 flex-wrap">
                   {c.status === "UNASSIGNED" && (
                     <>
-                      <button
-                        onClick={() => setAssignTarget(c.code)}
-                        className="px-4 py-2 rounded-xl text-[12px] font-bold text-white"
-                        style={{ backgroundColor: "var(--color-emerald)" }}
-                      >
-                        تخصیص به سفارش
-                      </button>
-                      <button
-                        onClick={() => setRevokeTarget(c.code)}
-                        className="flex items-center gap-1 px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-red-100 text-red-600"
-                      >
-                        <Ban className="w-3.5 h-3.5" /> ابطال
-                      </button>
+                      {canAssign && (
+                        <button
+                          onClick={() => setAssignTarget(c.code)}
+                          className="px-4 py-2 rounded-xl text-[12px] font-bold text-white"
+                          style={{ backgroundColor: "var(--color-emerald)" }}
+                        >
+                          تخصیص به سفارش
+                        </button>
+                      )}
+                      {canRevoke && (
+                        <button
+                          onClick={() => setRevokeTarget(c.code)}
+                          className="flex items-center gap-1 px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-red-100 text-red-600"
+                        >
+                          <Ban className="w-3.5 h-3.5" /> ابطال
+                        </button>
+                      )}
                     </>
                   )}
-                  {c.status === "TRANSFER_PENDING" && (
+                  {c.status === "TRANSFER_PENDING" && canRevoke && (
                     <button
                       onClick={() => setRevokeTarget(c.code)}
                       className="flex items-center gap-1 px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-red-100 text-red-600"
@@ -1253,7 +1262,9 @@ function SecurityTab() {
 // ─────────────────────────── صفحه اصلی ───────────────────────────
 
 export default function HologramsPage() {
+  const can = usePerm();
   const [tab, setTab] = useState<TabKey>("inquiry");
+  const visibleTabs = TABS.filter((t) => can(t.perm));
 
   return (
     <div>
@@ -1269,7 +1280,7 @@ export default function HologramsPage() {
       </p>
 
       <div className="flex gap-2 overflow-x-auto pb-1 mb-4">
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -1285,12 +1296,16 @@ export default function HologramsPage() {
         ))}
       </div>
 
-      {tab === "inquiry" && <InquiryTab />}
-      {tab === "codes" && <CodesTab />}
-      {tab === "batches" && <BatchesTab />}
-      {tab === "transfers" && <TransfersTab />}
-      {tab === "logs" && <LogsTab />}
-      {tab === "security" && <SecurityTab />}
+      {visibleTabs.some((t) => t.key === tab) && (
+        <>
+          {tab === "inquiry" && <InquiryTab />}
+          {tab === "codes" && <CodesTab />}
+          {tab === "batches" && <BatchesTab />}
+          {tab === "transfers" && <TransfersTab />}
+          {tab === "logs" && <LogsTab />}
+          {tab === "security" && <SecurityTab />}
+        </>
+      )}
     </div>
   );
 }

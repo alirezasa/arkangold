@@ -43,6 +43,8 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  // پنل مدیریت و پنل نمایندگان نباید در هیچ موتور جستجویی نمایه شوند (کاهش سطح شناسایی)
+  { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive, nosnippet, noimageindex" },
   ...(isDev
     ? []
     : [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }]),
@@ -62,7 +64,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/(.*)", headers: securityHeaders },
       // کل پنل مدیریت پویا و حاوی داده‌ی حساس است؛ فقط فایل‌های ایستای ساخت (_next/static) کش می‌شوند
-      { source: "/((?!_next/static|_next/image|fonts|icons|favicon.ico).*)", headers: noStore },
+      { source: "/((?!_next/static|_next/image|fonts|icons|brand|favicon.ico).*)", headers: noStore },
       {
         source: "/sw.js",
         headers: [

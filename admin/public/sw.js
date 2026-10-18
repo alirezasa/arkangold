@@ -3,12 +3,20 @@
 // صفحات پنل (HTML) و API همیشه از شبکه خوانده می‌شوند و هرگز در Cache Storage ذخیره نمی‌شوند؛
 // در نبود شبکه فقط صفحه‌ی آفلاین ایستا نمایش داده می‌شود. نسخه‌ی کش عوض شد تا کش قدیمی
 // (که صفحات HTML را هم نگه می‌داشت) هنگام فعال‌سازی پاک شود.
-const STATIC_CACHE = "arkan-admin-static-v2";
+const STATIC_CACHE = "arkan-admin-static-v3";
 const PRECACHE_URLS = ["/manifest.json", "/offline.html"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting())
+    caches
+      .open(STATIC_CACHE)
+      // هر فایل جدا کش می‌شود تا خطای یکی (مثلاً هدایت به صفحه‌ی ورود) کل نصب را از کار نیندازد
+      .then((cache) =>
+        Promise.all(
+          PRECACHE_URLS.map((u) => cache.add(new Request(u, { cache: "reload" })).catch(() => null))
+        )
+      )
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -35,7 +43,12 @@ self.addEventListener("fetch", (event) => {
         (cached) =>
           cached ||
           fetch(request).then((res) => {
-            if (res.ok) caches.open(STATIC_CACHE).then((c) => c.put(request, res.clone()));
+            // clone باید همزمان و پیش از برگرداندن پاسخ گرفته شود؛ clone داخل then بعدی
+            // پس از مصرف بدنه توسط مرورگر اجرا می‌شد: «Response body is already used»
+            if (res.ok && res.type === "basic") {
+              const copy = res.clone();
+              caches.open(STATIC_CACHE).then((c) => c.put(request, copy)).catch(() => {});
+            }
             return res;
           })
       )

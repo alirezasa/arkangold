@@ -58,3 +58,11 @@ export const CATALOG_IMAGE_POLICY: UploadPolicy = {
   maxBytes: 5 * MB,
   maxImageDimension: 2400,
 };
+
+/** لوگو، مهر و امضای شرکت (پنل مدیریت) — PNG شفاف برای مهر/امضا توصیه می‌شود */
+export const BRANDING_IMAGE_POLICY: UploadPolicy = {
+  purpose: 'branding_image',
+  allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+  maxBytes: 2 * MB,
+  maxImageDimension: 1600,
+};

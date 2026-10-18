@@ -71,6 +71,11 @@ interface OrderRow {
   packagingToman: string;
   packagingWaivedToman: string;
   totalToman: string;
+  /** تحویل فیزیکی طلای آب‌شده (خرید شمش با کیف طلایی) */
+  fundingSource: string | null;
+  goldAppliedGrams: string;
+  goldAppliedToman: string;
+  payableToman: string;
   trackingCode: string | null;
   invoiceId: string | null;
   address: Address | null;
@@ -309,6 +314,9 @@ export default function ShopOrdersPage() {
                       {o.orderNumber ?? o.id.slice(0, 8)}
                     </span>
                     <Badge map={ORDER_STATUS} value={o.status} />
+                    {o.fundingSource === "MELTED_GOLD" && (
+                      <span className="badge bg-amber-50 text-amber-700">تحویل فیزیکی (طلای آب‌شده)</span>
+                    )}
                     {o.labelPrintCount > 0 && (
                       <span className="badge bg-emerald-50 text-emerald-700 flex items-center gap-1">
                         <Printer className="w-3 h-3" /> برچسب چاپ شد
@@ -531,9 +539,17 @@ function OrderDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
                   <span>− {tomanFa(o.discountToman)}</span>
                 </p>
               )}
+              {o.fundingSource === "MELTED_GOLD" && Number(o.goldAppliedGrams) > 0 && (
+                <p className="flex justify-between text-amber-700">
+                  <span>
+                    از کیف طلایی ({Number(o.goldAppliedGrams).toLocaleString("fa-IR", { maximumFractionDigits: 4 })} گرم)
+                  </span>
+                  <span>− {tomanFa(o.goldAppliedToman)}</span>
+                </p>
+              )}
               <p className="flex justify-between font-black text-[14px]">
-                <span>مبلغ پرداختی</span>
-                <span>{tomanFa(o.totalToman)}</span>
+                <span>{o.fundingSource === "MELTED_GOLD" ? "مابه‌التفاوت پرداختی" : "مبلغ پرداختی"}</span>
+                <span>{tomanFa(o.fundingSource === "MELTED_GOLD" ? o.payableToman : o.totalToman)}</span>
               </p>
             </div>
             {o.payments.length > 0 && (
@@ -839,7 +855,16 @@ function CancelModal({ order, onClose, onDone }: { order: OrderDetail; onClose: 
     <Modal title="لغو سفارش" onClose={onClose}>
       <div className="space-y-3">
         {order.status !== "PENDING_PAYMENT" && (
-          <Alert kind="info" text={`مبلغ ${tomanFa(order.totalToman)} به کیف پول مشتری بازگردانده و سند برگشت فروش ثبت می‌شود.`} />
+          <Alert
+            kind="info"
+            text={
+              order.fundingSource === "MELTED_GOLD" && Number(order.goldAppliedGrams) > 0
+                ? `${Number(order.goldAppliedGrams).toLocaleString("fa-IR", { maximumFractionDigits: 4 })} گرم طلا به کیف طلایی${
+                    Number(order.payableToman) > 0 ? ` و ${tomanFa(order.payableToman)} به کیف پول` : ""
+                  } مشتری بازگردانده و سند برگشت ثبت می‌شود.`
+                : `مبلغ ${tomanFa(order.totalToman)} به کیف پول مشتری بازگردانده و سند برگشت فروش ثبت می‌شود.`
+            }
+          />
         )}
         <Field label="دلیل لغو (برای مشتری پیامک می‌شود)">
           <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputCls} />

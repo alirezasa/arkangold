@@ -3,6 +3,8 @@
 import { useState } from "react";
 import useSWR from "swr";
 import axios from "axios";
+import Link from "next/link";
+import { usePerm } from "@/app/components/finance/ui";
 import {
   Loader2,
   Package,
@@ -210,6 +212,7 @@ function CancelModal({
 }
 
 export default function PhysicalDeliveriesPage() {
+  const canApprove = usePerm()("physical_delivery.approve");
   const [statusFilter, setStatusFilter] = useState("PENDING");
   const [page, setPage] = useState(1);
   const [shipTarget, setShipTarget] = useState<PhysicalDeliveryItem | null>(null);
@@ -260,9 +263,16 @@ export default function PhysicalDeliveriesPage() {
 
   return (
     <div>
-      <h1 className="text-lg font-black text-gray-900 mb-1">تحویل فیزیکی طلا</h1>
-      <p className="text-[12px] text-gray-400 mb-4">
+      <h1 className="text-lg font-black text-gray-900 mb-1">تحویل فیزیکی طلا (درخواست‌های وزنی قبلی)</h1>
+      <p className="text-[12px] text-gray-400 mb-2">
         {data ? `${data.total.toLocaleString("fa-IR")} درخواست` : "..."}
+      </p>
+      <p className="mb-4 rounded-xl bg-amber-50 p-3 text-[12px] leading-relaxed text-amber-800">
+        تحویل فیزیکی اکنون به‌صورت خرید شمش موجود با کیف طلایی کاربر انجام می‌شود و در{" "}
+        <Link href="/shop-orders" className="font-black underline">
+          سفارشات فروشگاه
+        </Link>{" "}
+        با برچسب «تحویل فیزیکی (طلای آب‌شده)» نمایش داده می‌شود. این صفحه برای پیگیری درخواست‌های قبلی است.
       </p>
 
       <div className="flex gap-2 overflow-x-auto pb-1 mb-4">
@@ -375,7 +385,7 @@ export default function PhysicalDeliveriesPage() {
                       مشاهده فاکتور
                     </a>
                   )}
-                  {req.status === "PENDING" && (
+                  {req.status === "PENDING" && canApprove && (
                     <button
                       onClick={() => handleApprove(req.id)}
                       disabled={processingId === req.id}
@@ -389,7 +399,7 @@ export default function PhysicalDeliveriesPage() {
                       )}
                     </button>
                   )}
-                  {req.status === "APPROVED" && (
+                  {req.status === "APPROVED" && canApprove && (
                     <button
                       onClick={() => setShipTarget(req)}
                       className="px-4 py-2 rounded-xl text-[12px] font-bold text-white"
@@ -398,7 +408,7 @@ export default function PhysicalDeliveriesPage() {
                       ثبت ارسال
                     </button>
                   )}
-                  {req.status === "SHIPPED" && (
+                  {req.status === "SHIPPED" && canApprove && (
                     <button
                       onClick={() => handleDeliver(req.id)}
                       disabled={processingId === req.id}
@@ -412,7 +422,7 @@ export default function PhysicalDeliveriesPage() {
                       )}
                     </button>
                   )}
-                  {(req.status === "PENDING" || req.status === "APPROVED") && (
+                  {(req.status === "PENDING" || req.status === "APPROVED") && canApprove && (
                     <button
                       onClick={() => setCancelTarget(req)}
                       className="px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-red-100 text-red-600"

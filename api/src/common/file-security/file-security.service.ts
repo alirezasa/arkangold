@@ -50,7 +50,8 @@ export interface UploadPolicy {
     | 'legal_document'
     | 'ticket_attachment'
     | 'deposit_receipt'
-    | 'catalog_image';
+    | 'catalog_image'
+    | 'branding_image';
   allowedExtensions: string[];
   maxBytes: number;
   /** بیشینه‌ی طول/عرض تصویر خروجی (بزرگ‌تر کوچک می‌شود) */

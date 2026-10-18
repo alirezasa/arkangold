@@ -18,6 +18,7 @@ import { AdminManagementService, AdminActor } from './admin-management.service';
 import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
 import { ADMIN_ROLES } from './rbac.const';
 import type { SessionContextService } from '../common/auth-security/session-context.service';
+import type { SystemConfigService } from '../system-config/system-config.service';
 import type { Request } from 'express';
 
 const url = process.env.INTEGRATION_DATABASE_URL;
@@ -76,10 +77,16 @@ run('ادمین چندنقشی (یکپارچه با PostgreSQL)', () => {
       evaluate: () => Promise.resolve({ action: 'allow' }),
       assertAdminAccessAllowed: () => Promise.resolve(),
     } as unknown as SessionContextService;
+    // قفل عدم فعالیت هم موضوع این آزمون نیست
+    const systemConfig = {
+      getSessionPolicy: () =>
+        Promise.resolve({ accessTtlSeconds: 3600, refreshTtlSeconds: 86400 }),
+    } as unknown as SystemConfigService;
     strategy = new AdminJwtStrategy(
       new ConfigService(),
       prisma,
       sessionContext,
+      systemConfig,
     );
     await prisma.adminUser.create({
       data: {

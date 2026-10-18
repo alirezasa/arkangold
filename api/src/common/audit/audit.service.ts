@@ -54,7 +54,13 @@ type ChainId = 'admin' | 'user';
 function toJson(value: unknown): Prisma.InputJsonValue | undefined {
   if (value === undefined || value === null) return undefined;
   try {
-    return redact(value) as Prisma.InputJsonValue;
+    // رفت‌وبرگشت JSON تا مقداری که hash می‌شود دقیقاً همان باشد که در jsonb ذخیره و بازخوانی
+    // می‌شود؛ مثلاً کلید با مقدار undefined در ذخیره حذف می‌شود ولی canonicalize آن را null
+    // می‌نوشت و رکورد سالم در verifyChain «دستکاری‌شده» تشخیص داده می‌شد
+    const json = JSON.stringify(redact(value));
+    return json === undefined
+      ? undefined
+      : (JSON.parse(json) as Prisma.InputJsonValue);
   } catch {
     return undefined;
   }
@@ -80,21 +86,22 @@ export class AuditService {
       userAgent: event.userAgent ?? null,
       source: event.source,
       success: event.success ?? true,
-      createdAt: new Date(),
     };
 
     try {
       await this.prisma.$transaction(async (tx) => {
         const prevHash = await this.lockChain(tx, 'admin');
-        const hash = sha256Hex(
-          prevHash + '|' + canonicalize({ ...fields, prevHash }),
-        );
-        await tx.adminAuditLog.create({ data: { ...fields, prevHash, hash } });
+        // createdAt پس از گرفتن قفل تا ترتیب زمانی رکوردها با ترتیب زنجیره یکی باشد
+        const record = { ...fields, createdAt: new Date(), prevHash };
+        const hash = sha256Hex(prevHash + '|' + canonicalize(record));
+        await tx.adminAuditLog.create({ data: { ...record, hash } });
         await this.advanceChain(tx, 'admin', hash);
       });
     } catch (err) {
       // ثبت رویداد هرگز نباید عملیات اصلی را fail کند
-      this.logger.warn(`ثبت رویداد امنیتی ادمین ناموفق بود: ${(err as Error).message}`);
+      this.logger.warn(
+        `ثبت رویداد امنیتی ادمین ناموفق بود: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -113,20 +120,21 @@ export class AuditService {
       userAgent: event.userAgent ?? null,
       source: event.source,
       success: event.success ?? true,
-      createdAt: new Date(),
     };
 
     try {
       await this.prisma.$transaction(async (tx) => {
         const prevHash = await this.lockChain(tx, 'user');
-        const hash = sha256Hex(
-          prevHash + '|' + canonicalize({ ...fields, prevHash }),
-        );
-        await tx.auditLog.create({ data: { ...fields, prevHash, hash } });
+        // createdAt پس از گرفتن قفل تا ترتیب زمانی رکوردها با ترتیب زنجیره یکی باشد
+        const record = { ...fields, createdAt: new Date(), prevHash };
+        const hash = sha256Hex(prevHash + '|' + canonicalize(record));
+        await tx.auditLog.create({ data: { ...record, hash } });
         await this.advanceChain(tx, 'user', hash);
       });
     } catch (err) {
-      this.logger.warn(`ثبت رویداد امنیتی کاربر ناموفق بود: ${(err as Error).message}`);
+      this.logger.warn(
+        `ثبت رویداد امنیتی کاربر ناموفق بود: ${(err as Error).message}`,
+      );
     }
   }
 
@@ -138,7 +146,11 @@ export class AuditService {
     return rows[0]?.last_hash ?? GENESIS_HASH;
   }
 
-  private async advanceChain(tx: TxClient, chainId: ChainId, hash: string): Promise<void> {
+  private async advanceChain(
+    tx: TxClient,
+    chainId: ChainId,
+    hash: string,
+  ): Promise<void> {
     await tx.auditChainState.upsert({
       where: { id: chainId },
       update: { lastHash: hash },
@@ -148,10 +160,14 @@ export class AuditService {
 
   /** بازبینی کامل زنجیره برای تشخیص دستکاری/حذف رکوردها — برای استفاده‌ی ادمین از طریق endpoint بازرسی */
   async verifyChain(chainId: ChainId): Promise<ChainVerificationResult> {
+    // آخرین hash پیش از خواندن رکوردها خوانده می‌شود؛ رکوردی که همزمان اضافه شود فقط بعد از آن می‌آید
+    const head = await this.prisma.auditChainState.findUnique({
+      where: { id: chainId },
+    });
     const rows =
       chainId === 'admin'
         ? await this.prisma.adminAuditLog.findMany({
-            orderBy: { createdAt: 'asc' },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
             select: {
               id: true,
               prevHash: true,
@@ -171,7 +187,7 @@ export class AuditService {
             },
           })
         : await this.prisma.auditLog.findMany({
-            orderBy: { createdAt: 'asc' },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
             select: {
               id: true,
               prevHash: true,
@@ -192,25 +208,54 @@ export class AuditService {
             },
           });
 
+    // رکوردهای قدیمی‌تر از افزودن این قابلیت hash ندارند — نادیده گرفته می‌شوند
+    const chained = rows.filter(
+      (row) => row.prevHash !== null && row.hash !== null,
+    );
+
+    // پیمایش زنجیره از genesis از طریق پیوند prevHash → hash، نه ترتیب createdAt: نوشتن‌های
+    // همزمان (یا رکوردهای قدیمی که createdAt پیش از گرفتن قفل داشتند) ممکن است ترتیب زمانی‌شان
+    // با ترتیب زنجیره فرق کند یا در یک میلی‌ثانیه ثبت شده باشند
+    const byPrevHash = new Map<string, typeof chained>();
+    for (const row of chained) {
+      const list = byPrevHash.get(row.prevHash) ?? [];
+      list.push(row);
+      byPrevHash.set(row.prevHash, list);
+    }
+
+    const visited = new Set<string>();
+    const headHash = head?.lastHash ?? GENESIS_HASH;
+    let reachedHead = headHash === GENESIS_HASH;
     let expectedPrevHash = GENESIS_HASH;
-    let checked = 0;
-    for (const row of rows) {
-      const { id, prevHash, hash, ...rest } = row;
-      // رکوردهای قدیمی‌تر از افزودن این قابلیت ممکن است hash نداشته باشند — نادیده گرفته می‌شوند
-      if (prevHash === null || hash === null) continue;
-      if (prevHash !== expectedPrevHash) {
-        return { valid: false, checked, brokenAtId: id };
-      }
+    let lastId: string | undefined;
+    for (;;) {
+      const next = byPrevHash.get(expectedPrevHash);
+      if (!next) break;
+      // دو رکورد با یک prevHash یعنی رکوردی جعلی به زنجیره پیوند زده شده است
+      if (next.length > 1)
+        return { valid: false, checked: visited.size, brokenAtId: next[1].id };
+      const { id, prevHash, hash, ...rest } = next[0];
+      if (visited.has(id)) break;
       const recomputed = sha256Hex(
         prevHash + '|' + canonicalize({ ...rest, prevHash }),
       );
       if (recomputed !== hash) {
-        return { valid: false, checked, brokenAtId: id };
+        return { valid: false, checked: visited.size, brokenAtId: id };
       }
+      visited.add(id);
+      lastId = id;
       expectedPrevHash = hash;
-      checked += 1;
+      if (hash === headHash) reachedHead = true;
     }
 
-    return { valid: true, checked };
+    // رکوردی که از genesis قابل‌دسترسی نیست: رکورد پیش از آن حذف یا prevHash آن دستکاری شده است
+    const orphan = chained.find((row) => !visited.has(row.id));
+    if (orphan)
+      return { valid: false, checked: visited.size, brokenAtId: orphan.id };
+    // زنجیره به آخرین hash ثبت‌شده نرسید: رکوردهای انتهایی حذف شده‌اند
+    if (!reachedHead)
+      return { valid: false, checked: visited.size, brokenAtId: lastId };
+
+    return { valid: true, checked: visited.size };
   }
 }

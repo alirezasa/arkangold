@@ -13,3 +13,10 @@ allowBuilds:
   puppeteer: false
   sharp: true
   unrs-resolver: true
+# Security fixes for transitive dependencies (pnpm audit)
+overrides:
+  handlebars@<4.7.10: ^4.7.10
+  js-yaml@>=5.0.0 <5.4.1: ^5.4.1
+  sharp@<0.35.5: ^0.35.5
+  source-map-js@<1.2.2: ^1.2.2
+  uuid@<11.1.1: ^11.1.1

@@ -21,10 +21,20 @@
 }
 
 :root {
+  /* پنل فقط طرح روشن دارد؛ در حالت تاریک سیستم‌عامل، کنترل‌های بومی و متن فیلدها روشن/خوانا می‌مانند */
+  color-scheme: light;
   --bg-primary: #ffffff;
   --bg-secondary: #f3f4f6;
   --text-primary: #111827;
   --text-secondary: #4b5563;
+}
+
+@layer base {
+  input,
+  select,
+  textarea {
+    color: #111827;
+  }
 }
 
 * , *::before, *::after {

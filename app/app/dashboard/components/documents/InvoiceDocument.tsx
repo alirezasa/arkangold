@@ -3,7 +3,7 @@
 
 import React from "react";
 import type { InvoiceDocument } from "./document.types";
-import { Num, fa, faGrouped, rialToToman } from "./document.utils";
+import { Num, SealAndSignature, fa, faGrouped, rialToToman } from "./document.utils";
 
 const KARAT_LABEL: Record<string, string> = { K18: "۱۸", K24: "۲۴" };
 
@@ -246,9 +246,7 @@ export default function InvoiceDocumentView({ doc }: { doc: InvoiceDocument }) {
         <div className="doc-sign-box">امضای خریدار</div>
         <div className="doc-seal">
           مهر و امضای فروشنده
-          {company.sealImagePath && (
-            <img src={company.sealImagePath} alt="" className="doc-seal__img" />
-          )}
+          <SealAndSignature company={company} />
         </div>
       </div>
 

@@ -10,6 +10,8 @@ import {
   ArrowLeftRight,
 } from "lucide-react";
 import PaymentGatewaySettings from "@/app/components/PaymentGatewaySettings";
+import BrandingSettings from "@/app/components/BrandingSettings";
+import { useAdminMe } from "@/app/hooks/useAdminMe";
 
 interface ConfigItem {
   id: string;
@@ -66,6 +68,13 @@ function isNumeric(value: string): boolean {
 function isBoolean(value: string): boolean {
   return value === "true" || value === "false";
 }
+
+// لوگو/مهر/امضا با بارگذاری تصویر (BrandingSettings) مدیریت می‌شوند، نه ویرایش متنی مسیر
+const BRANDING_KEYS = new Set([
+  "company.logo_path",
+  "company.seal_image_path",
+  "company.signature_image_path",
+]);
 
 // کلیدهایی که کامپوننت PaymentGatewaySettings خودش مدیریت می‌کند —
 // بقیه کلیدهای گروه payment باید همچنان به‌صورت عمومی نمایش داده شوند
@@ -163,6 +172,8 @@ export default function SystemConfigPage() {
     "/api/admin/system-config",
     fetcher,
   );
+  const { me } = useAdminMe();
+  const canEditConfig = me?.permissions.includes("system_config.edit") ?? false;
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -263,12 +274,16 @@ export default function SystemConfigPage() {
               </div>
             )}
 
+            {group.prefix === "company" && <BrandingSettings canEdit={canEditConfig} />}
+
             <div className="divide-y divide-gray-100">
               {(group.prefix === "payment"
                 ? group.items.filter(
                     (item) => !PAYMENT_KEYS_HANDLED_BY_WIDGET.has(item.key),
                   )
-                : group.items
+                : group.prefix === "company"
+                  ? group.items.filter((item) => !BRANDING_KEYS.has(item.key))
+                  : group.items
               ).map((item) => (
                 <ConfigField
                   key={item.key}

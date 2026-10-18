@@ -71,6 +71,15 @@ export const AuthService = {
     return response.data;
   },
 
+  // ورود با کد پیامکی (بدون رمز): ارسال کد؛ تأیید با همان verifyLogin انجام می‌شود
+  requestLoginOtp: async (phone: string, captcha?: string) => {
+    const response = await axios.post<LoginChallenge>(`/api/auth/login/otp`, {
+      phone,
+      captcha,
+    });
+    return response.data;
+  },
+
   // مرحله‌ی دوم: کد پیامکی، کد برنامه‌ی احراز هویت یا کد بازیابی (BFF کوکی نشست را ست می‌کند)
   verifyLogin: async (challengeToken: string, code: string) => {
     const response = await axios.post(`/api/auth/login/verify`, { challengeToken, code });

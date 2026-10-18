@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useDepositConfig, type DepositConfig } from "@/app/hooks/useWallet";
+import BankAccountGate from "../../components/BankAccountGate";
 
 // نگاشت مسیر هر روش واریز به کلید آن در تنظیمات واریز
 const METHOD_BY_SEGMENT: Record<string, keyof DepositConfig> = {
@@ -28,7 +29,7 @@ export default function DepositLayout({ children }: { children: ReactNode }) {
   const methodKey = segment ? METHOD_BY_SEGMENT[segment] : undefined;
 
   // صفحه انتخاب روش یا مسیر ناشناخته
-  if (!methodKey) return <>{children}</>;
+  if (!methodKey) return <BankAccountGate>{children}</BankAccountGate>;
 
   if (loading) {
     return (
@@ -39,7 +40,8 @@ export default function DepositLayout({ children }: { children: ReactNode }) {
   }
 
   const method = config?.[methodKey] as { enabled?: boolean } | undefined;
-  if (!config || method?.enabled !== false) return <>{children}</>;
+  if (!config || method?.enabled !== false)
+    return <BankAccountGate>{children}</BankAccountGate>;
 
   return (
     <div className="mx-auto mt-10 max-w-md" dir="rtl">

@@ -1,4 +1,10 @@
-import { IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import {
+  IsOptional,
+  IsPhoneNumber,
+  IsString,
+  Length,
+  MaxLength,
+} from 'class-validator';
 
 /** مرحله‌ی دوم ورود یا بازنشانی رمز: کد پیامکی، کد برنامه‌ی احراز هویت یا کد بازیابی */
 export class ChallengeCodeDto {
@@ -41,6 +47,18 @@ export class MfaDisableDto {
 }
 
 export class SendOtpCaptchaDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  captcha?: string;
+}
+
+/** ورود با کد پیامکی (بدون رمز): فقط شماره و در صورت نیاز راه‌حل بررسی امنیتی */
+export class LoginOtpRequestDto {
+  @IsString()
+  @IsPhoneNumber('IR')
+  phone!: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(2000)

@@ -219,6 +219,12 @@ export const WALLET_CONFIG_DEFAULTS = [
       'کلمات ممنوع اضافه در رمز عبور، جدا با ویرگول (علاوه بر نام برنامه، شرکت، دامنه و واژه‌هایی مثل admin و password)',
   },
   {
+    key: 'security.login.user_sms_otp_enabled',
+    value: 'true',
+    description:
+      'ورود کاربران با کد یکبارمصرف پیامکی (بدون رمز و بدون برنامه‌ی احراز هویت) در کنار ورود با رمز',
+  },
+  {
     key: 'security.login_alerts.enabled',
     value: 'true',
     description:
@@ -537,12 +543,20 @@ export const WALLET_CONFIG_DEFAULTS = [
   {
     key: 'company.logo_path',
     value: '/logo.png',
-    description: 'مسیر لوگو در public',
+    description:
+      'لوگوی شرکت (از بخش «لوگو، مهر و امضا» بارگذاری شود؛ روی صفحات ورود، پنل‌ها و اسناد)',
   },
   {
     key: 'company.seal_image_path',
-    value: '/brand/seal.png',
-    description: 'مسیر تصویر مهر و امضا در public',
+    value: '',
+    description:
+      'مهر شرکت روی فاکتور/پیش‌فاکتور (از بخش «لوگو، مهر و امضا» بارگذاری شود)',
+  },
+  {
+    key: 'company.signature_image_path',
+    value: '',
+    description:
+      'امضای صاحب امضای مجاز روی فاکتور/پیش‌فاکتور (از بخش «لوگو، مهر و امضا» بارگذاری شود)',
   },
 
   // ══ اسناد ══

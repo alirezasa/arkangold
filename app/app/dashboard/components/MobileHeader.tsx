@@ -41,8 +41,12 @@ export default function MobileHeader({
 
       {/* ناحیه‌ی safe-area بالای آیفون را body و نوار .pwa-status-bar پوشش می‌دهند */}
       <div className="relative flex items-center justify-between gap-3 px-5 pt-4 pb-5">
-        <h1 className="shrink-0 text-[20px] font-black text-white">
-          آرکان <span style={{ color: "var(--color-gold-500)" }}>گلد</span>
+        <h1 className="shrink-0 flex items-center gap-2 text-[20px] font-black text-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo" alt="" className="h-8 w-8 object-contain" />
+          <span>
+            آرکان <span style={{ color: "var(--color-gold-500)" }}>گلد</span>
+          </span>
         </h1>
 
         <div className="flex min-w-0 items-center gap-2.5">

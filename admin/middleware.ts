@@ -15,6 +15,11 @@ export function middleware(request: NextRequest) {
   const portal = portalFromHeaders(request.headers);
   const home = PORTAL_HOME[portal];
 
+  // فایل‌های ایستای public (manifest.json، sw.js، آیکون‌ها، robots.txt) و لوگوی پویا (/brand/logo) نیاز به ورود ندارند؛
+  // قبلاً بدون کوکی به /login هدایت می‌شدند و مرورگر HTML صفحه‌ی ورود را به‌جای manifest
+  // می‌خواند («Manifest: Line: 1, column: 1, Syntax error»).
+  if (isStaticFile(pathname) || pathname.startsWith("/brand/")) return NextResponse.next();
+
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   if (isPublic) {
@@ -32,15 +37,13 @@ export function middleware(request: NextRequest) {
     return res;
   }
 
-  if (!isStaticFile(pathname)) {
-    if (portal === "agent") {
-      // پنل نمایندگان فقط پرتال نمایندگی، اسناد و پروفایل را دارد
-      const allowed = AGENT_PORTAL_PATHS.some((p) => pathname.startsWith(p));
-      if (!allowed) return NextResponse.redirect(new URL(home, request.url));
-    } else if (pathname.startsWith("/agent-portal")) {
-      // پرتال نمایندگی فقط از دامنه‌ی پنل نمایندگان
-      return NextResponse.redirect(new URL(home, request.url));
-    }
+  if (portal === "agent") {
+    // پنل نمایندگان فقط پرتال نمایندگی، اسناد و پروفایل را دارد
+    const allowed = AGENT_PORTAL_PATHS.some((p) => pathname.startsWith(p));
+    if (!allowed) return NextResponse.redirect(new URL(home, request.url));
+  } else if (pathname.startsWith("/agent-portal")) {
+    // پرتال نمایندگی فقط از دامنه‌ی پنل نمایندگان
+    return NextResponse.redirect(new URL(home, request.url));
   }
 
   return NextResponse.next();

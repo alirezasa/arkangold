@@ -1,5 +1,6 @@
 // app/app/dashboard/components/documents/document.utils.tsx
 import React from "react";
+import type { CompanySnapshot } from "./document.types";
 
 const FA = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
 
@@ -59,4 +60,20 @@ export function formatTrackingId(id: string): string {
 
 export function copyToClipboard(text: string): Promise<void> {
   return navigator.clipboard.writeText(text);
+}
+
+/** مهر شرکت و امضای صاحب امضای مجاز (هر دو از پنل مدیریت بارگذاری می‌شوند) */
+export function SealAndSignature({ company }: { company: CompanySnapshot }) {
+  const seal = company.sealImagePath;
+  const sign = company.signatureImagePath;
+  if (!seal && !sign) return null;
+  const single = !seal || !sign;
+  return (
+    <div className={`doc-seal__stack${single ? " doc-seal__stack--single" : ""}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {seal && <img src={seal} alt="مهر شرکت" className="doc-seal__img doc-seal__img--seal" />}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {sign && <img src={sign} alt="امضا" className="doc-seal__img doc-seal__img--sign" />}
+    </div>
+  );
 }

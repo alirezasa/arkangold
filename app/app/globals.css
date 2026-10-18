@@ -48,12 +48,26 @@
   --text-secondary: #4b5563;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg-primary: #0f172a;
-    --bg-secondary: #1e293b;
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
+/*
+  اپ فقط طرح روشن دارد (سطوح و فیلدها همه سفیدند). قبلاً در حالت تاریک سیستم‌عامل رنگ متن
+  سفید می‌شد ولی پس‌زمینه‌ها سفید می‌ماندند و اعداد/متن داخل فیلدها (که رنگ را از body ارث
+  می‌برند) دیده نمی‌شدند. طرح روشن صریح اعلام می‌شود تا کنترل‌های بومی مرورگر هم روشن بمانند
+  و متغیر dark تیلویند فقط با کلاس .dark (که استفاده نمی‌شود) فعال شود.
+*/
+:root {
+  color-scheme: light;
+}
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  input,
+  select,
+  textarea {
+    color: #111827;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af;
   }
 }
 

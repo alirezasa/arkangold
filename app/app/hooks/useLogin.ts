@@ -17,7 +17,8 @@ export function apiErrorMessage(err: unknown, fallback = "خطایی در ارت
 }
 
 /**
- * ورود دومرحله‌ای (FIA_UAU_EXT.2.3): رمز عبور ← کد پیامکی یا کد برنامه‌ی احراز هویت.
+ * ورود دومرحله‌ای (FIA_UAU_EXT.2.3): رمز عبور ← کد پیامکی یا کد برنامه‌ی احراز هویت؛
+ * یا ورود با کد پیامکی (requestOtp) که مرحله‌ی برنامه‌ی احراز هویت ندارد.
  * «بررسی امنیتی» در صورت درخواست سرور به‌طور خودکار حل می‌شود (FIA_UAU_EXT.2.1).
  */
 export const useLogin = () => {
@@ -34,6 +35,26 @@ export const useLogin = () => {
     try {
       const ch = await withCaptcha(
         (captcha) => AuthService.login(phone, password, captcha),
+        setChecking,
+      );
+      setChallenge(ch);
+      setStep("second_factor");
+      return ch.resendAfter ?? 0;
+    } catch (err) {
+      setError(apiErrorMessage(err));
+      return 0;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ورود با کد پیامکی: بدون رمز و بدون مرحله‌ی برنامه‌ی احراز هویت
+  const requestOtp = async (phone: string): Promise<number> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const ch = await withCaptcha(
+        (captcha) => AuthService.requestLoginOtp(phone, captcha),
         setChecking,
       );
       setChallenge(ch);
@@ -93,6 +114,7 @@ export const useLogin = () => {
     step,
     challenge,
     submitCredentials,
+    requestOtp,
     verifyCode,
     resend,
     restart,

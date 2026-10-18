@@ -297,10 +297,16 @@ export class WalletService {
     await this.assertDepositMethodEnabled('tracking_id');
     await this.checkUserIdentity(userId);
 
+    // واریز فقط از حساب/کارت بانکی تأییدشده به نام خود کاربر
     const bankAccount = await this.prisma.bankAccount.findFirst({
       where: { id: sourceCardId, userId },
     });
     if (!bankAccount) throw new NotFoundException('کارت بانکی یافت نشد');
+    if (!bankAccount.isVerified) {
+      throw new BadRequestException(
+        'واریز فقط از کارت/حساب تأییدشده‌ی خودتان امکان‌پذیر است',
+      );
+    }
 
     const destAccount = await this.systemConfig.get(
       'deposit.tracking_id.destination_account',

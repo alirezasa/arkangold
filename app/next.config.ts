@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 // ── سرآیندهای امنیتی (FDP_ACC_EXT.1.3/1.4، FDP_RIP_EXT.1.2) ─────────────────
-// CSP: منابع فقط از همین مبدأ و API خودمان بارگذاری می‌شوند (بدون CDN/سرویس ثالث).
+// CSP: منابع فقط از همین مبدأ و API خودمان بارگذاری می‌شوند (بدون CDN/سرویس ثالث؛ به‌جز گفتینو در صورت تنظیم).
 const isDev = process.env.NODE_ENV !== "production";
 const originOf = (u?: string) => {
   try {
@@ -19,13 +19,19 @@ const apiOrigins = Array.from(
     ].filter(Boolean) as string[],
   ),
 ).join(" ");
+// چت پشتیبانی گفتینو تنها سرویس ثالث مجاز است و فقط وقتی شناسه‌ی ویجت تنظیم شده باشد در CSP می‌آید
+const goftino = process.env.NEXT_PUBLIC_GOFTINO_WIDGET_ID
+  ? " https://goftino.com https://*.goftino.com"
+  : "";
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${apiOrigins}`,
-  "font-src 'self' data:",
-  `connect-src 'self' ${apiOrigins}${isDev ? " ws: wss:" : ""}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${goftino}`,
+  `style-src 'self' 'unsafe-inline'${goftino}`,
+  `img-src 'self' data: blob: ${apiOrigins}${goftino}`,
+  `font-src 'self' data:${goftino}`,
+  `connect-src 'self' ${apiOrigins}${isDev ? " ws: wss:" : ""}${goftino}${goftino ? " wss://*.goftino.com" : ""}`,
+  `media-src 'self'${goftino}`,
+  ...(goftino ? [`frame-src 'self'${goftino}`] : []),
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",
@@ -52,6 +58,9 @@ const noStore = [
   { key: "Pragma", value: "no-cache" },
 ];
 
+// صفحات خصوصی (داشبورد/فاکتور) نمایه نمی‌شوند؛ صفحات عمومی اپ قابل نمایه‌اند
+const noIndex = [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }];
+
 const nextConfig: NextConfig = {
   // یک نمونه‌ی مشترک axios برای همه‌ی routeها تا interceptor ارسال IP کاربر به API
   // (lib/client-identity.ts، نصب‌شده در instrumentation.ts) روی همه‌ی آن‌ها اعمال شود
@@ -69,8 +78,9 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       { source: "/api/:path*", headers: noStore },
-      { source: "/dashboard/:path*", headers: noStore },
-      { source: "/dashboard", headers: noStore },
+      { source: "/dashboard/:path*", headers: [...noStore, ...noIndex] },
+      { source: "/dashboard", headers: [...noStore, ...noIndex] },
+      { source: "/invoice/:path*", headers: noIndex },
       {
         // Service worker must be served with correct MIME type
         source: "/sw.js",

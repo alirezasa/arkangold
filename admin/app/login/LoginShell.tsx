@@ -1,6 +1,6 @@
 // admin/app/login/LoginShell.tsx
 // قاب مشترک صفحه‌ی ورود پنل مدیریت (admin.arkan.gold) و پنل نمایندگان (panel.arkan.gold)
-import { ShieldCheck, Store } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import type { Portal } from "@/lib/portal";
 
 const COPY: Record<
@@ -19,7 +19,7 @@ const COPY: Record<
     title: "پنل نمایندگان",
     heading: "ورود نمایندگان",
     description:
-      "موجودی امانی، ثبت فروش شمش برای مالک نهایی، تسویه و صورتحساب نمایندگی — همه در یک پنل.",
+      "ثبت فروش شمش برای مالک نهایی، تسویه و صورتحساب نمایندگی — همه در یک پنل.",
     footnote: "ورود فقط برای نمایندگان فروش ثبت‌شده — تمام فعالیت‌ها ثبت می‌شود",
     formSubtitle: "با شماره‌ی موبایل ثبت‌شده یا نام کاربری وارد شوید",
   },
@@ -33,7 +33,6 @@ export default function LoginShell({
   children: React.ReactNode;
 }) {
   const c = COPY[portal];
-  const Icon = portal === "agent" ? Store : ShieldCheck;
 
   return (
     <div
@@ -56,12 +55,8 @@ export default function LoginShell({
         />
 
         <div className="relative z-10">
-          <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center mb-8 shadow-2xl"
-            style={{ backgroundColor: "var(--color-gold-500)" }}
-          >
-            <Icon className="w-8 h-8" style={{ color: "var(--color-emerald)" }} />
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo" alt="آرکان گلد" className="w-24 h-24 object-contain mb-8 drop-shadow-xl" />
           <h1 className="text-5xl font-black text-white leading-snug">
             {c.title}
             <br />
@@ -83,12 +78,8 @@ export default function LoginShell({
         <div className="w-full max-w-sm mx-auto">
           {/* لوگوی موبایل */}
           <div className="lg:hidden flex items-center gap-3 mb-10">
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center"
-              style={{ backgroundColor: "var(--color-emerald)" }}
-            >
-              <Icon className="w-6 h-6" style={{ color: "var(--color-gold-500)" }} />
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/logo" alt="" className="w-12 h-12 object-contain" />
             <div>
               <h1 className="text-lg font-black text-gray-900">{c.title}</h1>
               <p className="text-[11px] text-gray-400">آرکان گلد</p>

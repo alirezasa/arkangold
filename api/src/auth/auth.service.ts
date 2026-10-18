@@ -497,6 +497,74 @@ export class AuthService {
         };
   }
 
+  /**
+   * ورود با کد یکبارمصرف پیامکی (بدون رمز عبور) — قابل فعال/غیرفعال‌سازی از تنظیمات سیستم
+   * (security.login.user_sms_otp_enabled). در این روش مرحله‌ی برنامه‌ی احراز هویت درخواست نمی‌شود؛
+   * کد به شماره‌ای ارسال می‌شود که مالکیت آن هنگام ثبت‌نام اثبات شده است.
+   * FIA_UAU_EXT.2.7: پاسخ برای شماره‌ی ثبت‌شده و ثبت‌نشده یکسان است (توکن مرحله‌ی ساختگی برای
+   * شماره‌ی ناموجود)، سهمیه‌ی ارسال برای هر دو مصرف می‌شود و تأیید هر دو با یک پیام رد می‌شود.
+   */
+  async requestLoginOtp(
+    dto: { phone: string; captcha?: string },
+    ip?: string,
+    userAgent?: string,
+  ): Promise<MfaChallengeResponse> {
+    const enabled = await this.systemConfig.getBoolean(
+      'security.login.user_sms_otp_enabled',
+      true,
+    );
+    if (!enabled) {
+      throw new ForbiddenException(
+        'ورود با کد پیامکی در حال حاضر غیرفعال است؛ با رمز عبور وارد شوید',
+      );
+    }
+    const phone = this.normalizePhone(dto.phone);
+    const maskedPhone = maskPhone(phone);
+
+    await this.loginThrottle.assertAllowed('user', phone, ip);
+    await this.captcha.enforce(
+      await this.loginThrottle.captchaRequired('user', phone, ip, userAgent),
+      dto.captcha,
+    );
+
+    const user = await this.prisma.user.findUnique({ where: { phone } });
+    const usable = !!user && user.status === 'ACTIVE';
+    if (usable) {
+      await this.issueOtp(phone, OtpPurpose.LOGIN);
+    } else {
+      await this.otpLimiter.consume(phone, OtpPurpose.LOGIN);
+    }
+    const challengeToken = await this.challenges.create({
+      kind: 'user',
+      // شماره‌ی ناموجود/غیرفعال: مرحله‌ی ساختگی که هیچ کدی آن را تأیید نمی‌کند
+      accountId: usable && user ? user.id : '',
+      stage: 'SMS_OTP',
+      via: 'sms_otp',
+      purpose: 'login',
+      identifier: phone,
+    });
+    await this.auditService.logUser({
+      userId: user?.id ?? null,
+      actorLabel: maskedPhone,
+      action: 'auth.login_otp_request',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: usable,
+      newValue: usable
+        ? undefined
+        : { reason: !user ? 'unknown_user' : 'not_active' },
+    });
+    return {
+      mfaRequired: true,
+      method: 'SMS',
+      challengeToken,
+      maskedPhone,
+      expiresIn: OTP_TTL_SECONDS,
+      resendAfter: 60,
+    };
+  }
+
   /** مرحله‌ی دوم ورود: کد پیامکی، کد برنامه‌ی احراز هویت یا یکی از کدهای بازیابی */
   async verifyLoginMfa(
     challengeToken: string,
@@ -513,13 +581,35 @@ export class AuthService {
         'مرحله‌ی ورود نامعتبر است؛ دوباره وارد شوید',
       );
     }
-    const user = await this.prisma.user.findUnique({
-      where: { id: ch.accountId },
-    });
-    if (!user)
+    const user = ch.accountId
+      ? await this.prisma.user.findUnique({
+          where: { id: ch.accountId },
+        })
+      : null;
+    if (!user) {
+      if (ch.via === 'sms_otp') {
+        // مرحله‌ی ساختگی ورود پیامکی (شماره‌ی ناموجود): همان پاسخ کد نادرست
+        const remaining = await this.challenges.fail(challengeToken, ch);
+        if (ch.identifier)
+          await this.loginThrottle.recordFailure('user', ch.identifier, ip);
+        throw new UnauthorizedException(
+          remaining > 0
+            ? `کد وارد شده نادرست یا منقضی است (${remaining.toLocaleString('fa-IR')} تلاش باقی‌مانده)`
+            : 'تعداد تلاش‌های مجاز به پایان رسید؛ دوباره وارد شوید',
+        );
+      }
       throw new UnauthorizedException(
         'مرحله‌ی ورود نامعتبر است؛ دوباره وارد شوید',
       );
+    }
+    if (ch.via === 'sms_otp' && user.status !== 'ACTIVE') {
+      await this.challenges.consume(challengeToken);
+      throw new ForbiddenException(
+        user.status === 'BANNED'
+          ? 'حساب کاربری شما مسدود شده است'
+          : 'حساب کاربری شما فعال نیست',
+      );
+    }
     const maskedPhone = maskPhone(user.phone);
 
     const usedMethod = await this.checkSecondFactor(
@@ -552,7 +642,10 @@ export class AuthService {
       userAgent,
       source: AUDIT_SOURCE,
       success: true,
-      newValue: { mfa: usedMethod },
+      newValue: {
+        mfa: usedMethod,
+        via: ch.via === 'sms_otp' ? 'sms_otp' : 'password',
+      },
     });
     await this.loginAlerts.onSuccessfulLogin(
       { kind: 'user', id: user.id },
@@ -580,6 +673,15 @@ export class AuthService {
   /** ارسال دوباره‌ی کد پیامکی مرحله‌ی دوم (با همان سهمیه‌ی هر شماره) */
   async resendLoginOtp(challengeToken: string) {
     const ch = await this.challenges.get(challengeToken, 'user', ['SMS_OTP']);
+    if (!ch.accountId && ch.via === 'sms_otp' && ch.identifier) {
+      // مرحله‌ی ساختگی ورود پیامکی: فقط سهمیه مصرف می‌شود تا پاسخ یکسان بماند
+      await this.otpLimiter.consume(ch.identifier, OtpPurpose.LOGIN);
+      return {
+        message: 'کد تایید دوباره ارسال شد',
+        expiresIn: OTP_TTL_SECONDS,
+        resendAfter: 60,
+      };
+    }
     const user = await this.prisma.user.findUnique({
       where: { id: ch.accountId },
     });

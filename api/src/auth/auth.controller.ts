@@ -14,7 +14,11 @@ import {
   RefreshTokenDto,
 } from '@arkan-gold/shared';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { ChallengeCodeDto, ChallengeTokenDto } from './dto/mfa.dto';
+import {
+  ChallengeCodeDto,
+  ChallengeTokenDto,
+  LoginOtpRequestDto,
+} from './dto/mfa.dto';
 
 // تعریف دقیق ساختار user که توسط JwtStrategy اضافه می‌شود
 interface AuthenticatedUser {
@@ -56,8 +60,8 @@ export class AuthController {
     return this.authService.setPassword(dto, ip, userAgent);
   }
 
-  // FIA_UAU_EXT.2.4: مسیرهای ورود کاربر فقط همین سه مسیرند (رمز ← عامل دوم ← ارسال دوباره)؛
-  // مسیرهای قدیمی send-login-otp / verify-login-otp (ورود تک‌عاملی پیامکی) حذف شده‌اند.
+  // FIA_UAU_EXT.2.4: مسیرهای ورود کاربر: رمز ← عامل دوم، یا کد پیامکی (login/otp) ← تأیید کد؛
+  // هر دو با login/verify تکمیل و با login/resend کد دوباره ارسال می‌شود.
   @Public()
   @Post('login')
   @Throttle({ default: { limit: 10, ttl: 300000 } })
@@ -65,6 +69,18 @@ export class AuthController {
     const ip = req.ip;
     const userAgent = req.headers['user-agent'];
     return this.authService.login(dto, ip, userAgent);
+  }
+
+  // ورود با کد پیامکی (بدون رمز و بدون مرحله‌ی برنامه‌ی احراز هویت)؛ تأیید کد از همان login/verify
+  @Public()
+  @Post('login/otp')
+  @Throttle({ default: { limit: 5, ttl: 300000 } })
+  async requestLoginOtp(@Body() dto: LoginOtpRequestDto, @Req() req: Request) {
+    return this.authService.requestLoginOtp(
+      dto,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   @Public()

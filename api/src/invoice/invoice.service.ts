@@ -14,6 +14,7 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { DocumentSequenceService } from '../common/documents/document-sequence.service';
+import { BrandingService } from '../branding/branding.service';
 import {
   formatJalaliDate,
   formatJalaliDateTime,
@@ -55,6 +56,7 @@ export class InvoiceService {
     private readonly prisma: PrismaService,
     private readonly systemConfig: SystemConfigService,
     private readonly sequence: DocumentSequenceService,
+    private readonly branding: BrandingService,
   ) {}
 
   // ═══════════════════════════════════════════════════════════
@@ -80,6 +82,7 @@ export class InvoiceService {
       website,
       logoPath,
       sealImagePath,
+      signatureImagePath,
     ] = await Promise.all([
       this.systemConfig.get('company.legal_name'),
       this.systemConfig.get('company.brand_name'),
@@ -93,6 +96,7 @@ export class InvoiceService {
       this.systemConfig.get('company.website'),
       this.systemConfig.get('company.logo_path'),
       this.systemConfig.get('company.seal_image_path'),
+      this.systemConfig.get('company.signature_image_path', ''),
     ]);
 
     const missing: string[] = [];
@@ -123,6 +127,34 @@ export class InvoiceService {
       website,
       logoPath,
       sealImagePath,
+      signatureImagePath,
+    };
+  }
+
+  /**
+   * تصاویر سند (لوگو، مهر، امضا) به data URI تبدیل می‌شوند تا بدون انتشار عمومی فایل مهر/امضا
+   * و بدون وابستگی به CSP/مبدأ پنل‌ها روی سند و نسخه‌ی چاپی نمایش داده شوند.
+   */
+  private async withDocumentImages(
+    company: CompanySnapshot,
+  ): Promise<CompanySnapshot> {
+    const [logo, seal, signature] = await Promise.all([
+      BrandingService.isUploadedRef(company.logoPath)
+        ? this.branding.resolveDocumentImage('logo', company.logoPath)
+        : this.branding
+            .resolveDocumentImage('logo', null)
+            .then((uri) => uri || company.logoPath),
+      this.branding.resolveDocumentImage('seal', company.sealImagePath),
+      this.branding.resolveDocumentImage(
+        'signature',
+        company.signatureImagePath,
+      ),
+    ]);
+    return {
+      ...company,
+      logoPath: logo,
+      sealImagePath: seal,
+      signatureImagePath: signature,
     };
   }
 
@@ -854,7 +886,9 @@ export class InvoiceService {
         ? formatJalaliDateTime(invoice.expiresAt)
         : null,
 
-      company: invoice.companySnapshot as unknown as CompanySnapshot,
+      company: await this.withDocumentImages(
+        invoice.companySnapshot as unknown as CompanySnapshot,
+      ),
       customer: invoice.customerSnapshot as unknown as CustomerSnapshot,
       extra:
         invoice.kind === 'PROFORMA'

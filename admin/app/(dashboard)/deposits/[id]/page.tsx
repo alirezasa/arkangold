@@ -106,16 +106,12 @@ export default function AdminDepositDetailPage({
     }
   };
 
-  const viewReceipt = async (receiptId: string) => {
+  // فیش از همین مبدأ (BFF) بارگذاری می‌شود؛ URL مستقیم فضای ذخیره‌سازی توسط CSP مسدود است
+  const viewReceipt = (receiptId: string) => {
     setError(null);
-    try {
-      const res = await axios.get<{ url: string }>(
-        `/api/admin/deposits/${id}/receipts/${receiptId}/url`,
-      );
-      setReceiptUrl(res.data.url);
-    } catch {
-      setError("دریافت لینک رسید ناموفق بود");
-    }
+    setReceiptUrl(
+      `/api/admin/deposit-receipts/${encodeURIComponent(String(id))}/${encodeURIComponent(receiptId)}?t=${Date.now()}`,
+    );
   };
 
   if (isLoading || !data) {
@@ -341,13 +337,16 @@ export default function AdminDepositDetailPage({
           {receiptUrl && (
             <div className="rounded-2xl bg-white border border-gray-100 p-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={receiptUrl}
-                alt="تصویر رسید"
-                className="w-full rounded-xl"
-              />
+              <a href={receiptUrl} target="_blank" rel="noopener noreferrer">
+                <img
+                  src={receiptUrl}
+                  alt="تصویر رسید"
+                  className="w-full rounded-xl"
+                  onError={() => setError("دریافت تصویر رسید ناموفق بود")}
+                />
+              </a>
               <p className="text-[10.5px] text-gray-400 mt-2 text-center">
-                این لینک پس از ۲ دقیقه منقضی می‌شود
+                برای مشاهده در اندازه‌ی کامل روی تصویر بزنید
               </p>
             </div>
           )}

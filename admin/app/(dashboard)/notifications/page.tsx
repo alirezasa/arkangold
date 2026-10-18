@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import UserPicker, { type UserSearchItem } from "@/app/components/UserPicker";
 import JalaliDateInput from "@/app/components/JalaliDateInput";
+import { usePerm } from "@/app/components/finance/ui";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -246,6 +247,7 @@ function AnnouncementCard({
   item: Announcement;
   onChanged: () => void;
 }) {
+  const canManage = usePerm()("notifications.manage");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const meta = LEVEL_META[item.level];
@@ -349,7 +351,7 @@ function AnnouncementCard({
         </div>
       )}
 
-      <div className="flex gap-2 mt-3">
+      {canManage && <div className="flex gap-2 mt-3">
         <button
           onClick={toggleActive}
           disabled={busy}
@@ -365,12 +367,13 @@ function AnnouncementCard({
           <Trash2 className="w-3.5 h-3.5" />
           حذف
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
 
 export default function NotificationsAdminPage() {
+  const canManage = usePerm()("notifications.manage");
   const [createOpen, setCreateOpen] = useState(false);
   const { data, isLoading, error, mutate } = useSWR<Announcement[]>(
     "/api/admin/announcements",
@@ -384,14 +387,16 @@ export default function NotificationsAdminPage() {
           <Bell className="w-5 h-5 text-gray-400" />
           اعلان‌های کاربران
         </h1>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold text-white"
-          style={{ backgroundColor: "var(--color-emerald)" }}
-        >
-          <Plus className="w-4 h-4" />
-          اعلان جدید
-        </button>
+        {canManage && (
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold text-white"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+          >
+            <Plus className="w-4 h-4" />
+            اعلان جدید
+          </button>
+        )}
       </div>
       <p className="text-[12px] text-gray-400 mb-5">
         اعلان‌های فعال در زنگوله اعلان‌های اپلیکیشن کاربران نمایش داده می‌شوند.

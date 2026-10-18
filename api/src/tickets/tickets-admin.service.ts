@@ -359,6 +359,28 @@ export class TicketsAdminService {
   // ---------------------------------------------------------------------
   // Dashboard خلاصه
   // ---------------------------------------------------------------------
+  /**
+   * کارشناسان قابل ارجاع تیکت: ادمین‌های فعال (غیر نماینده) با دسترسی مشاهده‌ی تیکت. فهرست کامل
+   * ادمین‌ها (admin/admins) نیازمند admin.manage است و برای مدیر پشتیبانی در دسترس نبود.
+   */
+  async listAssignees() {
+    return this.prisma.adminUser.findMany({
+      where: {
+        isActive: true,
+        agentId: null,
+        roles: {
+          some: {
+            role: {
+              permissions: { some: { permission: { key: 'tickets.view' } } },
+            },
+          },
+        },
+      },
+      select: { id: true, fullName: true },
+      orderBy: { fullName: 'asc' },
+    });
+  }
+
   async dashboardSummary() {
     const [
       total,

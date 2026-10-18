@@ -9,7 +9,10 @@ import MobileHeader from "@/app/components/MobileHeader";
 import MobileDrawer from "@/app/components/MobileDrawer";
 import BottomNav from "@/app/components/BottomNav";
 import OfflineBanner from "@/app/components/OfflineBanner";
-import { Loader2 } from "lucide-react";
+import NewOrderAlert from "@/app/components/NewOrderAlert";
+import { Loader2, ShieldOff } from "lucide-react";
+import Link from "next/link";
+import { canOpenPath } from "@/app/utils/nav";
 import { logoutAndWipe } from "@/app/utils/session-cleanup";
 
 export default function DashboardLayout({
@@ -73,9 +76,31 @@ export default function DashboardLayout({
 
       <div className="flex-1 min-w-0 flex flex-col">
         <MobileHeader onMenuOpen={() => setDrawerOpen(true)} me={me} />
-        <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-6">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-6">
+          {canOpenPath(pathname, me) ? (
+            children
+          ) : (
+            // ورود مستقیم با نشانی به بخشی که نقش ادمین دسترسی آن را ندارد
+            <div className="mx-auto mt-16 max-w-md rounded-2xl border border-gray-100 bg-white p-8 text-center" dir="rtl">
+              <ShieldOff className="mx-auto mb-3 h-10 w-10 text-gray-300" />
+              <h2 className="text-[15px] font-black text-gray-900">دسترسی به این بخش ندارید</h2>
+              <p className="mt-1 text-[12.5px] leading-relaxed text-gray-500">
+                نقش شما مجوز مشاهده‌ی این بخش را ندارد. در صورت نیاز با مدیر سیستم تماس بگیرید.
+              </p>
+              <Link
+                href={me.agent ? "/agent-portal" : "/modules"}
+                className="mt-5 inline-block rounded-xl px-5 py-2.5 text-[12.5px] font-black text-white"
+                style={{ backgroundColor: "var(--color-emerald)" }}
+              >
+                بازگشت
+              </Link>
+            </div>
+          )}
+        </main>
         <BottomNav me={me} />
       </div>
+      {/* اعلان صوتی سفارش جدید فروشگاه (فقط کارشناسان با دسترسی مشاهده‌ی سفارش) */}
+      {!me.agent && me.permissions.includes("shop.view") && <NewOrderAlert />}
     </div>
   );
 }

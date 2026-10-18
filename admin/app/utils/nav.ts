@@ -48,6 +48,7 @@ import {
   Printer,
   Siren,
   SearchCheck,
+  LayoutGrid,
 } from "lucide-react";
 
 export interface NavItem {
@@ -72,6 +73,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: "کلی",
     items: [
       { label: "داشبورد", href: "/", icon: LayoutDashboard, perm: null, hideForAgent: true },
+      { label: "دسترسی سریع", href: "/modules", icon: LayoutGrid, perm: null, hideForAgent: true },
     ],
   },
   {
@@ -198,8 +200,8 @@ export const NAV_SECTIONS: NavSection[] = [
 
 export const BOTTOM_NAV_ITEMS: NavItem[] = [
   { label: "داشبورد", href: "/", icon: LayoutDashboard, perm: null, hideForAgent: true },
+  { label: "دسترسی سریع", href: "/modules", icon: LayoutGrid, perm: null, hideForAgent: true },
   { label: "برداشت‌ها", href: "/withdrawals", icon: Wallet, perm: "withdrawal.view" },
-  { label: "محصولات", href: "/shop/products", icon: Package, perm: "shop.manage" },
   { label: "سفارشات", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
   { label: "نمایندگی", href: "/agent-portal", icon: Store, perm: "agent_portal.view", agentOnly: true },
   { label: "فروش", href: "/agent-portal/sell", icon: ShoppingCart, perm: "agent_portal.sell", agentOnly: true },
@@ -229,4 +231,33 @@ export function isNavActive(pathname: string, href: string): boolean {
   return !ALL_HREFS.some(
     (h) => h !== href && h.length > href.length && (pathname === h || pathname.startsWith(`${h}/`)),
   );
+}
+
+/**
+ * دسترسی لازم برای باز کردن یک مسیر: آیتم منو با طولانی‌ترین پیشوند منطبق (صفحات جزئیات مثل
+ * /deposits/[id] همان دسترسی فهرست را می‌خواهند). مسیرِ بیرون از منو (مثل /profile) آزاد است.
+ */
+export function navItemForPath(pathname: string): NavItem | null {
+  let best: NavItem | null = null;
+  for (const section of NAV_SECTIONS) {
+    for (const item of section.items) {
+      const match =
+        item.href === "/"
+          ? pathname === "/"
+          : pathname === item.href || pathname.startsWith(`${item.href}/`);
+      if (match && (!best || item.href.length > best.href.length)) best = item;
+    }
+  }
+  return best;
+}
+
+/** آیا ادمین فعلی اجازه‌ی باز کردن این مسیر را دارد؟ (کنترل قطعی در API است) */
+export function canOpenPath(pathname: string, viewer: NavViewer): boolean {
+  const item = navItemForPath(pathname);
+  return !item || canSeeNavItem(item, viewer);
+}
+
+/** بررسی یک دسترسی برای نمایش/پنهان کردن دکمه‌های عملیاتی */
+export function hasPermission(viewer: Pick<NavViewer, "permissions"> | null | undefined, perm: string): boolean {
+  return !!viewer?.permissions.includes(perm);
 }

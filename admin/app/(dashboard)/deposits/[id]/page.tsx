@@ -8,7 +8,7 @@ import axios from "axios";
 import {
   AlertTriangle, ArrowRight, Check, Eye, FileText, Loader2, ShieldAlert, X,
 } from "lucide-react";
-import { AccountSelect } from "@/app/components/finance/ui";
+import { AccountSelect, usePerm } from "@/app/components/finance/ui";
 
 interface Detail {
   id: string;
@@ -71,6 +71,7 @@ export default function AdminDepositDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const can = usePerm();
   const { data, isLoading, mutate } = useSWR<Detail>(
     `/api/admin/deposits/${id}`,
     fetcher,
@@ -124,8 +125,10 @@ export default function AdminDepositDetailPage({
 
   const tomanExact = String(Math.round(Number(data.amountRial) / 10));
   const amountMatches = typedAmount.replace(/\D/g, "") === tomanExact;
-  const canReview = data.status === "RECEIPT_UPLOADED";
-  const canDecide = data.status === "UNDER_REVIEW";
+  // دکمه‌های بررسی/تأیید فقط برای نقش‌های دارای deposit.approve
+  const mayApprove = can("deposit.approve");
+  const canReview = mayApprove && data.status === "RECEIPT_UPLOADED";
+  const canDecide = mayApprove && data.status === "UNDER_REVIEW";
   const risk = data.riskSignals;
 
   return (
@@ -473,7 +476,10 @@ export default function AdminDepositDetailPage({
 
             {!canReview && !canDecide && (
               <p className="text-[12px] text-gray-400 text-center py-3">
-                این درخواست در وضعیت «{data.statusLabel}» است و اقدام جدیدی ندارد.
+                {!mayApprove &&
+                (data.status === "RECEIPT_UPLOADED" || data.status === "UNDER_REVIEW")
+                  ? "بررسی و تأیید واریز نیازمند دسترسی «تأیید واریز» است."
+                  : `این درخواست در وضعیت «${data.statusLabel}» است و اقدام جدیدی ندارد.`}
               </p>
             )}
           </div>

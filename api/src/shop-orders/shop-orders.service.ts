@@ -1162,6 +1162,31 @@ export class ShopOrdersService {
     };
   }
 
+  /**
+   * خلاصه‌ی سفارش‌های پرداخت‌شده‌ی در انتظار پردازش برای اعلان صوتی پنل مدیریت؛ کلاینت با
+   * مقایسه‌ی latestPaidAt با آخرین مقدار دیده‌شده، سفارش جدید را تشخیص می‌دهد.
+   */
+  async adminAlertSummary() {
+    const [pendingCount, latest] = await Promise.all([
+      this.prisma.shopOrder.count({ where: { status: 'PAID' } }),
+      this.prisma.shopOrder.findFirst({
+        where: { paidAt: { not: null }, status: { not: 'CANCELLED' } },
+        orderBy: { paidAt: 'desc' },
+        select: { id: true, orderNumber: true, paidAt: true },
+      }),
+    ]);
+    return {
+      pendingCount,
+      latest: latest
+        ? {
+            id: latest.id,
+            orderNumber: latest.orderNumber,
+            paidAt: latest.paidAt!.toISOString(),
+          }
+        : null,
+    };
+  }
+
   async adminList(
     query: GetShopOrdersQueryDto & { q?: string; from?: string; to?: string },
   ) {

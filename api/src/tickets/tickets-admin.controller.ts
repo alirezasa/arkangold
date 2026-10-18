@@ -55,6 +55,12 @@ export class TicketsAdminController {
     return this.adminService.listAll(this.actorOf(req), query);
   }
 
+  @RequirePermission('tickets.assign')
+  @Get('assignees')
+  assignees() {
+    return this.adminService.listAssignees();
+  }
+
   @RequirePermission('tickets.view')
   @Get('dashboard')
   dashboard() {

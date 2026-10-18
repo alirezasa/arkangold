@@ -219,6 +219,18 @@ export const WALLET_CONFIG_DEFAULTS = [
       'کلمات ممنوع اضافه در رمز عبور، جدا با ویرگول (علاوه بر نام برنامه، شرکت، دامنه و واژه‌هایی مثل admin و password)',
   },
   {
+    key: 'physical_delivery.min_gold_grams',
+    value: '0.5',
+    description:
+      'حداقل موجودی طلای آب‌شده‌ی قابل استفاده برای تحویل فیزیکی (خرید شمش) — گرم (۰٫۵ = ۵۰۰ سوت)',
+  },
+  {
+    key: 'physical_delivery.legacy_enabled',
+    value: 'false',
+    description:
+      'پذیرش درخواست تحویل وزنی قدیمی (به‌جای خرید شمش موجود). پیش‌فرض خاموش',
+  },
+  {
     key: 'security.login.user_sms_otp_enabled',
     value: 'true',
     description:

@@ -35,18 +35,13 @@ function writeLS(key: string, value: string) {
 }
 
 export default function NewOrderAlert() {
-  const { data } = useSWR<AlertSummary>("/api/admin/shop-orders/alerts/summary", fetcher, {
-    refreshInterval: POLL_MS,
-    refreshWhenHidden: true,
-    revalidateOnFocus: true,
-    shouldRetryOnError: false,
-  });
-  const [soundOn, setSoundOn] = useState(true);
+  // این مؤلفه فقط پس از بارگذاری سمت کلاینت (پس از دریافت مشخصات ادمین) رندر می‌شود
+  const [soundOn, setSoundOn] = useState(() => readLS(SOUND_KEY) !== "off");
   const [toast, setToast] = useState<AlertSummary["latest"]>(null);
   const audioRef = useRef<AudioContext | null>(null);
+  const soundOnRef = useRef(soundOn);
 
   useEffect(() => {
-    setSoundOn(readLS(SOUND_KEY) !== "off");
     // AudioContext فقط پس از تعامل کاربر اجازه‌ی پخش دارد
     const unlock = () => {
       if (!audioRef.current) {
@@ -90,20 +85,27 @@ export default function NewOrderAlert() {
     });
   }, []);
 
-  useEffect(() => {
-    const latest = data?.latest;
-    if (!latest) return;
-    const seen = readLS(SEEN_KEY);
-    writeLS(SEEN_KEY, latest.paidAt);
-    // بار اول فقط مبنا ثبت می‌شود؛ صدا فقط برای سفارش‌هایی که بعد از آن پرداخت شوند
-    if (!seen || new Date(latest.paidAt) <= new Date(seen)) return;
-    setToast(latest);
-    if (soundOn) chime();
-  }, [data?.latest, soundOn, chime]);
+  const { data } = useSWR<AlertSummary>("/api/admin/shop-orders/alerts/summary", fetcher, {
+    refreshInterval: POLL_MS,
+    refreshWhenHidden: true,
+    revalidateOnFocus: true,
+    shouldRetryOnError: false,
+    onSuccess: (summary) => {
+      const latest = summary.latest;
+      if (!latest) return;
+      const seen = readLS(SEEN_KEY);
+      writeLS(SEEN_KEY, latest.paidAt);
+      // بار اول فقط مبنا ثبت می‌شود؛ صدا فقط برای سفارش‌هایی که بعد از آن پرداخت شوند
+      if (!seen || new Date(latest.paidAt) <= new Date(seen)) return;
+      setToast(latest);
+      if (soundOnRef.current) chime();
+    },
+  });
 
   const toggleSound = () => {
     const next = !soundOn;
     setSoundOn(next);
+    soundOnRef.current = next;
     writeLS(SOUND_KEY, next ? "on" : "off");
     if (next) chime();
   };

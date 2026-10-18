@@ -53,7 +53,10 @@ export class BrandingAdminController {
     }),
   )
   @ApiOperation({ summary: 'بارگذاری لوگو / مهر / امضای شرکت' })
-  upload(@Param('kind') kind: string, @UploadedFile() file: Express.Multer.File) {
+  upload(
+    @Param('kind') kind: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
     return this.service.upload(parseKind(kind), file);
   }
 

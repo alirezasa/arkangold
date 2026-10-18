@@ -70,6 +70,9 @@ type ShopOrderDtoSource = {
   totalRial: unknown;
   trackingCode: string | null;
   orderNumber?: string | null;
+  fundingSource?: string | null;
+  goldAppliedGrams?: unknown;
+  goldAppliedRial?: unknown;
   createdAt: Date;
   updatedAt: Date;
   items: ShopOrderDtoItem[];
@@ -104,7 +107,7 @@ export class ShopOrdersService {
    * بستانکار: درآمد فروش فروشگاه (4020) به اندازه جمع اقلام قبل از تخفیف +
    *           درآمد بسته‌بندی (4030) به اندازه هزینه بسته‌بندی دریافتی
    */
-  private buildSaleJournalLines(params: {
+  buildSaleJournalLines(params: {
     walletRial: number;
     gatewayRial: number;
     discountRial: number;
@@ -146,6 +149,125 @@ export class ShopOrdersService {
       });
     }
     return lines;
+  }
+
+  /**
+   * تبدیل طلای آب‌شده‌ی کاربر به اعتبار ریالی خرید (تحویل فیزیکی = خرید شمش): مانند فروش طلا
+   * بدون کارمزد — بدهی طلایی (2020) کم و معادل ریالی آن به بدهی ریالی کاربر (2010) منتقل و
+   * کسری پوشش (1090) به همان اندازه کم می‌شود؛ سپس سند فروش همان مبلغ را از 2010 برمی‌دارد.
+   * reverse=true: برگشت همین سند هنگام لغو و بازگرداندن طلا به کیف طلایی.
+   */
+  async postGoldConversionJournal(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    grams: Prisma.Decimal,
+    rial: Prisma.Decimal,
+    reverse = false,
+  ) {
+    if (grams.lessThanOrEqualTo(0)) return;
+    const d = reverse ? 'CREDIT' : 'DEBIT';
+    const c = reverse ? 'DEBIT' : 'CREDIT';
+    await this.accountingService.postJournal(tx, {
+      description: `${reverse ? 'برگشت ' : ''}تبدیل طلای آب‌شده به شمش (تحویل فیزیکی) - سفارش ${orderId}`,
+      totalRial: rial,
+      totalGrams: grams,
+      referenceType: 'ORDER',
+      referenceId: orderId,
+      lines: [
+        { accountCode: '2020', side: d, amountRial: rial, amountGrams: grams },
+        { accountCode: '2010', side: c, amountRial: rial },
+        { accountCode: '1090', side: c, amountGrams: grams },
+      ],
+    });
+  }
+
+  /**
+   * کسر طلای رزروشده‌ی سفارش شمش از کیف طلایی (داخل تراکنش نهایی‌سازی پرداخت).
+   * walletId کیف پول کاربر را برمی‌گرداند.
+   */
+  async captureGoldLeg(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string;
+      userId: string;
+      goldAppliedGrams: Prisma.Decimal;
+      goldAppliedRial: Prisma.Decimal;
+    },
+    opts: { requireHold: boolean },
+  ) {
+    if (order.goldAppliedGrams.lessThanOrEqualTo(0)) return;
+    await tx.$executeRaw`SELECT 1 FROM "wallets" WHERE "user_id" = ${order.userId}::uuid FOR UPDATE`;
+    const wallet = await tx.wallet.findUnique({
+      where: { userId: order.userId },
+    });
+    if (!wallet) throw new NotFoundException('کیف پول یافت نشد');
+
+    const hold = await tx.walletHold.findFirst({
+      where: { referenceId: order.id, holdType: 'ORDER_GOLD' },
+    });
+    if (opts.requireHold && (!hold || hold.expiresAt <= new Date())) {
+      throw new ConflictException(
+        'رزرو طلای این سفارش یافت نشد یا منقضی شده است',
+      );
+    }
+    if (wallet.goldBalanceGrams.lessThan(order.goldAppliedGrams)) {
+      throw new ConflictException(
+        'موجودی طلای کیف پول برای تکمیل سفارش کافی نیست',
+      );
+    }
+    await tx.wallet.update({
+      where: { id: wallet.id },
+      data: { goldBalanceGrams: { decrement: order.goldAppliedGrams } },
+    });
+    if (hold) await tx.walletHold.delete({ where: { id: hold.id } });
+    await tx.transaction.create({
+      data: {
+        userId: order.userId,
+        walletId: wallet.id,
+        type: 'PHYSICAL_DELIVERY',
+        amountGrams: order.goldAppliedGrams,
+        amountRial: order.goldAppliedRial,
+        status: 'COMPLETED',
+        description: `gold_to_bar|shop_order:${order.id}`,
+        shopOrderId: order.id,
+      },
+    });
+    await this.postGoldConversionJournal(
+      tx,
+      order.id,
+      order.goldAppliedGrams,
+      order.goldAppliedRial,
+    );
+  }
+
+  /** لغو سفارش شمش پرداخت‌نشده (شکست/عدم شروع درگاه): آزادسازی موجودی انبار و رزروها */
+  async cancelUnpaidGoldOrder(orderId: string, reason: string) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${orderId}::uuid FOR UPDATE`;
+      const order = await tx.shopOrder.findUnique({
+        where: { id: orderId },
+        include: { items: true },
+      });
+      if (!order || order.status !== 'PENDING_PAYMENT') return;
+      await this.releaseStock(tx, order.items);
+      await this.releaseOrderWalletHold(tx, order.id);
+      await tx.payment.updateMany({
+        where: { orderId: order.id, status: 'PENDING' },
+        data: { status: 'FAILED' },
+      });
+      await tx.shopOrder.update({
+        where: { id: order.id },
+        data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason },
+      });
+      await this.events.recordStatus(
+        tx,
+        order.id,
+        'PENDING_PAYMENT',
+        'CANCELLED',
+        { type: 'SYSTEM' },
+        reason,
+      );
+    });
   }
 
   private discountSuffix(order: {
@@ -515,6 +637,13 @@ export class ShopOrdersService {
       );
     }
 
+    // پرداخت سفارش شمش با طلای آب‌شده هنگام ثبت آغاز می‌شود؛ تکرار آن مسیر جداگانه ندارد
+    if (order.fundingSource === 'MELTED_GOLD') {
+      throw new ConflictException(
+        'پرداخت این سفارش قابل تکرار نیست؛ لطفاً درخواست تحویل فیزیکی جدید ثبت کنید',
+      );
+    }
+
     const totalRial = this.toNumber(order.totalRial);
 
     // سفارش با تخفیف ۱۰۰٪ مبلغی برای پرداخت ندارد؛ بدون درگاه نهایی می‌شود
@@ -742,7 +871,7 @@ export class ShopOrdersService {
     });
   }
 
-  private async beginGatewayPayment(
+  async beginGatewayPayment(
     userId: string,
     orderId: string,
     amountRial: number,
@@ -798,13 +927,15 @@ export class ShopOrdersService {
     }
 
     const orderId = payment.orderId;
+    // سفارش شمش با طلای آب‌شده پس از درگاه به صفحه‌ی تحویل فیزیکی برمی‌گردد
+    const goldFunded = payment.order?.fundingSource === 'MELTED_GOLD';
 
     if (payment.status === 'SUCCESS') {
-      return { orderId, success: true, alreadyProcessed: true };
+      return { orderId, success: true, alreadyProcessed: true, goldFunded };
     }
 
     if (payment.status === 'FAILED') {
-      return { orderId, success: false, alreadyProcessed: true };
+      return { orderId, success: false, alreadyProcessed: true, goldFunded };
     }
 
     const provider = this.gatewayFactory.get(providerKey);
@@ -822,12 +953,22 @@ export class ShopOrdersService {
         });
         await this.releaseOrderWalletHold(tx, orderId);
       });
+      if (payment.order?.fundingSource === 'MELTED_GOLD') {
+        await this.cancelUnpaidGoldOrder(orderId, 'پرداخت ناموفق درگاه').catch(
+          (e: unknown) =>
+            this.logger.error(
+              `[ShopOrder] لغو سفارش شمش ${orderId} پس از شکست پرداخت ناموفق بود`,
+              this.formatUnknownError(e),
+            ),
+        );
+      }
 
       return {
         orderId,
         success: false,
         alreadyProcessed: false,
         reason: verifyResult.failureReason,
+        goldFunded,
       };
     }
 
@@ -926,8 +1067,13 @@ export class ShopOrdersService {
           );
         }
 
+        // سهم طلای آب‌شده (خرید شمش با کیف طلایی) پیش از سند فروش کسر و به اعتبار ریالی تبدیل می‌شود
+        await this.captureGoldLeg(tx, order, { requireHold: true });
+        const goldPortionRial = this.toNumber(order.goldAppliedRial);
+
         const orderTotalRial = this.toNumber(order.totalRial);
-        const gatewayPortionRial = orderTotalRial - walletPortionRial;
+        const gatewayPortionRial =
+          orderTotalRial - walletPortionRial - goldPortionRial;
         const subtotalRial = this.toNumber(order.subtotalRial);
         const discountRial = this.toNumber(order.discountRial);
         const packagingRial = this.toNumber(order.packagingRial);
@@ -939,7 +1085,7 @@ export class ShopOrdersService {
           totalRial: subtotalRial + packagingRial,
           totalGrams: 0,
           lines: this.buildSaleJournalLines({
-            walletRial: walletPortionRial,
+            walletRial: walletPortionRial + goldPortionRial,
             gatewayRial: gatewayPortionRial,
             discountRial,
             subtotalRial,
@@ -953,7 +1099,7 @@ export class ShopOrdersService {
             userId: payment.userId,
             walletId: transactionWalletId,
             type: 'SHOP_PURCHASE',
-            amountRial: this.toNumber(order.totalRial),
+            amountRial: orderTotalRial - goldPortionRial,
             status: 'COMPLETED',
             description: `shop_order:${order.id}|gateway:${providerKey}${this.discountSuffix(order)}`,
             shopOrderId: order.id,
@@ -993,7 +1139,7 @@ export class ShopOrdersService {
           );
         });
 
-      return { orderId, success: true, alreadyProcessed: false };
+      return { orderId, success: true, alreadyProcessed: false, goldFunded };
     } catch (err) {
       throw this.translateDbError(err, payment.userId);
     }
@@ -1010,6 +1156,10 @@ export class ShopOrdersService {
     if (hold) {
       await tx.walletHold.delete({ where: { id: hold.id } });
     }
+    // رزرو طلای سفارش شمش (تحویل فیزیکی طلای آب‌شده)
+    await tx.walletHold.deleteMany({
+      where: { referenceId: orderId, holdType: 'ORDER_GOLD' },
+    });
 
     await tx.payment.updateMany({
       where: { orderId, method: 'WALLET', status: 'PENDING' },
@@ -1468,27 +1618,55 @@ export class ShopOrdersService {
         });
 
         if (!existingRefund) {
-          const refundRial = this.toNumber(order.totalRial);
+          // سهم طلای آب‌شده به‌صورت طلا به کیف طلایی برمی‌گردد؛ فقط باقی‌مانده ریالی است
+          const goldRial = this.toNumber(order.goldAppliedRial);
+          const refundRial = this.toNumber(order.totalRial) - goldRial;
+          if (order.goldAppliedGrams.greaterThan(0)) {
+            await tx.wallet.update({
+              where: { id: wallet.id },
+              data: { goldBalanceGrams: { increment: order.goldAppliedGrams } },
+            });
+            await tx.transaction.create({
+              data: {
+                userId: order.userId,
+                walletId: wallet.id,
+                type: 'REFUND',
+                amountGrams: order.goldAppliedGrams,
+                status: 'COMPLETED',
+                description: `shop_order_gold_refund:${order.id}`,
+                shopOrderId: order.id,
+              },
+            });
+            await this.postGoldConversionJournal(
+              tx,
+              order.id,
+              order.goldAppliedGrams,
+              order.goldAppliedRial,
+              true,
+            );
+          }
           const subtotalRial = this.toNumber(order.subtotalRial);
           const discountRial = this.toNumber(order.discountRial);
           const packagingRial = this.toNumber(order.packagingRial);
 
-          await tx.wallet.update({
-            where: { id: wallet.id },
-            data: { rialBalance: { increment: refundRial } },
-          });
+          if (refundRial > 0) {
+            await tx.wallet.update({
+              where: { id: wallet.id },
+              data: { rialBalance: { increment: refundRial } },
+            });
 
-          await tx.transaction.create({
-            data: {
-              userId: order.userId,
-              walletId: wallet.id,
-              type: 'REFUND',
-              amountRial: refundRial,
-              status: 'COMPLETED',
-              description: `shop_order_refund:${order.id}`,
-              shopOrderId: order.id,
-            },
-          });
+            await tx.transaction.create({
+              data: {
+                userId: order.userId,
+                walletId: wallet.id,
+                type: 'REFUND',
+                amountRial: refundRial,
+                status: 'COMPLETED',
+                description: `shop_order_refund:${order.id}`,
+                shopOrderId: order.id,
+              },
+            });
+          }
 
           // برگشت کامل سند فروش: درآمد به اندازه جمع اقلام و بسته‌بندی، و هزینه
           // تخفیف (در صورت وجود) خنثی می‌شود؛ فقط مبلغ پرداختی به کیف پول برمی‌گردد
@@ -1502,11 +1680,12 @@ export class ShopOrdersService {
               amountRial: packagingRial,
             });
           }
-          if (refundRial > 0) {
+          // برگشت سند فروش: کل مبلغ به 2010؛ سهم طلا با سند برگشت تبدیل (بالا) از 2010 به 2020 می‌رود
+          if (refundRial + goldRial > 0) {
             refundLines.push({
               accountCode: '2010',
               side: 'CREDIT',
-              amountRial: refundRial,
+              amountRial: refundRial + goldRial,
             });
           }
           if (discountRial > 0) {
@@ -1643,6 +1822,13 @@ export class ShopOrdersService {
       packagingToman: this.rialToTomanString(order.packagingRial),
       packagingWaivedToman: this.rialToTomanString(order.packagingWaivedRial),
       totalToman: this.rialToTomanString(order.totalRial),
+      // تحویل فیزیکی طلای آب‌شده (خرید شمش با کیف طلایی)
+      fundingSource: order.fundingSource ?? null,
+      goldAppliedGrams: String(this.toNumber(order.goldAppliedGrams)),
+      goldAppliedToman: this.rialToTomanString(order.goldAppliedRial),
+      payableToman: this.rialToTomanString(
+        this.toNumber(order.totalRial) - this.toNumber(order.goldAppliedRial),
+      ),
       trackingCode: order.trackingCode,
       orderNumber: order.orderNumber ?? null,
       address: order.address,

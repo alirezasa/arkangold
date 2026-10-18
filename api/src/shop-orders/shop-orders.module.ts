@@ -10,6 +10,10 @@ import { AccountingModule } from '../accounting/accounting.module';
 import { InvoiceModule } from '../invoice/invoice.module';
 import { DiscountModule } from '../discount/discount.module';
 import { PackagingModule } from '../packaging/packaging.module';
+import { CatalogModule } from '../catalog/catalog.module';
+import { MarketModule } from '../market/market.module';
+import { GoldBarDeliveryService } from './gold-bar-delivery.service';
+import { GoldBarDeliveryController } from './gold-bar-delivery.controller';
 
 @Module({
   imports: [
@@ -18,8 +22,11 @@ import { PackagingModule } from '../packaging/packaging.module';
     InvoiceModule,
     DiscountModule,
     PackagingModule,
+    CatalogModule,
+    MarketModule,
   ],
   controllers: [
+    GoldBarDeliveryController,
     ShopOrdersController,
     ShopOrdersAdminController,
     CourierPublicController,
@@ -28,6 +35,7 @@ import { PackagingModule } from '../packaging/packaging.module';
     ShopOrdersService,
     ShopOrderEventsService,
     ShopOrderFulfillmentService,
+    GoldBarDeliveryService,
   ],
   exports: [ShopOrdersService],
 })

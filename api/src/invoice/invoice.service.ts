@@ -703,6 +703,21 @@ export class InvoiceService {
     })();
     const faRial = (v: number) => `${v.toLocaleString('fa-IR')} ریال`;
 
+    // خرید شمش با طلای آب‌شده (تحویل فیزیکی): سهم کیف طلایی جدا درج می‌شود
+    const order = await tx.shopOrder.findUnique({
+      where: { id: orderId },
+      select: { goldAppliedGrams: true, goldAppliedRial: true },
+    });
+    const goldGrams = Number(order?.goldAppliedGrams ?? 0);
+    if (goldGrams > 0) {
+      const parts = [
+        `کیف طلایی (${goldGrams.toLocaleString('fa-IR', { maximumFractionDigits: 4 })} گرم طلای آب‌شده معادل ${faRial(Number(order!.goldAppliedRial))})`,
+      ];
+      if (wallet.length) parts.push(`کیف پول تومانی (${faRial(sum(wallet))})`);
+      if (gateway.length) parts.push(`${gatewayLabel} (${faRial(sum(gateway))})`);
+      return parts.length > 1 ? `ترکیبی: ${parts.join(' + ')}` : parts[0];
+    }
+
     if (wallet.length && gateway.length) {
       return `ترکیبی: کیف پول تومانی (${faRial(sum(wallet))}) + ${gatewayLabel} (${faRial(sum(gateway))})`;
     }

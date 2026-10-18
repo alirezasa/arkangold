@@ -81,9 +81,12 @@ export class ShopOrdersController {
         providerRef,
         query,
       );
+      const back = result.goldFunded
+        ? `${frontendUrl}/dashboard/wallet/physical-delivery`
+        : `${frontendUrl}/dashboard/shop/cart`;
       const redirectTo = result.success
-        ? `${frontendUrl}/dashboard/shop/cart?paymentStatus=success&orderId=${result.orderId}`
-        : `${frontendUrl}/dashboard/shop/cart?paymentStatus=failed&orderId=${result.orderId}`;
+        ? `${back}?paymentStatus=success&orderId=${result.orderId}`
+        : `${back}?paymentStatus=failed&orderId=${result.orderId}`;
       res.redirect(redirectTo);
     } catch (err) {
       // این مسیر خطا را خودش مدیریت می‌کند و به AllExceptionsFilter نمی‌رسد؛

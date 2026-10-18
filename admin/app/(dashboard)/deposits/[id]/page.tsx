@@ -111,7 +111,7 @@ export default function AdminDepositDetailPage({
   const viewReceipt = (receiptId: string) => {
     setError(null);
     setReceiptUrl(
-      `/api/admin/deposit-receipts/${encodeURIComponent(String(id))}/${encodeURIComponent(receiptId)}?t=${Date.now()}`,
+      `/api/admin/deposit-receipts/${encodeURIComponent(String(id))}/${encodeURIComponent(receiptId)}`,
     );
   };
 

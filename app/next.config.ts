@@ -19,10 +19,11 @@ const apiOrigins = Array.from(
     ].filter(Boolean) as string[],
   ),
 ).join(" ");
-// چت پشتیبانی گفتینو تنها سرویس ثالث مجاز است و فقط وقتی شناسه‌ی ویجت تنظیم شده باشد در CSP می‌آید
-const goftino = process.env.NEXT_PUBLIC_GOFTINO_WIDGET_ID
-  ? " https://goftino.com https://*.goftino.com"
-  : "";
+// چت پشتیبانی گفتینو تنها سرویس ثالث مجاز است (پیش‌فرض روشن؛ NEXT_PUBLIC_GOFTINO_WIDGET_ID=off خاموش)
+const goftino =
+  (process.env.NEXT_PUBLIC_GOFTINO_WIDGET_ID ?? "").trim().toLowerCase() === "off"
+    ? ""
+    : " https://goftino.com https://*.goftino.com";
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${goftino}`,

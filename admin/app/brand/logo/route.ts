@@ -4,19 +4,20 @@
 // اگر لوگویی بارگذاری نشده یا API در دسترس نباشد، لوگوی پیش‌فرض /logo.png نمایش داده می‌شود.
 import { NEST } from "@/app/lib/adminProxy";
 
-export const revalidate = 300;
+// همیشه پویا: قبلاً با revalidate=300 در زمان build به‌صورت ایستا ساخته و تا چند دقیقه (و تا
+// اولین درخواست پس از آن) لوگوی قبلی تحویل داده می‌شد؛ لوگوی تازه‌ی بارگذاری‌شده دیده نمی‌شد.
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const res = await fetch(`${NEST}/public/branding/logo`, {
-      next: { revalidate: 300 },
-    });
+    const res = await fetch(`${NEST}/public/branding/logo`, { cache: "no-store" });
     const type = (res.headers.get("content-type") ?? "").split(";")[0].trim();
     if (res.ok && /^image\/(png|jpeg|webp)$/.test(type)) {
       return new Response(await res.arrayBuffer(), {
         headers: {
           "Content-Type": type,
-          "Cache-Control": "public, max-age=300",
+          // کش کوتاه مرورگر؛ تغییر لوگو حداکثر پس از یک دقیقه همه‌جا دیده می‌شود
+          "Cache-Control": "public, max-age=60, must-revalidate",
           "X-Content-Type-Options": "nosniff",
         },
       });
@@ -25,5 +26,8 @@ export async function GET() {
     // API در دسترس نیست → لوگوی پیش‌فرض
   }
   // Location نسبی تا پشت پراکسی به نشانی داخلی سرور هدایت نشود
-  return new Response(null, { status: 302, headers: { Location: "/logo.png" } });
+  return new Response(null, {
+    status: 302,
+    headers: { Location: "/logo.png", "Cache-Control": "no-store" },
+  });
 }

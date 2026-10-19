@@ -86,7 +86,7 @@ export default function RootLayout({
         <div className="pwa-status-bar" aria-hidden="true" />
         {/* رپر PWA برای مدیریت آفلاین و نصب */}
         <PWAProvider>{children}</PWAProvider>
-        {/* چت پشتیبانی گفتینو (فقط با NEXT_PUBLIC_GOFTINO_WIDGET_ID) */}
+        {/* چت پشتیبانی گفتینو (NEXT_PUBLIC_GOFTINO_WIDGET_ID=off برای خاموش کردن) */}
         <GoftinoChat />
       </body>
     </html>

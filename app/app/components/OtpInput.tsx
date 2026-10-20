@@ -136,7 +136,7 @@ export default function OtpInput({
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={(e) => handlePaste(i, e)}
           onFocus={(e) => e.target.select()}
-          className="h-14 w-11 min-w-0 rounded-xl border-2 border-gray-200 bg-white text-center text-xl font-black outline-none transition-all focus:scale-105 focus:border-emerald disabled:opacity-60 sm:w-12"
+          className="otp-cell h-14 w-11 min-w-0 rounded-xl border-2 border-gray-200 bg-white text-center text-xl font-black outline-none transition-all focus:scale-105 focus:border-emerald disabled:opacity-60 sm:w-12"
         />
       ))}
     </div>

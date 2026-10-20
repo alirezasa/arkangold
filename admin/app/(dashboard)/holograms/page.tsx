@@ -37,7 +37,7 @@ function getErrorMessage(err: unknown, fallback: string): string {
 interface HologramCodeItem {
   id: string;
   code: string;
-  status: "UNASSIGNED" | "ASSIGNED" | "TRANSFER_PENDING" | "REVOKED" | "AT_AGENT";
+  status: "UNASSIGNED" | "ASSIGNED" | "TRANSFER_PENDING" | "REVOKED" | "AT_AGENT" | "BUYBACK_PENDING";
   batch: { id: string; batchNumber: string };
   agent: { id: string; code: string; name: string } | null;
   product: { id: string; name: string } | null;
@@ -149,6 +149,7 @@ const CODE_STATUS_META: Record<string, { label: string; bg: string; color: strin
   UNASSIGNED: { label: "تخصیص‌نیافته", bg: "#f3f4f6", color: "#4b5563" },
   ASSIGNED: { label: "تخصیص‌یافته", bg: "#dcfce7", color: "#16a34a" },
   TRANSFER_PENDING: { label: "در انتظار تأیید انتقال", bg: "#fef3c7", color: "#b45309" },
+  BUYBACK_PENDING: { label: "در فرآیند بازخرید", bg: "#ffedd5", color: "#c2410c" },
   REVOKED: { label: "باطل‌شده", bg: "#fee2e2", color: "#dc2626" },
   AT_AGENT: { label: "امانی نزد نماینده", bg: "#e0f2fe", color: "#0369a1" },
 };

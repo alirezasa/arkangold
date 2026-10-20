@@ -706,6 +706,7 @@ const GROUP_FA: Record<string, string> = {
   integrations: "یکپارچه‌سازی‌ها",
   tickets: "پشتیبانی",
   hologram: "هولوگرام",
+  buyback: "بازخرید شمش",
   security: "امنیت",
   agent: "نمایندگان فروش",
   agent_portal: "پرتال نماینده",

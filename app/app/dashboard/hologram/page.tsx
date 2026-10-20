@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import useSWR from 'swr';
 import axios from 'axios';
 import {
@@ -19,6 +20,7 @@ import {
   Siren,
   AlertTriangle,
   FileWarning,
+  HandCoins,
 } from 'lucide-react';
 import { jalaliToIsoDate } from '@/app/utils/jalali';
 import { newIdempotencyKey } from "../../utils/idempotency";
@@ -89,6 +91,8 @@ interface HologramOwnershipItem {
   hologramCode: {
     id: string;
     code: string;
+    /** BUYBACK_PENDING = در فرآیند فروش به آرکان گلد */
+    status: string;
     weightGrams: string | null;
     purityKarat: 'K18' | 'K24' | null;
     factorySerialNumber: string | null;
@@ -532,8 +536,23 @@ function MyHologramsTab() {
                 </p>
               </div>
             </div>
+          ) : o.hologramCode.status === 'BUYBACK_PENDING' ? (
+            <Link
+              href="/dashboard/sell-bar"
+              className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-800 text-[12px] font-bold"
+            >
+              <HandCoins className="w-4 h-4 shrink-0" />
+              در فرآیند فروش به آرکان گلد — مشاهده‌ی وضعیت درخواست
+            </Link>
           ) : (
             <div className="flex flex-wrap gap-2 mt-3">
+              <Link
+                href={`/dashboard/sell-bar?bar=${o.hologramCode.id}`}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold text-white"
+                style={{ backgroundColor: 'var(--color-emerald)' }}
+              >
+                <HandCoins className="w-3.5 h-3.5" /> فروش به آرکان گلد
+              </Link>
               <button
                 onClick={() => setTransferTarget(o)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[12px] font-bold border-2 border-gray-200 text-gray-700"

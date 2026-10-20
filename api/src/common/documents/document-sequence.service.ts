@@ -28,8 +28,9 @@ export type DocumentPrefix =
   | 'SHO'
   | 'WDR'
   | 'CTR'
-  // گزارش سرقت/مفقودی شمش
-  | 'HIR';
+  // گزارش سرقت/مفقودی شمش، درخواست بازخرید شمش
+  | 'HIR'
+  | 'BBK';
 
 const PREFIX_LABEL: Record<DocumentPrefix, string> = {
   INV: 'INV',
@@ -51,6 +52,7 @@ const PREFIX_LABEL: Record<DocumentPrefix, string> = {
   WDR: 'WDR',
   CTR: 'CTR',
   HIR: 'HIR',
+  BBK: 'BBK',
 };
 
 @Injectable()

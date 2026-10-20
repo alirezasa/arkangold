@@ -120,6 +120,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "تأمین‌کنندگان", href: "/treasury/suppliers", icon: Landmark, perm: "treasury.view" },
       { label: "شمارش خزانه", href: "/treasury/vault-counts", icon: Scale, perm: "treasury.view" },
       { label: "موجودی شمش", href: "/inventory/bullion", icon: Warehouse, perm: "inventory.view" },
+      { label: "بازخرید شمش از کاربران", href: "/buyback", icon: HandCoins, perm: "buyback.view" },
     ],
   },
   {

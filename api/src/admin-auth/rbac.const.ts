@@ -18,6 +18,29 @@ export const ADMIN_PERMISSIONS = [
       'ثبت پرداخت بانکی برداشت (شماره پیگیری، حساب مبدأ، پرداخت گروهی) و ثبت برگشت وجه از بانک',
   },
   {
+    key: 'buyback.view',
+    group: 'buyback',
+    description:
+      'مشاهده درخواست‌های بازخرید شمش (فروش شمش کاربران به آرکان گلد)',
+  },
+  {
+    key: 'buyback.process',
+    group: 'buyback',
+    description:
+      'بررسی درخواست بازخرید: پذیرش و نوبت‌دهی، دریافت شمش، اصالت‌سنجی، اعلام قیمت نهایی، رد و عودت شمش',
+  },
+  {
+    key: 'buyback.approve',
+    group: 'buyback',
+    description: 'تأیید نهایی مالی بازخرید شمش (پیش از واریز)',
+  },
+  {
+    key: 'buyback.pay',
+    group: 'buyback',
+    description:
+      'ثبت واریز مبلغ بازخرید به حساب پیش‌فرض کاربر (شماره پیگیری، حساب مبدأ) و انتقال شمش به خزانه',
+  },
+  {
     key: 'wallet.adjust',
     group: 'wallet',
     description: 'شارژ یا کسر دستی موجودی کیف پول کاربر',
@@ -484,6 +507,10 @@ export const ADMIN_ROLES = [
       'withdrawal.view',
       'withdrawal.approve',
       'withdrawal.pay',
+      'buyback.view',
+      'buyback.process',
+      'buyback.approve',
+      'buyback.pay',
       'transactions.view',
       'physical_delivery.view',
       'physical_delivery.approve',
@@ -533,6 +560,7 @@ export const ADMIN_ROLES = [
       'transactions.view',
       'deposit.view',
       'withdrawal.view',
+      'buyback.view',
       'treasury.view',
       'treasury.payment.manage',
       'inventory.view',
@@ -607,6 +635,8 @@ export const ADMIN_ROLES = [
       'hologram.security.manage',
       'hologram.incident.view',
       'hologram.incident.manage',
+      'buyback.view',
+      'buyback.process',
       'agent.view',
       'agent.stock.manage',
       'inventory.view',

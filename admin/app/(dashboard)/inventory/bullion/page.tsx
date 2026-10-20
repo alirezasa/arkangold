@@ -38,6 +38,8 @@ interface Summary {
     atAgents: { count: number; grams: string };
     transferPending: { count: number; grams: string };
     soldWithOwner: { count: number; grams: string };
+    /** شمش‌هایی که مالک برای فروش به آرکان گلد (بازخرید) درخواست داده است */
+    buybackPending?: { count: number; grams: string };
     awaitingCode: { count: number; grams: string; rows: number };
     shopStock: { units: number; grams: string };
     companyOwned: { grams: string };
@@ -53,12 +55,13 @@ interface Summary {
   };
 }
 
-type Bucket = "VAULT_CODED" | "AT_AGENT" | "SOLD" | "TRANSFER_PENDING" | "AWAITING_CODE" | "BLANK" | "REVOKED";
+type Bucket = "VAULT_CODED" | "AT_AGENT" | "SOLD" | "TRANSFER_PENDING" | "BUYBACK_PENDING" | "AWAITING_CODE" | "BLANK" | "REVOKED";
 const BUCKETS: { key: Bucket; label: string }[] = [
   { key: "VAULT_CODED", label: "کددار در خزانه" },
   { key: "AT_AGENT", label: "نزد نمایندگان" },
   { key: "SOLD", label: "فروخته‌شده" },
   { key: "TRANSFER_PENDING", label: "در انتظار تأیید گیرنده" },
+  { key: "BUYBACK_PENDING", label: "در فرآیند بازخرید" },
   { key: "AWAITING_CODE", label: "فروخته — در انتظار کد" },
   { key: "BLANK", label: "کد خام" },
   { key: "REVOKED", label: "باطل‌شده" },

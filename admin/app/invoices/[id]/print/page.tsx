@@ -9,6 +9,33 @@ import InvoiceDocumentView from "../../components/InvoiceDocument";
 import ProformaDocument from "../../components/ProformaDocument";
 import type { InvoiceDocument } from "../../components/document.types";
 
+/**
+ * بازگشت از صفحه‌ی سند: این صفحه معمولاً در زبانه‌ی جدید (target=_blank/noopener) باز
+ * می‌شود که تاریخچه‌ای ندارد و router.back() کاری نمی‌کرد. اگر صفحه‌ی قبلی از همین سایت
+ * است به آن برمی‌گردد؛ وگرنه زبانه بسته می‌شود و اگر مرورگر اجازه‌ی بستن نداد (مثلاً PWA)
+ * به مسیر جایگزین می‌رود.
+ */
+function goBack(router: ReturnType<typeof useRouter>, fallback: string) {
+  let sameOrigin = false;
+  try {
+    sameOrigin = !!document.referrer && new URL(document.referrer).origin === window.location.origin;
+  } catch {
+    sameOrigin = false;
+  }
+  if (sameOrigin && window.history.length > 1) {
+    router.back();
+    return;
+  }
+  window.close();
+  window.setTimeout(() => router.replace(fallback), 150);
+}
+
+// فاکتور فروش نماینده به فهرست فروش‌های پرتال نمایندگی برمی‌گردد
+const backFallbackPath = () =>
+  new URLSearchParams(window.location.search).get("scope") === "agent"
+    ? "/agent-portal/sales"
+    : "/shop-orders";
+
 export default function AdminInvoicePrintPage({
   params,
 }: {
@@ -64,7 +91,7 @@ export default function AdminInvoicePrintPage({
           <p style={{ fontWeight: 800, marginBottom: 18 }}>{error}</p>
           <button
             className="doc-btn doc-btn--primary"
-            onClick={() => router.back()}
+            onClick={() => goBack(router, backFallbackPath())}
           >
             بازگشت
           </button>
@@ -106,7 +133,7 @@ export default function AdminInvoicePrintPage({
           <Printer size={16} />
           چاپ یا ذخیره PDF
         </button>
-        <button className="doc-btn doc-btn--ghost" onClick={() => router.back()}>
+        <button className="doc-btn doc-btn--ghost" onClick={() => goBack(router, backFallbackPath())}>
           <ArrowRight size={16} />
           بازگشت
         </button>

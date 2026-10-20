@@ -57,6 +57,7 @@ const GROUP_TITLES: Record<string, string> = {
   accounting: "حسابداری",
   tickets: "تیکت‌ها",
   hologram: "هولوگرام",
+  buyback: "بازخرید شمش",
   integrations: "یکپارچه‌سازی‌ها",
   system: "تنظیمات سیستم",
   admin: "مدیریت پنل",

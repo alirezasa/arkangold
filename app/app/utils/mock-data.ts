@@ -131,6 +131,7 @@ export const USER_MENU_GROUPS: NavGroup[] = [
     items: [
       { name: "تحویل فیزیکی طلا", icon: "ti-package", path: "/dashboard/wallet/physical-delivery" },
       { name: "اصالت‌سنجی شمش", icon: "ti-scan", path: "/dashboard/hologram" },
+      { name: "فروش شمش به آرکان گلد", icon: "ti-cash", path: "/dashboard/sell-bar" },
       { name: "گواهی سرمایه", icon: "ti-certificate", path: "/dashboard/certificate" },
     ],
   },

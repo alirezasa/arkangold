@@ -159,6 +159,7 @@ export class BullionItemsQueryDto extends PageQueryDto {
     'AT_AGENT',
     'SOLD',
     'TRANSFER_PENDING',
+    'BUYBACK_PENDING',
     'REVOKED',
     'AWAITING_CODE',
   ])

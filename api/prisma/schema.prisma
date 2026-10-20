@@ -78,6 +78,7 @@ model User {
   discountCodes              DiscountCode[]
   agentPurchases             AgentSale[]                @relation("AgentSaleBuyer")
   partnerOrders              PartnerOrder[]
+  bullionBuybacks            BullionBuybackRequest[]
 
   @@map("users")
 }
@@ -203,6 +204,7 @@ model BankAccount {
   userId             String              @map("user_id") @db.Uuid
   user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   withdrawalRequests WithdrawalRequest[]
+  bullionBuybacks    BullionBuybackRequest[]
 
   @@index([userId])
   @@index([status])
@@ -1911,6 +1913,7 @@ model HologramCode {
   agentStockMovements AgentStockMovement[]
   agentSales          AgentSale[]
   incidentReports     HologramIncidentReport[]
+  buybackRequests     BullionBuybackRequest[]
 
   @@index([batchId])
   @@index([status])
@@ -2588,6 +2591,8 @@ enum HologramCodeStatus {
   TRANSFER_PENDING
   REVOKED
   AT_AGENT
+  /// مالک درخواست فروش شمش به آرکان گلد (بازخرید) داده است — انتقال/ابطال مسدود است
+  BUYBACK_PENDING
 }
 
 enum HologramOwnershipStatus {
@@ -3314,4 +3319,159 @@ model LoginDevice {
   @@unique([userId, fingerprint])
   @@unique([adminUserId, fingerprint])
   @@map("login_devices")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  بازخرید شمش — فروش شمش آرکان گلد توسط مالک به خود آرکان گلد
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// درخواست بازخرید شمش. چرخه:
+///   SUBMITTED ─پذیرش─► AWAITING_DELIVERY ─دریافت شمش─► RECEIVED ─اصالت‌سنجی─► INSPECTION_PASSED
+///   INSPECTION_PASSED ─پیشنهاد قیمت─► OFFERED ─پذیرش کاربر─► ACCEPTED ─تأیید نهایی─► APPROVED ─واریز─► PAID
+///   اصالت‌سنجی ناموفق / انصراف کاربر از قیمت ─► RETURN_PENDING ─عودت─► RETURNED
+///   پیش از دریافت شمش: REJECTED (ادمین) / CANCELLED (کاربر)
+model BullionBuybackRequest {
+  id             String               @id @default(uuid()) @db.Uuid
+  /// شماره‌ی درخواست، مثلاً AG-1405-BBK-000012
+  requestNumber  String               @unique @map("request_number")
+  userId         String               @map("user_id") @db.Uuid
+  user           User                 @relation(fields: [userId], references: [id])
+  hologramCodeId String               @map("hologram_code_id") @db.Uuid
+  hologramCode   HologramCode         @relation(fields: [hologramCodeId], references: [id])
+  /// مالکیت فعال کاربر در لحظه‌ی ثبت درخواست
+  ownershipId    String               @map("ownership_id") @db.Uuid
+  status         BullionBuybackStatus @default(SUBMITTED)
+
+  // ── snapshot شمش و مالک در لحظه‌ی درخواست ──
+  declaredWeightGrams Decimal          @map("declared_weight_grams") @db.Decimal(18, 4)
+  purityKarat         GoldPurityKarat? @map("purity_karat")
+  productTitle        String?          @map("product_title")
+  ownerFullName       String           @map("owner_full_name")
+  ownerNationalCode   String           @map("owner_national_code")
+
+  // ── درخواست کاربر ──
+  deliveryMethod      BuybackDeliveryMethod @map("delivery_method")
+  userNote            String?               @map("user_note")
+  /// برآورد غیرقطعی قیمت در لحظه‌ی ثبت (قیمت روز × وزن − کسورات)
+  estimatedPriceRial  Decimal               @map("estimated_price_rial") @db.Decimal(18, 0)
+
+  // ── حساب مقصد واریز (حساب پیش‌فرض تأییدشده‌ی کاربر) ──
+  bankAccountId       String      @map("bank_account_id") @db.Uuid
+  bankAccount         BankAccount @relation(fields: [bankAccountId], references: [id])
+  destinationSnapshot Json        @map("destination_snapshot")
+
+  // ── پذیرش اولیه و نوبت تحویل ──
+  reviewedByAdminId String?   @map("reviewed_by_admin_id") @db.Uuid
+  reviewedAt        DateTime? @map("reviewed_at")
+  appointmentAt     DateTime? @map("appointment_at")
+  appointmentNote   String?   @map("appointment_note")
+
+  // ── دریافت شمش ──
+  receivedByAdminId String?   @map("received_by_admin_id") @db.Uuid
+  receivedAt        DateTime? @map("received_at")
+  receiptNote       String?   @map("receipt_note")
+
+  // ── اصالت‌سنجی ──
+  inspectedByAdminId  String?   @map("inspected_by_admin_id") @db.Uuid
+  inspectedAt         DateTime? @map("inspected_at")
+  inspectionPassed    Boolean?  @map("inspection_passed")
+  /// چک‌لیست اصالت‌سنجی (هولوگرام، سریال، بسته‌بندی، ظاهر، آزمون عیار)
+  inspectionChecklist Json?     @map("inspection_checklist")
+  measuredWeightGrams Decimal?  @map("measured_weight_grams") @db.Decimal(18, 4)
+  /// عیار اندازه‌گیری‌شده در هزار (مثلاً 995.0)
+  measuredFineness    Decimal?  @map("measured_fineness") @db.Decimal(6, 1)
+  inspectionNote      String?   @map("inspection_note")
+
+  // ── پیشنهاد قیمت نهایی ──
+  offeredByAdminId      String?   @map("offered_by_admin_id") @db.Uuid
+  offeredAt             DateTime? @map("offered_at")
+  offerExpiresAt        DateTime? @map("offer_expires_at")
+  offerPricePerGramRial Decimal?  @map("offer_price_per_gram_rial") @db.Decimal(18, 0)
+  offerGrossRial        Decimal?  @map("offer_gross_rial") @db.Decimal(18, 0)
+  offerDeductionRial    Decimal?  @map("offer_deduction_rial") @db.Decimal(18, 0)
+  offerFeeRial          Decimal?  @map("offer_fee_rial") @db.Decimal(18, 0)
+  /// مبلغ نهایی قابل واریز به حساب کاربر
+  offerNetRial          Decimal?  @map("offer_net_rial") @db.Decimal(18, 0)
+  offerNote             String?   @map("offer_note")
+  acceptedAt            DateTime? @map("accepted_at")
+
+  // ── تأیید نهایی و واریز ──
+  approvedByAdminId String?   @map("approved_by_admin_id") @db.Uuid
+  approvedAt        DateTime? @map("approved_at")
+  paidByAdminId     String?   @map("paid_by_admin_id") @db.Uuid
+  paidAt            DateTime? @map("paid_at")
+  payoutMethod      String?   @map("payout_method")
+  bankReference     String?   @map("bank_reference")
+  sourceAccountCode String?   @map("source_account_code")
+  journalEntryId    String?   @map("journal_entry_id") @db.Uuid
+
+  // ── رد / لغو / عودت ──
+  rejectionReason   String?   @map("rejection_reason")
+  cancelledAt       DateTime? @map("cancelled_at")
+  returnReason      String?   @map("return_reason")
+  returnedAt        DateTime? @map("returned_at")
+  returnedByAdminId String?   @map("returned_by_admin_id") @db.Uuid
+  returnNote        String?   @map("return_note")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  events BullionBuybackEvent[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([hologramCodeId])
+  @@map("bullion_buyback_requests")
+}
+
+/// تاریخچه‌ی append-only تغییر وضعیت درخواست بازخرید
+model BullionBuybackEvent {
+  id           String                @id @default(uuid()) @db.Uuid
+  requestId    String                @map("request_id") @db.Uuid
+  request      BullionBuybackRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fromStatus   BullionBuybackStatus? @map("from_status")
+  toStatus     BullionBuybackStatus  @map("to_status")
+  /// USER | ADMIN | SYSTEM
+  actorType    String                @map("actor_type")
+  actorUserId  String?               @map("actor_user_id") @db.Uuid
+  actorAdminId String?               @map("actor_admin_id") @db.Uuid
+  note         String?
+  createdAt    DateTime              @default(now()) @map("created_at")
+
+  @@index([requestId, createdAt])
+  @@map("bullion_buyback_events")
+}
+
+enum BullionBuybackStatus {
+  /// ثبت‌شده توسط کاربر — شمش قفل شد، در انتظار بررسی اولیه
+  SUBMITTED
+  /// پذیرش اولیه — منتظر تحویل شمش به دفتر
+  AWAITING_DELIVERY
+  /// شمش در دفتر دریافت شد — در انتظار اصالت‌سنجی
+  RECEIVED
+  /// اصالت‌سنجی موفق — در انتظار تعیین قیمت نهایی
+  INSPECTION_PASSED
+  /// قیمت نهایی به کاربر پیشنهاد شد — منتظر پذیرش کاربر
+  OFFERED
+  /// کاربر قیمت را پذیرفت — در انتظار تأیید نهایی مالی
+  ACCEPTED
+  /// تأیید نهایی — در صف واریز به حساب کاربر
+  APPROVED
+  /// مبلغ به حساب کاربر واریز شد و شمش به خزانه منتقل شد
+  PAID
+  /// شمش باید به مالک عودت داده شود (اصالت‌سنجی ناموفق یا انصراف کاربر)
+  RETURN_PENDING
+  /// شمش به مالک عودت داده شد
+  RETURNED
+  /// رد درخواست توسط آرکان گلد پیش از دریافت شمش
+  REJECTED
+  /// لغو توسط کاربر پیش از دریافت شمش
+  CANCELLED
+}
+
+enum BuybackDeliveryMethod {
+  /// تحویل حضوری در دفتر آرکان گلد
+  IN_PERSON
+  /// ارسال با پست بیمه‌شده / پیک امن
+  INSURED_POST
 }

@@ -114,6 +114,7 @@ export class BankAccountService {
         cardNumber,
         status: 'REJECTED',
         withdrawalRequests: { none: {} },
+        bullionBuybacks: { none: {} },
       },
     });
 
@@ -145,16 +146,23 @@ export class BankAccountService {
     };
   }
 
-  // ── حذف کارت (فقط اگر در هیچ درخواست برداشتی استفاده نشده باشد) ──
+  // ── حذف کارت (فقط اگر در هیچ درخواست برداشت یا بازخرید شمشی استفاده نشده باشد) ──
   async removeAccount(userId: string, accountId: string) {
     const account = await this.prisma.bankAccount.findFirst({
       where: { id: accountId, userId },
-      include: { _count: { select: { withdrawalRequests: true } } },
+      include: {
+        _count: { select: { withdrawalRequests: true, bullionBuybacks: true } },
+      },
     });
     if (!account) throw new NotFoundException('کارت بانکی یافت نشد');
     if (account._count.withdrawalRequests > 0) {
       throw new BadRequestException(
         'این کارت در درخواست برداشت استفاده شده و برای حفظ سوابق مالی قابل حذف نیست',
+      );
+    }
+    if (account._count.bullionBuybacks > 0) {
+      throw new BadRequestException(
+        'این کارت مقصد واریز بازخرید شمش است و برای حفظ سوابق مالی قابل حذف نیست',
       );
     }
 

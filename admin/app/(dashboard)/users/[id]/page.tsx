@@ -16,6 +16,10 @@ import {
   Smartphone,
   Eye,
   EyeOff,
+  User,
+  Wallet,
+  Coins,
+  CreditCard,
 } from "lucide-react";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
 
@@ -48,6 +52,12 @@ const MOBILE_STATUS_META: Record<MobileStatus, { label: string; bg: string; colo
   MISMATCH: { label: "عدم تطابق — امکانات مسدود", bg: "#fee2e2", color: "#dc2626" },
   UNAVAILABLE: { label: "در انتظار سامانه شاهکار", bg: "#fef3c7", color: "#b45309" },
   NOT_CHECKED: { label: "استعلام نشده", bg: "#f3f4f6", color: "#6b7280" },
+};
+
+const ACCOUNT_STATUS_META: Record<UserDetail["status"], { label: string; bg: string; color: string }> = {
+  ACTIVE: { label: "فعال", bg: "#dcfce7", color: "#16a34a" },
+  BANNED: { label: "مسدود", bg: "#fee2e2", color: "#dc2626" },
+  INACTIVE: { label: "غیرفعال", bg: "#f3f4f6", color: "#6b7280" },
 };
 
 const BANK_STATUS_META: Record<BankAccount["status"], { label: string; bg: string; color: string }> = {
@@ -203,12 +213,15 @@ function MobileSection({
       style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-        <h2 className="text-[13px] font-black text-gray-700">تطبیق شماره موبایل (شاهکار)</h2>
+        <h2 className="text-[13px] font-black text-gray-700 flex items-center gap-2">
+          <Smartphone className="w-4 h-4 text-gold-500" />
+          تطبیق شماره موبایل (شاهکار)
+        </h2>
         <span className="badge" style={{ background: meta.bg, color: meta.color }}>
           {meta.label}
         </span>
       </div>
-      <div className="grid sm:grid-cols-3 gap-2 text-[12px] mb-3">
+      <div className="grid sm:grid-cols-3 lg:grid-cols-1 gap-2 text-[12px] mb-3">
         <div className="p-2.5 rounded-xl bg-gray-50">
           <p className="text-gray-400 font-bold mb-0.5">موبایل</p>
           <p dir="ltr" className="font-bold text-right">{user.phone}</p>
@@ -296,10 +309,10 @@ function MfaSection({
 
   return (
     <div
-      className="rounded-2xl p-5 mb-5"
+      className="rounded-2xl p-5"
       style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
     >
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-[13px] font-black text-gray-700 flex items-center gap-2">
           <Smartphone className="w-4 h-4 text-gold-500" />
           ورود دومرحله‌ای
@@ -472,13 +485,13 @@ function IdentitySection({
 
   return (
     <div
-      className="rounded-2xl p-5 mb-5"
+      className="rounded-2xl p-5"
       style={{
         backgroundColor: "var(--color-surface)",
         border: "1px solid var(--color-border)",
       }}
     >
-      <div className="flex items-center justify-between gap-3 mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h2 className="text-[13px] font-black text-gray-700 flex items-center gap-2">
           <Fingerprint className="w-4 h-4 text-gold-500" />
           احراز هویت
@@ -488,6 +501,7 @@ function IdentitySection({
             </span>
           )}
         </h2>
+        <div className="flex flex-wrap gap-2">
         {canReinquire && (
           <button
             type="button"
@@ -526,6 +540,7 @@ function IdentitySection({
             {revealed ? "پنهان کردن کد ملی" : "نمایش کد ملی"}
           </button>
         )}
+        </div>
       </div>
 
       {!identity ? (
@@ -533,7 +548,7 @@ function IdentitySection({
           کاربر هنوز اطلاعات هویتی ثبت نکرده است
         </p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-x-6">
           {rows.map((r) => (
             <div
               key={r.label}
@@ -591,7 +606,7 @@ function ReferralSection({ user }: { user: UserDetail }) {
 
   return (
     <div
-      className="rounded-2xl p-5 mb-5"
+      className="rounded-2xl p-5"
       style={{
         backgroundColor: "var(--color-surface)",
         border: "1px solid var(--color-border)",
@@ -762,119 +777,200 @@ export default function UserDetailPage() {
     );
   }
 
+  const fullName =
+    [data.identity?.firstName, data.identity?.lastName].filter(Boolean).join(" ") || null;
+  const accountStatus = ACCOUNT_STATUS_META[data.status] ?? ACCOUNT_STATUS_META.INACTIVE;
+  const identityMeta = data.identity ? IDENTITY_STATUS_META[data.identity.status] : null;
+  const mobileMeta = data.mobileVerification ? MOBILE_STATUS_META[data.mobileVerification.status] : null;
+  const verifiedCards = data.bankAccounts.filter((b) => b.status === "VERIFIED").length;
+
   return (
-    <div className="max-w-2xl">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-lg font-black text-gray-900" dir="ltr">
-            {data.phone}
-          </h1>
-          <p className="text-[12px] text-gray-400 mt-0.5">
-            {[data.identity?.firstName, data.identity?.lastName]
-              .filter(Boolean)
-              .join(" ") || "بدون احراز هویت"}
-          </p>
-        </div>
-        <button
-          onClick={toggleBan}
-          disabled={processing}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-60"
-          style={{
-            backgroundColor: data.status === "BANNED" ? "#16a34a" : "#dc2626",
-          }}
-        >
-          {data.status === "BANNED" ? (
-            <ShieldCheck className="w-4 h-4" />
-          ) : (
-            <ShieldOff className="w-4 h-4" />
-          )}
-          {data.status === "BANNED" ? "رفع مسدودیت" : "مسدودسازی"}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        <div
-          className="rounded-2xl p-4"
-          style={{
-            backgroundColor: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-          }}
-        >
-          <p className="text-[11px] text-gray-400 mb-1">موجودی ریالی</p>
-          <p className="text-[16px] font-black">
-            {(Number(data.wallet?.rialBalance ?? 0) / 10).toLocaleString(
-              "fa-IR",
-            )}{" "}
-            ت
-          </p>
-        </div>
-        <div
-          className="rounded-2xl p-4"
-          style={{
-            backgroundColor: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-          }}
-        >
-          <p className="text-[11px] text-gray-400 mb-1">موجودی طلا</p>
-          <p className="text-[16px] font-black">
-            {Number(data.wallet?.goldBalanceGrams ?? 0).toFixed(4)} گ
-          </p>
-        </div>
-      </div>
-
-      <IdentitySection user={data} onUpdated={() => mutate()} />
-      <MfaSection user={data} onUpdated={() => mutate()} />
-
-      <MobileSection user={data} onUpdated={() => mutate()} />
-
-      <ReferralSection user={data} />
-
+    <div className="mx-auto max-w-7xl space-y-5">
+      {/* سربرگ پرونده‌ی کاربر */}
       <div
-        className="rounded-2xl p-5"
-        style={{
-          backgroundColor: "var(--color-surface)",
-          border: "1px solid var(--color-border)",
-        }}
+        className="flex flex-wrap items-center justify-between gap-4 rounded-2xl p-5"
+        style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
       >
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-[13px] font-black text-gray-700">حساب‌های بانکی</h2>
-          <Link href={`/bank-accounts?userId=${data.id}`} className="text-[11px] font-bold text-gray-500 hover:text-gray-700">
-            بررسی و استعلام ←
-          </Link>
-        </div>
-        {data.bankAccounts.length === 0 ? (
-          <p className="text-[12px] text-gray-400">بدون حساب بانکی ثبت‌شده</p>
-        ) : (
-          <div className="space-y-2">
-            {/* رفع خطا: استفاده از تایپ BankAccount به جای any */}
-            {data.bankAccounts.map((b: BankAccount) => (
-              <div
-                key={b.id}
-                className="flex flex-wrap items-center justify-between gap-2 text-[12px] py-2 border-b border-gray-50 last:border-0"
-              >
-                <div className="min-w-0">
-                  <span className="font-bold">{b.bankName}</span>
-                  {b.isDefault && <span className="text-[10px] text-amber-600 font-bold"> · پیش‌فرض</span>}
-                  {b.ownerName && <div className="text-[10px] text-gray-400">{b.ownerName}</div>}
-                </div>
-                <div dir="ltr" className="font-medium text-gray-600 text-left">
-                  {b.cardNumber}
-                  {b.sheba && <div className="text-[10px] text-gray-400">{b.sheba}</div>}
-                </div>
-                <span
-                  className="badge"
-                  title={b.statusMessage ?? undefined}
-                  style={{
-                    background: BANK_STATUS_META[b.status]?.bg ?? "#f3f4f6",
-                    color: BANK_STATUS_META[b.status]?.color ?? "#6b7280",
-                  }}
-                >
-                  {BANK_STATUS_META[b.status]?.label ?? (b.isVerified ? "تایید شده" : "در انتظار")}
-                </span>
-              </div>
-            ))}
+        <div className="flex min-w-0 items-center gap-4">
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-xl font-black text-white"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+            aria-hidden="true"
+          >
+            {fullName ? fullName.charAt(0) : <User className="h-6 w-6" />}
           </div>
-        )}
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-black text-gray-900">{fullName ?? "بدون احراز هویت"}</h1>
+            <p className="mt-0.5 text-[13px] font-bold text-gray-500" dir="ltr" style={{ textAlign: "right" }}>
+              {data.phone}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="badge" style={{ background: accountStatus.bg, color: accountStatus.color }}>
+                حساب: {accountStatus.label}
+              </span>
+              {identityMeta && (
+                <span className="badge" style={{ background: identityMeta.bg, color: identityMeta.color }}>
+                  هویت: {identityMeta.label}
+                </span>
+              )}
+              {mobileMeta && (
+                <span className="badge" style={{ background: mobileMeta.bg, color: mobileMeta.color }}>
+                  موبایل: {mobileMeta.label}
+                </span>
+              )}
+              {data.mfa?.totpEnabled && (
+                <span className="badge" style={{ background: "#dcfce7", color: "#16a34a" }}>
+                  ورود دومرحله‌ای فعال
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/bank-accounts?userId=${data.id}`}
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-[13px] font-bold text-gray-700"
+          >
+            <CreditCard className="h-4 w-4" /> کارت‌های بانکی
+          </Link>
+          <button
+            onClick={toggleBan}
+            disabled={processing}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-bold text-white disabled:opacity-60"
+            style={{
+              backgroundColor: data.status === "BANNED" ? "#16a34a" : "#dc2626",
+            }}
+          >
+            {processing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : data.status === "BANNED" ? (
+              <ShieldCheck className="w-4 h-4" />
+            ) : (
+              <ShieldOff className="w-4 h-4" />
+            )}
+            {data.status === "BANNED" ? "رفع مسدودیت" : "مسدودسازی"}
+          </button>
+        </div>
+      </div>
+
+      {/* شاخص‌ها */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          {
+            label: "موجودی ریالی",
+            value: `${(Number(data.wallet?.rialBalance ?? 0) / 10).toLocaleString("fa-IR")} ت`,
+            icon: Wallet,
+          },
+          {
+            label: "موجودی طلا",
+            value: `${Number(data.wallet?.goldBalanceGrams ?? 0).toLocaleString("fa-IR", { maximumFractionDigits: 4 })} گرم`,
+            icon: Coins,
+          },
+          {
+            label: "کارت‌های بانکی",
+            value: `${data.bankAccounts.length.toLocaleString("fa-IR")} کارت`,
+            hint: `${verifiedCards.toLocaleString("fa-IR")} تأییدشده`,
+            icon: CreditCard,
+          },
+          {
+            label: "دعوت از دوستان",
+            value: `${data.referralStats.totalInvites.toLocaleString("fa-IR")} نفر`,
+            hint: `کد دعوت ${data.referralCode}`,
+            icon: Gift,
+          },
+        ].map((k) => (
+          <div
+            key={k.label}
+            className="flex items-start justify-between gap-3 rounded-2xl p-4"
+            style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+          >
+            <div className="min-w-0">
+              <p className="mb-1 text-[11px] font-bold text-gray-400">{k.label}</p>
+              <p className="truncate text-[16px] font-black text-gray-900">{k.value}</p>
+              {k.hint && <p className="mt-0.5 truncate text-[11px] text-gray-400">{k.hint}</p>}
+            </div>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gold-500">
+              <k.icon className="h-4 w-4" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* دو ستون در دسکتاپ: اطلاعات اصلی + وضعیت امنیتی */}
+      <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
+        <div className="space-y-5 lg:col-span-2">
+          <IdentitySection user={data} onUpdated={() => mutate()} />
+
+          <div
+            className="rounded-2xl p-5"
+            style={{
+              backgroundColor: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[13px] font-black text-gray-700 flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-gold-500" />
+                حساب‌های بانکی
+              </h2>
+              <Link href={`/bank-accounts?userId=${data.id}`} className="text-[11px] font-bold text-gray-500 hover:text-gray-700">
+                بررسی و استعلام ←
+              </Link>
+            </div>
+            {data.bankAccounts.length === 0 ? (
+              <p className="text-[12px] text-gray-400">بدون حساب بانکی ثبت‌شده</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[12px]">
+                  <thead>
+                    <tr className="text-right text-[11px] text-gray-400">
+                      <th className="pb-2 font-bold">بانک / صاحب حساب</th>
+                      <th className="pb-2 font-bold">شماره کارت</th>
+                      <th className="pb-2 font-bold">شبا</th>
+                      <th className="pb-2 font-bold">وضعیت</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.bankAccounts.map((b: BankAccount) => (
+                      <tr key={b.id} className="border-t border-gray-50">
+                        <td className="py-2.5">
+                          <span className="font-bold">{b.bankName}</span>
+                          {b.isDefault && <span className="text-[10px] text-amber-600 font-bold"> · پیش‌فرض</span>}
+                          {b.ownerName && <div className="text-[10px] text-gray-400">{b.ownerName}</div>}
+                        </td>
+                        <td className="py-2.5 font-medium text-gray-600" dir="ltr" style={{ textAlign: "right" }}>
+                          {b.cardNumber}
+                        </td>
+                        <td className="py-2.5 text-[11px] text-gray-500" dir="ltr" style={{ textAlign: "right" }}>
+                          {b.sheba ?? "—"}
+                        </td>
+                        <td className="py-2.5">
+                          <span
+                            className="badge"
+                            title={b.statusMessage ?? undefined}
+                            style={{
+                              background: BANK_STATUS_META[b.status]?.bg ?? "#f3f4f6",
+                              color: BANK_STATUS_META[b.status]?.color ?? "#6b7280",
+                            }}
+                          >
+                            {BANK_STATUS_META[b.status]?.label ?? (b.isVerified ? "تایید شده" : "در انتظار")}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <ReferralSection user={data} />
+        </div>
+
+        <div className="space-y-5 lg:sticky lg:top-4">
+          <MobileSection user={data} onUpdated={() => mutate()} />
+          <MfaSection user={data} onUpdated={() => mutate()} />
+        </div>
       </div>
     </div>
   );

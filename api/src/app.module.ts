@@ -48,6 +48,7 @@ import { AgentModule } from './agent/agent.module';
 import { TreasuryModule } from './treasury/treasury.module';
 import { PartnersModule } from './partners/partners.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { BuybackModule } from './buyback/buyback.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     IntegrationsModule,
     TicketsModule,
     HologramModule,
+    BuybackModule,
     ReferralModule,
     DiscountModule,
     PackagingModule,

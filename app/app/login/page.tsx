@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   Phone,
   Lock,
@@ -11,7 +10,6 @@ import {
   ShieldCheck,
   ArrowLeft,
   UserPlus,
-  AlertCircle,
   Loader2,
   Timer,
   Smartphone,
@@ -22,12 +20,18 @@ import { useLogin } from "../hooks/useLogin";
 import OtpInput from "../components/OtpInput";
 import { digitsOnly } from "../utils/digits";
 import { captureReturnPathFromUrl } from "../utils/return-path";
-
-// آرایه متون اسلایدر
-const SLIDES = [
-  "خرید و فروش طلای آب شده",
-  "خرید و فروش شمش طلا",
-];
+import AuthShell, {
+  AuthDivider,
+  AuthError,
+  AuthHeading,
+  AuthTerms,
+} from "../components/auth/AuthShell";
+import {
+  authInput,
+  authLabel,
+  authPrimaryButton,
+  authSecondaryButton,
+} from "../components/auth/styles";
 
 export default function LoginPage() {
   const {
@@ -52,11 +56,6 @@ export default function LoginPage() {
   const [useRecovery, setUseRecovery] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState("");
 
-  // استیت‌های افکت تایپی (Typewriter)
-  const [textIndex, setTextIndex] = useState(0);
-  const [displayedText, setDisplayedText] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
-
   // Form States
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -74,41 +73,6 @@ export default function LoginPage() {
       return () => clearInterval(interval);
     }
   }, [timer]);
-
-  // منطق افکت تایپی (Typewriter Effect)
-  useEffect(() => {
-    const currentFullText = SLIDES[textIndex];
-    let timeout: NodeJS.Timeout;
-
-    if (!isDeleting && displayedText.length < currentFullText.length) {
-      // در حال تایپ حروف
-      timeout = setTimeout(() => {
-        setDisplayedText(
-          currentFullText.substring(0, displayedText.length + 1),
-        );
-      }, 100);
-    } else if (!isDeleting && displayedText.length === currentFullText.length) {
-      // مکث پس از تکمیل تایپ
-      timeout = setTimeout(() => {
-        setIsDeleting(true);
-      }, 2000);
-    } else if (isDeleting && displayedText.length > 0) {
-      // در حال پاک کردن حروف
-      timeout = setTimeout(() => {
-        setDisplayedText(
-          currentFullText.substring(0, displayedText.length - 1),
-        );
-      }, 50);
-    } else if (isDeleting && displayedText.length === 0) {
-      // رفتن به متن بعدی (داخل setTimeout قرار گرفت تا ارور ESLint رفع شود)
-      timeout = setTimeout(() => {
-        setIsDeleting(false);
-        setTextIndex((prev) => (prev + 1) % SLIDES.length);
-      }, 50);
-    }
-
-    return () => clearTimeout(timeout);
-  }, [displayedText, isDeleting, textIndex]);
 
   // فرمت زمان تایمر
   const formatTime = (seconds: number) => {
@@ -187,351 +151,248 @@ export default function LoginPage() {
   };
 
   return (
-    <div
-      className="w-full min-h-app flex flex-col lg:flex-row-reverse bg-[#fdfdfd]"
-      dir="rtl"
+    <AuthShell
+      tagline="امنیت سرمایه شما، اولویت ماست. وارد پنل کاربری خود شوید و معاملات را مدیریت کنید."
+      footer={
+        <div className="auth-stack-sm text-center">
+          {step === "credentials" && (
+            <>
+              <AuthDivider label="هنوز حساب کاربری ندارید؟" />
+              <Link
+                href="/register"
+                className={`${authSecondaryButton} border-gold-500 bg-gold-500/5 text-[#8a6d35] hover:bg-gold-500 hover:text-white`}
+              >
+                <UserPlus className="h-5 w-5" /> ثبت‌نام در آرکان گلد
+              </Link>
+            </>
+          )}
+          <AuthTerms />
+        </div>
+      }
     >
-      {/* بخش راست: پنل برندینگ (دسکتاپ) */}
-      <div className="hidden lg:flex lg:w-[45%] bg-emerald relative overflow-hidden flex-col justify-between p-16">
-        <div className="absolute inset-0 bg-[url('/patterns/cubes.svg')] opacity-10"></div>
-        <div className="relative z-10">
-          {/* لوگوی دسکتاپ - بزرگ و شفاف */}
-          <div className="mb-8">
-            <Image
-              src="/brand/logo"
-              unoptimized
-              alt="آرکان گلد"
-              width={160}
-              height={160}
-              className="object-contain drop-shadow-xl"
-              priority
-            />
-          </div>
-          <h1 className="text-5xl font-black text-white leading-snug">
-            آرکان گلد
-            <br />
-            {/* متن با افکت تایپی دسکتاپ */}
-            <span className="text-gold-500 inline-flex items-center min-h-14 mt-2">
-              <span>{displayedText}</span>
-              <span className="animate-pulse text-white mr-1 font-normal">
-                |
-              </span>
-            </span>
-          </h1>
-          <p className="mt-8 text-xl text-emerald-100/80 font-light leading-relaxed max-w-sm">
-            امنیت سرمایه شما، اولویت ماست. وارد پنل کاربری خود شوید و معاملات را
-            مدیریت کنید.
-          </p>
-        </div>
-        <div className="relative z-10 flex items-center gap-3 text-gold-500/90 font-bold">
-          <ShieldCheck className="w-6 h-6" />
-          <span>تضمین امنیت با رمزنگاری پیشرفته</span>
-        </div>
-      </div>
+      <div className="auth-stack">
+        <AuthHeading title="ورود به حساب" subtitle="لطفاً اطلاعات خود را وارد کنید" />
 
-      {/* بخش چپ: فرم ورود */}
-      <div className="flex-1 flex flex-col justify-center px-6 sm:px-20 py-6 sm:py-12">
-        <div className="w-full max-w-sm mx-auto">
-          {/* لوگو و نام برند برای حالت موبایل */}
-          <div className="flex flex-col items-center justify-center mb-6 lg:hidden">
-            <div className="mb-2">
-              <Image
-                src="/brand/logo"
-                unoptimized
-                alt="آرکان گلد"
-                width={110}
-                height={110}
-                className="object-contain"
-                priority
-              />
-            </div>
-            <h1 className="text-3xl font-black text-emerald">
-              آرکان <span className="text-gold-500">گلد</span>
-            </h1>
-            {/* متن با افکت تایپی موبایل */}
-            <p className="text-sm text-gray-500 font-bold mt-2 min-h-6 flex items-center justify-center">
-              <span>{displayedText}</span>
-              <span className="animate-pulse text-emerald mr-0.5">|</span>
-            </p>
-          </div>
+        <AuthError message={error} />
 
-          <div className="mb-6 lg:mb-10 text-center lg:text-right">
-            <h2 className="text-3xl font-black text-emerald mb-2">
-              ورود به حساب
-            </h2>
-            <p className="text-gray-500 font-medium text-sm">
-              لطفاً اطلاعات خود را وارد کنید
-            </p>
-          </div>
-
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl flex items-start gap-3 text-sm font-bold animate-in fade-in">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <p className="leading-relaxed">{error}</p>
+        <form onSubmit={handleSubmit} className="auth-stack">
+          {step === "credentials" && (
+            <div
+              role="tablist"
+              aria-label="روش ورود"
+              className="grid grid-cols-2 gap-1 rounded-2xl bg-gray-100 p-1"
+            >
+              {(
+                [
+                  { id: "password", label: "ورود با رمز عبور", Icon: Lock },
+                  { id: "otp", label: "ورود با کد پیامکی", Icon: MessageSquareText },
+                ] as const
+              ).map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === id}
+                  onClick={() => {
+                    setMode(id);
+                    setError(null);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs font-black transition-all sm:text-sm ${
+                    mode === id
+                      ? "bg-white text-emerald shadow-sm"
+                      : "text-gray-500 hover:text-emerald"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {step === "credentials" && (
-              <div
-                role="tablist"
-                aria-label="روش ورود"
-                className="grid grid-cols-2 gap-1 rounded-2xl bg-gray-100 p-1"
-              >
-                {(
-                  [
-                    { id: "password", label: "ورود با رمز عبور", Icon: Lock },
-                    { id: "otp", label: "ورود با کد پیامکی", Icon: MessageSquareText },
-                  ] as const
-                ).map(({ id, label, Icon }) => (
-                  <button
-                    key={id}
-                    type="button"
-                    role="tab"
-                    aria-selected={mode === id}
-                    onClick={() => {
-                      setMode(id);
-                      setError(null);
-                    }}
-                    className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-xs sm:text-sm font-black transition-all ${
-                      mode === id
-                        ? "bg-white text-emerald shadow-sm"
-                        : "text-gray-500 hover:text-emerald"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {label}
-                  </button>
-                ))}
+          {step === "credentials" && (
+            <div className="animate-in fade-in">
+              <label htmlFor="login-phone" className={authLabel}>
+                شماره موبایل
+              </label>
+              <div className="relative flex items-center">
+                <Phone className="absolute right-4 h-5 w-5 text-emerald" />
+                <input
+                  id="login-phone"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel-national"
+                  dir="ltr"
+                  placeholder="0912..."
+                  value={phone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  className={`${authInput} pl-4 pr-12 text-left`}
+                />
               </div>
-            )}
+              {mode === "otp" && (
+                <p className="auth-hint mt-2 text-xs font-medium leading-relaxed text-gray-500">
+                  کد ورود یکبارمصرف به شماره‌ی موبایل ثبت‌شده در حساب شما پیامک می‌شود.
+                </p>
+              )}
+            </div>
+          )}
 
-            {step === "credentials" && (
-              <div className="space-y-2 animate-in fade-in">
-                <label className="text-xs font-black text-gray-400 mr-1">
-                  شماره موبایل
-                </label>
-                <div className="relative">
-                  <Phone className="absolute right-4 top-4 text-emerald w-5 h-5" />
-                  <input
-                    type="tel"
-                    inputMode="numeric"
-                    autoComplete="tel-national"
-                    dir="ltr"
-                    placeholder="0912..."
-                    value={phone}
-                    onChange={(e) => handlePhoneChange(e.target.value)}
-                    className="w-full pr-12 pl-4 py-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 transition-all text-lg font-medium text-left"
-                  />
-                </div>
-              </div>
-            )}
-
-            {step === "credentials" && mode === "otp" && (
-              <p className="text-xs font-medium leading-relaxed text-gray-500">
-                کد ورود یکبارمصرف به شماره‌ی موبایل ثبت‌شده در حساب شما پیامک
-                می‌شود.
-              </p>
-            )}
-
-            {step === "credentials" && mode === "password" && (
-              <div className="space-y-2 animate-in fade-in">
-                <label className="text-xs font-black text-gray-400 mr-1">
+          {step === "credentials" && mode === "password" && (
+            <div className="animate-in fade-in">
+              <div className="mb-1.5 flex items-center justify-between">
+                <label htmlFor="login-password" className="mr-1 text-xs font-black text-gray-500">
                   گذرواژه
                 </label>
-
-                <div className="relative flex items-center">
-                  <Lock className="absolute right-4 text-emerald w-5 h-5" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    maxLength={128}
-                    aria-label="رمز عبور"
-                    dir="ltr"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (error) setError(null);
-                    }}
-                    className="w-full pr-12 pl-12 py-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 transition-all text-lg font-medium text-left"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? "پنهان کردن رمز" : "نمایش رمز"}
-                    className="absolute left-4 text-gray-400 hover:text-emerald transition-colors focus:outline-none"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
-                    ) : (
-                      <Eye className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-
-                <div className="flex justify-start pt-1">
-                  <Link
-                    href="/forgot-password"
-                    className="text-sm font-bold text-gold-500 hover:text-[#a88646] transition-colors"
-                  >
-                    فراموشی رمز عبور
-                  </Link>
-                </div>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs font-bold text-gold-500 transition-colors hover:text-[#a88646] sm:text-sm"
+                >
+                  فراموشی رمز عبور
+                </Link>
               </div>
-            )}
+              <div className="relative flex items-center">
+                <Lock className="absolute right-4 h-5 w-5 text-emerald" />
+                <input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  maxLength={128}
+                  dir="ltr"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  className={`${authInput} pl-12 pr-12 text-left`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "پنهان کردن رمز" : "نمایش رمز"}
+                  className="absolute left-4 text-gray-400 transition-colors hover:text-emerald focus:outline-none"
+                >
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+            </div>
+          )}
 
-            {step === "second_factor" && challenge && (
-              <div className="space-y-6 animate-in slide-in-from-left-4">
-                <div className="text-center">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald/10">
-                    {challenge.method === "TOTP" ? (
-                      <Smartphone className="h-6 w-6 text-emerald" />
-                    ) : (
-                      <ShieldCheck className="h-6 w-6 text-emerald" />
-                    )}
-                  </div>
-                  <p className="font-black text-emerald">
-                    {mode === "otp" ? "کد ورود پیامکی" : "تأیید دومرحله‌ای"}
-                  </p>
-                  <p className="mt-1 text-gray-500 font-medium text-sm leading-relaxed">
-                    {challenge.method === "TOTP" ? (
-                      useRecovery ? (
-                        "یکی از کدهای بازیابی خود را وارد کنید (هر کد فقط یک‌بار قابل استفاده است)."
-                      ) : (
-                        "کد ۶ رقمی برنامه‌ی احراز هویت (مثل Google Authenticator) را وارد کنید."
-                      )
-                    ) : (
-                      <>
-                        کد تایید به{" "}
-                        <span className="font-bold text-emerald" dir="ltr">
-                          {challenge.maskedPhone}
-                        </span>{" "}
-                        پیامک شد.
-                      </>
-                    )}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={resetToPhone}
-                    className="text-gold-500 underline mt-1 font-bold text-xs hover:text-[#a88646]"
-                  >
-                    ورود با حساب دیگر
-                  </button>
+          {step === "second_factor" && challenge && (
+            <div className="auth-stack animate-in slide-in-from-left-4">
+              <div className="text-center">
+                <div className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald/10">
+                  {challenge.method === "TOTP" ? (
+                    <Smartphone className="h-6 w-6 text-emerald" />
+                  ) : (
+                    <ShieldCheck className="h-6 w-6 text-emerald" />
+                  )}
                 </div>
-
-                {useRecovery ? (
-                  <input
-                    type="text"
-                    dir="ltr"
-                    autoComplete="one-time-code"
-                    placeholder="XXXXX-XXXXX"
-                    value={recoveryCode}
-                    onChange={(e) => {
-                      setRecoveryCode(e.target.value.toUpperCase());
-                      if (error) setError(null);
-                    }}
-                    className="w-full px-4 py-4 bg-white border border-gray-300 rounded-2xl outline-none focus:border-gold-500 transition-all text-lg font-mono tracking-widest text-center"
-                  />
-                ) : (
-                  <OtpInput
-                    value={otp}
-                    onChange={handleOtpChange}
-                    onComplete={handleOtpComplete}
-                    disabled={loading}
-                  />
-                )}
-
-                <div className="flex items-center justify-center gap-2 text-sm font-bold text-gray-500">
-                  {challenge.method === "SMS" ? (
-                    timer > 0 ? (
-                      <>
-                        <Timer className="w-4 h-4" />
-                        <span>ارسال مجدد کد تا {formatTime(timer)} دیگر</span>
-                      </>
+                <p className="font-black text-emerald">
+                  {mode === "otp" ? "کد ورود پیامکی" : "تأیید دومرحله‌ای"}
+                </p>
+                <p className="mt-1 text-sm font-medium leading-relaxed text-gray-500">
+                  {challenge.method === "TOTP" ? (
+                    useRecovery ? (
+                      "یکی از کدهای بازیابی خود را وارد کنید (هر کد فقط یک‌بار قابل استفاده است)."
                     ) : (
-                      <button
-                        type="button"
-                        onClick={handleResend}
-                        className="text-emerald hover:underline flex items-center gap-1"
-                      >
-                        ارسال مجدد کد
-                      </button>
+                      "کد ۶ رقمی برنامه‌ی احراز هویت (مثل Google Authenticator) را وارد کنید."
                     )
+                  ) : (
+                    <>
+                      کد تایید به{" "}
+                      <span className="font-bold text-emerald" dir="ltr">
+                        {challenge.maskedPhone}
+                      </span>{" "}
+                      پیامک شد.
+                    </>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  onClick={resetToPhone}
+                  className="mt-1 text-xs font-bold text-gold-500 underline hover:text-[#a88646]"
+                >
+                  ورود با حساب دیگر
+                </button>
+              </div>
+
+              {useRecovery ? (
+                <input
+                  type="text"
+                  dir="ltr"
+                  autoComplete="one-time-code"
+                  placeholder="XXXXX-XXXXX"
+                  value={recoveryCode}
+                  onChange={(e) => {
+                    setRecoveryCode(e.target.value.toUpperCase());
+                    if (error) setError(null);
+                  }}
+                  className={`${authInput} px-4 text-center font-mono tracking-widest`}
+                />
+              ) : (
+                <OtpInput
+                  value={otp}
+                  onChange={handleOtpChange}
+                  onComplete={handleOtpComplete}
+                  disabled={loading}
+                />
+              )}
+
+              <div className="flex items-center justify-center gap-2 text-sm font-bold text-gray-500">
+                {challenge.method === "SMS" ? (
+                  timer > 0 ? (
+                    <>
+                      <Timer className="h-4 w-4" />
+                      <span>ارسال مجدد کد تا {formatTime(timer)} دیگر</span>
+                    </>
                   ) : (
                     <button
                       type="button"
-                      onClick={() => {
-                        setUseRecovery(!useRecovery);
-                        setError(null);
-                      }}
-                      className="text-emerald hover:underline flex items-center gap-1"
+                      onClick={handleResend}
+                      className="flex items-center gap-1 text-emerald hover:underline"
                     >
-                      <KeyRound className="w-4 h-4" />
-                      {useRecovery
-                        ? "استفاده از کد برنامه‌ی احراز هویت"
-                        : "به برنامه دسترسی ندارم؛ کد بازیابی دارم"}
+                      ارسال مجدد کد
                     </button>
-                  )}
-                </div>
+                  )
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseRecovery(!useRecovery);
+                      setError(null);
+                    }}
+                    className="flex items-center gap-1 text-emerald hover:underline"
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    {useRecovery
+                      ? "استفاده از کد برنامه‌ی احراز هویت"
+                      : "به برنامه دسترسی ندارم؛ کد بازیابی دارم"}
+                  </button>
+                )}
               </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-4 mt-6 lg:mt-8 bg-emerald text-white rounded-2xl font-black text-lg hover:bg-[#085f48] shadow-lg shadow-emerald/20 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  {checking && (
-                    <span className="text-sm font-bold">در حال بررسی امنیتی…</span>
-                  )}
-                </>
-              ) : (
-                <>
-                  {step !== "credentials"
-                    ? "تایید و ورود"
-                    : mode === "otp"
-                      ? "دریافت کد ورود"
-                      : "ادامه"}
-                  <ArrowLeft className="w-5 h-5" />
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="mt-8 text-center space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="h-px flex-1 bg-gray-200" />
-              <span className="text-xs font-bold text-gray-400">
-                هنوز حساب کاربری ندارید؟
-              </span>
-              <span className="h-px flex-1 bg-gray-200" />
             </div>
-            <Link
-              href="/register"
-              className="w-full py-3.5 border-2 border-gold-500 text-[#8a6d35] bg-gold-500/5 rounded-2xl font-black text-base hover:bg-gold-500 hover:text-white transition-all flex items-center justify-center gap-2"
-            >
-              <UserPlus className="w-5 h-5" /> ثبت‌نام در آرکان گلد
-            </Link>
+          )}
 
-            <p className="text-xm text-gray-400 font-medium leading-relaxed px-3 ">
-              ورود یا ثبت‌نام در سایت به منزله مطالعه و پذیرش{" "}
-              <a
-                href="https://arkan.gold/rules/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gold-500 font-bold underline hover:text-[#a88646] transition-colors"
-              >
-                قوانین و مقررات
-              </a>{" "}
-              آرکان گلد است.
-            </p>
-          </div>
-        </div>
+          <button type="submit" disabled={loading} className={authPrimaryButton}>
+            {loading ? (
+              <>
+                <Loader2 className="h-6 w-6 animate-spin" />
+                {checking && <span className="text-sm font-bold">در حال بررسی امنیتی…</span>}
+              </>
+            ) : (
+              <>
+                {step !== "credentials"
+                  ? "تایید و ورود"
+                  : mode === "otp"
+                    ? "دریافت کد ورود"
+                    : "ادامه"}
+                <ArrowLeft className="h-5 w-5" />
+              </>
+            )}
+          </button>
+        </form>
       </div>
-    </div>
+    </AuthShell>
   );
 }

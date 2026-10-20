@@ -63,6 +63,7 @@ export class SystemConfigService implements OnModuleInit {
   async onModuleInit() {
     await this.seedDefaults();
     await this.migrateReferralGramsToMg();
+    await this.migrateVerifyBaseUrl();
     await this.removeDeprecatedKeys();
     await this.loadCache();
   }
@@ -95,6 +96,22 @@ export class SystemConfigService implements OnModuleInit {
     await this.prisma.systemConfig.update({
       where: { key: 'referral.reward_amount_mg' },
       data: { value: String(Math.round(grams * 10000) / 10) },
+    });
+  }
+
+  /**
+   * آدرس پیش‌فرض قدیمی استعلام سند (…/verify/{شماره}) صفحه‌ای نداشت؛ اگر ادمین آن را
+   * تغییر نداده باشد به صفحه‌ی جدید استعلام فاکتور منتقل می‌شود.
+   */
+  private async migrateVerifyBaseUrl() {
+    await this.prisma.systemConfig.updateMany({
+      where: {
+        key: 'document.verify_base_url',
+        value: {
+          in: ['https://arkan.gold/verify', 'https://arkan.gold/verify/'],
+        },
+      },
+      data: { value: 'https://arkan.gold/verifyInvoice' },
     });
   }
 

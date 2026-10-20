@@ -393,6 +393,50 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
     variables: [V.name, V.requestNumber, V.amount, V.reason, V.brand],
   },
 
+  // ─────────────────────────── بازخرید شمش ───────────────────────────
+  {
+    key: 'BUYBACK_SUBMITTED',
+    title: 'ثبت درخواست بازخرید شمش',
+    category: 'FINANCE',
+    body: '{name} عزیز، درخواست فروش شمش شما به آرکان گلد با شماره {requestNumber} ثبت شد و پس از بررسی، زمان تحویل شمش اطلاع داده می‌شود.\n{brand}',
+    variables: [V.name, V.requestNumber, V.brand],
+  },
+  {
+    key: 'BUYBACK_AWAITING_DELIVERY',
+    title: 'پذیرش درخواست بازخرید و نوبت تحویل شمش',
+    category: 'FINANCE',
+    body: '{name} عزیز، درخواست بازخرید {requestNumber} پذیرفته شد. لطفاً شمش را {time} به همراه کارت ملی تحویل دهید.\n{brand}',
+    variables: [V.name, V.requestNumber, V.time, V.brand],
+  },
+  {
+    key: 'BUYBACK_OFFERED',
+    title: 'اعلام قیمت نهایی بازخرید شمش',
+    category: 'FINANCE',
+    body: '{name} عزیز، اصالت شمش درخواست {requestNumber} تأیید شد. مبلغ نهایی خرید: {amount} تومان. لطفاً تا {hours} ساعت آینده از پنل کاربری آن را تأیید یا رد کنید.\n{brand}',
+    variables: [V.name, V.requestNumber, V.amount, V.hours, V.brand],
+  },
+  {
+    key: 'BUYBACK_PAID',
+    title: 'واریز مبلغ بازخرید شمش',
+    category: 'FINANCE',
+    body: '{name} عزیز، مبلغ {amount} تومان بابت بازخرید شمش (درخواست {requestNumber}) به حساب بانکی شما واریز شد.\nشماره پیگیری: {bankRef}\n{brand}',
+    variables: [V.name, V.amount, V.requestNumber, V.bankRef, V.brand],
+  },
+  {
+    key: 'BUYBACK_REJECTED',
+    title: 'رد درخواست بازخرید شمش',
+    category: 'FINANCE',
+    body: '{name} عزیز، درخواست بازخرید {requestNumber} رد شد.\nدلیل: {reason}\n{brand}',
+    variables: [V.name, V.requestNumber, V.reason, V.brand],
+  },
+  {
+    key: 'BUYBACK_RETURN',
+    title: 'عودت شمش در فرآیند بازخرید',
+    category: 'FINANCE',
+    body: '{name} عزیز، شمش درخواست بازخرید {requestNumber} به شما عودت داده می‌شود.\nدلیل: {reason}\nبرای هماهنگی تحویل با پشتیبانی تماس بگیرید.\n{brand}',
+    variables: [V.name, V.requestNumber, V.reason, V.brand],
+  },
+
   // ─────────────────────────── نمایندگان ───────────────────────────
   {
     key: 'AGENT_LOGIN_OTP',

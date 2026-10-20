@@ -268,8 +268,12 @@
 .doc-page--landscape { page: landscapePage; }
 @page landscapePage { size: A4 landscape; margin: 8mm; }
 
+/* صفحه‌ی عمومی استعلام فاکتور: ورق با zoom در عرض صفحه جا می‌شود (نه transform) */
+.verify-doc .doc-sheet { transform: none !important; }
+
 @media print {
   .no-print { display: none !important; }
+  .verify-doc > div { zoom: 1 !important; }
 
   html, body { background: #fff !important; }
 

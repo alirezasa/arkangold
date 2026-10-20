@@ -671,6 +671,55 @@ export const WALLET_CONFIG_DEFAULTS = [
     description: 'مهلت تأیید گیرنده برای درخواست انتقال مالکیت شمش (ساعت)',
   },
 
+  // ══ بازخرید شمش (فروش شمش آرکان گلد توسط مالک به آرکان گلد) ══
+  {
+    key: 'buyback.enabled',
+    value: 'true',
+    description:
+      'امکان ثبت درخواست فروش شمش آرکان گلد به خود آرکان گلد از پنل کاربری (true/false)',
+  },
+  {
+    key: 'buyback.deduction_percent',
+    value: '2',
+    description:
+      'درصد کسر از ارزش روز شمش در بازخرید (اختلاف قیمت خرید و فروش) — برای برآورد و پیشنهاد قیمت نهایی',
+  },
+  {
+    key: 'buyback.fee_rial',
+    value: '0',
+    description:
+      'هزینه‌ی ثابت اصالت‌سنجی/کارشناسی هر شمش در بازخرید (ریال) — ۰ = بدون هزینه',
+  },
+  {
+    key: 'buyback.offer_validity_hours',
+    value: '24',
+    description:
+      'مهلت کاربر برای پذیرش قیمت نهایی پیشنهادی (ساعت) — پس از آن قیمت باید دوباره اعلام شود',
+  },
+  {
+    key: 'buyback.min_holding_days',
+    value: '0',
+    description:
+      'حداقل مدت مالکیت شمش پیش از امکان درخواست بازخرید (روز) — ۰ = بدون محدودیت',
+  },
+  {
+    key: 'buyback.max_open_requests',
+    value: '5',
+    description: 'حداکثر تعداد درخواست بازخرید باز هم‌زمان برای هر کاربر',
+  },
+  {
+    key: 'buyback.dropoff_address',
+    value: '',
+    description:
+      'نشانی و ساعات کاری دفتر برای تحویل حضوری شمش (در صفحه‌ی درخواست بازخرید به کاربر نمایش داده می‌شود)',
+  },
+  {
+    key: 'buyback.post_instructions',
+    value: '',
+    description:
+      'راهنمای ارسال شمش با پست بیمه‌شده/پیک امن (نشانی گیرنده، نحوه‌ی بسته‌بندی و بیمه) — در صورت خالی بودن این روش نمایش داده نمی‌شود',
+  },
+
   // ══ نمایندگان فروش ══
   {
     key: 'agent.sale.require_identity_verification',

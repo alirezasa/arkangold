@@ -107,7 +107,9 @@ export class SystemConfigService implements OnModuleInit {
     await this.prisma.systemConfig.updateMany({
       where: {
         key: 'document.verify_base_url',
-        value: { in: ['https://arkan.gold/verify', 'https://arkan.gold/verify/'] },
+        value: {
+          in: ['https://arkan.gold/verify', 'https://arkan.gold/verify/'],
+        },
       },
       data: { value: 'https://arkan.gold/verifyInvoice' },
     });

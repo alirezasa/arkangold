@@ -313,6 +313,8 @@ export enum HologramCodeStatus {
   REVOKED = 'REVOKED',
   /** تحویل امانی به نماینده فروش — هنوز به مالک نهایی فروخته نشده */
   AT_AGENT = 'AT_AGENT',
+  /** مالک درخواست فروش شمش به آرکان گلد (بازخرید) داده است */
+  BUYBACK_PENDING = 'BUYBACK_PENDING',
 }
 
 export enum HologramOwnershipStatus {
@@ -393,6 +395,7 @@ export const HOLOGRAM_CODE_STATUS_FA: Record<HologramCodeStatus, string> = {
   [HologramCodeStatus.TRANSFER_PENDING]: 'در انتظار تأیید انتقال',
   [HologramCodeStatus.REVOKED]: 'ابطال‌شده',
   [HologramCodeStatus.AT_AGENT]: 'امانی نزد نماینده',
+  [HologramCodeStatus.BUYBACK_PENDING]: 'در فرآیند بازخرید',
 };
 
 export const HOLOGRAM_TRANSFER_REQUEST_STATUS_FA: Record<HologramTransferRequestStatus, string> = {

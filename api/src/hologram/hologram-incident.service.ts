@@ -98,6 +98,11 @@ export class HologramIncidentService {
         );
       }
       await this.assertNoActiveReport(tx, code.id);
+      if (code.status === 'BUYBACK_PENDING') {
+        throw new ConflictException(
+          'این شمش در فرآیند فروش به آرکان گلد (بازخرید) است؛ برای پیگیری با پشتیبانی تماس بگیرید',
+        );
+      }
 
       // انتقالی که خود مالک آغاز کرده و هنوز تأیید نشده لغو می‌شود تا شمش گزارش‌شده
       // به نام کس دیگری ثبت نشود

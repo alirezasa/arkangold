@@ -711,10 +711,11 @@ export class InvoiceService {
     const goldGrams = Number(order?.goldAppliedGrams ?? 0);
     if (goldGrams > 0) {
       const parts = [
-        `کیف طلایی (${goldGrams.toLocaleString('fa-IR', { maximumFractionDigits: 4 })} گرم طلای آب‌شده معادل ${faRial(Number(order!.goldAppliedRial))})`,
+        `کیف طلایی (${goldGrams.toLocaleString('fa-IR', { maximumFractionDigits: 4 })} گرم طلای آب‌شده معادل ${faRial(Number(order.goldAppliedRial))})`,
       ];
       if (wallet.length) parts.push(`کیف پول تومانی (${faRial(sum(wallet))})`);
-      if (gateway.length) parts.push(`${gatewayLabel} (${faRial(sum(gateway))})`);
+      if (gateway.length)
+        parts.push(`${gatewayLabel} (${faRial(sum(gateway))})`);
       return parts.length > 1 ? `ترکیبی: ${parts.join(' + ')}` : parts[0];
     }
 
@@ -1102,7 +1103,11 @@ export class InvoiceService {
       .slice(0, 40);
   }
 
-  private static mask(value: string | null, keepStart: number, keepEnd: number) {
+  private static mask(
+    value: string | null,
+    keepStart: number,
+    keepEnd: number,
+  ) {
     if (!value) return value;
     if (value.length <= keepStart + keepEnd) return value;
     return (
@@ -1119,7 +1124,8 @@ export class InvoiceService {
    *   کد/شناسه‌ی ملی و موبایل خریدار به‌صورت جزئی پوشانده می‌شود.
    */
   async verifyPublic(rawInvoiceNumber: string, token?: string) {
-    const invoiceNumber = InvoiceService.normalizeInvoiceNumber(rawInvoiceNumber);
+    const invoiceNumber =
+      InvoiceService.normalizeInvoiceNumber(rawInvoiceNumber);
     if (!/^AG-\d{4}-[A-Z]{2,5}-\d{1,10}$/.test(invoiceNumber)) {
       return { valid: false as const };
     }
@@ -1146,7 +1152,9 @@ export class InvoiceService {
       kind: invoice.kind,
       status: invoice.status,
       issuedAtJalali: formatJalaliDate(invoice.issuedAt),
-      expiresAtJalali: invoice.expiresAt ? formatJalaliDate(invoice.expiresAt) : null,
+      expiresAtJalali: invoice.expiresAt
+        ? formatJalaliDate(invoice.expiresAt)
+        : null,
       cancelledAtJalali: invoice.cancelledAt
         ? formatJalaliDate(invoice.cancelledAt)
         : null,
@@ -1154,7 +1162,10 @@ export class InvoiceService {
       contentHashPrefix: invoice.contentHash.slice(0, 16),
     };
 
-    const expected = InvoiceService.verifyToken(invoice.id, invoice.contentHash);
+    const expected = InvoiceService.verifyToken(
+      invoice.id,
+      invoice.contentHash,
+    );
     const given = (token ?? '').trim().toLowerCase();
     const tokenValid =
       given.length === expected.length &&

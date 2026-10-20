@@ -470,6 +470,11 @@ export class HologramService {
           'این شمش به‌صورت امانی نزد نماینده است؛ ابتدا آن را از نماینده عودت بگیرید',
         );
       }
+      if (hologramCode.status === 'BUYBACK_PENDING') {
+        throw new ConflictException(
+          'این شمش در فرآیند بازخرید است؛ ابتدا درخواست بازخرید را تکمیل یا عودت کنید',
+        );
+      }
 
       if (hologramCode.status === 'TRANSFER_PENDING') {
         await this.transferService.cancelPendingForCode(

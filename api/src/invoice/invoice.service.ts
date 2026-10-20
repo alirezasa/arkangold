@@ -8,7 +8,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { createHash } from 'crypto';
+import { createHash, timingSafeEqual } from 'crypto';
 import * as QRCode from 'qrcode';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -877,7 +877,11 @@ export class InvoiceService {
     ) as 'landscape' | 'portrait';
 
     const s = (d: Prisma.Decimal | null) => (d == null ? null : d.toString());
-    const verifyUrl = `${verifyBase}/${invoice.invoiceNumber}`;
+    const verifyUrl = InvoiceService.buildVerifyUrl(
+      verifyBase,
+      invoice.invoiceNumber,
+      InvoiceService.verifyToken(invoice.id, invoice.contentHash),
+    );
     // FDP_ACC_EXT.1.3 — QR استعلام سند روی همین سرور ساخته می‌شود (قبلاً با ارسال لینک سند
     // به سرویس خارجی api.qrserver.com تولید می‌شد)
     const verifyQrDataUrl = await QRCode.toDataURL(verifyUrl, {
@@ -1061,15 +1065,74 @@ export class InvoiceService {
     });
   }
 
-  /** استعلام عمومی سند با شماره — فقط تایید اصالت، بدون افشای مبالغ. */
-  async verifyPublic(invoiceNumber: string) {
+  // ═══════════════════════════════════════════════════════════
+  //  استعلام عمومی سند (QR)
+  // ═══════════════════════════════════════════════════════════
+
+  static readonly DEFAULT_VERIFY_BASE_URL = 'https://arkan.gold/verifyInvoice';
+
+  /**
+   * توکن استعلام چاپ‌شده در QR: از شناسه‌ی داخلی سند (UUID تصادفی، هرگز چاپ نمی‌شود) و
+   * hash محتوا ساخته می‌شود؛ بنابراین فقط کسی که خود سند/QR را در دست دارد می‌تواند
+   * متن کامل سند را ببیند و با حدس شماره‌ی ترتیبی سند (AG-…-INV-000123) چیزی فاش نمی‌شود.
+   * به کلید سرور وابسته نیست تا QRهای چاپ‌شده با چرخش کلیدها باطل نشوند.
+   */
+  static verifyToken(invoiceId: string, contentHash: string): string {
+    return createHash('sha256')
+      .update(`invoice-verify:${invoiceId}:${contentHash}`)
+      .digest('hex')
+      .slice(0, 24);
+  }
+
+  /** لینک استعلام: {base}?n={شماره سند}&t={توکن} */
+  static buildVerifyUrl(base: string, invoiceNumber: string, token: string) {
+    const root = (base || InvoiceService.DEFAULT_VERIFY_BASE_URL).trim();
+    const sep = root.includes('?') ? '&' : '?';
+    return `${root}${sep}n=${encodeURIComponent(invoiceNumber)}&t=${token}`;
+  }
+
+  /** شماره‌ی سند با ارقام فارسی/عربی یا حروف کوچک هم پذیرفته می‌شود */
+  private static normalizeInvoiceNumber(raw: string): string {
+    return (raw ?? '')
+      .trim()
+      .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+      .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+      .replace(/[\s\u200c\u200f\u200e]/g, '')
+      .toUpperCase()
+      .slice(0, 40);
+  }
+
+  private static mask(value: string | null, keepStart: number, keepEnd: number) {
+    if (!value) return value;
+    if (value.length <= keepStart + keepEnd) return value;
+    return (
+      value.slice(0, keepStart) +
+      '*'.repeat(value.length - keepStart - keepEnd) +
+      value.slice(value.length - keepEnd)
+    );
+  }
+
+  /**
+   * استعلام عمومی سند با شماره.
+   * - بدون توکن (ورود دستی شماره): فقط تأیید اصالت، بدون افشای مبالغ و مشخصات خریدار.
+   * - با توکن معتبر (اسکن QR روی سند): متن کامل سند برای استعلام‌گیرنده نمایش داده می‌شود؛
+   *   کد/شناسه‌ی ملی و موبایل خریدار به‌صورت جزئی پوشانده می‌شود.
+   */
+  async verifyPublic(rawInvoiceNumber: string, token?: string) {
+    const invoiceNumber = InvoiceService.normalizeInvoiceNumber(rawInvoiceNumber);
+    if (!/^AG-\d{4}-[A-Z]{2,5}-\d{1,10}$/.test(invoiceNumber)) {
+      return { valid: false as const };
+    }
     const invoice = await this.prisma.invoice.findUnique({
       where: { invoiceNumber },
       select: {
+        id: true,
         invoiceNumber: true,
         kind: true,
         status: true,
         issuedAt: true,
+        expiresAt: true,
+        cancelledAt: true,
         contentHash: true,
         companySnapshot: true,
       },
@@ -1077,14 +1140,43 @@ export class InvoiceService {
     if (!invoice) return { valid: false as const };
 
     const company = invoice.companySnapshot as unknown as CompanySnapshot;
-    return {
+    const summary = {
       valid: true as const,
       invoiceNumber: DocumentSequenceService.toDisplay(invoice.invoiceNumber),
       kind: invoice.kind,
       status: invoice.status,
       issuedAtJalali: formatJalaliDate(invoice.issuedAt),
+      expiresAtJalali: invoice.expiresAt ? formatJalaliDate(invoice.expiresAt) : null,
+      cancelledAtJalali: invoice.cancelledAt
+        ? formatJalaliDate(invoice.cancelledAt)
+        : null,
       issuerLegalName: company?.legalName ?? '',
-      contentHashPrefix: invoice.contentHash.slice(0, 12),
+      contentHashPrefix: invoice.contentHash.slice(0, 16),
+    };
+
+    const expected = InvoiceService.verifyToken(invoice.id, invoice.contentHash);
+    const given = (token ?? '').trim().toLowerCase();
+    const tokenValid =
+      given.length === expected.length &&
+      timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+    if (!tokenValid) {
+      return { ...summary, tokenProvided: given.length > 0, document: null };
+    }
+
+    const doc = await this.getDocument(invoice.id, null, true);
+    return {
+      ...summary,
+      tokenProvided: true,
+      document: {
+        ...doc,
+        // شناسه‌ی داخلی سند در پاسخ عمومی برگردانده نمی‌شود (پایه‌ی توکن است)
+        id: '',
+        customer: {
+          ...doc.customer,
+          nationalId: InvoiceService.mask(doc.customer.nationalId, 3, 2),
+          phone: InvoiceService.mask(doc.customer.phone, 4, 3) ?? '',
+        },
+      },
     };
   }
 

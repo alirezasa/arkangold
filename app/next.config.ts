@@ -82,6 +82,7 @@ const nextConfig: NextConfig = {
       { source: "/dashboard/:path*", headers: [...noStore, ...noIndex] },
       { source: "/dashboard", headers: [...noStore, ...noIndex] },
       { source: "/invoice/:path*", headers: noIndex },
+      { source: "/verifyInvoice", headers: [...noStore, ...noIndex] },
       {
         // Service worker must be served with correct MIME type
         source: "/sw.js",

@@ -574,8 +574,9 @@ export const WALLET_CONFIG_DEFAULTS = [
   // ══ اسناد ══
   {
     key: 'document.verify_base_url',
-    value: 'https://arkan.gold/verify',
-    description: 'آدرس پایه استعلام سند (QR)',
+    value: 'https://arkan.gold/verifyInvoice',
+    description:
+      'آدرس صفحه‌ی استعلام فاکتور/پیش‌فاکتور (QR) — شماره‌ی سند و توکن به‌صورت ?n=…&t=… به آن اضافه می‌شود',
   },
   {
     key: 'document.invoice_orientation',

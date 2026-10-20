@@ -399,7 +399,7 @@ function BarCard({ bar, disabled, onSell }: { bar: Bar; disabled: boolean; onSel
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4" dir="rtl">
+    <div className="fixed inset-0 z-[9995] flex items-end justify-center sm:items-center sm:p-4" dir="rtl">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="max-h-app-sheet relative w-full max-w-md space-y-4 overflow-y-auto rounded-t-3xl bg-white p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:rounded-2xl sm:pb-5">
         <div className="flex items-center justify-between">

@@ -41,14 +41,11 @@ export default function AuthShell({ tagline, children, footer }: AuthShellProps)
             className="mb-8 h-[clamp(6rem,16vh,10rem)] w-auto object-contain drop-shadow-xl"
             priority
           />
-          <h1 className="text-4xl font-black leading-snug text-white xl:text-5xl">
-            آرکان گلد
-            <br />
-            <span className="mt-2 inline-flex min-h-14 items-center text-gold-500">
-              <span>{typed}</span>
-              <span className="mr-1 animate-pulse font-normal text-white">|</span>
-            </span>
-          </h1>
+          <h1 className="text-4xl font-black leading-snug text-white xl:text-5xl">آرکان گلد</h1>
+          <p className="mt-3 flex min-h-12 items-center whitespace-nowrap text-2xl font-black text-gold-500 xl:text-3xl">
+            <span>{typed}</span>
+            <span className="mr-1 animate-pulse font-normal text-white">|</span>
+          </p>
           <p className="mt-8 max-w-sm text-lg font-light leading-relaxed text-emerald-100/80 xl:text-xl">
             {tagline}
           </p>
@@ -61,7 +58,7 @@ export default function AuthShell({ tagline, children, footer }: AuthShellProps)
 
       {/* ستون فرم */}
       <main className="auth-main flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="mx-auto flex h-full min-h-0 w-full max-w-sm flex-col">
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-sm flex-col lg:justify-center">
           {/* لوگو و نام برند (موبایل/تبلت) */}
           <header className="flex shrink-0 flex-col items-center text-center lg:hidden">
             <Image
@@ -82,11 +79,11 @@ export default function AuthShell({ tagline, children, footer }: AuthShellProps)
             </p>
           </header>
 
-          <div className="auth-body flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [scrollbar-width:none]">
+          <div className="auth-body flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [scrollbar-width:none] lg:flex-none">
             <div className="my-auto w-full">{children}</div>
           </div>
 
-          {footer && <footer className="shrink-0">{footer}</footer>}
+          {footer && <footer className="shrink-0 lg:mt-6">{footer}</footer>}
         </div>
       </main>
     </div>

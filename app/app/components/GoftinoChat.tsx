@@ -28,6 +28,7 @@ declare global {
 }
 
 const HIDDEN_PREFIXES = ["/invoice", "/courier", "/verifyInvoice"];
+const AUTH_PREFIXES = ["/login", "/register", "/forgot-password"];
 
 // ── سازگاری با ناحیه‌ی امن آیفون (PWA) ─────────────────────────────────────────
 // در حالت تمام‌صفحه‌ی گفتینو روی موبایل، پنجره‌ی چت از top:0 شروع می‌شد و با نوار وضعیت
@@ -208,6 +209,9 @@ export default function GoftinoChat() {
   if (!WIDGET_ID || !ready || HIDDEN_PREFIXES.some((p) => pathname.startsWith(p))) return null;
 
   const inDashboard = pathname.startsWith("/dashboard");
+  // صفحات ورود/ثبت‌نام تمام‌صفحه و بدون اسکرول‌اند؛ دکمه در گوشه‌ی بالا قرار می‌گیرد تا
+  // روی لینک ثبت‌نام و متن قوانین پایین صفحه نیفتد (در دسکتاپ پایین صفحه جا دارد)
+  const onAuthPage = AUTH_PREFIXES.some((p) => pathname.startsWith(p));
 
   return (
     <button
@@ -224,7 +228,9 @@ export default function GoftinoChat() {
       className={`group fixed left-4 z-9990 flex h-11 w-11 items-center justify-center rounded-full bg-emerald text-white shadow-lg shadow-emerald/30 ring-2 ring-white/80 transition-all hover:scale-105 hover:bg-[#085f48] focus:outline-none focus-visible:ring-4 focus-visible:ring-gold-500/60 ${
         inDashboard
           ? "bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-5"
-          : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))]"
+          : onAuthPage
+            ? "top-[calc(0.75rem+env(safe-area-inset-top))] lg:top-auto lg:bottom-5"
+            : "bottom-[calc(1.25rem+env(safe-area-inset-bottom))]"
       }`}
     >
       {open ? <X className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}

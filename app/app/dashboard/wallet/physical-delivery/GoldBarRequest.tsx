@@ -14,6 +14,7 @@ import {
   MapPin,
   Plus,
   Timer,
+  Truck,
   Wallet,
   X,
 } from "lucide-react";
@@ -21,6 +22,8 @@ import { useAddresses, type AddressItem } from "@/app/hooks/usePhysicalDelivery"
 import { useActiveGateways } from "@/app/hooks/useShop";
 import { newIdempotencyKey } from "@/app/utils/idempotency";
 import AddAddressForm from "./AddAddressForm";
+import type { ShippingOption } from "@/app/hooks/useShipping";
+import ShippingMethodPicker from "@/app/dashboard/components/shop/ShippingMethodPicker";
 
 export interface BarPlanView {
   goldForBarGrams: string;
@@ -55,6 +58,21 @@ export interface BarsResponse {
 
 interface Quote extends BarPlanView {
   quoteId: string;
+  /** هزینه‌ی ارسال پیش‌پرداخت که در مابه‌التفاوت لحاظ شده (تومان) */
+  shippingToman?: string;
+  shipping?: {
+    enabled: boolean;
+    options: ShippingOption[];
+    selected: {
+      methodId: string;
+      name: string;
+      chargedToman: string;
+      estimateToman: string;
+      payOnDelivery: boolean;
+      free: boolean;
+    } | null;
+    error: string | null;
+  };
   expiresAt: string;
   expiresInSeconds: number;
   productName: string;
@@ -166,6 +184,8 @@ export default function GoldBarRequest({
   const [quoting, setQuoting] = useState(false);
   const [addressId, setAddressId] = useState("");
   const [showAddAddress, setShowAddAddress] = useState(false);
+  const [shippingMethodId, setShippingMethodId] = useState<string | null>(null);
+  const [payOnDelivery, setPayOnDelivery] = useState(false);
   const [gateway, setGateway] = useState<"ZARINPAL" | "BEHPARDAKHT" | "">("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -179,16 +199,46 @@ export default function GoldBarRequest({
     return () => clearInterval(t);
   }, [quote]);
 
-  // پیش‌فاکتور با هر تغییر شمش/روش پرداخت دوباره قفل می‌شود (فقط آخرین درخواست اعمال می‌شود)
+  // آدرس پیش‌فرض تا انتخاب صریح کاربر
+  const effectiveAddressId =
+    addressId || (addresses.find((a) => a.isDefault) ?? addresses[0])?.id || "";
+
+  // پیش‌فاکتور با هر تغییر شمش/روش پرداخت/آدرس/روش ارسال دوباره قفل می‌شود (فقط آخرین درخواست اعمال می‌شود)
+  type QuoteParams = {
+    vid: string;
+    extra: boolean;
+    rial: boolean;
+    addressId: string;
+    methodId: string | null;
+    cod: boolean;
+  };
   const quoteSeq = useRef(0);
-  const requestQuote = (vid: string, extra: boolean, rial: boolean) => {
+  const requestQuote = (p: QuoteParams) => {
     const seq = ++quoteSeq.current;
     setQuoting(true);
     setError(null);
     axios
-      .post<Quote>("/api/gold-delivery/quote", { variantId: vid, useExtraGold: extra, useRialWallet: rial })
+      .post<Quote>("/api/gold-delivery/quote", {
+        variantId: p.vid,
+        useExtraGold: p.extra,
+        useRialWallet: p.rial,
+        addressId: p.addressId || undefined,
+        shippingMethodId: p.methodId ?? undefined,
+        shippingFeePayment: p.methodId ? (p.cod ? "ON_DELIVERY" : "PREPAID") : undefined,
+      })
       .then((r) => {
         if (quoteSeq.current !== seq) return;
+        // روش ارسال انتخاب نشده یا برای این آدرس معتبر نیست: اولین روش در دسترس پیشنهاد می‌شود
+        const ship = r.data.shipping;
+        if (ship?.enabled && !ship.selected) {
+          const first = ship.options.find((o) => o.available);
+          if (first && first.methodId !== p.methodId) {
+            setShippingMethodId(first.methodId);
+            setPayOnDelivery(false);
+            requestQuote({ ...p, methodId: first.methodId, cod: false });
+            return;
+          }
+        }
         setQuote(r.data);
         setNow(Date.now());
       })
@@ -201,25 +251,43 @@ export default function GoldBarRequest({
         if (quoteSeq.current === seq) setQuoting(false);
       });
   };
+  const params = (over: Partial<QuoteParams> = {}): QuoteParams => ({
+    vid: variantId ?? "",
+    extra: useExtraGold,
+    rial: useRialWallet,
+    addressId: effectiveAddressId,
+    methodId: shippingMethodId,
+    cod: payOnDelivery,
+    ...over,
+  });
   const selectBar = (vid: string) => {
     setVariantId(vid);
     setQuote(null);
-    requestQuote(vid, useExtraGold, useRialWallet);
+    requestQuote(params({ vid }));
   };
   const changeExtraGold = (v: boolean) => {
     setUseExtraGold(v);
-    if (variantId) requestQuote(variantId, v, useRialWallet);
+    if (variantId) requestQuote(params({ extra: v }));
   };
   const changeRialWallet = (v: boolean) => {
     setUseRialWallet(v);
-    if (variantId) requestQuote(variantId, useExtraGold, v);
+    if (variantId) requestQuote(params({ rial: v }));
+  };
+  const changeAddress = (id: string) => {
+    setAddressId(id);
+    setShippingMethodId(null);
+    setPayOnDelivery(false);
+    if (variantId) requestQuote(params({ addressId: id, methodId: null, cod: false }));
+  };
+  const changeShipping = (methodId: string, cod: boolean) => {
+    setShippingMethodId(methodId);
+    setPayOnDelivery(cod);
+    if (variantId) requestQuote(params({ methodId, cod }));
   };
 
   if (!open) return null;
 
-  // آدرس و درگاه پیش‌فرض تا انتخاب صریح کاربر
-  const effectiveAddressId =
-    addressId || (addresses.find((a) => a.isDefault) ?? addresses[0])?.id || "";
+  // درگاه پیش‌فرض تا انتخاب صریح کاربر
   const effectiveGateway = gateway || gateways[0]?.key || "";
 
   const reset = () => {
@@ -237,10 +305,13 @@ export default function GoldBarRequest({
   const remaining = quote ? Math.max(0, Math.floor((new Date(quote.expiresAt).getTime() - now) / 1000)) : 0;
   const expired = !!quote && remaining <= 0;
   const needsGateway = !!quote && Number(quote.gatewayToman) > 0;
+  const shippingSelected = quote?.shipping?.selected ?? null;
+  const shippingMissing = !!quote?.shipping?.enabled && !shippingSelected;
 
   const submit = async () => {
     if (!quote) return;
     if (!effectiveAddressId) return setError("آدرس تحویل را انتخاب کنید");
+    if (shippingMissing) return setError(quote.shipping?.error ?? "روش ارسال را انتخاب کنید");
     if (needsGateway && !effectiveGateway) return setError("درگاه پرداخت را انتخاب کنید");
     setSubmitting(true);
     setError(null);
@@ -253,11 +324,17 @@ export default function GoldBarRequest({
           useExtraGold,
           useRialWallet,
           gatewayProvider: needsGateway ? effectiveGateway : undefined,
+          shippingMethodId: shippingSelected?.methodId,
+          shippingFeePayment: shippingSelected
+            ? shippingSelected.payOnDelivery
+              ? "ON_DELIVERY"
+              : "PREPAID"
+            : undefined,
         },
         { headers: { "idempotency-key": idemKey } },
       );
       if (data.requiresRedirect && data.redirectUrl) {
-        window.location.href = data.redirectUrl;
+        window.location.assign(data.redirectUrl);
         return;
       }
       setDone(data.message ?? "درخواست ثبت شد");
@@ -390,6 +467,67 @@ export default function GoldBarRequest({
               />
             </div>
 
+            <div className="mt-4">
+              <p className="mb-2 flex items-center gap-1.5 text-[12px] font-black text-gray-700">
+                <MapPin className="h-4 w-4" /> آدرس تحویل
+              </p>
+              {showAddAddress ? (
+                <AddAddressForm
+                  onSuccess={(a) => {
+                    void refreshAddresses();
+                    changeAddress(a.id);
+                    setShowAddAddress(false);
+                  }}
+                  onCancel={() => setShowAddAddress(false)}
+                />
+              ) : (
+                <>
+                  <select
+                    value={effectiveAddressId}
+                    onChange={(e) => changeAddress(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-[12.5px] outline-none focus:border-gold-500"
+                  >
+                    <option value="">انتخاب آدرس…</option>
+                    {addresses.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {(a.title ? `${a.title} — ` : "") + [a.city, a.fullAddress].filter(Boolean).join("، ")}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedAddress?.receiverName && (
+                    <p className="mt-1 text-[11px] text-gray-400">گیرنده: {selectedAddress.receiverName}</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowAddAddress(true)}
+                    className="mt-2 flex items-center gap-1 text-[12px] font-bold text-emerald"
+                  >
+                    <Plus className="h-4 w-4" /> افزودن آدرس جدید
+                  </button>
+                </>
+              )}
+            </div>
+
+            {quote?.shipping?.enabled && effectiveAddressId && !showAddAddress && (
+              <div className="mt-4">
+                <p className="mb-2 flex items-center gap-1.5 text-[12px] font-black text-gray-700">
+                  <Truck className="h-4 w-4" /> روش ارسال
+                </p>
+                <ShippingMethodPicker
+                  options={quote.shipping.options}
+                  loading={false}
+                  error={quote.shipping.options.length === 0 ? quote.shipping.error : null}
+                  selectedId={shippingSelected?.methodId ?? null}
+                  onSelect={(id) => changeShipping(id, false)}
+                  payOnDelivery={shippingSelected?.payOnDelivery ?? payOnDelivery}
+                  onPayOnDeliveryChange={(v) => shippingSelected && changeShipping(shippingSelected.methodId, v)}
+                />
+                {quote.shipping.error && quote.shipping.options.length > 0 && (
+                  <p className="mt-1 text-[11px] font-bold text-red-600">{quote.shipping.error}</p>
+                )}
+              </div>
+            )}
+
             <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
               {quoting && !quote ? (
                 <div className="flex justify-center py-6">
@@ -405,6 +543,20 @@ export default function GoldBarRequest({
                   />
                   {Number(quote.shortfallGrams) > 0 && (
                     <Row label="کسری طلا نسبت به وزن شمش" value={`${fmtG(quote.shortfallGrams)} گرم`} />
+                  )}
+                  {shippingSelected && (
+                    <Row
+                      label={`هزینه ارسال (${shippingSelected.name})`}
+                      value={
+                        shippingSelected.free
+                          ? "رایگان"
+                          : shippingSelected.payOnDelivery
+                            ? `پس‌کرایه (حدود ${fmtT(shippingSelected.estimateToman)} تومان هنگام تحویل)`
+                            : Number(shippingSelected.chargedToman) > 0
+                              ? `${fmtT(shippingSelected.chargedToman)} تومان`
+                              : "رایگان"
+                      }
+                    />
                   )}
                   <Row label="مابه‌التفاوت" value={`${fmtT(quote.differenceToman)} تومان`} strong />
                   <div className="my-2 border-t border-dashed border-gray-200" />
@@ -461,51 +613,12 @@ export default function GoldBarRequest({
               </div>
             )}
 
-            <div className="mt-4">
-              <p className="mb-2 flex items-center gap-1.5 text-[12px] font-black text-gray-700">
-                <MapPin className="h-4 w-4" /> آدرس تحویل
-              </p>
-              {showAddAddress ? (
-                <AddAddressForm
-                  onSuccess={(a) => {
-                    void refreshAddresses();
-                    setAddressId(a.id);
-                    setShowAddAddress(false);
-                  }}
-                  onCancel={() => setShowAddAddress(false)}
-                />
-              ) : (
-                <>
-                  <select
-                    value={effectiveAddressId}
-                    onChange={(e) => setAddressId(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-[12.5px] outline-none focus:border-gold-500"
-                  >
-                    <option value="">انتخاب آدرس…</option>
-                    {addresses.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {(a.title ? `${a.title} — ` : "") + a.fullAddress}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedAddress?.receiverName && (
-                    <p className="mt-1 text-[11px] text-gray-400">گیرنده: {selectedAddress.receiverName}</p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setShowAddAddress(true)}
-                    className="mt-2 flex items-center gap-1 text-[12px] font-bold text-emerald"
-                  >
-                    <Plus className="h-4 w-4" /> افزودن آدرس جدید
-                  </button>
-                </>
-              )}
-            </div>
-
             <button
               type="button"
               onClick={submit}
-              disabled={!quote || expired || submitting || quoting || (needsGateway && gateways.length === 0)}
+              disabled={
+                !quote || expired || submitting || quoting || shippingMissing || (needsGateway && gateways.length === 0)
+              }
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[13px] font-black text-white disabled:opacity-50"
               style={{ backgroundColor: "var(--color-emerald)" }}
             >

@@ -9,9 +9,16 @@ export interface AddressItem {
   fullAddress: string;
   city?: string | null;
   province?: string | null;
+  /** کد استاندارد استان (TEHRAN, FARS, ...) — مبنای تعرفه‌ی ارسال */
+  provinceCode?: string | null;
+  postalCode?: string | null;
+  plaque?: string | null;
+  unit?: string | null;
   receiverName?: string | null;
   receiverPhone?: string | null;
   isDefault: boolean;
+  /** استان، شهر یا کد پستی تکمیل نشده است */
+  incomplete?: boolean;
 }
 
 export interface PhysicalDeliveryConfig {

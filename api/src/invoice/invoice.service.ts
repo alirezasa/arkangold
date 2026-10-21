@@ -493,6 +493,33 @@ export class InvoiceService {
       });
     }
 
+    // هزینه ارسال ردیف جدای فاکتور است؛ ارسال رایگان با مبلغ تعرفه و تخفیف برابر درج می‌شود.
+    // در پس‌کرایه مبلغی در فاکتور دریافت نمی‌شود و فقط برآورد آن در توضیحات فاکتور می‌آید.
+    const shippingRial = Number(order.shippingRial);
+    const shippingWaivedRial = Number(order.shippingWaivedRial);
+    if (order.shippingMethodName && shippingRial + shippingWaivedRial > 0) {
+      const listRial = shippingRial + shippingWaivedRial;
+      items.push({
+        rowNo: items.length + 1,
+        productCode: 'SHIP',
+        title: `هزینه ارسال — ${order.shippingMethodName}${
+          shippingWaivedRial > 0 ? ' (رایگان — هدیه خرید)' : ''
+        }`,
+        unit: 'خدمت',
+        purityKarat: null,
+        quantity: 1,
+        weightGrams: null,
+        unitPriceRial: listRial,
+        discountRial: shippingWaivedRial,
+        makingRial: 0,
+        feeRial: 0,
+        taxRate: 0,
+        taxRial: 0,
+        totalRial: shippingRial,
+        meta: { type: 'SHIPPING', free: shippingWaivedRial > 0 },
+      });
+    }
+
     return this.issue(tx, {
       kind: 'INVOICE',
       sourceType: 'SHOP_ORDER',
@@ -504,6 +531,12 @@ export class InvoiceService {
           Number(order.discountRial) > 0 ? order.discountCodeText : null,
         discountCodeRial: Number(order.discountRial),
         packagingWaivedRial: Number(order.packagingWaivedRial),
+        shippingMethodName: order.shippingMethodName,
+        shippingPayOnDelivery: order.shippingPayOnDelivery,
+        shippingEstimateRial:
+          order.shippingEstimateRial != null
+            ? Number(order.shippingEstimateRial)
+            : null,
         paymentMethod: await this.describeShopPayment(
           tx,
           order.id,
@@ -764,6 +797,16 @@ export class InvoiceService {
    * باقیمانده گرد کردن به آخرین ردیف دارای مبلغ اضافه می‌شود تا جمع
    * تخفیف ردیف‌ها دقیقاً برابر تخفیف سفارش باشد.
    */
+  private shippingView(extra: SaleInvoiceExtraData | null) {
+    return {
+      shippingMethodName: extra?.shippingMethodName ?? null,
+      shippingPayOnDelivery: extra?.shippingPayOnDelivery ?? false,
+      shippingEstimateRial: this.optionalRial(
+        extra?.shippingEstimateRial ?? undefined,
+      ),
+    };
+  }
+
   private allocateDiscount(lineTotals: number[], discountRial: number) {
     const result = lineTotals.map(() => 0);
     const subtotal = lineTotals.reduce((s, v) => s + v, 0);
@@ -935,6 +978,11 @@ export class InvoiceService {
           ? (invoice.extraData as unknown as SaleInvoiceExtraData | null)
               ?.packagingWaivedRial
           : undefined,
+      ),
+      ...this.shippingView(
+        invoice.kind === 'INVOICE'
+          ? (invoice.extraData as unknown as SaleInvoiceExtraData | null)
+          : null,
       ),
 
       items: invoice.items.map((i) => ({

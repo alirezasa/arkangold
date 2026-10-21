@@ -4,7 +4,8 @@
 "use client";
 import { useState } from "react";
 import useSWR from "swr";
-import { Plus, Truck } from "lucide-react";
+import Link from "next/link";
+import { MapPinned, Plus, Truck } from "lucide-react";
 import {
   ActionButton,
   Alert,
@@ -38,6 +39,18 @@ interface Method {
   isActive: boolean;
   sortOrder: number;
   shipmentCount: number;
+  rateCount: number;
+  carrierId: string | null;
+  carrier: { id: string; name: string; isActive: boolean } | null;
+  availableAtCheckout: boolean;
+  requiresPostalCode: boolean;
+  pickupAddress: string | null;
+  pickupHours: string | null;
+}
+interface CarrierOption {
+  id: string;
+  name: string;
+  isActive: boolean;
 }
 
 const TYPE_FA: Record<MethodType, string> = {
@@ -59,13 +72,21 @@ export default function ShippingMethodsPage() {
       <PageHeader
         icon={Truck}
         title="مراجع ارسال سفارش"
-        subtitle="روش‌هایی که هنگام «ثبت ارسال» سفارش قابل انتخاب‌اند. برای هر مرجع تعیین کنید کد رهگیری الزامی باشد، تحویل فقط با کد تحویل مشتری ثبت شود و لینک ثبت تحویل برای پیک پیامک شود."
+        subtitle="روش‌های ارسال (پیک، پست عادی/پیشتاز، پست خصوصی، تحویل حضوری). روش «قابل انتخاب مشتری» هنگام ثبت سفارش بر اساس منطقه و تعرفه‌ی آدرس نمایش داده می‌شود؛ همه‌ی روش‌های فعال هنگام «ثبت ارسال» در پنل قابل انتخاب‌اند."
         actions={
-          can("shop.manage") ? (
-            <ActionButton onClick={() => setEdit("new")}>
-              <Plus className="w-4 h-4" /> مرجع جدید
-            </ActionButton>
-          ) : undefined
+          <>
+            <Link
+              href="/shop/shipping-zones"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[12px] font-bold border-2 border-gray-200 bg-white text-gray-700"
+            >
+              <MapPinned className="w-4 h-4" /> مناطق و تعرفه‌ها
+            </Link>
+            {can("shop.manage") && (
+              <ActionButton onClick={() => setEdit("new")}>
+                <Plus className="w-4 h-4" /> مرجع جدید
+              </ActionButton>
+            )}
+          </>
         }
       />
       <div className="rounded-2xl p-4" style={cardStyle}>
@@ -79,6 +100,9 @@ export default function ShippingMethodsPage() {
               <tr>
                 <th>نام</th>
                 <th>نوع</th>
+                <th>شرکت حمل</th>
+                <th>انتخاب مشتری</th>
+                <th>تعرفه</th>
                 <th>کد رهگیری الزامی</th>
                 <th>کد تحویل مشتری</th>
                 <th>لینک پیک</th>
@@ -98,6 +122,9 @@ export default function ShippingMethodsPage() {
                     </p>
                   </td>
                   <td>{TYPE_FA[m.type]}</td>
+                  <td>{m.carrier ? `${m.carrier.name}${m.carrier.isActive ? "" : " (غیرفعال)"}` : "—"}</td>
+                  <td>{yes(m.availableAtCheckout)}</td>
+                  <td>{m.rateCount.toLocaleString("fa-IR")}</td>
                   <td>{yes(m.requiresTrackingCode)}</td>
                   <td>{yes(m.requiresDeliveryCode)}</td>
                   <td>{yes(m.courierLinkEnabled)}</td>
@@ -135,7 +162,13 @@ export default function ShippingMethodsPage() {
 }
 
 function MethodModal({ method, onClose }: { method: Method | null; onClose: () => void }) {
+  const { data: carriers } = useSWR<CarrierOption[]>("/api/admin/shipping/carriers", fetcher);
   const [f, setF] = useState({
+    carrierId: method?.carrierId ?? "",
+    availableAtCheckout: method?.availableAtCheckout ?? true,
+    requiresPostalCode: method?.requiresPostalCode ?? false,
+    pickupAddress: method?.pickupAddress ?? "",
+    pickupHours: method?.pickupHours ?? "",
     code: method?.code ?? "",
     name: method?.name ?? "",
     type: (method?.type ?? "POST") as MethodType,
@@ -166,6 +199,11 @@ function MethodModal({ method, onClose }: { method: Method | null; onClose: () =
       contactPhone: f.contactPhone || null,
       isActive: f.isActive,
       sortOrder: Number(f.sortOrder) || 0,
+      carrierId: f.carrierId || null,
+      availableAtCheckout: f.availableAtCheckout,
+      requiresPostalCode: f.requiresPostalCode,
+      pickupAddress: f.pickupAddress || null,
+      pickupHours: f.pickupHours || null,
     };
     const ok = await act.run(() =>
       method ? api.patch(`/api/admin/shop-orders/shipping-methods/${method.id}`, body) : api.post("/api/admin/shop-orders/shipping-methods", body),
@@ -173,7 +211,11 @@ function MethodModal({ method, onClose }: { method: Method | null; onClose: () =
     if (ok) onClose();
   };
 
-  const check = (k: "requiresTrackingCode" | "requiresDeliveryCode" | "courierLinkEnabled" | "isActive", label: string, hint?: string) => (
+  const check = (
+    k: "requiresTrackingCode" | "requiresDeliveryCode" | "courierLinkEnabled" | "isActive" | "availableAtCheckout" | "requiresPostalCode",
+    label: string,
+    hint?: string,
+  ) => (
     <label className="flex items-start gap-2 text-[12px]">
       <input type="checkbox" checked={f[k]} onChange={(e) => set(k, e.target.checked)} className="mt-1" />
       <span>
@@ -206,9 +248,30 @@ function MethodModal({ method, onClose }: { method: Method | null; onClose: () =
             <input value={f.estimatedDays} onChange={(e) => set("estimatedDays", e.target.value.replace(/\D/g, ""))} className={inputCls} />
           </Field>
         </div>
-        <Field label="توضیح">
+        <Field label="شرکت حمل">
+          <select value={f.carrierId} onChange={(e) => set("carrierId", e.target.value)} className={inputCls}>
+            <option value="">— بدون شرکت —</option>
+            {(carriers ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.isActive ? "" : " (غیرفعال)"}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="توضیح (به مشتری نمایش داده می‌شود)">
           <input value={f.description} onChange={(e) => set("description", e.target.value)} className={inputCls} />
         </Field>
+        {f.type === "PICKUP" && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="نشانی دفتر برای تحویل حضوری">
+              <input value={f.pickupAddress} onChange={(e) => set("pickupAddress", e.target.value)} className={inputCls} />
+            </Field>
+            <Field label="ساعات مراجعه">
+              <input value={f.pickupHours} onChange={(e) => set("pickupHours", e.target.value)} className={inputCls} placeholder="شنبه تا چهارشنبه ۹ تا ۱۷" />
+            </Field>
+          </div>
+        )}
         <Field label="نشانی رهگیری" hint="با {code} به‌جای کد رهگیری، مثلاً https://example.com/track?code={code}">
           <input value={f.trackingUrlTemplate} onChange={(e) => set("trackingUrlTemplate", e.target.value)} className={`${inputCls} text-left`} dir="ltr" />
         </Field>
@@ -224,6 +287,8 @@ function MethodModal({ method, onClose }: { method: Method | null; onClose: () =
           {check("requiresTrackingCode", "کد رهگیری مرسوله الزامی است")}
           {check("requiresDeliveryCode", "تحویل فقط با کد تحویل مشتری", "هنگام ارسال کد ۶ رقمی برای مشتری پیامک می‌شود و تحویل بدون آن ثبت نمی‌شود")}
           {check("courierLinkEnabled", "ارسال لینک ثبت تحویل برای پیک", "موبایل پیک هنگام ارسال الزامی می‌شود")}
+          {check("availableAtCheckout", "قابل انتخاب توسط مشتری هنگام ثبت سفارش", "فقط در منطقه‌هایی که برای این روش تعرفه‌ی فعال تعریف شده باشد")}
+          {check("requiresPostalCode", "فقط برای آدرس دارای کد پستی ۱۰ رقمی", "برای پست الزامی است")}
           {check("isActive", "فعال")}
         </div>
         {act.error && <Alert kind="error" text={act.error} />}

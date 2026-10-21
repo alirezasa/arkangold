@@ -197,6 +197,14 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     subType: 'SHOP_PACKAGING',
   },
   {
+    code: '4035',
+    name: 'درآمد خدمات ارسال سفارش‌های فروشگاه',
+    type: AccountType.INCOME,
+    subType: 'SHOP_SHIPPING',
+    description:
+      'هزینه ارسال دریافت‌شده از مشتری (پیک/پست/پست خصوصی)؛ در پس‌کرایه مبلغی در سفارش دریافت نمی‌شود',
+  },
+  {
     code: '4040',
     name: 'درآمد فروش شمش از طریق نمایندگان و شرکا',
     type: AccountType.INCOME,
@@ -365,6 +373,7 @@ export const ACC = {
   RETAINED_EARNINGS: '3020',
   TRADE_FEE: '4010',
   SHOP_SALE: '4020',
+  SHOP_SHIPPING: '4035',
   BAR_SALE: '4040',
   BAR_PREMIUM: '4050',
   GOLD_GAIN: '4070',

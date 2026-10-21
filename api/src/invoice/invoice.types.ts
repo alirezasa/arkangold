@@ -52,6 +52,10 @@ export interface SaleInvoiceExtraData {
   discountCodeRial?: number;
   /** مبلغ بسته‌بندی رایگان‌شده به‌دلیل رسیدن خرید به آستانه (ریال) */
   packagingWaivedRial?: number;
+  /** روش ارسال انتخابی مشتری و پس‌کرایه (هزینه هنگام تحویل مستقیماً به شرکت حمل پرداخت می‌شود) */
+  shippingMethodName?: string | null;
+  shippingPayOnDelivery?: boolean;
+  shippingEstimateRial?: number | null;
   /** فروش حضوری توسط نماینده فروش */
   agentCode?: string;
   agentName?: string;
@@ -105,6 +109,10 @@ export interface InvoiceDocumentDto {
   discountCodeRial: string | null;
   /** مبلغ بسته‌بندی رایگان‌شده (ریال) */
   packagingWaivedRial: string | null;
+  /** روش ارسال سفارش فروشگاه و پس‌کرایه */
+  shippingMethodName: string | null;
+  shippingPayOnDelivery: boolean;
+  shippingEstimateRial: string | null;
 
   items: {
     rowNo: number;

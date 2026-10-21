@@ -82,6 +82,10 @@ export interface InvoiceDocument {
   discountCodeRial?: string | null;
   /** مبلغ بسته‌بندی رایگان‌شده به‌دلیل رسیدن خرید به آستانه (ریال) */
   packagingWaivedRial?: string | null;
+  /** روش ارسال سفارش و پس‌کرایه (هزینه‌ی ارسال هنگام تحویل به شرکت حمل پرداخت می‌شود) */
+  shippingMethodName?: string | null;
+  shippingPayOnDelivery?: boolean;
+  shippingEstimateRial?: string | null;
   items: InvoiceLine[];
   subtotalRial: string;
   discountRial: string;

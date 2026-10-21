@@ -190,6 +190,22 @@ export default function InvoiceDocumentView({ doc }: { doc: InvoiceDocument }) {
               ریال در ستون تخفیف لحاظ شده است
             </div>
           )}
+          {doc.shippingMethodName && (
+            <div>
+              روش ارسال: {doc.shippingMethodName}
+              {doc.shippingPayOnDelivery && (
+                <>
+                  {" "}— <b>پس‌کرایه</b>: هزینه‌ی ارسال
+                  {Number(doc.shippingEstimateRial ?? 0) > 0 && (
+                    <>
+                      {" "}(حدود <Num>{faGrouped(doc.shippingEstimateRial ?? 0)}</Num> ریال)
+                    </>
+                  )}{" "}
+                  در این فاکتور نیست و هنگام تحویل به شرکت حمل پرداخت می‌شود
+                </>
+              )}
+            </div>
+          )}
           <div>
             کلیه مبالغ به <b>ریال</b> است. معادل تومانی صرفاً جهت اطلاع درج شده است.
           </div>

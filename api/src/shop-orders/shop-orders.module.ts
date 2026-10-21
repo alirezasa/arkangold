@@ -14,6 +14,7 @@ import { CatalogModule } from '../catalog/catalog.module';
 import { MarketModule } from '../market/market.module';
 import { GoldBarDeliveryService } from './gold-bar-delivery.service';
 import { GoldBarDeliveryController } from './gold-bar-delivery.controller';
+import { ShippingModule } from '../shipping/shipping.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { GoldBarDeliveryController } from './gold-bar-delivery.controller';
     PackagingModule,
     CatalogModule,
     MarketModule,
+    ShippingModule,
   ],
   controllers: [
     GoldBarDeliveryController,

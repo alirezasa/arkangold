@@ -122,6 +122,7 @@ export const USER_MENU_GROUPS: NavGroup[] = [
     items: [
       { name: "اطلاعات حساب کاربری", icon: "ti-user-circle", path: "/dashboard/me" },
       { name: "حساب‌ها و کارت‌های بانکی", icon: "ti-credit-card", path: "/dashboard/cards" },
+      { name: "آدرس‌های من", icon: "ti-map-pin", path: "/dashboard/addresses" },
       { name: "امنیت و تغییر رمز عبور", icon: "ti-lock", path: "/dashboard/security" },
       { name: "دعوت از دوستان", icon: "ti-gift", path: "/dashboard/referral" },
     ],

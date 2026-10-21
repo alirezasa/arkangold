@@ -144,7 +144,7 @@ export class PhysicalDeliveryService {
     }
 
     const address = await this.prisma.address.findFirst({
-      where: { id: dto.addressId, userId },
+      where: { id: dto.addressId, userId, deletedAt: null },
     });
     if (!address) throw new NotFoundException('آدرس یافت نشد');
 

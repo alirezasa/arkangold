@@ -36,6 +36,7 @@ export const FIELD_GROUPS: { title: string; fields: { key: string; label: string
       { key: "shipping.method", label: "مرجع ارسال" },
       { key: "shipping.trackingCode", label: "کد رهگیری" },
       { key: "shipping.courier", label: "نام پیک" },
+      { key: "shipping.payment", label: "پس‌کرایه / پیش‌کرایه" },
     ],
   },
   {
@@ -121,6 +122,7 @@ function orderContext(order: PrintOrder, sender: PrintData["sender"]): LabelCont
     "shipping.method": order.shipping?.method ?? "",
     "shipping.trackingCode": order.shipping?.trackingCode ?? "",
     "shipping.courier": order.shipping?.courierName ?? "",
+    "shipping.payment": order.shipping?.payment ?? "",
     "sender.name": sender.name,
     "sender.phone": sender.phone,
     "sender.address": sender.address,
@@ -190,7 +192,12 @@ export const SAMPLE_DATA: PrintData = {
         full: "سعادت‌آباد، بلوار پاکنژاد، خیابان سی‌وششم، پلاک ۱۲، واحد ۴",
         postalCode: "1998765432",
       },
-      shipping: { method: "پست پیشتاز", trackingCode: "123456789012345678901234", courierName: null },
+      shipping: {
+        method: "پست پیشتاز",
+        trackingCode: "123456789012345678901234",
+        courierName: null,
+        payment: "پیش‌کرایه (پرداخت‌شده)",
+      },
       items: [
         { id: "s1", name: "شمش طلای ۲۴ عیار", sku: "ING-1G", barcode: "2001234567893", weightGrams: "1", quantity: 2, karat: "۲۴ عیار", packaging: "جعبه مخمل" },
         { id: "s2", name: "سکه طلای ۱۸ عیار", sku: "CN-05", barcode: "2009876543213", weightGrams: "0.5", quantity: 1, karat: "۱۸ عیار", packaging: null },

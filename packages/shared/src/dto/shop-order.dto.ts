@@ -30,6 +30,17 @@ export class CreateShopOrderDto {
   @IsString()
   @MaxLength(40)
   discountCode?: string;
+
+  // روش ارسال انتخابی مشتری (از گزینه‌های GET /shipping/options برای همین آدرس)؛
+  // هزینه‌ی ارسال در سرور و بر اساس تعرفه‌ی روز محاسبه می‌شود
+  @IsOptional()
+  @IsUUID()
+  shippingMethodId?: string;
+
+  // فقط برای روش‌هایی که پس‌کرایه را به انتخاب مشتری گذاشته‌اند: ON_DELIVERY = پرداخت هنگام تحویل
+  @IsOptional()
+  @IsIn(['PREPAID', 'ON_DELIVERY'])
+  shippingFeePayment?: 'PREPAID' | 'ON_DELIVERY';
 }
 
 export class ValidateDiscountCodeDto {

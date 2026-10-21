@@ -36,6 +36,12 @@ import { InvoiceService } from '../invoice/invoice.service';
 import { DocumentSequenceService } from '../common/documents/document-sequence.service';
 import { ShopOrdersService } from './shop-orders.service';
 import { ShopOrderEventsService } from './shop-order-events.service';
+import {
+  PROVINCE_MISSING,
+  ShippingSelection,
+  ShippingService,
+  UserShippingOption,
+} from '../shipping/shipping.service';
 
 const D = (v: Prisma.Decimal.Value) => new Prisma.Decimal(v);
 const D0 = D(0);
@@ -53,14 +59,17 @@ export interface GoldBarPlanInput {
   rialAvailable: Prisma.Decimal;
   useExtraGold: boolean;
   useRialWallet: boolean;
+  /** هزینه‌ی ارسال پیش‌پرداخت (به مابه‌التفاوت افزوده می‌شود؛ طلای وزن شمش صرف آن نمی‌شود) */
+  shippingRial?: Prisma.Decimal;
 }
 
 export interface GoldBarPlan {
   /** طلای کسرشده بابت وزن شمش (حداکثر به اندازه‌ی وزن شمش) */
   goldForBarGrams: Prisma.Decimal;
   goldForBarRial: Prisma.Decimal;
-  /** مابه‌التفاوت قیمت شمش با ارزش طلای بالا (اگر طلا کمتر از وزن شمش باشد، کسری هم شامل آن است) */
+  /** مابه‌التفاوت قیمت شمش با ارزش طلای بالا (اگر طلا کمتر از وزن شمش باشد، کسری هم شامل آن است) + هزینه ارسال */
   differenceRial: Prisma.Decimal;
+  shippingRial: Prisma.Decimal;
   /** کسری طلای کاربر نسبت به وزن شمش */
   shortfallGrams: Prisma.Decimal;
   extraGoldGrams: Prisma.Decimal;
@@ -88,7 +97,8 @@ export function planGoldBarPayment(i: GoldBarPlanInput): GoldBarPlan {
     floorR(goldForBarGrams.times(i.goldRateRial)),
     i.priceRial,
   );
-  const differenceRial = i.priceRial.minus(goldForBarRial);
+  const shippingRial = Prisma.Decimal.max(D0, i.shippingRial ?? D0);
+  const differenceRial = i.priceRial.minus(goldForBarRial).plus(shippingRial);
   const shortfallGrams = Prisma.Decimal.max(
     D0,
     i.weightGrams.minus(goldForBarGrams),
@@ -132,6 +142,7 @@ export function planGoldBarPayment(i: GoldBarPlanInput): GoldBarPlan {
     goldForBarGrams,
     goldForBarRial,
     differenceRial,
+    shippingRial,
     shortfallGrams,
     extraGoldGrams,
     extraGoldRial,
@@ -171,6 +182,7 @@ export class GoldBarDeliveryService {
     private readonly documentSequence: DocumentSequenceService,
     private readonly shopOrders: ShopOrdersService,
     private readonly events: ShopOrderEventsService,
+    private readonly shipping: ShippingService,
   ) {}
 
   // ══════════════════════════════════════════
@@ -303,6 +315,7 @@ export class GoldBarDeliveryService {
       goldForBarGrams: plan.goldForBarGrams.toString(),
       goldForBarToman: this.toToman(plan.goldForBarRial),
       differenceToman: this.toToman(plan.differenceRial),
+      shippingToman: this.toToman(plan.shippingRial),
       shortfallGrams: plan.shortfallGrams.toString(),
       extraGoldGrams: plan.extraGoldGrams.toString(),
       extraGoldToman: this.toToman(plan.extraGoldRial),
@@ -311,6 +324,66 @@ export class GoldBarDeliveryService {
       goldAppliedGrams: plan.goldAppliedGrams.toString(),
       goldAppliedToman: this.toToman(plan.goldAppliedRial),
     };
+  }
+
+  /** گزینه‌های ارسال شمش برای آدرس؛ خطای انتخاب روش به‌جای شکستن پیش‌فاکتور برگردانده می‌شود */
+  private async shippingForQuote(
+    userId: string,
+    p: {
+      addressId?: string;
+      shippingMethodId?: string;
+      shippingFeePayment?: 'PREPAID' | 'ON_DELIVERY';
+      weightGrams: Prisma.Decimal;
+      priceRial: Prisma.Decimal;
+    },
+  ) {
+    const enabled = await this.shipping.isEnabled();
+    const empty = {
+      enabled,
+      options: [] as UserShippingOption[],
+      selection: null as ShippingSelection | null,
+      error: null as string | null,
+    };
+    if (!enabled || !p.addressId) return empty;
+    const address = await this.shipping.getUserAddress(userId, p.addressId);
+    const parcel = {
+      itemsWeightGrams: p.weightGrams.toNumber(),
+      valueRial: p.priceRial.toNumber(),
+    };
+    const { options, provinceMissing } = await this.shipping.quoteForAddress(
+      address,
+      parcel,
+    );
+    const result = {
+      ...empty,
+      options: options.map((o) => this.shipping.toUserOption(o)),
+      error: provinceMissing ? PROVINCE_MISSING : null,
+    };
+    if (!p.shippingMethodId) return result;
+    try {
+      result.selection = await this.shipping.resolveForCheckout({
+        address,
+        ...parcel,
+        methodId: p.shippingMethodId,
+        feePayment: p.shippingFeePayment,
+      });
+    } catch (err) {
+      result.error = (err as Error).message;
+    }
+    return result;
+  }
+
+  private selectionView(s: ShippingSelection | null) {
+    return s
+      ? {
+          methodId: s.methodId,
+          name: s.methodName,
+          chargedToman: this.toToman(D(s.charge.shippingRial)),
+          estimateToman: this.toToman(D(s.charge.estimateRial)),
+          payOnDelivery: s.charge.payOnDelivery,
+          free: s.charge.waivedRial > 0,
+        }
+      : null;
   }
 
   // ══════════════════════════════════════════
@@ -421,7 +494,14 @@ export class GoldBarDeliveryService {
   // ══════════════════════════════════════════
   async quote(
     userId: string,
-    dto: { variantId: string; useExtraGold?: boolean; useRialWallet?: boolean },
+    dto: {
+      variantId: string;
+      useExtraGold?: boolean;
+      useRialWallet?: boolean;
+      addressId?: string;
+      shippingMethodId?: string;
+      shippingFeePayment?: 'PREPAID' | 'ON_DELIVERY';
+    },
   ) {
     await this.assertEligibleUser(userId);
     const variant = await this.prisma.productVariant.findFirst({
@@ -463,6 +543,15 @@ export class GoldBarDeliveryService {
       JSON.stringify(stored),
     );
 
+    // گزینه‌های ارسال برای آدرس انتخابی؛ روش انتخاب‌شده (اگر معتبر باشد) در پیش‌فاکتور لحاظ می‌شود
+    const shipping = await this.shippingForQuote(userId, {
+      addressId: dto.addressId,
+      shippingMethodId: dto.shippingMethodId,
+      shippingFeePayment: dto.shippingFeePayment,
+      weightGrams: variant.weightGrams,
+      priceRial: priced.priceRial,
+    });
+
     const plan = planGoldBarPayment({
       priceRial: priced.priceRial,
       weightGrams: variant.weightGrams,
@@ -471,9 +560,16 @@ export class GoldBarDeliveryService {
       rialAvailable: bal.rialAvailable,
       useExtraGold: dto.useExtraGold ?? true,
       useRialWallet: dto.useRialWallet ?? true,
+      shippingRial: D(shipping.selection?.charge.shippingRial ?? 0),
     });
 
     return {
+      shipping: {
+        enabled: shipping.enabled,
+        options: shipping.options,
+        selected: this.selectionView(shipping.selection),
+        error: shipping.error,
+      },
       quoteId: stored.id,
       expiresAt: stored.expiresAt,
       expiresInSeconds: ttl,
@@ -513,6 +609,8 @@ export class GoldBarDeliveryService {
       useExtraGold: boolean;
       useRialWallet: boolean;
       gatewayProvider?: GatewayProviderKey;
+      shippingMethodId?: string;
+      shippingFeePayment?: 'PREPAID' | 'ON_DELIVERY';
     },
     idempotencyKey?: string,
   ) {
@@ -540,12 +638,14 @@ export class GoldBarDeliveryService {
       useExtraGold: boolean;
       useRialWallet: boolean;
       gatewayProvider?: GatewayProviderKey;
+      shippingMethodId?: string;
+      shippingFeePayment?: 'PREPAID' | 'ON_DELIVERY';
     },
   ) {
     await this.assertEligibleUser(userId);
     const q = await this.readQuote(userId, dto.quoteId);
     const address = await this.prisma.address.findFirst({
-      where: { id: dto.addressId, userId },
+      where: { id: dto.addressId, userId, deletedAt: null },
     });
     if (!address) throw new NotFoundException('آدرس یافت نشد');
     const minGold = await this.minGoldGrams();
@@ -553,6 +653,14 @@ export class GoldBarDeliveryService {
     const priceRial = D(q.priceRial);
     const weightGrams = D(q.weightGrams);
     const goldRateRial = D(q.goldRateRial);
+    const shipping = await this.shipping.resolveForCheckout({
+      address,
+      itemsWeightGrams: weightGrams.toNumber(),
+      valueRial: priceRial.toNumber(),
+      methodId: dto.shippingMethodId,
+      feePayment: dto.shippingFeePayment,
+    });
+    const shippingRial = D(shipping?.charge.shippingRial ?? 0);
 
     const created = await this.prisma.$transaction(
       async (tx) => {
@@ -581,6 +689,7 @@ export class GoldBarDeliveryService {
           rialAvailable: bal.rialAvailable,
           useExtraGold: dto.useExtraGold,
           useRialWallet: dto.useRialWallet,
+          shippingRial,
         });
         if (plan.gatewayRial.greaterThan(0) && !dto.gatewayProvider) {
           throw new BadRequestException(
@@ -597,7 +706,8 @@ export class GoldBarDeliveryService {
             discountRial: 0,
             packagingRial: 0,
             packagingWaivedRial: 0,
-            totalRial: priceRial,
+            totalRial: priceRial.plus(shippingRial),
+            ...this.shipping.orderShippingData(address, shipping),
             fundingSource: 'MELTED_GOLD',
             goldAppliedGrams: plan.goldAppliedGrams,
             goldAppliedRial: plan.goldAppliedRial,
@@ -762,9 +872,10 @@ export class GoldBarDeliveryService {
     }
 
     const subtotalRial = order.subtotalRial.toNumber();
+    const shippingRial = order.shippingRial.toNumber();
     await this.accountingService.postJournal(tx, {
       description: `فروش شمش با طلای آب‌شده (تحویل فیزیکی) - سفارش ${orderId}`,
-      totalRial: subtotalRial,
+      totalRial: subtotalRial + shippingRial,
       totalGrams: 0,
       lines: this.shopOrders.buildSaleJournalLines({
         walletRial: rial.plus(order.goldAppliedRial).toNumber(),
@@ -772,6 +883,7 @@ export class GoldBarDeliveryService {
         discountRial: 0,
         subtotalRial,
         packagingRial: 0,
+        shippingRial,
       }),
     });
     await this.inventoryAccounting.postShopCogs(tx, orderId);

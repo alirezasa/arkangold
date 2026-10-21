@@ -23,6 +23,8 @@ import {
   TicketPercent,
   X,
   Package,
+  Truck,
+  Settings2,
 } from "lucide-react";
 import {
   useCart,
@@ -38,6 +40,12 @@ import {
   DiscountPreview,
 } from "@/app/hooks/useShop";
 import { useAddresses } from "@/app/hooks/usePhysicalDelivery";
+import { formatAddressLine, useShippingOptions } from "@/app/hooks/useShipping";
+import AddressForm from "@/app/dashboard/components/address/AddressForm";
+import ShippingMethodPicker, {
+  isPayOnDelivery,
+  shippingChargeToman,
+} from "@/app/dashboard/components/shop/ShippingMethodPicker";
 import { useWallet } from "@/app/hooks/useWallet";
 import { useActiveGateways } from "@/app/hooks/useShop";
 import { Suspense } from "react";
@@ -248,7 +256,11 @@ function CartRow({
 function ShopCartPageInner() {
   const { cart, loading, refresh } = useCart();
   const { update, remove } = useUpdateCartItem();
-  const { addresses, loading: addressesLoading } = useAddresses();
+  const {
+    addresses,
+    loading: addressesLoading,
+    refresh: refreshAddresses,
+  } = useAddresses();
   const { wallet } = useWallet();
   const {
     loading: checkoutLoading,
@@ -268,6 +280,13 @@ function ShopCartPageInner() {
 
   const [step, setStep] = useState<Step>("cart");
   const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [addingAddress, setAddingAddress] = useState(false);
+  // روش ارسال انتخابی (به ازای همان آدرس) و انتخاب پس‌کرایه برای روش‌های «انتخاب مشتری»
+  const [shippingChoice, setShippingChoice] = useState<{
+    addressId: string;
+    methodId: string;
+  } | null>(null);
+  const [payOnDelivery, setPayOnDelivery] = useState(false);
   const [order, setOrder] = useState<ShopOrderDto | null>(null);
   // گیرنده هر آیتم — «خرید برای خودم» یا «برای فرد دیگر» (بند ۳.۳)
   const [recipients, setRecipients] = useState<
@@ -322,6 +341,32 @@ function ShopCartPageInner() {
     }
   }
 
+  // آدرس پیش‌فرض از قبل انتخاب شده است
+  const effectiveAddressId =
+    selectedAddressId ||
+    (addresses.find((a) => a.isDefault) ?? addresses[0])?.id ||
+    "";
+  const selectedAddress = addresses.find((a) => a.id === effectiveAddressId);
+  const {
+    data: shippingData,
+    loading: shippingLoading,
+    error: shippingError,
+    refresh: refreshShipping,
+  } = useShippingOptions(
+    step === "address" || step === "confirm" ? effectiveAddressId || null : null,
+  );
+  const shippingEnabled = shippingData?.enabled ?? true;
+  const shippingOptions = shippingData?.options ?? [];
+  // انتخاب روش فقط برای همان آدرس معتبر است؛ با تغییر آدرس، اولین روش در دسترس پیشنهاد می‌شود
+  const selectedShipping =
+    (shippingChoice?.addressId === effectiveAddressId
+      ? shippingOptions.find((o) => o.methodId === shippingChoice.methodId && o.available)
+      : undefined) ?? shippingOptions.find((o) => o.available);
+  const shippingToman = shippingEnabled
+    ? shippingChargeToman(selectedShipping, payOnDelivery)
+    : 0;
+  const shippingCod = isPayOnDelivery(selectedShipping, payOnDelivery);
+
   const handleQuantityChange = async (itemId: string, qty: number) => {
     await update(itemId, { quantity: qty });
     refresh();
@@ -371,7 +416,10 @@ function ShopCartPageInner() {
   };
 
   const handleConfirmAddress = () => {
-    if (!selectedAddressId) return setCheckoutError("یک آدرس را انتخاب کنید");
+    if (!effectiveAddressId) return setCheckoutError("یک آدرس را انتخاب کنید");
+    if (shippingEnabled && !selectedShipping) {
+      return setCheckoutError("روش ارسال سفارش را انتخاب کنید");
+    }
     setCheckoutError(null);
     setStep("confirm");
   };
@@ -399,11 +447,21 @@ function ShopCartPageInner() {
     }
 
     const res = await checkout(
-      selectedAddressId,
+      effectiveAddressId,
       recipientPayload,
       appliedDiscount?.code,
+      shippingEnabled && selectedShipping
+        ? {
+            methodId: selectedShipping.methodId,
+            feePayment: shippingCod ? "ON_DELIVERY" : "PREPAID",
+          }
+        : null,
     );
-    if (!res) return;
+    if (!res) {
+      // تعرفه یا دسترسی روش ارسال ممکن است تغییر کرده باشد
+      void refreshShipping();
+      return;
+    }
     setOrder(res);
 
     const totalRial = Number(res.totalToman) * 10;
@@ -444,7 +502,7 @@ function ShopCartPageInner() {
 
     const payRes = await pay(res.id, payload);
     if (payRes?.requiresRedirect && payRes.redirectUrl) {
-      window.location.href = payRes.redirectUrl; // ریدایرکت به درگاه
+      window.location.assign(payRes.redirectUrl); // ریدایرکت به درگاه
       return;
     }
     if (payRes) {
@@ -455,11 +513,12 @@ function ShopCartPageInner() {
 
   const error = checkoutError || payError;
   const hasExpiredItem = cart?.items.some((i) => i.expiresInSeconds <= 0);
-  // مبلغ قابل پرداخت = اقلام + بسته‌بندی − تخفیف (کد تخفیف فقط روی اقلام اعمال می‌شود)
+  // مبلغ قابل پرداخت = اقلام + بسته‌بندی + ارسال − تخفیف (کد تخفیف فقط روی اقلام اعمال می‌شود)
   const payableToman = Math.max(
     0,
     (cart?.totalToman ?? 0) -
-      (appliedDiscount ? Number(appliedDiscount.discountToman) : 0),
+      (appliedDiscount ? Number(appliedDiscount.discountToman) : 0) +
+      shippingToman,
   );
   const hasPackaging = !!cart?.items.some((i) => i.packaging);
   const packagingFreeRemaining = Number(cart?.packagingFreeRemainingToman ?? 0);
@@ -614,69 +673,153 @@ function ShopCartPageInner() {
       )}
 
       {step === "address" && (
-        <div
-          className="rounded-2xl p-5 space-y-4"
-          style={{
-            backgroundColor: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-          }}
-        >
-          <h2 className="text-[14px] font-black text-gray-800">آدرس تحویل</h2>
+        <div className="space-y-4">
+          <div
+            className="rounded-2xl p-5 space-y-4"
+            style={{
+              backgroundColor: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="flex items-center gap-1.5 text-[14px] font-black text-gray-800">
+                <MapPin className="w-4 h-4" /> آدرس تحویل
+              </h2>
+              <Link
+                href="/dashboard/addresses"
+                className="flex items-center gap-1 text-[11px] font-bold text-gray-500 hover:text-gray-700"
+              >
+                <Settings2 className="w-3.5 h-3.5" /> مدیریت آدرس‌ها
+              </Link>
+            </div>
 
-          {addressesLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
-            </div>
-          ) : addresses.length === 0 ? (
-            <div className="text-center py-8">
-              <MapPin className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-              <p className="text-[13px] text-gray-400">
-                برای ثبت آدرس، ابتدا از بخش تحویل فیزیکی یک آدرس اضافه کنید
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {addresses.map((addr) => (
-                <button
-                  key={addr.id}
-                  onClick={() => {
-                    setSelectedAddressId(addr.id);
-                    setCheckoutError(null);
-                  }}
-                  className={`w-full flex items-start gap-3 p-3.5 rounded-xl border-2 text-right transition-all ${
-                    selectedAddressId === addr.id
-                      ? "border-emerald-500 bg-emerald-50"
-                      : "border-gray-100 bg-gray-50 hover:border-gray-200"
-                  }`}
-                >
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                      selectedAddressId === addr.id
-                        ? "bg-emerald-100"
-                        : "bg-white"
+            {addingAddress ? (
+              <AddressForm
+                onSuccess={(a) => {
+                  setAddingAddress(false);
+                  setSelectedAddressId(a.id);
+                  setCheckoutError(null);
+                  void refreshAddresses();
+                }}
+                onCancel={() => setAddingAddress(false)}
+              />
+            ) : addressesLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {addresses.length === 0 && (
+                  <div className="text-center py-4">
+                    <MapPin className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-[13px] text-gray-400">
+                      هنوز آدرسی ثبت نکرده‌اید؛ یک آدرس تحویل اضافه کنید
+                    </p>
+                  </div>
+                )}
+                {addresses.map((addr) => (
+                  <button
+                    key={addr.id}
+                    onClick={() => {
+                      setSelectedAddressId(addr.id);
+                      setCheckoutError(null);
+                    }}
+                    className={`w-full flex items-start gap-3 p-3.5 rounded-xl border-2 text-right transition-all ${
+                      effectiveAddressId === addr.id
+                        ? "border-emerald-500 bg-emerald-50"
+                        : "border-gray-100 bg-gray-50 hover:border-gray-200"
                     }`}
                   >
-                    {addr.title?.includes("کار") ? (
-                      <Building2 className="w-4 h-4 text-gray-500" />
-                    ) : (
-                      <Home className="w-4 h-4 text-gray-500" />
+                    <div
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                        effectiveAddressId === addr.id
+                          ? "bg-emerald-100"
+                          : "bg-white"
+                      }`}
+                    >
+                      {addr.title?.includes("کار") ? (
+                        <Building2 className="w-4 h-4 text-gray-500" />
+                      ) : (
+                        <Home className="w-4 h-4 text-gray-500" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-black text-gray-800">
+                        {addr.title || "آدرس"}
+                        {addr.isDefault && (
+                          <span className="mr-1.5 text-[10px] font-bold text-emerald-600">
+                            (پیش‌فرض)
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
+                        {formatAddressLine(addr)}
+                      </p>
+                      {(addr.receiverName || addr.postalCode) && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {[
+                            addr.receiverName && `گیرنده: ${addr.receiverName}`,
+                            addr.postalCode && `کد پستی: ${addr.postalCode}`,
+                          ]
+                            .filter(Boolean)
+                            .join(" — ")}
+                        </p>
+                      )}
+                      {addr.incomplete && (
+                        <p className="text-[10px] font-bold text-amber-600 mt-0.5">
+                          استان، شهر یا کد پستی این آدرس ناقص است
+                        </p>
+                      )}
+                    </div>
+                    {effectiveAddressId === addr.id && (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-1" />
                     )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-black text-gray-800">
-                      {addr.title || "آدرس"}
-                    </p>
-                    <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
-                      {[addr.province, addr.city, addr.fullAddress]
-                        .filter(Boolean)
-                        .join("، ")}
-                    </p>
-                  </div>
-                  {selectedAddressId === addr.id && (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-1" />
-                  )}
-                </button>
-              ))}
+                  </button>
+                ))}
+                {addresses.length < 10 && (
+                  <button
+                    type="button"
+                    onClick={() => setAddingAddress(true)}
+                    className="w-full flex items-center justify-center gap-1.5 py-3 rounded-xl border-2 border-dashed border-gray-200 text-[12px] font-bold text-gray-500 hover:bg-gray-50"
+                  >
+                    <Plus className="w-4 h-4" /> افزودن آدرس جدید
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {!addingAddress && selectedAddress && shippingEnabled && (
+            <div
+              className="rounded-2xl p-5 space-y-3"
+              style={{
+                backgroundColor: "var(--color-surface)",
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              <h2 className="flex items-center gap-1.5 text-[14px] font-black text-gray-800">
+                <Truck className="w-4 h-4" /> روش ارسال
+              </h2>
+              <p className="text-[11px] text-gray-400 -mt-1">
+                بر اساس آدرس «{selectedAddress.title || "انتخابی"}»
+                {selectedAddress.city ? ` در ${selectedAddress.city}` : ""}
+                {shippingData?.weightGrams
+                  ? ` — وزن مرسوله حدود ${Math.round(shippingData.weightGrams).toLocaleString("fa-IR")} گرم`
+                  : ""}
+              </p>
+              <ShippingMethodPicker
+                options={shippingOptions}
+                loading={shippingLoading}
+                error={shippingError}
+                selectedId={selectedShipping?.methodId ?? null}
+                onSelect={(methodId) => {
+                  setShippingChoice({ addressId: effectiveAddressId, methodId });
+                  setPayOnDelivery(false);
+                  setCheckoutError(null);
+                }}
+                payOnDelivery={payOnDelivery}
+                onPayOnDeliveryChange={setPayOnDelivery}
+              />
             </div>
           )}
 
@@ -689,7 +832,11 @@ function ShopCartPageInner() {
             </button>
             <button
               onClick={handleConfirmAddress}
-              disabled={!selectedAddressId}
+              disabled={
+                addingAddress ||
+                !effectiveAddressId ||
+                (shippingEnabled && (shippingLoading || !selectedShipping))
+              }
               className="flex-2 py-3.5 rounded-xl font-black text-white! text-[14px] disabled:opacity-40"
               style={{ backgroundColor: "var(--color-emerald)" }}
             >
@@ -762,7 +909,7 @@ function ShopCartPageInner() {
                   </span>
                 </div>
               ))}
-            {(appliedDiscount || hasPackaging) && (
+            {(appliedDiscount || hasPackaging || selectedShipping) && (
               <div
                 className="flex items-center justify-between px-4 py-2.5 border-t bg-white"
                 style={{ borderColor: "var(--color-border)" }}
@@ -775,6 +922,26 @@ function ShopCartPageInner() {
                 </span>
                 <span className="text-[12px] font-bold text-gray-700">
                   {fmtToman(cart.totalToman)} ت
+                </span>
+              </div>
+            )}
+            {shippingEnabled && selectedShipping && (
+              <div
+                className="flex items-center justify-between gap-2 px-4 py-2.5 border-t bg-white"
+                style={{ borderColor: "var(--color-border)" }}
+              >
+                <span className="flex items-center gap-1.5 text-[12px] text-gray-500 font-medium min-w-0">
+                  <Truck className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <span className="truncate">
+                    ارسال: {selectedShipping.name}
+                  </span>
+                </span>
+                <span className="text-[12px] font-bold text-gray-800 shrink-0">
+                  {selectedShipping.free || Number(selectedShipping.feeToman) <= 0
+                    ? "رایگان"
+                    : shippingCod
+                      ? "پس‌کرایه"
+                      : `${fmtToman(shippingToman)} ت`}
                 </span>
               </div>
             )}
@@ -804,6 +971,16 @@ function ShopCartPageInner() {
                 {fmtToman(payableToman)} تومان
               </span>
             </div>
+            {shippingCod && selectedShipping && (
+              <p
+                className="px-4 py-2.5 border-t bg-amber-50 text-[11px] font-bold text-amber-700"
+                style={{ borderColor: "var(--color-border)" }}
+              >
+                هزینه‌ی ارسال (حدود {fmtToman(selectedShipping.feeToman)} تومان)
+                جداگانه هنگام تحویل به مأمور {selectedShipping.carrierName ?? "پست"}{" "}
+                پرداخت می‌شود و در این مبلغ نیست.
+              </p>
+            )}
           </div>
 
           {/* ── کد تخفیف ── */}

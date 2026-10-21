@@ -55,6 +55,7 @@ const QUICK_LINKS = [
   { title: "اطلاعات حساب کاربری", href: "/dashboard/me", icon: "ti-user-circle" },
   { title: "احراز هویت", href: "/dashboard/identity", icon: "ti-shield-check" },
   { title: "حساب‌ها و کارت‌های بانکی", href: "/dashboard/cards", icon: "ti-credit-card" },
+  { title: "آدرس‌های من", href: "/dashboard/addresses", icon: "ti-map-pin" },
   { title: "امنیت و تغییر رمز عبور", href: "/dashboard/security", icon: "ti-lock" },
 ];
 

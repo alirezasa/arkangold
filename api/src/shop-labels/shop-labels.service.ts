@@ -726,6 +726,32 @@ export class ShopLabelsService implements OnModuleInit {
     const buyerName =
       `${o.user.identity?.firstName ?? ''} ${o.user.identity?.lastName ?? ''}`.trim();
     const s = o.shippings[0];
+    // نشانی لحظه‌ی ثبت سفارش (snapshot)؛ سفارش‌های قدیمی از آدرس فعلی
+    const addr =
+      (o.shippingAddress as {
+        title?: string | null;
+        province?: string | null;
+        city?: string | null;
+        fullAddress?: string;
+        plaque?: string | null;
+        unit?: string | null;
+        postalCode?: string | null;
+        receiverName?: string | null;
+        receiverPhone?: string | null;
+      } | null) ?? o.address;
+    const fullAddress = [
+      addr.fullAddress ?? o.address.fullAddress,
+      addr.plaque ? `پلاک ${addr.plaque}` : null,
+      addr.unit ? `واحد ${addr.unit}` : null,
+    ]
+      .filter(Boolean)
+      .join('، ');
+    const estimateToman = Math.round(Number(o.shippingEstimateRial ?? 0) / 10);
+    const payment = !o.shippingMethodName
+      ? null
+      : o.shippingPayOnDelivery
+        ? `پس‌کرایه${estimateToman > 0 ? ` (حدود ${estimateToman.toLocaleString('fa-IR')} تومان)` : ''}`
+        : 'پیش‌کرایه (پرداخت‌شده)';
     const items = o.items.map((it) => {
       const product = it.variant?.product ?? it.product;
       const weight = Number(
@@ -753,23 +779,29 @@ export class ShopLabelsService implements OnModuleInit {
       labelPrintCount: o.labelPrintCount,
       buyer: { name: buyerName || null, phone: o.user.phone },
       receiver: {
-        name: o.address.receiverName || buyerName || null,
-        phone: o.address.receiverPhone || o.user.phone,
+        name: addr.receiverName || buyerName || null,
+        phone: addr.receiverPhone || o.user.phone,
       },
       address: {
-        title: o.address.title,
-        province: o.address.province,
-        city: o.address.city,
-        full: o.address.fullAddress,
-        postalCode: o.address.postalCode,
+        title: addr.title ?? null,
+        province: addr.province ?? null,
+        city: addr.city ?? null,
+        full: fullAddress,
+        postalCode: addr.postalCode ?? null,
       },
-      shipping: s
-        ? {
-            method: s.shippingMethod?.name ?? s.carrierName,
-            trackingCode: s.trackingCode,
-            courierName: s.courierName,
-          }
-        : null,
+      // پیش از ثبت ارسال، روش انتخابی مشتری روی برچسب می‌آید
+      shipping:
+        s || o.shippingMethodName
+          ? {
+              method:
+                s?.shippingMethod?.name ??
+                s?.carrierName ??
+                o.shippingMethodName,
+              trackingCode: s?.trackingCode ?? null,
+              courierName: s?.courierName ?? null,
+              payment,
+            }
+          : null,
       items,
     };
   }

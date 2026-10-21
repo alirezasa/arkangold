@@ -49,6 +49,7 @@ import {
   Siren,
   SearchCheck,
   LayoutGrid,
+  MapPinned,
 } from "lucide-react";
 
 export interface NavItem {
@@ -150,6 +151,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "بسته‌بندی ارسال", href: "/shop/packaging", icon: Box, perm: "shop.manage" },
       { label: "سفارشات فروشگاه", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
       { label: "مراجع ارسال", href: "/shop/shipping-methods", icon: Truck, perm: "shop.view" },
+      { label: "مناطق و تعرفه‌های ارسال", href: "/shop/shipping-zones", icon: MapPinned, perm: "shop.view" },
       { label: "برچسب و لیبل پرینتر", href: "/shop/labels", icon: Printer, perm: "shop.label.manage" },
       { label: "کدهای تخفیف", href: "/discount-codes", icon: TicketPercent, perm: "discount.view" },
     ],

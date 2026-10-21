@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useShopHomeHref } from "@/app/hooks/useAppServices";
 import {
   ChevronRight,
   ChevronLeft,
@@ -165,6 +166,8 @@ function OrderCard({ order }: { order: ShopOrderDto }) {
 }
 
 export default function ShopOrdersPage() {
+  // اگر زیورآلات غیرفعال باشد، «فروشگاه» به خرید شمش می‌رود
+  const shopHref = useShopHomeHref();
   const [filter, setFilter] = useState<ShopOrderStatusFilter>("ALL");
   const [page, setPage] = useState(1);
 
@@ -183,7 +186,7 @@ export default function ShopOrdersPage() {
       {/* هدر */}
       <div className="flex items-center gap-3 mb-5">
         <Link
-          href="/dashboard/shop"
+          href={shopHref}
           className="w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-colors"
         >
           <ChevronRight className="w-5 h-5" />
@@ -250,7 +253,7 @@ export default function ShopOrdersPage() {
               سفارشی یافت نشد
             </p>
             <Link
-              href="/dashboard/shop"
+              href={shopHref}
               className="mt-2 px-5 py-2.5 rounded-xl text-[12px] font-bold text-white"
               style={{ backgroundColor: "var(--color-emerald)" }}
             >

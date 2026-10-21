@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import axios from "axios";
-import useSWR from "swr";
+import useSWR, { mutate as mutateCache } from "swr";
 import { newIdempotencyKey } from "../utils/idempotency";
 
 // ── آدرس سرور NestJS برای نمایش تصاویر محصولات (فایل‌های استاتیک) ──
@@ -345,6 +345,8 @@ export const useAddToCart = () => {
     setError(null);
     try {
       const res = await axios.post("/api/cart/items", payload);
+      // شمارنده‌ی سبد (دکمه‌ی سبد خرید در هدر صفحات) بلافاصله به‌روز شود
+      await mutateCache("/api/cart", res.data as CartDto, { revalidate: false });
       return res.data as CartDto;
     } catch (e: unknown) {
       if (axios.isAxiosError(e)) {

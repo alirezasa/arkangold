@@ -27,3 +27,16 @@ export const useAppServices = () => {
       data ? data[key]?.enabled !== false : null,
   };
 };
+
+/**
+ * مسیر «فروشگاه» برای دکمه‌هایی مثل «مشاهده فروشگاه» و «بازگشت به فروشگاه»:
+ * اگر زیورآلات غیرفعال باشد ولی شمش فعال باشد، کاربر به صفحه‌ی خرید شمش می‌رود
+ * تا با پیام «زیورآلات غیرفعال است» روبه‌رو نشود.
+ */
+export const useShopHomeHref = () => {
+  const { isEnabled } = useAppServices();
+  if (isEnabled("jewelry") === false && isEnabled("goldIngot") !== false) {
+    return "/dashboard/gold-ingot";
+  }
+  return "/dashboard/shop";
+};

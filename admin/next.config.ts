@@ -55,7 +55,15 @@ const noStore = [
   { key: "Pragma", value: "no-cache" },
 ];
 
+// تعداد worker های build (جمع‌آوری داده‌ی صفحات و تولید ایستا). پیش‌فرض Next.js «تعداد CPU سرور
+// منهای یک» است و در کانتینر رانفلر/لیارا تعداد هسته‌های کل سرور میزبان دیده می‌شود (مثلاً ۸۰)، نه سهم
+// پلن؛ ده‌ها پردازش Node هم‌زمان حافظه‌ی پلن را پر می‌کرد و build در «Collecting page data» گیر می‌کرد.
+const buildCpus = Math.max(1, Number(process.env.NEXT_BUILD_CPUS) || 2);
+
 const nextConfig: NextConfig = {
+  experimental: {
+    cpus: buildCpus,
+  },
   // یک نمونه‌ی مشترک axios برای همه‌ی routeها تا interceptor ارسال IP کاربر به API
   // (lib/client-identity.ts، نصب‌شده در instrumentation.ts) روی همه‌ی آن‌ها اعمال شود
   serverExternalPackages: ["axios"],

@@ -1,4 +1,4 @@
-// admin/middleware.ts
+// admin/proxy.ts (پیش‌تر middleware.ts؛ نام جدید Next.js 16)
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { AGENT_PORTAL_PATHS, PORTAL_HOME, portalFromHeaders } from "./lib/portal";
@@ -8,7 +8,7 @@ const PUBLIC_PATHS = ["/login"];
 /** فایل‌های ایستا (manifest.json، sw.js، فونت‌ها و ...) مشمول هدایت بین پنل‌ها نمی‌شوند */
 const isStaticFile = (pathname: string) => /\.[a-z0-9]+$/i.test(pathname);
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("adminAccessToken")?.value;
   // admin.arkan.gold → پنل مدیریت، panel.arkan.gold → پنل نمایندگان
@@ -51,7 +51,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   // مهم: مسیرهای /api باید مستثنی شوند چون route handlerها خودشان
-  // کوکی را از cookies() می‌خوانند و بررسی مجدد در middleware باعث
+  // کوکی را از cookies() می‌خوانند و بررسی مجدد در proxy باعث
   // بلاک‌شدن درخواست‌های POST به این مسیرها (مثل خودِ لاگین) می‌شود
   matcher: ["/((?!_next|api|favicon.ico).*)"],
 };

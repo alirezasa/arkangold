@@ -26,6 +26,7 @@ import {
 import { useWallet } from "@/app/hooks/useWallet";
 import { openInvoicePrint } from "@/app/hooks/useInvoices";
 import type { ShopOrderDeliveryDto } from "@/app/hooks/useShop";
+import { etaLabel, formatAddressLine } from "@/app/hooks/useShipping";
 
 const METHOD_HINT: Record<string, string> = {
   POST: "هنگام تحویل مرسوله، این کد را به نامه‌رسان بگویید.",
@@ -264,6 +265,7 @@ export default function ShopOrderDetailPage() {
   };
 
   const hasPackaging = order.items.some((i) => i.packaging);
+  const hasShipping = !!order.shippingMethod;
   const insufficientBalance =
     isPendingPayment &&
     wallet &&
@@ -407,14 +409,58 @@ export default function ShopOrderDetailPage() {
             {order.address.title || "آدرس"}
           </p>
           <p className="text-[12px] text-gray-500 leading-relaxed">
-            {[
-              order.address.province,
-              order.address.city,
-              order.address.fullAddress,
-            ]
-              .filter(Boolean)
-              .join("، ")}
+            {formatAddressLine(order.address)}
           </p>
+          {(order.address.receiverName || order.address.postalCode) && (
+            <p className="text-[11px] text-gray-400">
+              {[
+                order.address.receiverName &&
+                  `گیرنده: ${order.address.receiverName}`,
+                order.address.postalCode &&
+                  `کد پستی: ${order.address.postalCode}`,
+              ]
+                .filter(Boolean)
+                .join(" — ")}
+            </p>
+          )}
+          {order.shippingMethod && (
+            <div className="mt-2 pt-2 border-t border-dashed border-gray-200 space-y-1 text-[12px] text-gray-600">
+              <div className="flex justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5 text-gray-400" /> روش ارسال
+                  انتخابی
+                </span>
+                <span className="font-bold text-gray-800">
+                  {order.shippingMethod.name}
+                </span>
+              </div>
+              {etaLabel(
+                order.shippingMethod.etaMinDays,
+                order.shippingMethod.etaMaxDays,
+              ) && (
+                <div className="flex justify-between gap-2">
+                  <span>زمان تقریبی تحویل پس از ارسال</span>
+                  <span className="font-bold text-gray-800">
+                    {etaLabel(
+                      order.shippingMethod.etaMinDays,
+                      order.shippingMethod.etaMaxDays,
+                    )}
+                  </span>
+                </div>
+              )}
+              {order.shippingMethod.payOnDelivery && (
+                <p className="text-[11px] font-bold text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5">
+                  پس‌کرایه: هزینه‌ی ارسال (حدود{" "}
+                  {fmtToman(order.shippingMethod.estimateToman)} تومان) هنگام
+                  تحویل به مأمور
+                  {order.shippingMethod.carrierName
+                    ? ` ${order.shippingMethod.carrierName}`
+                    : " پست"}{" "}
+                  پرداخت می‌شود.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -464,7 +510,7 @@ export default function ShopOrderDetailPage() {
             </span>
           </div>
         ))}
-        {(Number(order.discountToman) > 0 || hasPackaging) && (
+        {(Number(order.discountToman) > 0 || hasPackaging || hasShipping) && (
           <div
             className="flex items-center justify-between px-4 py-2.5 border-t"
             style={{ borderColor: "var(--color-border)" }}
@@ -497,6 +543,28 @@ export default function ShopOrderDetailPage() {
             </span>
           </div>
         )}
+        {hasShipping && order.shippingMethod && (
+          <div
+            className="flex items-center justify-between px-4 py-2.5 border-t"
+            style={{ borderColor: "var(--color-border)" }}
+          >
+            <span className="text-[12px] text-gray-500 font-medium">
+              هزینه ارسال ({order.shippingMethod.name})
+            </span>
+            <span className="text-[12px] font-bold text-gray-700">
+              {order.shippingMethod.payOnDelivery
+                ? "پس‌کرایه"
+                : Number(order.shippingToman) > 0
+                  ? `${fmtToman(order.shippingToman ?? 0)} ت`
+                  : "رایگان"}
+              {order.shippingMethod.free && (
+                <span className="mr-1 text-[10px] text-emerald-600">
+                  ({fmtToman(order.shippingMethod.waivedToman)} ت هدیه)
+                </span>
+              )}
+            </span>
+          </div>
+        )}
         {Number(order.discountToman) > 0 && (
           <>
             <div
@@ -522,7 +590,7 @@ export default function ShopOrderDetailPage() {
           style={{ borderColor: "var(--color-border)" }}
         >
           <span className="text-[13px] font-bold text-gray-700">
-            {Number(order.discountToman) > 0 || hasPackaging
+            {Number(order.discountToman) > 0 || hasPackaging || hasShipping
               ? "مبلغ پرداختی"
               : "مبلغ کل سفارش"}
           </span>

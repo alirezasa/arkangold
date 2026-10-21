@@ -129,7 +129,7 @@ const GROUP_TITLES: Record<string, string> = {
   calendar: "تقویم و تعطیلات",
   hologram: "اصالت‌سنجی هولوگرام و انتقال مالکیت",
   buyback: "بازخرید شمش (فروش شمش کاربران به آرکان گلد)",
-  shop: "فروشگاه، بسته‌بندی و برچسب ارسال",
+  shop: "فروشگاه، بسته‌بندی، ارسال و برچسب",
   treasury: "خزانه و پوشش طلای آب‌شده",
   agent: "نمایندگان فروش",
   partner: "شرکای فروش (اقساطی / اپ همکار)",
@@ -152,6 +152,7 @@ const SUB_TITLES: Record<string, string> = {
   "trade.gold": "طلای آب‌شده",
   "hologram.inquiry": "امنیت استعلام عمومی",
   "shop.label": "برچسب ارسال سفارش",
+  "shop.shipping": "ارسال سفارش و تعرفه‌ها",
   "agent.sale": "فروش نماینده",
 };
 

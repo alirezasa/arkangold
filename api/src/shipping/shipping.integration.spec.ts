@@ -317,6 +317,26 @@ run('آدرس و ارسال سفارش (یکپارچه با PostgreSQL)', () => 
     await orders.cancelByUser(userId, order.id);
   });
 
+  it('آدرس قدیمی با استان نامشخص: گزینه‌ای نمایش داده نمی‌شود و ثبت سفارش خطای روشن می‌دهد', async () => {
+    const legacy = await prisma.address.create({
+      data: {
+        userId,
+        province: 'نامشخص',
+        city: 'شیراز',
+        fullAddress: 'آدرس قدیمی ثبت‌شده با استان متنی',
+      },
+    });
+    const res = await shipping.optionsForCart(userId, legacy.id);
+    expect(res.provinceResolved).toBe(false);
+    expect(res.options).toHaveLength(0);
+
+    await fillCart(500_000_000);
+    await expect(
+      orders.checkout(userId, { addressId: legacy.id }),
+    ).rejects.toThrow('استان این آدرس مشخص نیست');
+    await prisma.address.delete({ where: { id: legacy.id } });
+  });
+
   it('ارسال رایگان بالای آستانه و غیرفعال شدن انتخاب ارسال از تنظیمات', async () => {
     const shiraz = (await addresses.list(userId)).find(
       (a) => a.city === 'شیراز',

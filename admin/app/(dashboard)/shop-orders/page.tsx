@@ -58,8 +58,26 @@ interface Address {
   province?: string | null;
   city?: string | null;
   postalCode?: string | null;
+  plaque?: string | null;
+  unit?: string | null;
   receiverName?: string | null;
   receiverPhone?: string | null;
+}
+/** روش ارسال انتخابی مشتری هنگام ثبت سفارش */
+interface SelectedShipping {
+  id: string | null;
+  name: string;
+  type: string | null;
+  carrierName: string | null;
+  zoneName: string | null;
+  chargedToman: string;
+  waivedToman: string;
+  free: boolean;
+  payOnDelivery: boolean;
+  estimateToman: string;
+  weightGrams: string;
+  etaMinDays: number | null;
+  etaMaxDays: number | null;
 }
 interface OrderRow {
   id: string;
@@ -79,6 +97,8 @@ interface OrderRow {
   trackingCode: string | null;
   invoiceId: string | null;
   address: Address | null;
+  shippingToman: string;
+  shippingMethod: SelectedShipping | null;
   items: OrderItem[];
   user: { id: string; phone: string; fullName: string | null };
   shipping: { methodName: string | null; methodType: string | null; trackingCode: string | null; courierName: string | null } | null;
@@ -333,11 +353,19 @@ export default function ShopOrdersPage() {
                   <span>
                     {o.items.length.toLocaleString("fa-IR")} قلم — {o.items.map((i) => i.productName).join("، ").slice(0, 60)}
                   </span>
-                  {o.shipping && (
+                  {o.shipping ? (
                     <span className="flex items-center gap-1">
                       <Truck className="w-3.5 h-3.5" /> {o.shipping.methodName}
                       {o.shipping.trackingCode && <span dir="ltr">({o.shipping.trackingCode})</span>}
                     </span>
+                  ) : (
+                    o.shippingMethod && (
+                      <span className="flex items-center gap-1 text-gray-600">
+                        <Truck className="w-3.5 h-3.5" /> انتخاب مشتری: {o.shippingMethod.name}
+                        {o.shippingMethod.payOnDelivery && <span className="font-bold text-amber-700">(پس‌کرایه)</span>}
+                        {o.address?.city && <span className="text-gray-400">— {o.address.city}</span>}
+                      </span>
+                    )
                   )}
                 </div>
               </button>
@@ -474,6 +502,8 @@ function OrderDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
                   <MapPin className="w-3.5 h-3.5 mt-1 shrink-0" />
                   <span>
                     {[o.address.province, o.address.city].filter(Boolean).join("، ")} — {o.address.fullAddress}
+                    {o.address.plaque && ` — پلاک ${o.address.plaque}`}
+                    {o.address.unit && ` — واحد ${o.address.unit}`}
                     {o.address.postalCode && ` — کدپستی ${o.address.postalCode}`}
                     <br />
                     گیرنده: {o.address.receiverName ?? "—"} <span dir="ltr">{o.address.receiverPhone ?? ""}</span>
@@ -485,6 +515,32 @@ function OrderDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
             {/* ارسال و تحویل */}
             <div className="rounded-xl border border-gray-100 p-3 space-y-1.5">
               <p className="font-black text-[12px] text-gray-500">ارسال و تحویل</p>
+              {o.shippingMethod && (
+                <div className="rounded-lg bg-gray-50 px-2.5 py-2 text-[12px] space-y-0.5">
+                  <p>
+                    انتخاب مشتری: <b>{o.shippingMethod.name}</b>
+                    {o.shippingMethod.carrierName && <span className="text-gray-500"> — {o.shippingMethod.carrierName}</span>}
+                  </p>
+                  <p className="text-gray-500">
+                    منطقه: {o.shippingMethod.zoneName ?? "—"} · وزن مرسوله ≈ {Number(o.shippingMethod.weightGrams).toLocaleString("fa-IR")} گرم
+                    {o.shippingMethod.etaMinDays != null &&
+                      ` · ${o.shippingMethod.etaMinDays.toLocaleString("fa-IR")}${
+                        o.shippingMethod.etaMaxDays != null && o.shippingMethod.etaMaxDays !== o.shippingMethod.etaMinDays
+                          ? `–${o.shippingMethod.etaMaxDays.toLocaleString("fa-IR")}`
+                          : ""
+                      } روز`}
+                  </p>
+                  {o.shippingMethod.payOnDelivery ? (
+                    <p className="font-bold text-amber-700">
+                      پس‌کرایه — مشتری حدود {tomanFa(o.shippingMethod.estimateToman)} هنگام تحویل به شرکت حمل می‌پردازد
+                    </p>
+                  ) : o.shippingMethod.free ? (
+                    <p className="font-bold text-emerald-700">ارسال رایگان (هدیه‌ی خرید، تعرفه {tomanFa(o.shippingMethod.waivedToman)})</p>
+                  ) : (
+                    <p>هزینه‌ی ارسال دریافت‌شده: {tomanFa(o.shippingMethod.chargedToman)}</p>
+                  )}
+                </div>
+              )}
               {o.delivery?.shipping ? (
                 <ShippingSummary s={o.delivery.shipping} />
               ) : (
@@ -531,6 +587,18 @@ function OrderDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
                 <p className="flex justify-between text-gray-500">
                   <span>بسته‌بندی</span>
                   <span>{tomanFa(o.packagingToman)}</span>
+                </p>
+              )}
+              {o.shippingMethod && (
+                <p className="flex justify-between text-gray-500">
+                  <span>ارسال ({o.shippingMethod.name})</span>
+                  <span>
+                    {o.shippingMethod.payOnDelivery
+                      ? "پس‌کرایه"
+                      : Number(o.shippingToman) > 0
+                        ? tomanFa(o.shippingToman)
+                        : "رایگان"}
+                  </span>
                 </p>
               )}
               {Number(o.discountToman) > 0 && (
@@ -668,7 +736,8 @@ function ShippingSummary({ s }: { s: ShippingView }) {
 
 function ShipModal({ order, onClose, onDone }: { order: OrderDetail; onClose: () => void; onDone: () => void }) {
   const { data: methods } = useSWR<ShippingMethod[]>("/api/admin/shop-orders/shipping-methods?active=true", fetcher);
-  const [methodId, setMethodId] = useState("");
+  // پیش‌فرض: همان روشی که مشتری هنگام ثبت سفارش انتخاب و هزینه‌اش را پرداخت کرده است
+  const [methodId, setMethodId] = useState(order.shippingMethod?.id ?? "");
   const [trackingCode, setTrackingCode] = useState("");
   const [courierName, setCourierName] = useState("");
   const [courierPhone, setCourierPhone] = useState("");
@@ -712,10 +781,19 @@ function ShipModal({ order, onClose, onDone }: { order: OrderDetail; onClose: ()
             {(methods ?? []).map((x) => (
               <option key={x.id} value={x.id}>
                 {x.name}
+                {x.id === order.shippingMethod?.id ? " (انتخاب مشتری)" : ""}
               </option>
             ))}
           </select>
         </Field>
+        {order.shippingMethod && methodId && methodId !== order.shippingMethod.id && (
+          <Alert
+            kind="warn"
+            text={`مشتری «${order.shippingMethod.name}» را انتخاب کرده و ${
+              order.shippingMethod.payOnDelivery ? "پس‌کرایه است" : "هزینه‌ی همان روش را پرداخت کرده است"
+            }؛ تغییر روش در Timeline سفارش ثبت می‌شود.`}
+          />
+        )}
         {m && (
           <>
             {m.type !== "PICKUP" && (

@@ -101,7 +101,13 @@ export interface PrintOrder {
   buyer: { name: string | null; phone: string };
   receiver: { name: string | null; phone: string };
   address: { title: string | null; province: string | null; city: string | null; full: string; postalCode: string | null };
-  shipping: { method: string | null; trackingCode: string | null; courierName: string | null } | null;
+  shipping: {
+    method: string | null;
+    trackingCode: string | null;
+    courierName: string | null;
+    /** پس‌کرایه / پیش‌کرایه */
+    payment?: string | null;
+  } | null;
   items: PrintItem[];
 }
 export interface PrintData {

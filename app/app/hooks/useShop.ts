@@ -180,13 +180,36 @@ export interface ShopOrderDto {
   invoiceId: string | null;
   // اطلاعات ارسال و تحویل (فقط در جزئیات سفارش)
   delivery?: ShopOrderDeliveryDto | null;
+  // نشانی تحویل لحظه‌ی ثبت سفارش (snapshot)
   address?: {
     id: string;
     title?: string | null;
     fullAddress: string;
     province?: string | null;
     city?: string | null;
+    postalCode?: string | null;
+    plaque?: string | null;
+    unit?: string | null;
+    receiverName?: string | null;
+    receiverPhone?: string | null;
   };
+  // هزینه ارسال دریافتی در سفارش (تومان؛ پس‌کرایه = صفر) و روش ارسال انتخابی
+  shippingToman?: string;
+  shippingMethod?: {
+    id: string | null;
+    name: string;
+    type: "POST" | "COURIER" | "EXPRESS" | "PICKUP" | null;
+    carrierName: string | null;
+    zoneName: string | null;
+    chargedToman: string;
+    waivedToman: string;
+    free: boolean;
+    payOnDelivery: boolean;
+    estimateToman: string;
+    weightGrams: string;
+    etaMinDays: number | null;
+    etaMaxDays: number | null;
+  } | null;
   items: ShopOrderItemDto[];
   createdAt: string;
   updatedAt: string;
@@ -453,6 +476,7 @@ export const useCheckout = () => {
       addressId: string,
       recipients?: CheckoutRecipient[],
       discountCode?: string,
+      shipping?: { methodId: string; feePayment: "PREPAID" | "ON_DELIVERY" } | null,
     ) => {
       setLoading(true);
       setError(null);
@@ -462,7 +486,13 @@ export const useCheckout = () => {
 
         const res = await axios.post(
           "/api/orders/shop",
-          { addressId, recipients, discountCode: discountCode || undefined },
+          {
+            addressId,
+            recipients,
+            discountCode: discountCode || undefined,
+            shippingMethodId: shipping?.methodId,
+            shippingFeePayment: shipping?.feePayment,
+          },
           { headers: { "idempotency-key": idempotencyKey } },
         );
         return res.data as ShopOrderDto;

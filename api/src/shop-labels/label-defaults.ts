@@ -236,7 +236,7 @@ export const DEFAULT_LABEL_TEMPLATES: {
         122.5,
         92,
         5,
-        '{{shipping.method}} — رهگیری: {{shipping.trackingCode}}',
+        '{{shipping.method}} — {{shipping.payment}} — رهگیری: {{shipping.trackingCode}}',
         8,
       ),
       {

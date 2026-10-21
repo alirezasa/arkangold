@@ -82,6 +82,9 @@ export interface ShippingSelection {
   etaMaxDays: number | null;
 }
 
+export const PROVINCE_MISSING =
+  'استان این آدرس مشخص نیست؛ آدرس را ویرایش و استان را از فهرست انتخاب کنید';
+
 const toNum = (v: unknown): number => {
   const n = Number(v ?? 0);
   return Number.isFinite(n) ? n : 0;
@@ -459,9 +462,18 @@ export class ShippingService implements OnModuleInit {
     const weightGrams =
       Math.round((Math.max(0, parcel.itemsWeightGrams) + tareGrams) * 100) /
       100;
+    // آدرس قدیمی با استان نامشخص به منطقه‌ی «سایر نقاط» نمی‌افتد؛ کاربر باید استان را انتخاب کند
+    const provinceCode = resolveProvinceCode(address);
+    if (!provinceCode) {
+      return {
+        weightGrams,
+        options: [] as ShippingOption[],
+        provinceMissing: true,
+      };
+    }
     const options = quoteShippingOptions({
       destination: {
-        provinceCode: resolveProvinceCode(address),
+        provinceCode,
         city: address.city ?? null,
         postalCode: address.postalCode ?? null,
       },
@@ -469,7 +481,7 @@ export class ShippingService implements OnModuleInit {
       ...data,
       roundUpRial,
     });
-    return { weightGrams, options };
+    return { weightGrams, options, provinceMissing: false };
   }
 
   /** وزن و ارزش سبد خرید کاربر (ارزش = قیمت‌های قفل‌شده، پیش از کد تخفیف) */
@@ -578,13 +590,14 @@ export class ShippingService implements OnModuleInit {
     feePayment?: 'PREPAID' | 'ON_DELIVERY' | null;
   }): Promise<ShippingSelection | null> {
     if (!(await this.isEnabled())) return null;
-    const { weightGrams, options } = await this.quoteForAddress(
-      params.address,
-      {
+    const { weightGrams, options, provinceMissing } =
+      await this.quoteForAddress(params.address, {
         itemsWeightGrams: params.itemsWeightGrams,
         valueRial: params.valueRial,
-      },
-    );
+      });
+    if (provinceMissing) {
+      throw new BadRequestException(PROVINCE_MISSING);
+    }
     if (!params.methodId) {
       throw new BadRequestException(
         options.some((o) => o.available)

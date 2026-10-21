@@ -37,6 +37,7 @@ import { DocumentSequenceService } from '../common/documents/document-sequence.s
 import { ShopOrdersService } from './shop-orders.service';
 import { ShopOrderEventsService } from './shop-order-events.service';
 import {
+  PROVINCE_MISSING,
   ShippingSelection,
   ShippingService,
   UserShippingOption,
@@ -349,10 +350,14 @@ export class GoldBarDeliveryService {
       itemsWeightGrams: p.weightGrams.toNumber(),
       valueRial: p.priceRial.toNumber(),
     };
-    const { options } = await this.shipping.quoteForAddress(address, parcel);
+    const { options, provinceMissing } = await this.shipping.quoteForAddress(
+      address,
+      parcel,
+    );
     const result = {
       ...empty,
       options: options.map((o) => this.shipping.toUserOption(o)),
+      error: provinceMissing ? PROVINCE_MISSING : null,
     };
     if (!p.shippingMethodId) return result;
     try {

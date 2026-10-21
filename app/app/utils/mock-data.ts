@@ -128,6 +128,13 @@ export const USER_MENU_GROUPS: NavGroup[] = [
     ],
   },
   {
+    title: "فروشگاه",
+    items: [
+      { name: "سبد خرید", icon: "ti-shopping-cart", path: "/dashboard/shop/cart" },
+      { name: "سفارش‌های فروشگاه", icon: "ti-receipt", path: "/dashboard/shop/orders" },
+    ],
+  },
+  {
     title: "خدمات طلا",
     items: [
       { name: "تحویل فیزیکی طلا", icon: "ti-package", path: "/dashboard/wallet/physical-delivery" },
@@ -160,7 +167,6 @@ export const SIDEBAR_NAV_GROUPS: NavGroup[] = [
       { name: "پیشخوان", icon: "ti-layout-dashboard", path: "/dashboard" },
       { name: "کیف پول", icon: "ti-wallet", path: "/dashboard/wallet" },
       { name: "تراکنش‌ها", icon: "ti-history", path: "/dashboard/transactions" },
-      { name: "سفارش‌های فروشگاه", icon: "ti-receipt", path: "/dashboard/shop/orders" },
     ],
   },
   {

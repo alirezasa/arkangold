@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useShopHomeHref } from "@/app/hooks/useAppServices";
 import { useSearchParams } from "next/navigation";
 import {
   ChevronRight,
@@ -254,6 +255,8 @@ function CartRow({
 }
 
 function ShopCartPageInner() {
+  // اگر زیورآلات غیرفعال باشد، «فروشگاه» به خرید شمش می‌رود
+  const shopHref = useShopHomeHref();
   const { cart, loading, refresh } = useCart();
   const { update, remove } = useUpdateCartItem();
   const {
@@ -536,7 +539,7 @@ function ShopCartPageInner() {
     <div className="max-w-lg mx-auto" dir="rtl">
       <div className="flex items-center gap-3 mb-5">
         <Link
-          href="/dashboard/shop"
+          href={shopHref}
           className="w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 transition-colors"
         >
           <ChevronRight className="w-5 h-5" />
@@ -567,7 +570,7 @@ function ShopCartPageInner() {
                 سبد خرید شما خالی است
               </p>
               <Link
-                href="/dashboard/shop"
+                href={shopHref}
                 className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-white"
                 style={{ backgroundColor: "var(--color-emerald)" }}
               >
@@ -1304,7 +1307,7 @@ function ShopCartPageInner() {
           )}
           <div className="flex flex-col gap-3">
             <Link
-              href="/dashboard/shop"
+              href={shopHref}
               className="py-3.5 rounded-xl font-black text-white! text-[14px]"
               style={{ backgroundColor: "var(--color-emerald)" }}
             >

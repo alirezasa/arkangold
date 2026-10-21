@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useAddToCart, useProducts, productImageUrl } from "@/app/hooks/useShop";
 import { useState } from "react";
 import { findProductSpec } from "@/app/utils/product-text";
+import AddedToCartModal from "@/app/dashboard/components/shop/AddedToCartModal";
+import CartButton from "@/app/dashboard/components/shop/CartButton";
 import {
   ChevronRight,
   Wallet,
@@ -12,7 +14,6 @@ import {
   Package,
   ShoppingCart,
   Loader2,
-  CheckCircle2,
   PackageX,
   Scale,
   Ruler,
@@ -30,7 +31,7 @@ export default function GoldIngotPage() {
     inStock: false, // همه را نشان بده، وضعیت ناموجود را داخل کارت مشخص می‌کنیم
   });
   const { loading: addLoading, add } = useAddToCart();
-  const [addedId, setAddedId] = useState<string | null>(null);
+  const [addedName, setAddedName] = useState<string | null>(null);
 
   // مرتب‌سازی بر اساس وزن (کم به زیاد) — چون هر شمش یک Product با دقیقاً یک Variant است
   const sortedProducts = [...products].sort((a, b) => {
@@ -39,18 +40,15 @@ export default function GoldIngotPage() {
     return wa - wb;
   });
 
-  const handleAdd = async (variantId: string) => {
+  const handleAdd = async (variantId: string, productName: string) => {
     const res = await add({ variantId, quantity: 1 });
-    if (res) {
-      setAddedId(variantId);
-      setTimeout(() => setAddedId(null), 2000);
-    }
+    if (res) setAddedName(productName);
   };
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500" dir="rtl">
       {/* ── هدر صفحه ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex items-center justify-between gap-3 mb-8">
         <div className="flex items-center gap-4">
           <Link
             href="/dashboard"
@@ -63,6 +61,7 @@ export default function GoldIngotPage() {
             <p className="text-[12px] text-gray-500 mt-1">شمش‌های ۲۴ عیار شرکتی با پلمپ امنیتی</p>
           </div>
         </div>
+        <CartButton />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -86,7 +85,6 @@ export default function GoldIngotPage() {
               {sortedProducts.map((product) => {
                 const variant = product.variants[0];
                 if (!variant) return null;
-                const justAdded = addedId === variant.id;
                 const dimensions = findProductSpec(product, ["ابعاد", "اندازه"]);
 
                 return (
@@ -162,36 +160,22 @@ export default function GoldIngotPage() {
                         </div>
 
                         <button
-                          onClick={() => handleAdd(variant.id)}
+                          onClick={() => handleAdd(variant.id, product.name)}
                           disabled={!variant.inStock || addLoading}
                           className="relative z-20 flex items-center gap-2 bg-green-900 hover:bg-green-800 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all active:scale-95 shadow-[0_4px_15px_rgba(234,179,8,0.25)]"
                         >
                           {addLoading ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : justAdded ? (
-                            <CheckCircle2 className="w-4 h-4" />
                           ) : (
                             <ShoppingCart className="w-4 h-4" />
                           )}
-                          {!variant.inStock ? "ناموجود" : justAdded ? "افزوده شد" : "خرید"}
+                          {!variant.inStock ? "ناموجود" : "خرید"}
                         </button>
                       </div>
                     </div>
                   </div>
                 );
               })}
-            </div>
-          )}
-
-          {sortedProducts.length > 0 && (
-            <div className="mt-4 text-left">
-              <Link
-                href="/dashboard/shop/cart"
-                className="inline-block text-[12px] font-bold"
-                style={{ color: "var(--color-emerald)" }}
-              >
-                مشاهده سبد خرید ←
-              </Link>
             </div>
           )}
         </div>
@@ -220,6 +204,12 @@ export default function GoldIngotPage() {
           </div>
         </div>
       </div>
+
+      <AddedToCartModal
+        open={addedName !== null}
+        productName={addedName}
+        onClose={() => setAddedName(null)}
+      />
     </div>
   );
 }

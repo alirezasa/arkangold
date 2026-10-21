@@ -3,14 +3,12 @@
 import { useMemo, useState } from "react";
 import { decimalOnly } from "@/app/utils/digits";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   Gem,
   Minus,
   Plus,
   ShoppingCart,
-  CheckCircle2,
   AlertCircle,
   Loader2,
   Scale,
@@ -28,6 +26,8 @@ import {
   ProductSpecTable,
   ProductText,
 } from "@/app/dashboard/components/shop/ProductText";
+import AddedToCartModal from "@/app/dashboard/components/shop/AddedToCartModal";
+import CartButton from "@/app/dashboard/components/shop/CartButton";
 
 function fmtToman(v: string | number) {
   return Math.round(Number(v)).toLocaleString("fa-IR");
@@ -47,7 +47,6 @@ export default function ProductDetailView({
   /** تنوع پیش‌انتخاب (مثلاً وزنی که کاربر در سایت arkan.gold انتخاب کرده) */
   initialVariantId?: string | null;
 }) {
-  const router = useRouter();
   const { product, loading } = useProduct(slug);
   const { loading: addLoading, error, setError, add } = useAddToCart();
 
@@ -151,10 +150,7 @@ export default function ProductDetailView({
         quantity,
         packagingOptionId: selectedPackaging?.id,
       });
-      if (res) {
-        setAdded(true);
-        setTimeout(() => setAdded(false), 2000);
-      }
+      if (res) setAdded(true);
       return;
     }
 
@@ -165,10 +161,7 @@ export default function ProductDetailView({
       quantity,
       packagingOptionId: selectedPackaging?.id,
     });
-    if (res) {
-      setAdded(true);
-      setTimeout(() => setAdded(false), 2000);
-    }
+    if (res) setAdded(true);
   };
 
   const canAdd = isWeightRange ? !!effectiveWeight : !!selectedVariant?.inStock;
@@ -185,14 +178,15 @@ export default function ProductDetailView({
         >
           <ChevronRight className="w-5 h-5" />
         </Link>
-        <div>
-          <h1 className="text-[18px] font-black text-gray-800">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[18px] font-black text-gray-800 truncate">
             {product.name}
           </h1>
           <p className="text-[12px] text-gray-500 mt-0.5">
             {product.category?.name}
           </p>
         </div>
+        <CartButton />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -494,11 +488,6 @@ export default function ProductDetailView({
           >
             {addLoading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
-            ) : added ? (
-              <>
-                <CheckCircle2 className="w-5 h-5" />
-                افزوده شد
-              </>
             ) : (
               <>
                 <ShoppingCart className="w-5 h-5" />
@@ -506,15 +495,6 @@ export default function ProductDetailView({
               </>
             )}
           </button>
-
-          {added && (
-            <button
-              onClick={() => router.push("/dashboard/shop/cart")}
-              className="w-full py-3 rounded-xl text-[13px] font-bold border-2 border-gray-200 text-gray-600 hover:bg-gray-50"
-            >
-              مشاهده سبد خرید
-            </button>
-          )}
         </div>
       </div>
 
@@ -534,6 +514,12 @@ export default function ProductDetailView({
           <ProductText text={product.description} />
         </section>
       )}
+
+      <AddedToCartModal
+        open={added}
+        productName={product.name}
+        onClose={() => setAdded(false)}
+      />
     </div>
   );
 }

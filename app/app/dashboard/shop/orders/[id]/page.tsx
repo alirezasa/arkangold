@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useShopHomeHref } from "@/app/hooks/useAppServices";
 import { useParams, useRouter } from "next/navigation";
 import {
   ChevronRight,
@@ -204,6 +205,8 @@ function CopyBtn({ text }: { text: string }) {
 }
 
 export default function ShopOrderDetailPage() {
+  // اگر زیورآلات غیرفعال باشد، «فروشگاه» به خرید شمش می‌رود
+  const shopHref = useShopHomeHref();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { order, loading, error, refresh } = useShopOrder(params.id);
@@ -655,7 +658,7 @@ export default function ShopOrderDetailPage() {
 
       {order.status === "DELIVERED" && (
         <button
-          onClick={() => router.push("/dashboard/shop")}
+          onClick={() => router.push(shopHref)}
           className="w-full py-3.5 rounded-xl font-bold text-[13px] border-2 border-gray-200 text-gray-600 hover:bg-gray-50"
         >
           خرید مجدد از فروشگاه

@@ -35,6 +35,19 @@ class GoldBarQuoteDto {
   @IsOptional()
   @IsBoolean()
   useRialWallet?: boolean;
+
+  // آدرس و روش ارسال (اختیاری) — برای نمایش گزینه‌ها و لحاظ هزینه‌ی ارسال در پیش‌فاکتور
+  @IsOptional()
+  @IsUUID()
+  addressId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  shippingMethodId?: string;
+
+  @IsOptional()
+  @IsIn(['PREPAID', 'ON_DELIVERY'])
+  shippingFeePayment?: 'PREPAID' | 'ON_DELIVERY';
 }
 
 class GoldBarOrderDto {
@@ -53,6 +66,14 @@ class GoldBarOrderDto {
   @IsOptional()
   @IsIn(['ZARINPAL', 'BEHPARDAKHT'])
   gatewayProvider?: GatewayProviderKey;
+
+  @IsOptional()
+  @IsUUID()
+  shippingMethodId?: string;
+
+  @IsOptional()
+  @IsIn(['PREPAID', 'ON_DELIVERY'])
+  shippingFeePayment?: 'PREPAID' | 'ON_DELIVERY';
 }
 
 @ApiTags('Gold Delivery')

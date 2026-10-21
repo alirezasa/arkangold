@@ -33,6 +33,7 @@ import { DocumentSequenceService } from '../common/documents/document-sequence.s
 import { ShopOrderEventsService } from './shop-order-events.service';
 import { ShopOrderFulfillmentService } from './shop-order-fulfillment.service';
 import { maskNationalCode } from '../common/privacy/masking';
+import { ShippingService } from '../shipping/shipping.service';
 
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 const PENDING_PAYMENT_TTL_MINUTES = 30;
@@ -77,6 +78,19 @@ type ShopOrderDtoSource = {
   updatedAt: Date;
   items: ShopOrderDtoItem[];
   address?: unknown;
+  shippingAddress?: unknown;
+  shippingMethodId?: string | null;
+  shippingMethodName?: string | null;
+  shippingMethodType?: string | null;
+  shippingCarrierName?: string | null;
+  shippingZoneName?: string | null;
+  shippingRial?: unknown;
+  shippingWaivedRial?: unknown;
+  shippingPayOnDelivery?: boolean;
+  shippingEstimateRial?: unknown;
+  shipmentWeightGrams?: unknown;
+  shippingEtaMinDays?: number | null;
+  shippingEtaMaxDays?: number | null;
   payments?: unknown[];
   shippings?: unknown[];
 };
@@ -98,6 +112,7 @@ export class ShopOrdersService {
     private readonly documentSequence: DocumentSequenceService,
     private readonly events: ShopOrderEventsService,
     private readonly fulfillment: ShopOrderFulfillmentService,
+    private readonly shipping: ShippingService,
   ) {}
 
   /**
@@ -105,7 +120,8 @@ export class ShopOrdersService {
    * بدهکار: کیف‌پول (2010) / نقد درگاه (1010) به اندازه مبلغ پرداختی +
    *         هزینه تخفیف فروش (5030) به اندازه تخفیف کد
    * بستانکار: درآمد فروش فروشگاه (4020) به اندازه جمع اقلام قبل از تخفیف +
-   *           درآمد بسته‌بندی (4030) به اندازه هزینه بسته‌بندی دریافتی
+   *           درآمد بسته‌بندی (4030) به اندازه هزینه بسته‌بندی دریافتی +
+   *           درآمد خدمات ارسال (4035) به اندازه هزینه ارسال دریافتی (پس‌کرایه = صفر)
    */
   buildSaleJournalLines(params: {
     walletRial: number;
@@ -113,6 +129,7 @@ export class ShopOrdersService {
     discountRial: number;
     subtotalRial: number;
     packagingRial: number;
+    shippingRial?: number;
   }): LedgerLineInput[] {
     const lines: LedgerLineInput[] = [];
     if (params.walletRial > 0) {
@@ -146,6 +163,13 @@ export class ShopOrdersService {
         accountCode: '4030',
         side: 'CREDIT',
         amountRial: params.packagingRial,
+      });
+    }
+    if ((params.shippingRial ?? 0) > 0) {
+      lines.push({
+        accountCode: '4035',
+        side: 'CREDIT',
+        amountRial: params.shippingRial,
       });
     }
     return lines;
@@ -316,7 +340,7 @@ export class ShopOrdersService {
 
   private async checkoutInternal(userId: string, dto: CreateShopOrderDto) {
     const address = await this.prisma.address.findFirst({
-      where: { id: dto.addressId, userId },
+      where: { id: dto.addressId, userId, deletedAt: null },
     });
     if (!address) throw new NotFoundException('آدرس یافت نشد');
 
@@ -361,6 +385,18 @@ export class ShopOrdersService {
         unavailable.variant?.product.name ?? unavailable.product?.name;
       throw new BadRequestException(`محصول «${name}» دیگر در دسترس نیست`);
     }
+
+    // روش و هزینه‌ی ارسال بر اساس آدرس، وزن و ارزش اقلام (قیمت‌های قفل‌شده‌ی همین سبد) در سرور
+    // تعیین می‌شود؛ مبلغ ارسال مثل بسته‌بندی خارج از کد تخفیف است
+    const parcel = this.shipping.parcelOf(cart.items);
+    const shipping = await this.shipping.resolveForCheckout({
+      address,
+      itemsWeightGrams: parcel.itemsWeightGrams,
+      valueRial: parcel.valueRial,
+      methodId: dto.shippingMethodId,
+      feePayment: dto.shippingFeePayment,
+    });
+    const shippingRial = shipping?.charge.shippingRial ?? 0;
 
     const variantIds = [
       ...new Set(
@@ -540,7 +576,12 @@ export class ShopOrdersService {
               discountRial,
               packagingRial: packaging.chargedRial,
               packagingWaivedRial: packaging.waivedRial,
-              totalRial: subtotalRial - discountRial + packaging.chargedRial,
+              totalRial:
+                subtotalRial -
+                discountRial +
+                packaging.chargedRial +
+                shippingRial,
+              ...this.shipping.orderShippingData(address, shipping),
               discountCodeId,
               discountCodeText,
               status: 'PENDING_PAYMENT',
@@ -769,11 +810,12 @@ export class ShopOrdersService {
         const subtotalRial = this.toNumber(order.subtotalRial);
         const discountRial = this.toNumber(order.discountRial);
         const packagingRial = this.toNumber(order.packagingRial);
+        const shippingRial = this.toNumber(order.shippingRial);
         await this.accountingService.postJournal(tx, {
           description: `فروش فروشگاه (کیف‌پول) - سفارش ${orderId}${
             discountRial > 0 ? ` - کد تخفیف ${order.discountCodeText}` : ''
           }`,
-          totalRial: subtotalRial + packagingRial,
+          totalRial: subtotalRial + packagingRial + shippingRial,
           totalGrams: 0,
           lines: this.buildSaleJournalLines({
             walletRial: amountRial,
@@ -781,6 +823,7 @@ export class ShopOrdersService {
             discountRial,
             subtotalRial,
             packagingRial,
+            shippingRial,
           }),
         });
         await this.inventoryAccounting.postShopCogs(tx, orderId);
@@ -1077,12 +1120,13 @@ export class ShopOrdersService {
         const subtotalRial = this.toNumber(order.subtotalRial);
         const discountRial = this.toNumber(order.discountRial);
         const packagingRial = this.toNumber(order.packagingRial);
+        const shippingRial = this.toNumber(order.shippingRial);
 
         await this.accountingService.postJournal(tx, {
           description: `فروش فروشگاه (درگاه) - سفارش ${order.id}${
             discountRial > 0 ? ` - کد تخفیف ${order.discountCodeText}` : ''
           }`,
-          totalRial: subtotalRial + packagingRial,
+          totalRial: subtotalRial + packagingRial + shippingRial,
           totalGrams: 0,
           lines: this.buildSaleJournalLines({
             walletRial: walletPortionRial + goldPortionRial,
@@ -1090,6 +1134,7 @@ export class ShopOrdersService {
             discountRial,
             subtotalRial,
             packagingRial,
+            shippingRial,
           }),
         });
         await this.inventoryAccounting.postShopCogs(tx, order.id);
@@ -1648,6 +1693,7 @@ export class ShopOrdersService {
           const subtotalRial = this.toNumber(order.subtotalRial);
           const discountRial = this.toNumber(order.discountRial);
           const packagingRial = this.toNumber(order.packagingRial);
+          const shippingRial = this.toNumber(order.shippingRial);
 
           if (refundRial > 0) {
             await tx.wallet.update({
@@ -1668,7 +1714,7 @@ export class ShopOrdersService {
             });
           }
 
-          // برگشت کامل سند فروش: درآمد به اندازه جمع اقلام و بسته‌بندی، و هزینه
+          // برگشت کامل سند فروش: درآمد به اندازه جمع اقلام، بسته‌بندی و ارسال، و هزینه
           // تخفیف (در صورت وجود) خنثی می‌شود؛ فقط مبلغ پرداختی به کیف پول برمی‌گردد
           const refundLines: LedgerLineInput[] = [
             { accountCode: '4020', side: 'DEBIT', amountRial: subtotalRial },
@@ -1678,6 +1724,13 @@ export class ShopOrdersService {
               accountCode: '4030',
               side: 'DEBIT',
               amountRial: packagingRial,
+            });
+          }
+          if (shippingRial > 0) {
+            refundLines.push({
+              accountCode: '4035',
+              side: 'DEBIT',
+              amountRial: shippingRial,
             });
           }
           // برگشت سند فروش: کل مبلغ به 2010؛ سهم طلا با سند برگشت تبدیل (بالا) از 2010 به 2020 می‌رود
@@ -1698,7 +1751,7 @@ export class ShopOrdersService {
 
           await this.accountingService.postJournal(tx, {
             description: `بازگشت وجه سفارش لغوشده - سفارش ${order.id}`,
-            totalRial: subtotalRial + packagingRial,
+            totalRial: subtotalRial + packagingRial + shippingRial,
             totalGrams: 0,
             lines: refundLines,
           });
@@ -1831,7 +1884,26 @@ export class ShopOrdersService {
       ),
       trackingCode: order.trackingCode,
       orderNumber: order.orderNumber ?? null,
-      address: order.address,
+      // نشانی لحظه‌ی ثبت سفارش؛ سفارش‌های قدیمی بدون snapshot از آدرس فعلی خوانده می‌شوند
+      address: order.shippingAddress ?? order.address,
+      shippingToman: this.rialToTomanString(order.shippingRial),
+      shippingMethod: order.shippingMethodName
+        ? {
+            id: order.shippingMethodId ?? null,
+            name: order.shippingMethodName,
+            type: order.shippingMethodType ?? null,
+            carrierName: order.shippingCarrierName ?? null,
+            zoneName: order.shippingZoneName ?? null,
+            chargedToman: this.rialToTomanString(order.shippingRial),
+            waivedToman: this.rialToTomanString(order.shippingWaivedRial),
+            free: this.toNumber(order.shippingWaivedRial) > 0,
+            payOnDelivery: order.shippingPayOnDelivery ?? false,
+            estimateToman: this.rialToTomanString(order.shippingEstimateRial),
+            weightGrams: String(this.toNumber(order.shipmentWeightGrams)),
+            etaMinDays: order.shippingEtaMinDays ?? null,
+            etaMaxDays: order.shippingEtaMaxDays ?? null,
+          }
+        : null,
       payments: order.payments,
       shippings: order.shippings,
       items: order.items.map((item) => {

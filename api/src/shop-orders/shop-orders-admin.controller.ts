@@ -95,6 +95,11 @@ class ShippingMethodDto {
   @Min(0)
   @Max(999)
   sortOrder?: number;
+  @IsOptional() @IsUUID() carrierId?: string | null;
+  @IsOptional() @IsBoolean() availableAtCheckout?: boolean;
+  @IsOptional() @IsBoolean() requiresPostalCode?: boolean;
+  @IsOptional() @IsString() @MaxLength(500) pickupAddress?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) pickupHours?: string | null;
 }
 
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)

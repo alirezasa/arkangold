@@ -621,7 +621,31 @@ model ShopOrder {
   labelPrintCount     Int                      @default(0) @map("label_print_count")
   labelPrintedAt      DateTime?                @map("label_printed_at")
 
+  // ── روش ارسال انتخابی مشتری هنگام ثبت سفارش (snapshot تا ویرایش تعرفه سابقه را تغییر ندهد) ──
+  shippingMethodId      String?             @map("shipping_method_id") @db.Uuid
+  shippingMethod        ShippingMethod?     @relation("ShopOrderShippingMethod", fields: [shippingMethodId], references: [id], onDelete: SetNull)
+  shippingMethodName    String?             @map("shipping_method_name")
+  shippingMethodType    ShippingMethodType? @map("shipping_method_type")
+  shippingCarrierName   String?             @map("shipping_carrier_name")
+  shippingZoneName      String?             @map("shipping_zone_name")
+  /// هزینه ارسال دریافت‌شده در همین سفارش (ریال) — مشمول کد تخفیف نیست؛ در پس‌کرایه صفر است.
+  /// totalRial = subtotalRial - discountRial + packagingRial + shippingRial
+  shippingRial          Decimal             @default(0) @map("shipping_rial") @db.Decimal(18, 0)
+  /// هزینه ارسالی که به‌دلیل رسیدن خرید به آستانه‌ی ارسال رایگان بخشیده شد (ریال)
+  shippingWaivedRial    Decimal             @default(0) @map("shipping_waived_rial") @db.Decimal(18, 0)
+  /// پس‌کرایه: هزینه ارسال هنگام تحویل مستقیماً به شرکت پست/حمل پرداخت می‌شود
+  shippingPayOnDelivery Boolean             @default(false) @map("shipping_pay_on_delivery")
+  /// برآورد هزینه ارسال طبق تعرفه (ریال)؛ در پس‌کرایه همان مبلغی است که مشتری هنگام تحویل می‌پردازد
+  shippingEstimateRial  Decimal?            @map("shipping_estimate_rial") @db.Decimal(18, 0)
+  /// وزن محاسبه‌شده‌ی مرسوله (گرم، شامل وزن بسته‌بندی)
+  shipmentWeightGrams   Decimal?            @map("shipment_weight_grams") @db.Decimal(18, 2)
+  shippingEtaMinDays    Int?                @map("shipping_eta_min_days")
+  shippingEtaMaxDays    Int?                @map("shipping_eta_max_days")
+  /// snapshot نشانی تحویل در لحظه‌ی ثبت سفارش (ویرایش/حذف آدرس بعدی سفارش را تغییر نمی‌دهد)
+  shippingAddress       Json?               @map("shipping_address")
+
   @@index([userId])
+  @@index([shippingMethodId])
   @@index([discountCodeId])
   @@index([status, createdAt])
   @@map("shop_orders")
@@ -910,21 +934,29 @@ model ReferralReward {
 
 model Address {
   title                String?
+  /// نام استان (متن نمایشی) — برای آدرس‌های جدید از روی provinceCode پر می‌شود
   province             String?
+  /// کد استاندارد استان (TEHRAN, FARS, ...) — مبنای تطبیق منطقه و تعرفه‌ی ارسال
+  provinceCode         String?                   @map("province_code")
   city                 String?
   postalCode           String?                   @map("postal_code")
   fullAddress          String                    @map("full_address")
+  plaque               String?
+  unit                 String?
   receiverName         String?                   @map("receiver_name")
   receiverPhone        String?                   @map("receiver_phone")
   isDefault            Boolean                   @default(false) @map("is_default")
+  /// حذف نرم: آدرس استفاده‌شده در سفارش‌ها هرگز حذف فیزیکی نمی‌شود
+  deletedAt            DateTime?                 @map("deleted_at")
   createdAt            DateTime                  @default(now()) @map("created_at")
+  updatedAt            DateTime                  @default(now()) @updatedAt @map("updated_at")
   id                   String                    @id @default(uuid()) @db.Uuid
   userId               String                    @map("user_id") @db.Uuid
   user                 User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   physicalDeliveryReqs PhysicalDeliveryRequest[] // ← این خط
   shopOrders           ShopOrder[] // ← این خط
 
-  @@index([userId])
+  @@index([userId, deletedAt])
   @@map("addresses")
 }
 
@@ -1008,10 +1040,108 @@ model ShippingMethod {
   sortOrder            Int                @default(0) @map("sort_order")
   createdAt            DateTime           @default(now()) @map("created_at")
   updatedAt            DateTime           @updatedAt @map("updated_at")
+  /// شرکت حمل/پست ارائه‌دهنده‌ی این سرویس (اختیاری)
+  carrierId            String?            @map("carrier_id") @db.Uuid
+  carrier              ShippingCarrier?   @relation(fields: [carrierId], references: [id], onDelete: SetNull)
+  /// قابل انتخاب توسط مشتری هنگام ثبت سفارش (بر اساس منطقه و تعرفه‌های تعریف‌شده)
+  availableAtCheckout  Boolean            @default(true) @map("available_at_checkout")
+  /// ارسال با این روش فقط برای آدرس دارای کد پستی ۱۰ رقمی
+  requiresPostalCode   Boolean            @default(false) @map("requires_postal_code")
+  /// نشانی و ساعات مراجعه برای تحویل حضوری
+  pickupAddress        String?            @map("pickup_address")
+  pickupHours          String?            @map("pickup_hours")
   shippings            Shipping[]
+  rates                ShippingRate[]
+  shopOrders           ShopOrder[]        @relation("ShopOrderShippingMethod")
 
   @@index([isActive, sortOrder])
   @@map("shipping_methods")
+}
+
+/// شرکت حمل‌ونقل / خدمات پستی (پست جمهوری اسلامی، تیپاکس، چاپار، پیک اختصاصی و ...)
+model ShippingCarrier {
+  id                  String           @id @default(uuid()) @db.Uuid
+  /// کد یکتا (مثلاً IRAN_POST)
+  code                String           @unique
+  name                String
+  description         String?
+  website             String?
+  contactPhone        String?          @map("contact_phone")
+  /// نشانی رهگیری پیش‌فرض سرویس‌های این شرکت با {code}
+  trackingUrlTemplate String?          @map("tracking_url_template")
+  isActive            Boolean          @default(true) @map("is_active")
+  sortOrder           Int              @default(0) @map("sort_order")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  methods             ShippingMethod[]
+
+  @@map("shipping_carriers")
+}
+
+/// منطقه‌ی ارسال: مجموعه‌ای از استان‌ها (و در صورت نیاز شهرهای مشخص).
+/// برای هر آدرس دقیق‌ترین منطقه‌ی منطبق انتخاب می‌شود: شهر > استان > سایر نقاط (بدون استان).
+model ShippingZone {
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String
+  description   String?
+  /// کد استان‌ها (TEHRAN, FARS, ...) — خالی = همه‌ی استان‌ها (منطقه‌ی «سایر نقاط کشور»)
+  provinceCodes String[]       @default([]) @map("province_codes")
+  /// محدود به این شهرها (نام فارسی)؛ خالی = همه‌ی شهرهای استان‌های بالا
+  cities        String[]       @default([])
+  isActive      Boolean        @default(true) @map("is_active")
+  /// در تساوی دقت، منطقه با ترتیب کمتر اولویت دارد
+  sortOrder     Int            @default(0) @map("sort_order")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  rates         ShippingRate[]
+
+  @@map("shipping_zones")
+}
+
+/// تعرفه‌ی یک روش ارسال در یک منطقه. وجود تعرفه‌ی فعال یعنی آن روش برای آدرس‌های آن منطقه قابل انتخاب است.
+/// هزینه = پایه + پله‌های وزن مازاد × مبلغ هر پله + درصد ارزش کالا (بیمه)؛ محدود به حداقل/حداکثر و گرد به بالا.
+model ShippingRate {
+  id              String             @id @default(uuid()) @db.Uuid
+  methodId        String             @map("method_id") @db.Uuid
+  method          ShippingMethod     @relation(fields: [methodId], references: [id], onDelete: Cascade)
+  zoneId          String             @map("zone_id") @db.Uuid
+  zone            ShippingZone       @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  /// هزینه پایه (ریال) که تا «وزن پایه» را پوشش می‌دهد
+  baseRial        Decimal            @default(0) @map("base_rial") @db.Decimal(18, 0)
+  baseWeightGrams Int                @default(1000) @map("base_weight_grams")
+  /// هزینه هر پله‌ی وزن مازاد بر وزن پایه (ریال)
+  stepRial        Decimal            @default(0) @map("step_rial") @db.Decimal(18, 0)
+  stepWeightGrams Int                @default(1000) @map("step_weight_grams")
+  /// درصد ارزش کالا بابت بیمه/خدمات ارزشی (مثلاً 0.2 = ۰٫۲٪ جمع اقلام)
+  valuePercent    Decimal            @default(0) @map("value_percent") @db.Decimal(7, 4)
+  minRial         Decimal?           @map("min_rial") @db.Decimal(18, 0)
+  maxRial         Decimal?           @map("max_rial") @db.Decimal(18, 0)
+  /// ارسال رایگان وقتی جمع اقلام (پیش از تخفیف) به این مبلغ برسد (ریال)
+  freeAboveRial   Decimal?           @map("free_above_rial") @db.Decimal(18, 0)
+  /// سقف وزن مرسوله برای این روش (گرم)
+  maxWeightGrams  Int?               @map("max_weight_grams")
+  /// سقف ارزش سفارش برای این روش (ریال) — مثلاً سقف غرامت/بیمه‌ی پست
+  maxOrderRial    Decimal?           @map("max_order_rial") @db.Decimal(18, 0)
+  /// پیش‌پرداخت در سفارش | پس‌کرایه (پرداخت به مأمور هنگام تحویل) | انتخاب مشتری
+  feePayment      ShippingFeePayment @default(PREPAID) @map("fee_payment")
+  etaMinDays      Int?               @map("eta_min_days")
+  etaMaxDays      Int?               @map("eta_max_days")
+  isActive        Boolean            @default(true) @map("is_active")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  @@unique([methodId, zoneId])
+  @@index([zoneId])
+  @@map("shipping_rates")
+}
+
+enum ShippingFeePayment {
+  /// هزینه ارسال در مبلغ سفارش دریافت می‌شود
+  PREPAID
+  /// پس‌کرایه: هزینه در سفارش صفر است و مشتری هنگام تحویل به پست/حمل می‌پردازد
+  ON_DELIVERY
+  /// مشتری بین پیش‌پرداخت و پس‌کرایه انتخاب می‌کند
+  CUSTOMER_CHOICE
 }
 
 /// تاریخچه‌ی وضعیت سفارش فروشگاه (Timeline برای ادمین و کاربر)

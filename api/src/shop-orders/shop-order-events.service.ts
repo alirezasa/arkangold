@@ -107,7 +107,13 @@ export class ShopOrderEventsService {
           shippings: {
             orderBy: { createdAt: 'desc' },
             take: 1,
-            include: { shippingMethod: true },
+            include: {
+              shippingMethod: {
+                include: {
+                  carrier: { select: { trackingUrlTemplate: true } },
+                },
+              },
+            },
           },
         },
       });
@@ -128,7 +134,7 @@ export class ShopOrderEventsService {
         trackingCode: shipping?.trackingCode ?? '—',
         trackingUrl:
           this.trackingUrl(
-            method?.trackingUrlTemplate,
+            method?.trackingUrlTemplate ?? method?.carrier?.trackingUrlTemplate,
             shipping?.trackingCode ?? null,
           ) ?? '',
         deliveryCode: deliveryCode ?? '—',

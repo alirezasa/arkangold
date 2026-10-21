@@ -40,6 +40,11 @@ export interface ShippingMethodInput {
   contactPhone?: string | null;
   isActive?: boolean;
   sortOrder?: number;
+  carrierId?: string | null;
+  availableAtCheckout?: boolean;
+  requiresPostalCode?: boolean;
+  pickupAddress?: string | null;
+  pickupHours?: string | null;
 }
 
 export interface ShipOrderInput {
@@ -134,11 +139,15 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     const rows = await this.prisma.shippingMethod.findMany({
       where: activeOnly ? { isActive: true } : {},
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      include: { _count: { select: { shippings: true } } },
+      include: {
+        carrier: { select: { id: true, name: true, isActive: true } },
+        _count: { select: { shippings: true, rates: true } },
+      },
     });
     return rows.map(({ _count, ...m }) => ({
       ...m,
       shipmentCount: _count.shippings,
+      rateCount: _count.rates,
     }));
   }
 
@@ -146,7 +155,7 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     if (!dto.code || !dto.name || !dto.type) {
       throw new BadRequestException('کد، نام و نوع مرجع ارسال الزامی است');
     }
-    this.validateMethod(dto);
+    await this.validateMethod(dto);
     const code = dto.code.trim().toUpperCase();
     const exists = await this.prisma.shippingMethod.findUnique({
       where: { code },
@@ -166,7 +175,7 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
   async updateMethod(id: string, dto: ShippingMethodInput) {
     const row = await this.prisma.shippingMethod.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('مرجع ارسال یافت نشد');
-    this.validateMethod(dto);
+    await this.validateMethod(dto);
     const updated = await this.prisma.shippingMethod.update({
       where: { id },
       data: {
@@ -178,7 +187,14 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     return { message: 'مرجع ارسال ذخیره شد', method: updated };
   }
 
-  private validateMethod(dto: ShippingMethodInput) {
+  private async validateMethod(dto: ShippingMethodInput) {
+    if (dto.carrierId) {
+      const carrier = await this.prisma.shippingCarrier.findUnique({
+        where: { id: dto.carrierId },
+      });
+      if (!carrier)
+        throw new BadRequestException('شرکت حمل انتخاب‌شده یافت نشد');
+    }
     if (
       dto.code !== undefined &&
       !/^[A-Za-z0-9_-]{2,30}$/.test(dto.code.trim())
@@ -232,6 +248,21 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
         : {}),
       ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
       ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
+      ...(dto.carrierId !== undefined
+        ? { carrierId: dto.carrierId || null }
+        : {}),
+      ...(dto.availableAtCheckout !== undefined
+        ? { availableAtCheckout: dto.availableAtCheckout }
+        : {}),
+      ...(dto.requiresPostalCode !== undefined
+        ? { requiresPostalCode: dto.requiresPostalCode }
+        : {}),
+      ...(dto.pickupAddress !== undefined
+        ? { pickupAddress: dto.pickupAddress?.trim() || null }
+        : {}),
+      ...(dto.pickupHours !== undefined
+        ? { pickupHours: dto.pickupHours?.trim() || null }
+        : {}),
     };
   }
 
@@ -326,13 +357,19 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
           processingAt: order.processingAt ?? now,
         },
       });
+      // ارسال با روشی غیر از انتخاب مشتری در Timeline ثبت می‌شود (هزینه‌ی دریافتی تغییر نمی‌کند)
+      const changed =
+        order.shippingMethodId && order.shippingMethodId !== method.id
+          ? ` (به‌جای «${order.shippingMethodName}» انتخابی مشتری)`
+          : '';
+      const cod = order.shippingPayOnDelivery ? ' — پس‌کرایه' : '';
       await this.events.recordStatus(
         tx,
         orderId,
         'PROCESSING',
         'SHIPPED',
         { type: 'ADMIN', id: adminId },
-        `${method.name}${trackingCode ? ` — کد رهگیری ${trackingCode}` : ''}`,
+        `${method.name}${changed}${cod}${trackingCode ? ` — کد رهگیری ${trackingCode}` : ''}`,
       );
       return { alreadyProcessed: false as const };
     });
@@ -670,7 +707,11 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
         shippings: {
           orderBy: { createdAt: 'desc' },
           take: 1,
-          include: { shippingMethod: true },
+          include: {
+            shippingMethod: {
+              include: { carrier: { select: { trackingUrlTemplate: true } } },
+            },
+          },
         },
         statusHistory: { orderBy: { createdAt: 'asc' } },
       },
@@ -703,7 +744,8 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
             carrierName: s.carrierName,
             trackingCode: s.trackingCode,
             trackingUrl: this.events.trackingUrl(
-              s.shippingMethod?.trackingUrlTemplate,
+              s.shippingMethod?.trackingUrlTemplate ??
+                s.shippingMethod?.carrier?.trackingUrlTemplate,
               s.trackingCode,
             ),
             estimatedDelivery: s.estimatedDelivery,

@@ -1,15 +1,15 @@
-# استقرار خودکار روی لیارا با هر push به main
+# استقرار روی لیارا — فعلاً فقط دستی (استقرار اصلی روی رانفلر است و رانفلر خودش از main دریافت می‌کند)
 #
-# فقط سرویس‌هایی که فایل‌هایشان تغییر کرده deploy می‌شوند و هر کدام در یک job جدا و هم‌زمان.
-# برای deploy دستی (مثلاً بعد از تغییر متغیرهای محیطی): تب Actions ← Deploy to Liara ← Run workflow
+# اجرا: تب Actions ← Deploy to Liara ← Run workflow و نام سرویس‌ها (api,app,admin).
+# برای بازگرداندن استقرار خودکار با هر push، بخش push را در on دوباره فعال کنید.
 #
 # پیش‌نیاز: کلید دسترسی API لیارا (کنسول لیارا ← پروفایل ← کلید دسترسی API) در
 # Settings ← Secrets and variables ← Actions با نام LIARA_API_TOKEN
 name: Deploy to Liara
 
 on:
-  push:
-    branches: [main]
+  # push:
+  #   branches: [main]
   workflow_dispatch:
     inputs:
       services:

@@ -13,7 +13,7 @@ export class InvoicePublicController {
   constructor(private readonly invoiceService: InvoiceService) {}
 
   @Get(':invoiceNumber')
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @ApiOperation({ summary: 'استعلام عمومی اصالت سند' })
   verify(
     @Param('invoiceNumber') invoiceNumber: string,

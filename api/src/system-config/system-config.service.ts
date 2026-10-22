@@ -100,18 +100,23 @@ export class SystemConfigService implements OnModuleInit {
   }
 
   /**
-   * آدرس پیش‌فرض قدیمی استعلام سند (…/verify/{شماره}) صفحه‌ای نداشت؛ اگر ادمین آن را
-   * تغییر نداده باشد به صفحه‌ی جدید استعلام فاکتور منتقل می‌شود.
+   * آدرس‌های قبلی استعلام سند روی سایت اصلی (arkan.gold/verify/{شماره} که صفحه‌ای نداشت و
+   * arkan.gold/verifyInvoice) به صفحه‌ی عمومی استعلام در خود اپلیکیشن منتقل می‌شوند تا QR
+   * مستقیم و بدون واسطه‌ی سایت اصلی باز شود؛ آدرسی که ادمین دستی تغییر داده دست نمی‌خورد.
    */
   private async migrateVerifyBaseUrl() {
     await this.prisma.systemConfig.updateMany({
       where: {
         key: 'document.verify_base_url',
         value: {
-          in: ['https://arkan.gold/verify', 'https://arkan.gold/verify/'],
+          in: [
+            'https://arkan.gold/verify',
+            'https://arkan.gold/verify/',
+            'https://arkan.gold/verifyInvoice',
+          ],
         },
       },
-      data: { value: 'https://arkan.gold/verifyInvoice' },
+      data: { value: 'https://app.arkan.gold/verifyInvoice' },
     });
   }
 

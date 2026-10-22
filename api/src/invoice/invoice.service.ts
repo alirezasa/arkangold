@@ -1070,7 +1070,8 @@ export class InvoiceService {
   //  استعلام عمومی سند (QR)
   // ═══════════════════════════════════════════════════════════
 
-  static readonly DEFAULT_VERIFY_BASE_URL = 'https://arkan.gold/verifyInvoice';
+  static readonly DEFAULT_VERIFY_BASE_URL =
+    'https://app.arkan.gold/verifyInvoice';
 
   /**
    * توکن استعلام چاپ‌شده در QR: از شناسه‌ی داخلی سند (UUID تصادفی، هرگز چاپ نمی‌شود) و

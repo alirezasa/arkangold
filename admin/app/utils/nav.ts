@@ -50,6 +50,7 @@ import {
   SearchCheck,
   LayoutGrid,
   MapPinned,
+  Eye,
 } from "lucide-react";
 
 export interface NavItem {
@@ -188,6 +189,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "تنظیمات سیستم", href: "/system-config", icon: Settings2, perm: "system_config.view" },
       { label: "مرکز پیامک", href: "/sms", icon: MessageSquareText, perm: "sms.view" },
       { label: "یکپارچه‌سازی‌ها (KYC/فینوتک)", href: "/integrations", icon: Plug, perm: "integrations.view" },
+      { label: "سامانه ناظر طلا (زر پایش)", href: "/zarpayesh", icon: Eye, perm: "zarpayesh.view" },
     ],
   },
   {

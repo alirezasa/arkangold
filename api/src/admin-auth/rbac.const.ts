@@ -321,6 +321,18 @@ export const ADMIN_PERMISSIONS = [
     description: 'مدیریت Credential های Provider',
   },
   {
+    key: 'zarpayesh.view',
+    group: 'integrations',
+    description:
+      'سامانه ناظر طلا (زر پایش): مشاهده‌ی وضعیت اتصال، معاملات گزارش‌شده، ارسال‌ها، لاگ کامل فراخوانی‌ها و استعلام‌ها',
+  },
+  {
+    key: 'zarpayesh.manage',
+    group: 'integrations',
+    description:
+      'سامانه ناظر طلا (زر پایش): تنظیمات، آزمون اتصال، روشن/خاموش کردن ثبت خودکار معاملات، ثبت کاربران و عملیات رزرو/تأیید/لغو و ارسال',
+  },
+  {
     key: 'tickets.view',
     group: 'tickets',
     description: 'مشاهده تیکت‌های اختصاص‌یافته به خود',
@@ -544,6 +556,7 @@ export const ADMIN_ROLES = [
       'partner.manage',
       'partner.order.manage',
       'partner.settlement.manage',
+      'zarpayesh.view',
     ] as PermissionKey[],
   },
   {

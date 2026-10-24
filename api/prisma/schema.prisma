@@ -79,6 +79,9 @@ model User {
   agentPurchases             AgentSale[]                @relation("AgentSaleBuyer")
   partnerOrders              PartnerOrder[]
   bullionBuybacks            BullionBuybackRequest[]
+  zarPayeshUser              ZarPayeshUser?
+  zarPayeshTrades            ZarPayeshTrade[]
+  zarPayeshDeliveries        ZarPayeshDelivery[]
 
   @@map("users")
 }
@@ -3604,4 +3607,193 @@ enum BuybackDeliveryMethod {
   IN_PERSON
   /// ارسال با پست بیمه‌شده / پیک امن
   INSURED_POST
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// سامانه ناظر بر خرید و فروش بر خط طلا و نقره (زر پایش — api.rpmms.ir، نسخه‌ی ۳.۰.۰.۴)
+// ════════════════════════════════════════════════════════════════════════
+
+/// تنظیمات اتصال به زر پایش (یک ردیف ثابت با id = 'default'). اعتبارنامه‌ها (نام کاربری، رمز،
+/// کلید AES) جدا و رمزشده در integration_provider_credentials با Provider «ZARPAYESH» نگهداری می‌شوند.
+model ZarPayeshConfig {
+  id                   String    @id @default("default")
+  /// کلید اصلی: ثبت خودکار معاملات طلای آب‌شده در سامانه ناظر — پیش‌فرض خاموش
+  enabled              Boolean   @default(false)
+  baseUrl              String    @default("http://api.rpmms.ir") @map("base_url")
+  timeoutMs            Int       @default(15000) @map("timeout_ms")
+  /// شناسه‌ی نوع فلز (متد Typelist)
+  typeId               BigInt?   @map("type_id")
+  typeTitle            String?   @map("type_title")
+  /// شناسه‌ی خزانه (متد Vaultlist — فیلد fkVault)
+  vaultId              BigInt?   @map("vault_id")
+  vaultTitle           String?   @map("vault_title")
+  /// ابزار پرداخت (Table 2) برای خرید و فروش کاربر — پیش‌فرض ۱۱ = کیف پول کاربر نزد سکو
+  buyPayType           Int       @default(11) @map("buy_pay_type")
+  sellPayType          Int       @default(11) @map("sell_pay_type")
+  /// مبنای unitPrice: GRAM (ریال به ازای هر گرم) یا MILLIGRAM (ریال به ازای هر میلی‌گرم)
+  unitPriceBasis       String    @default("GRAM") @map("unit_price_basis")
+  /// ثبت خودکار کاربر در سامانه ناظر (AddPlatformUsers) پیش از اولین معامله
+  autoRegisterUsers    Boolean   @default(true) @map("auto_register_users")
+  /// آخرین آزمون موفق کامل اتصال (ورود + Typelist + Vaultlist) — شرط روشن کردن
+  connectionVerifiedAt DateTime? @map("connection_verified_at")
+  lastTestAt           DateTime? @map("last_test_at")
+  lastTestResult       Json?     @map("last_test_result")
+  enabledAt            DateTime? @map("enabled_at")
+  enabledByAdminId     String?   @map("enabled_by_admin_id") @db.Uuid
+  updatedByAdminId     String?   @map("updated_by_admin_id") @db.Uuid
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@map("zarpayesh_config")
+}
+
+/// ثبت کاربر سکو در سامانه ناظر (AddPlatformUsers / EditPlatformUsers)
+model ZarPayeshUser {
+  id            String              @id @default(uuid()) @db.Uuid
+  userId        String              @unique @map("user_id") @db.Uuid
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status        ZarPayeshUserStatus @default(PENDING)
+  registeredAt  DateTime?           @map("registered_at")
+  lastSyncedAt  DateTime?           @map("last_synced_at")
+  /// fkCity ارسالی (متد cities) — ۰ یعنی نامشخص
+  fkCity        Int                 @default(0) @map("fk_city")
+  lastErrorCode String?             @map("last_error_code")
+  lastError     String?             @map("last_error")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("zarpayesh_users")
+}
+
+/// هر معامله‌ی طلای آب‌شده که به سامانه ناظر گزارش می‌شود (Reserve → Approve | Cancel)
+model ZarPayeshTrade {
+  id                String               @id @default(uuid()) @db.Uuid
+  /// شناسه‌ی یکتای سمت پلتفرم (srcTrackingNumber)
+  srcTrackingNumber BigInt               @unique @map("src_tracking_number")
+  /// ORDER (معامله‌ی واقعی کاربر) | ADMIN_TEST (آزمون دستی از پنل)
+  source            String               @default("ORDER")
+  userId            String               @map("user_id") @db.Uuid
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// سفارش داخلی (orders.id) — بدون کلید خارجی چون رکورد پیش از commit سفارش ساخته می‌شود
+  orderId           String?              @unique @map("order_id") @db.Uuid
+  priceLockId       String?              @map("price_lock_id") @db.Uuid
+  /// Table 1: ۱ = خرید کاربر از پلتفرم، ۲ = فروش کاربر به پلتفرم
+  orderType         Int                  @map("order_type")
+  typeId            BigInt               @map("type_id")
+  vaultId           BigInt               @map("vault_id")
+  /// مقدار به میلی‌گرم (بدون اعشار)
+  amountMg          Decimal              @map("amount_mg") @db.Decimal(18, 0)
+  unitPrice         Decimal              @map("unit_price") @db.Decimal(24, 4)
+  totalPrice        Decimal              @map("total_price") @db.Decimal(18, 0)
+  payType           Int?                 @map("pay_type")
+  rrn               String?
+  description       String?
+  reserveCode       BigInt?              @map("reserve_code")
+  reserveExpireAt   DateTime?            @map("reserve_expire_at")
+  referenceNumber   BigInt?              @map("reference_number")
+  vaultBalance      Decimal?             @map("vault_balance") @db.Decimal(24, 4)
+  /// Table 3: ۱ رزرو، ۲ تأیید، ۳ ابطال، ۴ منقضی — آخرین وضعیت گزارش‌شده توسط سامانه ناظر
+  remoteStatus      Int?                 @map("remote_status")
+  status            ZarPayeshTradeStatus @default(RESERVING)
+  /// ناهمخوانی وضعیت سامانه ناظر و سفارش داخلی — نیازمند بررسی دستی
+  needsReview       Boolean              @default(false) @map("needs_review")
+  errorCode         String?              @map("error_code")
+  errorMessage      String?              @map("error_message")
+  reviewNote        String?              @map("review_note")
+  reservedAt        DateTime?            @map("reserved_at")
+  approvedAt        DateTime?            @map("approved_at")
+  cancelledAt       DateTime?            @map("cancelled_at")
+  lastFollowupAt    DateTime?            @map("last_followup_at")
+  createdByAdminId  String?              @map("created_by_admin_id") @db.Uuid
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([needsReview])
+  @@map("zarpayesh_trades")
+}
+
+/// درخواست‌های ارسال/تحویل دارایی (MakeDeliveries / SetDeliveries / GetDeliveries)
+model ZarPayeshDelivery {
+  id                String    @id @default(uuid()) @db.Uuid
+  srcTrackingNumber BigInt    @unique @map("src_tracking_number")
+  userId            String    @map("user_id") @db.Uuid
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  typeId            BigInt    @map("type_id")
+  amountMg          Decimal   @map("amount_mg") @db.Decimal(18, 0)
+  description       String?
+  /// مرجع داخلی اختیاری (شماره سفارش فروشگاه، تحویل فیزیکی و ...)
+  reference         String?
+  /// کد پیگیری مرسوله در سامانه ناظر (trackingcode)
+  trackingCode      BigInt?   @unique @map("tracking_code")
+  requestedAt       DateTime? @map("requested_at")
+  /// آخرین وضعیت (setStatusDeleveries): ۱ Approve، ۲ Ship، ۳ Delivery، ۴ Cancel — null یعنی ثبت‌شده
+  remoteStatus      Int?      @map("remote_status")
+  /// REQUESTING | REQUESTED | FAILED
+  state             String    @default("REQUESTING")
+  approvedAt        DateTime? @map("approved_at")
+  shippedAt         DateTime? @map("shipped_at")
+  deliveredAt       DateTime? @map("delivered_at")
+  cancelledAt       DateTime? @map("cancelled_at")
+  errorCode         String?   @map("error_code")
+  errorMessage      String?   @map("error_message")
+  createdByAdminId  String?   @map("created_by_admin_id") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt])
+  @@map("zarpayesh_deliveries")
+}
+
+/// لاگ کامل هر فراخوانی سامانه ناظر (درخواست/پاسخ پاک‌سازی‌شده — کد ملی و موبایل فقط پوشانده)
+model ZarPayeshApiLog {
+  id                String   @id @default(uuid()) @db.Uuid
+  /// نام متد مستند (Login، Reserve، Approve، ...)
+  method            String
+  httpMethod        String   @map("http_method")
+  path              String
+  requestBody       Json?    @map("request_body")
+  responseBody      Json?    @map("response_body")
+  httpStatus        Int?     @map("http_status")
+  success           Boolean
+  /// کد خطای سامانه ناظر (۱۰۰۱..۱۰۹۹) یا دسته‌ی خطای فنی (TIMEOUT، CONNECTION_ERROR، ...)
+  errorCode         String?  @map("error_code")
+  errorMessage      String?  @map("error_message")
+  durationMs        Int      @map("duration_ms")
+  srcTrackingNumber BigInt?  @map("src_tracking_number")
+  userId            String?  @map("user_id") @db.Uuid
+  adminId           String?  @map("admin_id") @db.Uuid
+  /// SYSTEM (جریان معامله) | ADMIN (پنل) | CRON (پیگیری خودکار)
+  trigger           String   @default("SYSTEM")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([method, createdAt])
+  @@index([success, createdAt])
+  @@index([srcTrackingNumber])
+  @@index([userId, createdAt])
+  @@map("zarpayesh_api_logs")
+}
+
+enum ZarPayeshUserStatus {
+  PENDING
+  REGISTERED
+  FAILED
+}
+
+enum ZarPayeshTradeStatus {
+  /// در حال ارسال Reserve
+  RESERVING
+  /// رزرو در سامانه ناظر ثبت شد — در انتظار Approve
+  RESERVED
+  /// معامله در سامانه ناظر تأیید (قطعی) شد
+  APPROVED
+  /// رزرو لغو شد (شکست سفارش داخلی یا لغو دستی)
+  CANCELLED
+  /// Reserve ناموفق — معامله انجام نشد
+  FAILED
+  /// نتیجه‌ی Approve/Cancel نامشخص ماند (Timeout/قطعی) — پیگیری خودکار با TxnFollowup
+  UNKNOWN
 }

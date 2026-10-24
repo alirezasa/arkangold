@@ -8,12 +8,14 @@ import { PriceService } from './price.service';
 import { TradingService } from './trading.service';
 import { PriceGateway } from './price.gateway';
 import { AccountingModule } from '../accounting/accounting.module';
+import { ZarPayeshModule } from '../zarpayesh/zarpayesh.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot(),
     EventEmitterModule.forRoot(), // برای ارتباط PriceService ↔ PriceGateway بدون circular dependency
     AccountingModule, // ⬅️ جدید: تأمین AccountingService برای TradingService (Fail-fast حسابداری)
+    ZarPayeshModule, // سامانه ناظر (زر پایش): گزارش معاملات طلای آب‌شده
   ],
   controllers: [MarketController],
   providers: [PriceService, TradingService, PriceGateway],

@@ -19,6 +19,7 @@ import { PartyLedgerService } from '../accounting/party-ledger.service';
 import { DocumentSequenceService } from '../common/documents/document-sequence.service';
 import { SystemConfigService } from '../system-config/system-config.service';
 import { TradingService } from '../market/trading.service';
+import { ZarPayeshTradeService } from '../zarpayesh/zarpayesh-trade.service';
 import { SmsService } from '../integrations/services/sms.service';
 import { PricingEngineService } from '../catalog/pricing-engine.service';
 import { InvoiceService } from '../invoice/invoice.service';
@@ -93,7 +94,18 @@ run('حسابداری پیشرفته (یکپارچه با PostgreSQL)', () => {
     );
     partners = new PartnersService(prisma, party, config);
     bullion = new BullionInventoryService(prisma);
-    trading = new TradingService(prisma, null, config, accounting);
+    // سامانه ناظر (زر پایش) خاموش — رفتار پیش‌فرض
+    const supervisorOff = {
+      isEnabled: () => Promise.resolve(false),
+      prepareOrder: () => Promise.resolve(null),
+    } as unknown as ZarPayeshTradeService;
+    trading = new TradingService(
+      prisma,
+      null,
+      config,
+      accounting,
+      supervisorOff,
+    );
 
     await prisma.marketPrice.upsert({
       where: { metal: 'GOLD' },

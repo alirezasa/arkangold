@@ -8,6 +8,7 @@ import type { PriceService } from './price.service';
 import type { SystemConfigService } from '../system-config/system-config.service';
 import type { AccountingService } from '../accounting/accounting.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { ZarPayeshTradeService } from '../zarpayesh/zarpayesh-trade.service';
 import {
   startOfJalaliMonthTehran,
   startOfTehranDay,
@@ -24,6 +25,8 @@ function setup(opts: {
   disableBuy?: boolean;
   wallet?: { rial: number; grams: number };
   holds?: { rial?: number; grams?: number };
+  /** سامانه ناظر (زر پایش) — پیش‌فرض خاموش */
+  supervisor?: Partial<Record<keyof ZarPayeshTradeService, jest.Mock>>;
 }) {
   const config: Record<string, string> = {
     'fee.buy_gold': '1',
@@ -147,13 +150,23 @@ function setup(opts: {
   const postJournal = jest.fn(() => Promise.resolve({ id: 'j1' }));
   const accounting = { postJournal } as unknown as AccountingService;
 
+  const supervisor = {
+    isEnabled: jest.fn(() => Promise.resolve(false)),
+    assertUserReportable: jest.fn(() => Promise.resolve()),
+    prepareOrder: jest.fn(() => Promise.resolve(null)),
+    approveOrder: jest.fn(() => Promise.resolve()),
+    settle: jest.fn(() => Promise.resolve()),
+    ...opts.supervisor,
+  };
+
   const service = new TradingService(
     prisma,
     priceService,
     systemConfig,
     accounting,
+    supervisor as unknown as ZarPayeshTradeService,
   );
-  return { service, config, wallet, locks, created, postJournal };
+  return { service, config, wallet, locks, created, postJournal, supervisor };
 }
 
 describe('TradingService — طلای آب‌شده', () => {
@@ -251,6 +264,56 @@ describe('TradingService — طلای آب‌شده', () => {
     expect(wallet.rialBalance.toString()).toBe('198000000');
     expect(wallet.goldBalanceGrams.toString()).toBe('0');
     expect(postJournal).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('TradingService — سامانه ناظر (زر پایش)', () => {
+  const handle = { tradeId: 'zp1', approved: false };
+
+  it('خاموش: هیچ فراخوانی Approve/Settle انجام نمی‌شود و دقت ۴ رقمی می‌ماند', async () => {
+    const { service, supervisor } = setup({ wallet: { rial: 0, grams: 2 } });
+    const lock = await service.lockPrice(USER_ID, 'SELL', 1.23459);
+    expect(lock.amountGrams).toBe('1.2345');
+    await service.createOrder(USER_ID, lock.lockId);
+    expect(supervisor.approveOrder).not.toHaveBeenCalled();
+    expect(supervisor.settle).not.toHaveBeenCalled();
+  });
+
+  it('روشن: مقدار به میلی‌گرم کامل گرد و معامله Reserve → Approve → Settle می‌شود', async () => {
+    const { service, supervisor } = setup({
+      wallet: { rial: 200_000_000, grams: 0 },
+      supervisor: {
+        isEnabled: jest.fn(() => Promise.resolve(true)),
+        prepareOrder: jest.fn(() => Promise.resolve(handle)),
+      },
+    });
+    const lock = await service.lockPrice(USER_ID, 'BUY', 1.23459);
+    expect(lock.amountGrams).toBe('1.234');
+    expect(supervisor.assertUserReportable).toHaveBeenCalledWith(USER_ID);
+
+    await service.createOrder(USER_ID, lock.lockId);
+    expect(supervisor.prepareOrder).toHaveBeenCalledWith(USER_ID, lock.lockId);
+    expect(supervisor.approveOrder).toHaveBeenCalledWith(handle, 'o1');
+    expect(supervisor.settle).toHaveBeenCalledWith(handle, true);
+  });
+
+  it('رد Approve در سامانه ناظر سفارش را متوقف و رزرو را تعیین تکلیف می‌کند', async () => {
+    const { BadRequestException } = await import('@nestjs/common');
+    const { service, supervisor } = setup({
+      wallet: { rial: 200_000_000, grams: 0 },
+      supervisor: {
+        isEnabled: jest.fn(() => Promise.resolve(true)),
+        prepareOrder: jest.fn(() => Promise.resolve(handle)),
+        approveOrder: jest.fn(() =>
+          Promise.reject(new BadRequestException('رد سامانه ناظر')),
+        ),
+      },
+    });
+    const lock = await service.lockPrice(USER_ID, 'BUY', 1);
+    await expect(service.createOrder(USER_ID, lock.lockId)).rejects.toThrow(
+      'رد سامانه ناظر',
+    );
+    expect(supervisor.settle).toHaveBeenCalledWith(handle, false);
   });
 });
 

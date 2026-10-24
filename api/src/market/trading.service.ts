@@ -19,6 +19,7 @@ import {
   startOfJalaliMonthTehran,
   startOfTehranDay,
 } from '../common/utils/jalali.util';
+import { ZarPayeshTradeService } from '../zarpayesh/zarpayesh-trade.service';
 
 type Side = 'BUY' | 'SELL';
 
@@ -62,6 +63,7 @@ export class TradingService {
     private readonly priceService: PriceService,
     private readonly systemConfig: SystemConfigService,
     private readonly accountingService: AccountingService,
+    private readonly zarPayesh: ZarPayeshTradeService,
   ) {}
 
   // ════════════════════════════════════════════════════════
@@ -78,9 +80,14 @@ export class TradingService {
       throw new BadRequestException('مقدار وارد شده خارج از محدوده مجاز است');
     }
 
+    // سامانه ناظر (زر پایش) مقدار را به میلی‌گرم و بدون اعشار می‌پذیرد؛ وقتی گزارش معاملات
+    // روشن است مقدار به میلی‌گرم کامل گرد می‌شود و داده‌ی هویتی لازم از قبل بررسی می‌شود
+    const supervisorOn = await this.zarPayesh.isEnabled();
+    if (supervisorOn) await this.zarPayesh.assertUserReportable(userId);
+
     // گرد کردن رو به پایین: مقدار قفل‌شده هرگز از مقدار درخواستی (و موجودی) بیشتر نمی‌شود
     const amountGrams = new Prisma.Decimal(amountGramsInput).toDecimalPlaces(
-      4,
+      supervisorOn ? 3 : 4,
       Prisma.Decimal.ROUND_DOWN,
     );
     if (amountGrams.lessThanOrEqualTo(0)) {
@@ -302,8 +309,13 @@ export class TradingService {
     // غیرفعال شدن خدمت توسط ادمین بین قفل قیمت و تأیید هم باید معامله را متوقف کند
     await this.assertServiceEnabled();
 
+    // سامانه ناظر (زر پایش): رزرو پیش از تراکنش؛ Approve آخرین گام داخل تراکنش است و
+    // رزرو تأییدنشده پس از تراکنش لغو می‌شود (null = گزارش خاموش)
+    const supervisor = await this.zarPayesh.prepareOrder(userId, lockId);
+    let committed = false;
+
     try {
-      return await this.prisma.$transaction(
+      const result = await this.prisma.$transaction(
         async (tx) => {
           await tx.$executeRaw`SELECT 1 FROM "price_locks" WHERE "id" = ${lockId}::uuid FOR UPDATE`;
 
@@ -500,6 +512,10 @@ export class TradingService {
             taxRial,
           });
 
+          if (supervisor) {
+            await this.zarPayesh.approveOrder(supervisor, order.id);
+          }
+
           this.logger.log(
             `[Order] ${side} ${amountGrams.toString()}g GOLD @ ${pricePerGram.toString()} توسط ${userId} | orderId=${order.id}`,
           );
@@ -508,11 +524,16 @@ export class TradingService {
         },
         {
           maxWait: 5000,
-          timeout: 14000,
+          // Approve سامانه ناظر (و در صورت Timeout، Followup) داخل تراکنش انجام می‌شود
+          timeout: supervisor ? 45000 : 14000,
         },
       );
+      committed = true;
+      return result;
     } catch (err) {
       throw this.translateDbError(err, userId, lockId);
+    } finally {
+      if (supervisor) await this.zarPayesh.settle(supervisor, committed);
     }
   }
 

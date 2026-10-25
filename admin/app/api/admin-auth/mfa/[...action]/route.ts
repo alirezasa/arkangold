@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { adminProxy } from "@/app/lib/adminProxy";
 
-// کدهای بازیابی جدید و جایگزینی برنامه‌ی احراز هویت (گوشی جدید) — نیازمند کد فعلی
-const ALLOWED = new Set(["recovery-codes", "reconfigure", "reconfigure/confirm"]);
+// کدهای بازیابی جدید و جایگزینی برنامه‌ی احراز هویت (گوشی جدید) — نیازمند کد فعلی؛
+// فعال/غیرفعال‌سازی اختیاری ورود دومرحله‌ای (فقط حساب نمایندگان)
+const ALLOWED = new Set([
+  "recovery-codes",
+  "reconfigure",
+  "reconfigure/confirm",
+  "enable",
+  "enable/confirm",
+  "disable",
+]);
 
 export async function POST(
   request: Request,

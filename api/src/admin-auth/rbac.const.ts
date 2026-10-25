@@ -448,6 +448,24 @@ export const ADMIN_PERMISSIONS = [
     group: 'agent',
     description: 'ابطال فروش ثبت‌شده توسط نماینده (برگشت مالکیت و سند)',
   },
+  {
+    key: 'agent.order.manage',
+    group: 'agent',
+    description:
+      'فهرست قیمت نمایندگی، تأیید و تخصیص شمش سفارش خرید نماینده، صدور صورتحساب/حواله، ثبت تحویل و لغو سفارش',
+  },
+  {
+    key: 'agent.funds.manage',
+    group: 'agent',
+    description:
+      'تأیید حساب بانکی نماینده، تأیید/رد واریز، تأیید و پرداخت برداشت، اصلاحیه کیف پول نماینده',
+  },
+  {
+    key: 'agent.buyback.manage',
+    group: 'agent',
+    description:
+      'دریافت و بازرسی شمش فروخته‌شده توسط نماینده به شرکت، تأیید، تسویه و رد',
+  },
 
   // ── پرتال نماینده (فقط برای حساب‌های متصل به یک نماینده) ──
   {
@@ -470,6 +488,22 @@ export const ADMIN_PERMISSIONS = [
     key: 'agent_portal.settle',
     group: 'agent_portal',
     description: 'پرتال نماینده: اعلام واریز/تسویه به شرکت',
+  },
+  {
+    key: 'agent_portal.wallet',
+    group: 'agent_portal',
+    description:
+      'پرتال نماینده: کیف پول ریالی، حساب‌های بانکی، واریز (درگاه/بانکی) و برداشت',
+  },
+  {
+    key: 'agent_portal.purchase',
+    group: 'agent_portal',
+    description: 'پرتال نماینده: ثبت و پرداخت سفارش خرید شمش از شرکت',
+  },
+  {
+    key: 'agent_portal.buyback',
+    group: 'agent_portal',
+    description: 'پرتال نماینده: فروش شمش ملکی به شرکت',
   },
 
   // ── مرکز پیامک ──
@@ -542,6 +576,8 @@ export const ADMIN_ROLES = [
       'hologram.incident.view',
       'agent.view',
       'agent.settlement.manage',
+      'agent.funds.manage',
+      'agent.buyback.manage',
       'accounting.manage',
       'accounting.voucher.create',
       'accounting.voucher.approve',
@@ -652,6 +688,8 @@ export const ADMIN_ROLES = [
       'buyback.process',
       'agent.view',
       'agent.stock.manage',
+      'agent.order.manage',
+      'agent.buyback.manage',
       'inventory.view',
       'inventory.code',
     ] as PermissionKey[],
@@ -669,6 +707,8 @@ export const ADMIN_ROLES = [
       'agent.settlement.manage',
       'agent.sale.void',
       'agent.contract.manage',
+      'agent.order.manage',
+      'agent.buyback.manage',
       'hologram.code.view',
       'hologram.transfer.view',
       'hologram.incident.view',
@@ -681,13 +721,16 @@ export const ADMIN_ROLES = [
     key: 'AGENT',
     name: 'نماینده فروش',
     description:
-      'حساب ورود نماینده: فقط موجودی امانی، ثبت فروش برای مالک نهایی، تسویه و صورتحساب همان نماینده',
+      'حساب ورود نماینده: خرید شمش از شرکت، کیف پول ریالی، فروش به شرکت، ثبت اصالت/مالک نهایی، تسویه و صورتحساب همان نماینده',
     isSystem: true,
     permissions: [
       'agent_portal.view',
       'agent_portal.sell',
       'agent_portal.settle',
       'agent_portal.contract.sign',
+      'agent_portal.wallet',
+      'agent_portal.purchase',
+      'agent_portal.buyback',
     ] as PermissionKey[],
   },
 ] as const;

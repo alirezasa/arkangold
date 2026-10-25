@@ -418,6 +418,44 @@ export class AdminAuthController {
     );
   }
 
+  // ── فعال/غیرفعال‌سازی اختیاری ورود دومرحله‌ای (فقط حساب نمایندگان) ──
+  @UseGuards(AdminJwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('mfa/enable')
+  async beginEnableMfa(@Req() req: AuthenticatedAdminRequest) {
+    return this.adminAuthService.beginOwnMfaEnable(req.user.adminUserId);
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('mfa/enable/confirm')
+  async confirmEnableMfa(
+    @Req() req: AuthenticatedAdminRequest,
+    @Body() dto: MfaCodeDto,
+  ) {
+    return this.adminAuthService.confirmOwnMfaEnable(
+      req.user.adminUserId,
+      dto.code,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
+  @UseGuards(AdminJwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('mfa/disable')
+  async disableMfa(
+    @Req() req: AuthenticatedAdminRequest,
+    @Body() dto: MfaCodeDto,
+  ) {
+    return this.adminAuthService.disableOwnMfa(
+      req.user.adminUserId,
+      dto.code,
+      req.ip,
+      req.headers['user-agent'],
+    );
+  }
+
   @UseGuards(AdminJwtAuthGuard)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('change-password')

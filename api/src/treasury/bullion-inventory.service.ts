@@ -3,7 +3,8 @@
 // گزارش لحظه‌ای موجودی شمش — هر شمش با کد هولوگرام در یکی از این «سبدها» است:
 //   BLANK            کد خام: تولید/چاپ‌شده، هنوز به شمشی متصل نشده (UNASSIGNED بدون وزن)
 //   VAULT_CODED      شمش کددار در خزانه: کد به شمش فیزیکی متصل شده ولی فروخته/امانی نشده
-//   AT_AGENT         امانی نزد نماینده
+//   AT_AGENT         امانی نزد نماینده (ملک شرکت)
+//   AGENT_OWNED      فروخته‌شده به نماینده (ملک نماینده، هنوز به مشتری نهایی فروخته نشده)
 //   TRANSFER_PENDING فروخته‌شده و منتظر تأیید گیرنده (خرید برای دیگری)
 //   SOLD             فروخته‌شده و دارای مالک فعال (کانال: فروشگاه / نماینده / شریک)
 //   BUYBACK_PENDING  مالک درخواست فروش به آرکان گلد داده (در حال تحویل/اصالت‌سنجی/واریز)
@@ -41,6 +42,8 @@ function bucketWhere(bucket: string): Prisma.HologramCodeWhereInput {
       return { status: 'UNASSIGNED', weightGrams: { not: null } };
     case 'AT_AGENT':
       return { status: 'AT_AGENT' };
+    case 'AGENT_OWNED':
+      return { status: 'AGENT_OWNED' };
     case 'TRANSFER_PENDING':
       return { status: 'TRANSFER_PENDING' };
     case 'SOLD':
@@ -269,6 +272,10 @@ export class BullionInventoryService {
         atAgents: {
           count: st('AT_AGENT')?._count ?? 0,
           grams: s(atAgentGrams),
+        },
+        agentOwned: {
+          count: st('AGENT_OWNED')?._count ?? 0,
+          grams: s(st('AGENT_OWNED')?._sum.weightGrams),
         },
         transferPending: {
           count: st('TRANSFER_PENDING')?._count ?? 0,

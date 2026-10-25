@@ -1595,7 +1595,10 @@ model Invoice {
   sourceType InvoiceSource @map("source_type")
   sourceId   String        @map("source_id") @db.Uuid
 
-  userId String @map("user_id") @db.Uuid
+  /// خریدار کاربر (مشتری مستقیم شرکت) — برای صورتحساب به نام نماینده null است
+  userId  String? @map("user_id") @db.Uuid
+  /// خریدار نماینده‌ی فروش (فروش قطعی شرکت به نماینده) — دقیقاً یکی از userId/agentId پر است
+  agentId String? @map("agent_id") @db.Uuid
 
   /// Snapshot اطلاعات شرکت در لحظه صدور (از SystemConfig)
   companySnapshot  Json  @map("company_snapshot")
@@ -1629,12 +1632,14 @@ model Invoice {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   items          InvoiceItem[]
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent          Agent?          @relation(fields: [agentId], references: [id], onDelete: Restrict)
   depositRequest DepositRequest?
 
   /// ضدتکرار: حداکثر یک سند از هر نوع به ازای هر منبع
   @@unique([sourceType, sourceId, kind])
   @@index([userId, kind, issuedAt])
+  @@index([agentId, kind, issuedAt])
   @@index([status, issuedAt])
   @@map("invoices")
 }
@@ -2250,13 +2255,42 @@ model Agent {
   createdAt       DateTime            @default(now()) @map("created_at")
   updatedAt       DateTime            @updatedAt @map("updated_at")
 
-  accounts       AdminUser[]          @relation("AgentAccounts")
-  holdings       HologramCode[]       @relation("AgentHoldings")
-  stockMovements AgentStockMovement[]
-  sales          AgentSale[]
-  settlements    AgentSettlement[]
-  ledgerEntries  AgentLedgerEntry[]
-  agentContracts AgentContract[]
+  // ── مشخصات حقوقی و صنفی (قرارداد خرید و فروش قطعی) ──
+  legalType                AgentLegalType @default(INDIVIDUAL) @map("legal_type")
+  /// شناسه ملی شخص حقوقی (فقط نماینده‌ی حقوقی)
+  agentNationalId          String?        @map("agent_national_id")
+  agentRegistrationNumber  String?        @map("agent_registration_number")
+  economicCode             String?        @map("economic_code")
+  businessLicenseNumber    String?        @map("business_license_number")
+  businessLicenseIssuer    String?        @map("business_license_issuer")
+  businessLicenseExpiresAt DateTime?      @map("business_license_expires_at")
+  /// محدوده‌ی جغرافیایی نمایندگی (غیرانحصاری)
+  territory                String?
+  /// مجوز دریافت شمش امانی — فقط نمایندگان منتخب؛ بقیه فقط خرید قطعی دارند
+  consignmentEnabled       Boolean        @default(false) @map("consignment_enabled")
+  /// مجوز خرید اعتباری (تحویل پیش از پرداخت در سقف اعتبار و مهلت creditDays)
+  creditPurchaseEnabled    Boolean        @default(false) @map("credit_purchase_enabled")
+  /// مهلت پرداخت بدهی خرید اعتباری (روز از تاریخ تحویل)
+  creditDays               Int?           @map("credit_days")
+  /// نوع تضمین (چک صیادی ثبت‌شده، ضمانت‌نامه بانکی ...)
+  guaranteeType            String?        @map("guarantee_type")
+  guaranteeAmountRial      Decimal?       @map("guarantee_amount_rial") @db.Decimal(18, 0)
+  guaranteeReference       String?        @map("guarantee_reference")
+
+  accounts         AdminUser[]              @relation("AgentAccounts")
+  holdings         HologramCode[]           @relation("AgentHoldings")
+  stockMovements   AgentStockMovement[]
+  sales            AgentSale[]
+  settlements      AgentSettlement[]
+  ledgerEntries    AgentLedgerEntry[]
+  agentContracts   AgentContract[]
+  wallet           AgentWallet?
+  bankAccounts     AgentBankAccount[]
+  purchaseOrders   AgentPurchaseOrder[]
+  buybackOrders    AgentBuybackOrder[]
+  depositRequests  AgentDepositRequest[]
+  withdrawRequests AgentWithdrawalRequest[]
+  invoices         Invoice[]
 
   @@index([status])
   @@map("agents")
@@ -2319,6 +2353,13 @@ model AgentSale {
   paymentReference        String?             @map("payment_reference")
   note                    String?
   status                  AgentSaleStatus     @default(COMPLETED)
+  /// منبع شمش: امانی (فروش هم‌زمان شرکت به نماینده) یا ملک نماینده (فقط ثبت اصالت)
+  stockSource             AgentSaleStockSource @default(CONSIGNMENT) @map("stock_source")
+  /// true: صورتحساب شرکت به نام نماینده صادر شده (مدل جدید)؛ false: فروش‌های قدیمی که
+  /// فاکتور شرکت به نام مشتری نهایی صادر می‌شد
+  billedToAgent           Boolean             @default(false) @map("billed_to_agent")
+  /// شماره صورتحساب الکترونیک نماینده برای مشتری نهایی (سامانه مؤدیان) — اختیاری
+  agentInvoiceNumber      String?             @map("agent_invoice_number")
   ownershipId             String?             @map("ownership_id") @db.Uuid
   invoiceId               String?             @map("invoice_id") @db.Uuid
   journalEntryId          String?             @map("journal_entry_id") @db.Uuid
@@ -2390,6 +2431,315 @@ model AgentLedgerEntry {
   @@map("agent_ledger_entries")
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  خرید و فروش قطعی نمایندگان — کیف پول ریالی جدا، حساب بانکی، سفارش خرید شمش از
+//  شرکت (با صورتحساب به نام نماینده)، فروش شمش به شرکت، واریز و برداشت
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// کیف پول ریالی نماینده — کاملاً جدا از کیف پول کاربران (Wallet)؛ فقط ریال
+model AgentWallet {
+  id           String                   @id @default(uuid()) @db.Uuid
+  agentId      String                   @unique @map("agent_id") @db.Uuid
+  agent        Agent                    @relation(fields: [agentId], references: [id])
+  /// مانده‌ی کل (شامل مبلغ رزروشده)
+  balanceRial  Decimal                  @default(0) @map("balance_rial") @db.Decimal(18, 0)
+  /// رزرو برای درخواست‌های برداشت در جریان
+  blockedRial  Decimal                  @default(0) @map("blocked_rial") @db.Decimal(18, 0)
+  createdAt    DateTime                 @default(now()) @map("created_at")
+  updatedAt    DateTime                 @updatedAt @map("updated_at")
+  transactions AgentWalletTransaction[]
+
+  @@map("agent_wallets")
+}
+
+/// گردش کیف پول نماینده — append-only؛ هر ردیف مانده‌ی پس از خود را نگه می‌دارد
+model AgentWalletTransaction {
+  id               String            @id @default(uuid()) @db.Uuid
+  walletId         String            @map("wallet_id") @db.Uuid
+  wallet           AgentWallet       @relation(fields: [walletId], references: [id])
+  agentId          String            @map("agent_id") @db.Uuid
+  type             AgentWalletTxType
+  /// افزایش موجودی
+  creditRial       Decimal           @default(0) @map("credit_rial") @db.Decimal(18, 0)
+  /// کاهش موجودی
+  debitRial        Decimal           @default(0) @map("debit_rial") @db.Decimal(18, 0)
+  balanceAfterRial Decimal           @map("balance_after_rial") @db.Decimal(18, 0)
+  description      String
+  referenceType    String?           @map("reference_type")
+  referenceId      String?           @map("reference_id") @db.Uuid
+  referenceNumber  String?           @map("reference_number")
+  journalEntryId   String?           @map("journal_entry_id") @db.Uuid
+  createdByAdminId String?           @map("created_by_admin_id") @db.Uuid
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  @@index([agentId, createdAt])
+  @@index([walletId, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("agent_wallet_transactions")
+}
+
+/// حساب بانکی نماینده — مقصد برداشت و تسویه‌ی فروش شمش به شرکت؛ مبدأ واریزهای بانکی.
+/// فقط حساب «تأییدشده» (متعلق به خود نماینده) قابل استفاده است.
+model AgentBankAccount {
+  id              String                 @id @default(uuid()) @db.Uuid
+  agentId         String                 @map("agent_id") @db.Uuid
+  agent           Agent                  @relation(fields: [agentId], references: [id])
+  bankName        String                 @map("bank_name")
+  /// شماره شبا با پیشوند IR (۲۶ کاراکتر)
+  sheba           String
+  accountNumber   String?                @map("account_number")
+  cardNumber      String?                @map("card_number")
+  ownerName       String                 @map("owner_name")
+  status          AgentBankAccountStatus @default(PENDING)
+  isDefault       Boolean                @default(false) @map("is_default")
+  rejectionReason String?                @map("rejection_reason")
+  verifiedById    String?                @map("verified_by_id") @db.Uuid
+  verifiedAt      DateTime?              @map("verified_at")
+  /// حذف منطقی — حساب استفاده‌شده در اسناد هرگز پاک نمی‌شود
+  archivedAt      DateTime?              @map("archived_at")
+  createdById     String?                @map("created_by_id") @db.Uuid
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  deposits    AgentDepositRequest[]
+  withdrawals AgentWithdrawalRequest[]
+  buybacks    AgentBuybackOrder[]
+
+  @@unique([agentId, sheba])
+  @@index([agentId, status])
+  @@index([status, createdAt])
+  @@map("agent_bank_accounts")
+}
+
+/// فهرست قیمت نمایندگی — انواع شمش قابل سفارش و اجرت/سقف قیمت مصرف‌کننده‌ی هر کدام.
+/// قیمت هر واحد = وزن × قیمت لحظه‌ای هر گرم (بر اساس عیار) × (۱ + درصد افزوده) + اجرت.
+model AgentPriceItem {
+  id                  String          @id @default(uuid()) @db.Uuid
+  title               String
+  weightGrams         Decimal         @map("weight_grams") @db.Decimal(18, 4)
+  purityKarat         GoldPurityKarat @map("purity_karat")
+  /// اجرت/حق ضرب هر شمش در قیمت نمایندگی (ریال)
+  premiumRial         Decimal         @default(0) @map("premium_rial") @db.Decimal(18, 0)
+  /// اجرت مبنای سقف قیمت مصرف‌کننده (بند ۸-۳ قرارداد) — ریال
+  consumerPremiumRial Decimal         @default(0) @map("consumer_premium_rial") @db.Decimal(18, 0)
+  productId           String?         @map("product_id") @db.Uuid
+  /// حداکثر تعداد در هر سفارش — null یعنی بدون سقف
+  maxPerOrder         Int?            @map("max_per_order")
+  isActive            Boolean         @default(true) @map("is_active")
+  sortOrder           Int             @default(0) @map("sort_order")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder])
+  @@map("agent_price_items")
+}
+
+/// سفارش خرید شمش نماینده از شرکت — هر سفارش یک بیع قطعی و مستقل است (ماده ۲-۲ قرارداد).
+/// ثبت (قیمت قفل) ← پرداخت در مهلت ← تأیید و تخصیص شمش + صورتحساب به نام نماینده + حواله
+/// ← تحویل و تأیید رسید توسط نماینده.
+model AgentPurchaseOrder {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  orderNumber        String                     @unique @map("order_number")
+  agentId            String                     @map("agent_id") @db.Uuid
+  agent              Agent                      @relation(fields: [agentId], references: [id])
+  status             AgentPurchaseStatus        @default(PENDING_PAYMENT)
+  paymentMethod      AgentPurchasePaymentMethod @map("payment_method")
+  totalWeightGrams   Decimal                    @map("total_weight_grams") @db.Decimal(18, 4)
+  goldValueRial      Decimal                    @map("gold_value_rial") @db.Decimal(18, 0)
+  premiumRial        Decimal                    @default(0) @map("premium_rial") @db.Decimal(18, 0)
+  totalRial          Decimal                    @map("total_rial") @db.Decimal(18, 0)
+  /// قیمت تا این لحظه معتبر است؛ پرداخت پس از آن ممکن نیست (بند ۴-۱ و ۴-۲)
+  priceLockedUntil   DateTime                   @map("price_locked_until")
+  paidAt             DateTime?                  @map("paid_at")
+  paymentReference   String?                    @map("payment_reference")
+  /// پیش‌فاکتور (برای پرداخت بانکی) و صورتحساب فروش نهایی به نام نماینده
+  proformaInvoiceId  String?                    @map("proforma_invoice_id") @db.Uuid
+  invoiceId          String?                    @map("invoice_id") @db.Uuid
+  /// IN_PERSON (تحویل حضوری در محل شرکت) | SHIPPING (ارسال)
+  deliveryMethod     String                     @default("IN_PERSON") @map("delivery_method")
+  deliveryAddress    String?                    @map("delivery_address")
+  /// شماره حواله‌ی تحویل (AgentStockMovement.voucherNumber)
+  voucherNumber      String?                    @map("voucher_number")
+  approvedAt         DateTime?                  @map("approved_at")
+  approvedById       String?                    @map("approved_by_id") @db.Uuid
+  deliveredAt        DateTime?                  @map("delivered_at")
+  /// تأیید رسید توسط نماینده (بند ۶-۳)
+  receiptConfirmedAt DateTime?                  @map("receipt_confirmed_at")
+  receiptConfirmedBy String?                    @map("receipt_confirmed_by") @db.Uuid
+  /// سررسید بدهی خرید اعتباری
+  creditDueAt        DateTime?                  @map("credit_due_at")
+  cancelReason       String?                    @map("cancel_reason")
+  cancelledAt        DateTime?                  @map("cancelled_at")
+  /// سند انتقال وجه از کیف پول به پیش‌دریافت
+  paymentJournalId   String?                    @map("payment_journal_id") @db.Uuid
+  /// سند شناسایی درآمد و بهای تمام‌شده (هنگام تأیید و صدور حواله)
+  saleJournalId      String?                    @map("sale_journal_id") @db.Uuid
+  note               String?
+  adminNote          String?                    @map("admin_note")
+  createdById        String?                    @map("created_by_id") @db.Uuid
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+
+  items    AgentPurchaseOrderItem[]
+  deposits AgentDepositRequest[]
+
+  @@index([agentId, status])
+  @@index([status, createdAt])
+  @@map("agent_purchase_orders")
+}
+
+model AgentPurchaseOrderItem {
+  id                String             @id @default(uuid()) @db.Uuid
+  orderId           String             @map("order_id") @db.Uuid
+  order             AgentPurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  priceItemId       String?            @map("price_item_id") @db.Uuid
+  title             String
+  weightGrams       Decimal            @map("weight_grams") @db.Decimal(18, 4)
+  purityKarat       GoldPurityKarat    @map("purity_karat")
+  quantity          Int
+  pricePerGramRial  Decimal            @map("price_per_gram_rial") @db.Decimal(18, 0)
+  unitGoldValueRial Decimal            @map("unit_gold_value_rial") @db.Decimal(18, 0)
+  unitPremiumRial   Decimal            @default(0) @map("unit_premium_rial") @db.Decimal(18, 0)
+  unitPriceRial     Decimal            @map("unit_price_rial") @db.Decimal(18, 0)
+  lineTotalRial     Decimal            @map("line_total_rial") @db.Decimal(18, 0)
+
+  @@index([orderId])
+  @@map("agent_purchase_order_items")
+}
+
+/// فروش شمش ملکی نماینده به شرکت. قیمت هنگام ثبت قفل می‌شود؛ پس از تحویل فیزیکی و
+/// بازرسی، مبلغ نهایی تعیین و به کیف پول یا حساب بانکی تأییدشده‌ی نماینده پرداخت می‌شود.
+/// فروشنده نماینده است: صورتحساب الکترونیک را نماینده به نام شرکت صادر می‌کند.
+model AgentBuybackOrder {
+  id                 String             @id @default(uuid()) @db.Uuid
+  orderNumber        String             @unique @map("order_number")
+  agentId            String             @map("agent_id") @db.Uuid
+  agent              Agent              @relation(fields: [agentId], references: [id])
+  status             AgentBuybackStatus @default(PENDING_DELIVERY)
+  /// WALLET | BANK
+  payoutMethod       String             @default("WALLET") @map("payout_method")
+  bankAccountId      String?            @map("bank_account_id") @db.Uuid
+  bankAccount        AgentBankAccount?  @relation(fields: [bankAccountId], references: [id])
+  totalWeightGrams   Decimal            @map("total_weight_grams") @db.Decimal(18, 4)
+  quotedTotalRial    Decimal            @map("quoted_total_rial") @db.Decimal(18, 0)
+  finalTotalRial     Decimal?           @map("final_total_rial") @db.Decimal(18, 0)
+  /// مهلت تحویل فیزیکی شمش‌ها؛ پس از آن سفارش خودکار لغو و شمش‌ها آزاد می‌شوند
+  deliveryDeadline   DateTime           @map("delivery_deadline")
+  /// شماره و تاریخ صورتحساب الکترونیک نماینده به نام شرکت (سامانه مؤدیان)
+  agentInvoiceNumber String?            @map("agent_invoice_number")
+  agentInvoiceDate   DateTime?          @map("agent_invoice_date")
+  receivedAt         DateTime?          @map("received_at")
+  receivedById       String?            @map("received_by_id") @db.Uuid
+  inspectionNote     String?            @map("inspection_note")
+  approvedAt         DateTime?          @map("approved_at")
+  approvedById       String?            @map("approved_by_id") @db.Uuid
+  paidAt             DateTime?          @map("paid_at")
+  paidById           String?            @map("paid_by_id") @db.Uuid
+  bankReference      String?            @map("bank_reference")
+  rejectionReason    String?            @map("rejection_reason")
+  cancelledAt        DateTime?          @map("cancelled_at")
+  voucherNumber      String?            @map("voucher_number")
+  journalEntryId     String?            @map("journal_entry_id") @db.Uuid
+  note               String?
+  createdById        String?            @map("created_by_id") @db.Uuid
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  items AgentBuybackItem[]
+
+  @@index([agentId, status])
+  @@index([status, createdAt])
+  @@map("agent_buyback_orders")
+}
+
+model AgentBuybackItem {
+  id               String            @id @default(uuid()) @db.Uuid
+  orderId          String            @map("order_id") @db.Uuid
+  order            AgentBuybackOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  hologramCodeId   String            @map("hologram_code_id") @db.Uuid
+  code             String
+  weightGrams      Decimal           @map("weight_grams") @db.Decimal(18, 4)
+  purityKarat      GoldPurityKarat   @map("purity_karat")
+  pricePerGramRial Decimal           @map("price_per_gram_rial") @db.Decimal(18, 0)
+  quotedRial       Decimal           @map("quoted_rial") @db.Decimal(18, 0)
+  /// مبلغ نهایی پس از بازرسی — null: برابر مبلغ قفل‌شده
+  finalRial        Decimal?          @map("final_rial") @db.Decimal(18, 0)
+  /// شمش ردشده در بازرسی به نماینده برگردانده می‌شود
+  accepted         Boolean           @default(true)
+  note             String?
+
+  @@index([orderId])
+  @@index([hologramCodeId])
+  @@map("agent_buyback_items")
+}
+
+/// واریز به کیف پول نماینده — درگاه پرداخت (تأیید خودکار) یا واریز بانکی/حساب به حساب
+/// از حساب تأییدشده‌ی خود نماینده (تأیید واحد مالی). اگر به سفارشی متصل باشد، پس از
+/// تأیید همان سفارش خودکار پرداخت می‌شود.
+model AgentDepositRequest {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  requestNumber       String                  @unique @map("request_number")
+  agentId             String                  @map("agent_id") @db.Uuid
+  agent               Agent                   @relation(fields: [agentId], references: [id])
+  amountRial          Decimal                 @map("amount_rial") @db.Decimal(18, 0)
+  method              AgentDepositMethod
+  status              AgentDepositStatus      @default(PENDING_PAYMENT)
+  /// PAYA | SATNA | POL | INTERNAL | CARD_TO_CARD
+  transferType        String?                 @map("transfer_type")
+  sourceBankAccountId String?                 @map("source_bank_account_id") @db.Uuid
+  sourceBankAccount   AgentBankAccount?       @relation(fields: [sourceBankAccountId], references: [id])
+  bankReference       String?                 @map("bank_reference")
+  paidAt              DateTime?               @map("paid_at")
+  agentNote           String?                 @map("agent_note")
+  destinationSnapshot Json?                   @map("destination_snapshot")
+  gatewayProvider     PaymentGatewayProvider? @map("gateway_provider")
+  gatewayProviderRef  String?                 @map("gateway_provider_ref")
+  gatewayTrackingCode String?                 @map("gateway_tracking_code")
+  purchaseOrderId     String?                 @map("purchase_order_id") @db.Uuid
+  purchaseOrder       AgentPurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
+  expiresAt           DateTime?               @map("expires_at")
+  reviewedById        String?                 @map("reviewed_by_id") @db.Uuid
+  reviewedAt          DateTime?               @map("reviewed_at")
+  rejectionReason     String?                 @map("rejection_reason")
+  journalEntryId      String?                 @map("journal_entry_id") @db.Uuid
+  createdById         String?                 @map("created_by_id") @db.Uuid
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+
+  @@unique([gatewayProvider, gatewayProviderRef])
+  @@index([agentId, status])
+  @@index([status, createdAt])
+  @@map("agent_deposit_requests")
+}
+
+/// برداشت از کیف پول نماینده — فقط به حساب بانکی تأییدشده‌ی خود نماینده
+model AgentWithdrawalRequest {
+  id                  String                @id @default(uuid()) @db.Uuid
+  requestNumber       String                @unique @map("request_number")
+  agentId             String                @map("agent_id") @db.Uuid
+  agent               Agent                 @relation(fields: [agentId], references: [id])
+  amountRial          Decimal               @map("amount_rial") @db.Decimal(18, 0)
+  bankAccountId       String                @map("bank_account_id") @db.Uuid
+  bankAccount         AgentBankAccount      @relation(fields: [bankAccountId], references: [id])
+  destinationSnapshot Json                  @map("destination_snapshot")
+  status              AgentWithdrawalStatus @default(PENDING)
+  reviewedById        String?               @map("reviewed_by_id") @db.Uuid
+  reviewedAt          DateTime?             @map("reviewed_at")
+  paidById            String?               @map("paid_by_id") @db.Uuid
+  paidAt              DateTime?             @map("paid_at")
+  bankReference       String?               @map("bank_reference")
+  rejectionReason     String?               @map("rejection_reason")
+  journalEntryId      String?               @map("journal_entry_id") @db.Uuid
+  note                String?
+  createdById         String?               @map("created_by_id") @db.Uuid
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+
+  @@index([agentId, status])
+  @@index([status, createdAt])
+  @@map("agent_withdrawal_requests")
+}
+
 // ───────────────────────────── Enum های جدید ─────────────────────────────
 
 enum TicketStatus {
@@ -2433,6 +2783,8 @@ enum InvoiceSource {
   DEPOSIT
   AGENT_SALE
   PARTNER_ORDER
+  /// سفارش خرید شمش نماینده از شرکت (پیش‌فاکتور و صورتحساب به نام نماینده)
+  AGENT_PURCHASE
 }
 
 enum DepositMethod {
@@ -2726,6 +3078,8 @@ enum HologramCodeStatus {
   AT_AGENT
   /// مالک درخواست فروش شمش به آرکان گلد (بازخرید) داده است — انتقال/ابطال مسدود است
   BUYBACK_PENDING
+  /// فروخته‌شده به نماینده (ملک نماینده، با صورتحساب به نام نماینده) — هنوز به مشتری نهایی فروخته نشده
+  AGENT_OWNED
 }
 
 enum HologramOwnershipStatus {
@@ -2798,11 +3152,20 @@ enum AgentStockMovementType {
   RETURN
   SALE
   SALE_VOID
+  /// تحویل شمش خریداری‌شده (ملک نماینده) طبق حواله‌ی سفارش خرید
+  PURCHASE
+  /// تحویل شمش ملکی نماینده به شرکت (فروش به شرکت)
+  BUYBACK
 }
 
 enum AgentSaleStatus {
   COMPLETED
   VOIDED
+}
+
+enum AgentSaleStockSource {
+  CONSIGNMENT
+  OWNED
 }
 
 enum AgentSettlementMethod {
@@ -2811,6 +3174,84 @@ enum AgentSettlementMethod {
   CARD_TO_CARD
   POS
   CHEQUE
+  /// برداشت از کیف پول ریالی نماینده
+  WALLET
+}
+
+enum AgentLegalType {
+  INDIVIDUAL
+  LEGAL
+}
+
+enum AgentBankAccountStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum AgentWalletTxType {
+  DEPOSIT
+  PURCHASE
+  PURCHASE_REFUND
+  BUYBACK
+  WITHDRAWAL
+  WITHDRAWAL_REVERSAL
+  DEBT_SETTLEMENT
+  ADJUSTMENT
+}
+
+enum AgentDepositMethod {
+  GATEWAY
+  BANK_TRANSFER
+}
+
+enum AgentDepositStatus {
+  PENDING_PAYMENT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum AgentPurchaseStatus {
+  /// ثبت‌شده، قیمت قفل — در انتظار پرداخت در مهلت
+  PENDING_PAYMENT
+  /// مشخصات واریز بانکی در مهلت ثبت شده — در انتظار تأیید مالی (قیمت قفل می‌ماند)
+  PAYMENT_REVIEW
+  /// پرداخت کامل (یا خرید اعتباری ثبت‌شده) — در انتظار تأیید و تخصیص شمش
+  PAID
+  /// شمش تخصیص یافت، صورتحساب صادر و حواله‌ی تحویل آماده است
+  APPROVED
+  /// تحویل شد و رسید آن توسط نماینده تأیید شد
+  DELIVERED
+  CANCELLED
+  EXPIRED
+}
+
+enum AgentPurchasePaymentMethod {
+  WALLET
+  GATEWAY
+  BANK_TRANSFER
+  CREDIT
+}
+
+enum AgentBuybackStatus {
+  PENDING_DELIVERY
+  RECEIVED
+  APPROVED
+  PAID
+  REJECTED
+  CANCELLED
+}
+
+enum AgentWithdrawalStatus {
+  PENDING
+  APPROVED
+  PAID
+  REJECTED
+  CANCELLED
 }
 
 enum AgentSettlementStatus {
@@ -2824,6 +3265,8 @@ enum AgentLedgerType {
   SALE_VOID
   SETTLEMENT
   ADJUSTMENT
+  /// خرید اعتباری شمش از شرکت
+  PURCHASE
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3360,6 +3803,10 @@ model AgentContract {
   signerUserAgent    String?                @map("signer_user_agent")
   /// SHA-256(شماره قرارداد | hash متن | موبایل | زمان امضا | امضاکننده) — گواهی امضا
   signatureHash      String?                @map("signature_hash")
+  // ── امضای شرکت (تأیید صاحب امضای مجاز در پنل — بند ۱۶-۱) ──
+  companySignedAt    DateTime?              @map("company_signed_at")
+  companySignedById  String?                @map("company_signed_by_id") @db.Uuid
+  companySignerName  String?                @map("company_signer_name")
   // ── کد یکبارمصرف امضا ──
   otpHash            String?                @map("otp_hash")
   otpExpiresAt       DateTime?              @map("otp_expires_at")

@@ -111,6 +111,8 @@ export default function LoginSteps({
       const { data } = await post("change-password", { newPassword: password });
       setPassword("");
       setConfirm("");
+      // نماینده‌ی بدون ورود دومرحله‌ای پس از تعیین رمز جدید مستقیم وارد می‌شود
+      if ((data as { success?: boolean }).success) return router.replace(home);
       setStep(data as LoginStep);
     } catch (err) {
       fail(err, "تغییر رمز ممکن نشد");

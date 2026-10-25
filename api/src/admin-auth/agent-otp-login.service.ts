@@ -1,7 +1,7 @@
 // api/src/admin-auth/agent-otp-login.service.ts
 //
-// ورود نمایندگان فروش به panel.arkan.gold با کد یکبارمصرف پیامکی (عامل اول) و سپس
-// برنامه‌ی احراز هویت (عامل دوم، اجباری — FIA_UAU_EXT.2.3).
+// ورود نمایندگان فروش به panel.arkan.gold با کد یکبارمصرف پیامکی و — فقط اگر نماینده خودش
+// ورود دومرحله‌ای را فعال کرده باشد یا agent.mfa_required=true — برنامه‌ی احراز هویت.
 // فقط «ورود» است، نه ثبت‌نام: کد تنها برای شماره‌ای ارسال می‌شود که مدیر سیستم
 // روی یک حساب ورود نماینده‌ی فعال ثبت کرده باشد. پاسخ درخواست کد برای شماره‌ی
 // ثبت‌نشده و ثبت‌شده یکسان است تا شماره‌ی نمایندگان قابل شناسایی نباشد.
@@ -248,7 +248,8 @@ export class AgentOtpLoginService {
       );
     }
 
-    // FIA_UAU_EXT.2.3: کد پیامکی فقط عامل اول است؛ نشست پس از برنامه‌ی احراز هویت صادر می‌شود
+    // کد پیامکی عامل اول است؛ اگر نماینده ورود دومرحله‌ای را فعال کرده باشد (یا تنظیمات
+    // سیستم آن را اجباری کرده باشد) نشست پس از برنامه‌ی احراز هویت صادر می‌شود
     await this.auditService.logAdmin({
       adminUserId: account.id,
       action: 'admin_auth.login_first_factor',
@@ -258,7 +259,7 @@ export class AgentOtpLoginService {
       success: true,
       newValue: { via: 'agent_otp' },
     });
-    return this.adminAuth.startSecondStage(account, 'agent_otp', phone);
+    return this.adminAuth.startSecondStage(account, 'agent_otp', phone, ctx);
   }
 
   private auditFailure(accountId: string, ctx: RequestCtx, reason: string) {

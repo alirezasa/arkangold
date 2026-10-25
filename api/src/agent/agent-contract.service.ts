@@ -29,9 +29,12 @@ import {
 } from '../common/utils/jalali.util';
 import { normalizeIranMobile } from '../integrations/providers/sms-common/sms-live.util';
 import {
+  CONSIGNMENT_ADDENDUM_BODY,
+  CONSIGNMENT_ADDENDUM_TITLE,
   CONTRACT_VARIABLES,
   DEFAULT_CONTRACT_BODY,
   DEFAULT_CONTRACT_TITLE,
+  LEGACY_CONTRACT_TITLE,
 } from './agent-contract.template';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
@@ -66,18 +69,35 @@ export class AgentContractService implements OnModuleInit {
 
   async onModuleInit() {
     try {
-      const count = await this.prisma.agentContractTemplate.count();
-      if (count === 0) {
-        await this.prisma.agentContractTemplate.create({
-          data: {
-            title: DEFAULT_CONTRACT_TITLE,
-            body: DEFAULT_CONTRACT_BODY,
-            description:
-              'قالب پیش‌فرض سیستم — پیش از استفاده‌ی رسمی توسط مشاور حقوقی بازبینی شود',
-          },
+      const seeds = [
+        {
+          title: DEFAULT_CONTRACT_TITLE,
+          body: DEFAULT_CONTRACT_BODY,
+          description:
+            'قرارداد خرید و فروش قطعی (مدل اصلی همه‌ی نمایندگان) — پیش از استفاده‌ی رسمی توسط وکیل بازبینی شود',
+        },
+        {
+          title: CONSIGNMENT_ADDENDUM_TITLE,
+          body: CONSIGNMENT_ADDENDUM_BODY,
+          description:
+            'فقط برای نمایندگانی که مجوز دریافت شمش امانی دارند؛ پس از قرارداد اصلی صادر و امضا شود',
+        },
+      ];
+      for (const seed of seeds) {
+        const exists = await this.prisma.agentContractTemplate.count({
+          where: { title: seed.title },
         });
-        this.logger.log('[Agent] قالب پیش‌فرض قرارداد نمایندگی ساخته شد');
+        if (!exists) {
+          await this.prisma.agentContractTemplate.create({ data: seed });
+          this.logger.log(`[Agent] قالب «${seed.title}» ساخته شد`);
+        }
       }
+      // قالب قدیمی مدل امانی/حق‌العملی (با مدل بیع قطعی تعارض دارد) اگر ویرایش نشده باشد غیرفعال
+      // می‌شود؛ قراردادهای صادرشده از آن snapshot متن خود را دارند و تغییری نمی‌کنند
+      await this.prisma.agentContractTemplate.updateMany({
+        where: { title: LEGACY_CONTRACT_TITLE, version: 1, isActive: true },
+        data: { isActive: false },
+      });
     } catch (err) {
       this.logger.error(
         `[Agent] ساخت قالب قرارداد ناموفق بود: ${(err as Error).message}`,
@@ -176,6 +196,9 @@ export class AgentContractService implements OnModuleInit {
     endsAt: Date | null,
   ): Promise<Record<string, string>> {
     const company = await this.systemConfig.getGroup('company.');
+    const cfg = await this.systemConfig.getGroup('agent.');
+    const rial = (v: Prisma.Decimal | number | null | undefined) =>
+      v == null ? null : Math.round(Number(v)).toLocaleString('fa-IR');
     const commission =
       agent.commissionType === 'PERCENT'
         ? `${Number(agent.commissionValue).toLocaleString('fa-IR')} درصد مبلغ فروش`
@@ -198,15 +221,57 @@ export class AgentContractService implements OnModuleInit {
       province: agent.province ?? dash,
       postalCode: agent.postalCode ?? dash,
       commission,
-      creditLimit: agent.creditLimitRial
-        ? Math.round(Number(agent.creditLimitRial) / 10).toLocaleString('fa-IR')
-        : 'بدون سقف',
+      // ریال — واحد اسناد رسمی و قضایی (متن جدید قرارداد)
+      creditLimit: rial(agent.creditLimitRial) ?? dash,
+      creditDays:
+        agent.creditDays != null
+          ? agent.creditDays.toLocaleString('fa-IR')
+          : dash,
+      agentNationalId: agent.agentNationalId ?? dash,
+      agentRegistrationNumber: agent.agentRegistrationNumber ?? dash,
+      agentEconomicCode: agent.economicCode ?? dash,
+      businessLicenseNumber: agent.businessLicenseNumber ?? dash,
+      businessLicenseIssuer: agent.businessLicenseIssuer ?? dash,
+      territory: agent.territory ?? 'سراسر کشور',
+      guaranteeType: agent.guaranteeType ?? dash,
+      guaranteeAmount: rial(agent.guaranteeAmountRial) ?? dash,
+      priceLockMinutes: Number(
+        cfg['agent.purchase.price_lock_minutes'] || 15,
+      ).toLocaleString('fa-IR'),
+      saleReportHours: Number(
+        cfg['agent.sale.report_hours'] || 24,
+      ).toLocaleString('fa-IR'),
+      deliveryPlace:
+        cfg['agent.contract.delivery_place'] ||
+        company['company.address'] ||
+        dash,
+      shippingResponsibility:
+        cfg['agent.contract.shipping_responsibility'] || 'نماینده',
+      claimDays: Number(cfg['agent.contract.claim_days'] || 7).toLocaleString(
+        'fa-IR',
+      ),
+      workingHours: cfg['agent.contract.working_hours'] || dash,
+      defaultDays: Number(
+        cfg['agent.contract.default_days'] || 15,
+      ).toLocaleString('fa-IR'),
+      latePenaltyRate: (cfg['agent.contract.late_penalty_rate'] || '0').replace(
+        /\d/g,
+        (c) => '۰۱۲۳۴۵۶۷۸۹'[Number(c)],
+      ),
+      breachPenalty:
+        rial(Number(cfg['agent.contract.breach_penalty_rial'] || 0)) ?? dash,
+      arbitratorName: cfg['agent.contract.arbitrator_name'] || dash,
+      panelUrl: cfg['agent.contract.panel_url'] || 'https://panel.arkan.gold',
       companyName:
         company['company.legal_name'] || company['company.brand_name'] || dash,
       companyNationalId: company['company.national_id'] || dash,
       companyRegistrationNumber: company['company.registration_number'] || dash,
       companyAddress: company['company.address'] || dash,
+      companyPostalCode: company['company.postal_code'] || dash,
       companyPhone: company['company.phone'] || dash,
+      companySignatoryName: company['company.signatory_name'] || dash,
+      companySignatoryTitle: company['company.signatory_title'] || dash,
+      companyGazetteRef: company['company.gazette_ref'] || dash,
       brand: company['company.brand_name'] || 'آرکان گلد',
     };
   }
@@ -796,6 +861,49 @@ export class AgentContractService implements OnModuleInit {
     return { message: 'قرارداد با موفقیت امضا شد' };
   }
 
+  /**
+   * امضای شرکت: تأیید صاحب امضای مجاز در پنل پس از امضای نماینده (بند ۱۶-۱ قرارداد). قرارداد
+   * تنها با امضای هر دو طرف کامل است.
+   */
+  async countersign(contractId: string, actor: ContractActor) {
+    const signerName = await this.systemConfig.get('company.signatory_name');
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT 1 FROM "agent_contracts" WHERE "id" = ${contractId}::uuid FOR UPDATE`;
+      const c = await tx.agentContract.findUnique({
+        where: { id: contractId },
+      });
+      if (!c) throw new NotFoundException('قرارداد یافت نشد');
+      if (c.status !== 'SIGNED') {
+        throw new ConflictException(
+          'شرکت پس از امضای نماینده قرارداد را امضا می‌کند',
+        );
+      }
+      if (c.companySignedAt) {
+        throw new ConflictException('این قرارداد قبلاً توسط شرکت امضا شده است');
+      }
+      if (c.bodyHash && c.bodyHash !== this.sha256(c.body)) {
+        throw new ConflictException('یکپارچگی متن قرارداد تأیید نشد');
+      }
+      await tx.agentContract.update({
+        where: { id: c.id },
+        data: {
+          companySignedAt: new Date(),
+          companySignedById: actor.adminUserId,
+          companySignerName: signerName || null,
+        },
+      });
+      await this.event(
+        tx,
+        c.id,
+        'COMPANY_SIGNED',
+        'ADMIN',
+        actor,
+        signerName ? `صاحب امضا: ${signerName}` : undefined,
+      );
+    });
+    return { message: 'قرارداد از طرف شرکت امضا شد' };
+  }
+
   // ═══════════════════════════ منقضی‌سازی ═══════════════════════════
 
   @Cron('17 * * * *', { name: 'expire-agent-contracts' })
@@ -927,6 +1035,13 @@ export class AgentContractService implements OnModuleInit {
           : this.maskPhone(normalizeIranMobile(c.agent.phone) ?? c.agent.phone),
       },
       otpPending: !!c.otpExpiresAt && c.otpExpiresAt > new Date(),
+      companySignature: c.companySignedAt
+        ? {
+            signedAt: c.companySignedAt,
+            signedAtJalali: formatJalaliDateTime(c.companySignedAt),
+            signerName: c.companySignerName,
+          }
+        : null,
       signature:
         c.status === 'SIGNED' && c.signedAt
           ? {

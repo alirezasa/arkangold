@@ -3,8 +3,9 @@
 // یا با نام کاربری و رمز عبور. ثبت‌نام وجود ندارد؛ حساب نماینده را فقط مدیر می‌سازد.
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowRight, KeyRound, Loader2, MessageSquareText, Smartphone } from "lucide-react";
-import { useAgentOtpLogin } from "@/app/hooks/useAdminAuth";
+import { isLoginDone, useAgentOtpLogin } from "@/app/hooks/useAdminAuth";
 import AdminLoginForm from "./AdminLoginForm";
 import LoginSteps, { type LoginStep } from "./LoginSteps";
 
@@ -66,6 +67,7 @@ export default function AgentLoginForm() {
 }
 
 function OtpLogin() {
+  const router = useRouter();
   const { requestCode, verifyCode, loading, error, setError } = useAgentOtpLogin();
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [phone, setPhone] = useState("");
@@ -73,7 +75,7 @@ function OtpLogin() {
   const [info, setInfo] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
   const codeRef = useRef<HTMLInputElement>(null);
-  // کد پیامکی فقط عامل اول است؛ پس از آن برنامه‌ی احراز هویت لازم است (FIA_UAU_EXT.2.3)
+  // اگر نماینده ورود دومرحله‌ای را فعال کرده باشد، پس از کد پیامکی برنامه‌ی احراز هویت لازم است
   const [nextStep, setNextStep] = useState<LoginStep | null>(null);
 
   useEffect(() => {
@@ -105,7 +107,9 @@ function OtpLogin() {
     e.preventDefault();
     if (code.length !== 6) return setError("کد ۶ رقمی پیامک‌شده را وارد کنید");
     const next = await verifyCode(phone, code);
-    if (next) setNextStep(next);
+    if (!next) return;
+    if (isLoginDone(next)) return router.replace("/agent-portal");
+    setNextStep(next);
   };
 
   if (nextStep) {

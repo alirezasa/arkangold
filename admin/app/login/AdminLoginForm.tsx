@@ -2,6 +2,7 @@
 // فرم ورود با نام کاربری و رمز عبور (پنل مدیریت و تب «رمز عبور» پنل نمایندگان)
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   User,
   Lock,
@@ -10,7 +11,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { useAdminLogin } from "@/app/hooks/useAdminAuth";
+import { isLoginDone, useAdminLogin } from "@/app/hooks/useAdminAuth";
 import LoginSteps, { type LoginStep } from "./LoginSteps";
 
 export default function AdminLoginForm({
@@ -20,6 +21,7 @@ export default function AdminLoginForm({
   submitLabel?: string;
   home?: string;
 }) {
+  const router = useRouter();
   const { login, loading, checking, error, setError } = useAdminLogin();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +36,8 @@ export default function AdminLoginForm({
     const next = await login(username.trim(), password);
     if (next) {
       setPassword("");
+      // نماینده‌ی بدون ورود دومرحله‌ای: نشست همین حالا ثبت شده است
+      if (isLoginDone(next)) return router.replace(home);
       setStep(next);
     }
   };

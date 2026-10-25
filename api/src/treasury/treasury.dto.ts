@@ -157,6 +157,7 @@ export class BullionItemsQueryDto extends PageQueryDto {
     'BLANK',
     'VAULT_CODED',
     'AT_AGENT',
+    'AGENT_OWNED',
     'SOLD',
     'TRANSFER_PENDING',
     'BUYBACK_PENDING',

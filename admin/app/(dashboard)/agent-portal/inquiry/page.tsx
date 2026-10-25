@@ -28,7 +28,7 @@ interface InquiryResult {
     reportedAt: string;
     message: string;
   } | null;
-  custody?: { atThisAgent: boolean; atAnotherAgent: boolean };
+  custody?: { atThisAgent: boolean; atAnotherAgent: boolean; ownedByThisAgent?: boolean };
 }
 
 const toEn = (s: string) =>
@@ -124,10 +124,17 @@ export default function AgentInquiryPage() {
           </div>
 
           {result.custody?.atThisAgent && (
-            <Alert kind="info" text="این شمش در موجودی امانی نمایندگی شماست." />
+            <Alert
+              kind="info"
+              text={
+                result.custody.ownedByThisAgent
+                  ? "این شمش را از آرکان گلد خریده‌اید و در موجودی ملکی نمایندگی شماست."
+                  : "این شمش در موجودی امانی نمایندگی شماست."
+              }
+            />
           )}
           {result.custody?.atAnotherAgent && (
-            <Alert kind="warn" text="این شمش در امانت نماینده‌ی دیگری است و نباید نزد شما باشد." />
+            <Alert kind="warn" text="این شمش در موجودی نماینده‌ی دیگری ثبت است و نباید نزد شما باشد." />
           )}
 
           {result.product && (

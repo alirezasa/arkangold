@@ -28,8 +28,18 @@ const getErrorMessage = (err: unknown, defaultMsg: string): string => {
   return defaultMsg;
 };
 
+/** نشست ثبت شد (حساب نماینده‌ای که ورود دومرحله‌ای را فعال نکرده است) */
+export interface LoginDone {
+  success: true;
+}
+
+export type LoginResult = LoginStep | LoginDone;
+
+export const isLoginDone = (r: LoginResult): r is LoginDone => "success" in r && r.success === true;
+
 /**
- * مرحله‌ی اول ورود پنل. پاسخ موفق «مرحله‌ی بعد» است (تغییر رمز موقت یا برنامه‌ی احراز هویت)؛
+ * مرحله‌ی اول ورود پنل. پاسخ موفق «مرحله‌ی بعد» است (تغییر رمز موقت یا برنامه‌ی احراز هویت)
+ * یا — برای نماینده‌ی بدون ورود دومرحله‌ای — نشست ثبت‌شده؛
  * «بررسی امنیتی» در صورت درخواست سرور به‌طور خودکار حل می‌شود (FIA_UAU_EXT.2.1).
  */
 export const useAdminLogin = () => {
@@ -37,12 +47,12 @@ export const useAdminLogin = () => {
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const login = async (username: string, password: string): Promise<LoginStep | null> => {
+  const login = async (username: string, password: string): Promise<LoginResult | null> => {
     setLoading(true);
     setError(null);
     try {
       const { data } = await withCaptcha(
-        (captcha) => axios.post<LoginStep>("/api/admin-auth/login", { username, password, captcha }),
+        (captcha) => axios.post<LoginResult>("/api/admin-auth/login", { username, password, captcha }),
         setChecking,
       );
       return data;
@@ -83,12 +93,12 @@ export const useAgentOtpLogin = () => {
     }
   };
 
-  /** کد پیامکی عامل اول است؛ مرحله‌ی برنامه‌ی احراز هویت برگردانده می‌شود */
-  const verifyCode = async (phone: string, code: string): Promise<LoginStep | null> => {
+  /** کد پیامکی: نشست مستقیم یا (در صورت فعال بودن ورود دومرحله‌ای) مرحله‌ی برنامه‌ی احراز هویت */
+  const verifyCode = async (phone: string, code: string): Promise<LoginResult | null> => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await axios.post<LoginStep>("/api/admin-auth/agent-otp/verify", { phone, code });
+      const { data } = await axios.post<LoginResult>("/api/admin-auth/agent-otp/verify", { phone, code });
       return data;
     } catch (err: unknown) {
       setError(getErrorMessage(err, "ورود ناموفق بود. لطفاً دوباره تلاش کنید."));

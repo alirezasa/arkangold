@@ -739,6 +739,184 @@ export const WALLET_CONFIG_DEFAULTS = [
     description:
       'ارسال پیامک ثبت مالکیت شمش و راهنمای ورود به پنل برای خریدار نهایی (true/false)',
   },
+  {
+    key: 'agent.sale.enforce_consumer_cap',
+    value: 'true',
+    description:
+      'کنترل سقف قیمت فروش به مصرف‌کننده هنگام ثبت فروش شمش ملکی نماینده (بند ۸-۳ قرارداد) — true/false',
+  },
+  {
+    key: 'agent.sale.report_hours',
+    value: '24',
+    description:
+      'مهلت ثبت فروش نماینده در پنل پس از معامله با مشتری (ساعت) — متغیر {saleReportHours} قرارداد',
+  },
+  {
+    key: 'agent.mfa_required',
+    value: 'false',
+    description:
+      'اجباری بودن ورود دومرحله‌ای (برنامه‌ی احراز هویت) برای حساب‌های نمایندگان — پیش‌فرض false: نماینده در صورت تمایل خودش از پروفایل فعال می‌کند',
+  },
+  // ── خرید و فروش قطعی نمایندگان ──
+  {
+    key: 'agent.purchase.price_lock_minutes',
+    value: '15',
+    description:
+      'مدت اعتبار قیمت سفارش خرید نماینده (دقیقه) — پرداخت یا ثبت مشخصات واریز باید در همین مهلت انجام شود ({priceLockMinutes} قرارداد)',
+  },
+  {
+    key: 'agent.purchase.markup_percent',
+    value: '0',
+    description:
+      'درصد افزوده بر قیمت لحظه‌ای طلا در قیمت نمایندگی (پیش از اجرت هر قلم)',
+  },
+  {
+    key: 'agent.purchase.min_order_rial',
+    value: '0',
+    description: 'حداقل مبلغ هر سفارش خرید نماینده (ریال) — ۰ = بدون حداقل',
+  },
+  {
+    key: 'agent.purchase.require_signed_contract',
+    value: 'true',
+    description:
+      'ثبت سفارش خرید فقط برای نماینده‌ی دارای قرارداد امضاشده و معتبر (true/false)',
+  },
+  {
+    key: 'agent.consumer.max_markup_percent',
+    value: '3',
+    description:
+      'درصد افزوده‌ی مجاز بر قیمت لحظه‌ای طلا در سقف قیمت فروش به مصرف‌کننده (به‌علاوه‌ی اجرت مصرف‌کننده‌ی هر قلم)',
+  },
+  {
+    key: 'agent.gateway.max_amount_rial',
+    value: '2000000000',
+    description:
+      'سقف هر پرداخت درگاهی نماینده (ریال) — مبالغ بیشتر با پیش‌فاکتور و واریز بانکی/حساب به حساب پرداخت می‌شوند',
+  },
+  {
+    key: 'agent.bank_transfer.destination_owner',
+    value: '',
+    description:
+      'صاحب حساب رسمی شرکت برای واریز نمایندگان — خالی: همان حساب واریز کاربران',
+  },
+  {
+    key: 'agent.bank_transfer.destination_bank',
+    value: '',
+    description: 'نام بانک حساب رسمی شرکت برای واریز نمایندگان',
+  },
+  {
+    key: 'agent.bank_transfer.destination_account',
+    value: '',
+    description: 'شماره حساب رسمی شرکت برای واریز نمایندگان',
+  },
+  {
+    key: 'agent.bank_transfer.destination_sheba',
+    value: '',
+    description: 'شماره شبای حساب رسمی شرکت برای واریز نمایندگان',
+  },
+  {
+    key: 'agent.withdrawal.max_amount_rial',
+    value: '0',
+    description: 'سقف هر برداشت از کیف پول نماینده (ریال) — ۰ = بدون سقف',
+  },
+  {
+    key: 'agent.withdrawal.block_when_in_debt',
+    value: 'true',
+    description:
+      'جلوگیری از برداشت کیف پول تا زمانی که نماینده به شرکت بدهی (امانی/اعتباری) دارد (true/false)',
+  },
+  {
+    key: 'agent.bank_account.max_per_agent',
+    value: '5',
+    description: 'حداکثر تعداد حساب بانکی فعال هر نماینده',
+  },
+  {
+    key: 'agent.buyback.discount_percent',
+    value: '1',
+    description:
+      'درصد کسر از قیمت لحظه‌ای طلا در خرید شمش از نماینده توسط شرکت',
+  },
+  {
+    key: 'agent.buyback.delivery_hours',
+    value: '72',
+    description:
+      'مهلت تحویل فیزیکی شمش‌های فروخته‌شده به شرکت توسط نماینده (ساعت) — پس از آن درخواست لغو می‌شود',
+  },
+  {
+    key: 'agent.buyback.require_agent_invoice',
+    value: 'true',
+    description:
+      'الزام ثبت شماره صورتحساب الکترونیک نماینده (سامانه مؤدیان) پیش از تسویه‌ی خرید شمش از نماینده',
+  },
+  // ── متغیرهای قرارداد نمایندگی ──
+  {
+    key: 'agent.contract.panel_url',
+    value: 'https://panel.arkan.gold',
+    description: 'نشانی پنل نمایندگی — متغیر {panelUrl} قرارداد',
+  },
+  {
+    key: 'agent.contract.delivery_place',
+    value: '',
+    description: 'محل تحویل شمش به نماینده — متغیر {deliveryPlace} قرارداد',
+  },
+  {
+    key: 'agent.contract.shipping_responsibility',
+    value: 'نماینده',
+    description:
+      'مسئول هزینه و ریسک حمل (شرکت/نماینده) — متغیر {shippingResponsibility} قرارداد',
+  },
+  {
+    key: 'agent.contract.claim_days',
+    value: '7',
+    description:
+      'مهلت ادعای مغایرت عیار/اصالت پس از تحویل (روز) — متغیر {claimDays} قرارداد',
+  },
+  {
+    key: 'agent.contract.working_hours',
+    value: 'شنبه تا چهارشنبه ۹ تا ۱۷',
+    description: 'ساعات کاری اعلام قیمت — متغیر {workingHours} قرارداد',
+  },
+  {
+    key: 'agent.contract.default_days',
+    value: '15',
+    description:
+      'تأخیر مجاز پرداخت بدهی اعتباری پیش از حق فسخ فوری (روز) — متغیر {defaultDays} قرارداد',
+  },
+  {
+    key: 'agent.contract.late_penalty_rate',
+    value: '0.1',
+    description:
+      'وجه التزام تأخیر روزانه (درصد مبلغ معوق) — متغیر {latePenaltyRate} قرارداد',
+  },
+  {
+    key: 'agent.contract.breach_penalty_rial',
+    value: '0',
+    description:
+      'وجه التزام هر مورد تخلف از بندهای ۸-۳، ۸-۴، ۸-۶ و ۸-۷ (ریال) — متغیر {breachPenalty} قرارداد',
+  },
+  {
+    key: 'agent.contract.arbitrator_name',
+    value: '',
+    description:
+      'نام داور مرضی‌الطرفین (فقط گزینه‌ی داوری ماده ۱۵) — متغیر {arbitratorName} قرارداد',
+  },
+  {
+    key: 'company.signatory_name',
+    value: '',
+    description:
+      'نام صاحب امضای مجاز شرکت در قراردادها — متغیر {companySignatoryName}',
+  },
+  {
+    key: 'company.signatory_title',
+    value: 'مدیرعامل',
+    description: 'سمت صاحب امضای مجاز شرکت — متغیر {companySignatoryTitle}',
+  },
+  {
+    key: 'company.gazette_ref',
+    value: '',
+    description:
+      'شماره/تاریخ آگهی روزنامه رسمی صاحبان امضای مجاز — متغیر {companyGazetteRef}',
+  },
 
   // ══ بسته‌بندی ارسال فروشگاه ══
   {

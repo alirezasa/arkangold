@@ -149,6 +149,24 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     allowManualEntry: false,
   },
   {
+    code: '2070',
+    name: 'بدهی ریالی به نمایندگان (کیف پول نمایندگان)',
+    type: AccountType.LIABILITY,
+    subType: 'AGENT_WALLET_RIAL',
+    allowManualEntry: false,
+    description:
+      'مانده‌ی کیف پول ریالی نمایندگان فروش — جدا از کیف پول کاربران (2010)',
+  },
+  {
+    code: '2080',
+    name: 'پیش‌دریافت سفارش‌های خرید شمش نمایندگان',
+    type: AccountType.LIABILITY,
+    subType: 'AGENT_ORDER_ADVANCE',
+    allowManualEntry: false,
+    description:
+      'وجه سفارش‌های پرداخت‌شده‌ای که هنوز شمش آن‌ها تخصیص و صورتحساب صادر نشده است',
+  },
+  {
     code: '2050',
     name: 'حقوق و دستمزد پرداختنی',
     type: AccountType.LIABILITY,

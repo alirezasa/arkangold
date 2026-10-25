@@ -1,9 +1,10 @@
 // admin/app/(dashboard)/agent-portal/sell/page.tsx
 //
-// ثبت فروش شمش توسط نماینده برای مالک نهایی:
-// ۱) انتخاب شمش و استعلام قیمت (قیمت برای چند دقیقه قفل می‌شود)
+// ثبت فروش شمش توسط نماینده برای مالک نهایی (فقط ثبت اصالت/مالکیت در سامانه — فاکتور فروش را
+// خود نماینده صادر می‌کند و آرکان گلد برای مشتری نماینده فاکتور صادر نمی‌کند):
+// ۱) انتخاب شمش (ملکی یا امانی) و استعلام؛ برای شمش ملکی قیمت فروش آزاد تا سقف مصرف‌کننده
 // ۲) مشخصات خریدار — استعلام ثبت احوال و ساخت خودکار پنل کاربری خریدار
-// ۳) روش دریافت وجه و تأیید نهایی → ثبت مالکیت، فاکتور و سند حسابداری
+// ۳) روش دریافت وجه، رضایت مشتری و تأیید نهایی → ثبت مالکیت به نام خریدار
 "use client";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -45,6 +46,9 @@ import type { InventoryItem } from "@/app/components/agents/InventoryTable";
 interface Quote {
   quoteId: string;
   code: string;
+  /** OWNED: ملک نماینده (فقط ثبت اصالت) | CONSIGNMENT: امانی */
+  stockSource: "OWNED" | "CONSIGNMENT";
+  consumerMaxPriceRial: string;
   weightGrams: string;
   purityKarat: string;
   goldPricePerGramRial: string;
@@ -77,6 +81,7 @@ interface SaleResult {
   commissionRial: string;
   netPayableRial: string;
   invoiceId: string | null;
+  stockSource: "OWNED" | "CONSIGNMENT";
   hologramCode: { code: string };
 }
 
@@ -151,6 +156,10 @@ function SellWizard() {
   const [paymentMethod, setPaymentMethod] = useState("POS");
   const [paymentReference, setPaymentReference] = useState("");
   const [note, setNote] = useState("");
+  // قیمت فروش نماینده به مشتری (تومان) — فقط شمش ملکی
+  const [salePrice, setSalePrice] = useState("");
+  const [agentInvoiceNumber, setAgentInvoiceNumber] = useState("");
+  const [consent, setConsent] = useState(false);
   const [confirmChecked, setConfirmChecked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SaleResult | null>(null);
@@ -176,6 +185,7 @@ function SellWizard() {
     try {
       const res = await axios.get<Quote>(`/api/agent-portal/quote/${c}`);
       setQuote(res.data);
+      setSalePrice(res.data.stockSource === "OWNED" ? String(Math.round(Number(res.data.totalRial) / 10)) : "");
       setNow(Date.now());
     } catch (err) {
       setQuote(null);
@@ -223,6 +233,13 @@ function SellWizard() {
     if (!isValidNationalCode(nationalCode)) return setError("کد ملی خریدار معتبر نیست");
     if (!birthIso) return setError("تاریخ تولد خریدار را کامل انتخاب کنید");
     if (paymentMethod !== "CASH" && !paymentReference.trim()) return setError("شماره پیگیری/مرجع پرداخت مشتری را وارد کنید");
+    const salePriceRial = quote.stockSource === "OWNED" ? Math.round(Number(salePrice || 0) * 10) : undefined;
+    if (salePriceRial !== undefined) {
+      if (!salePriceRial) return setError("قیمت فروش به مشتری را وارد کنید");
+      if (salePriceRial > Number(quote.consumerMaxPriceRial))
+        return setError(`قیمت فروش نباید از سقف قیمت مصرف‌کننده (${toman(quote.consumerMaxPriceRial)} تومان) بیشتر باشد`);
+    }
+    if (!consent) return setError("رضایت خریدار برای ثبت اطلاعات او در سامانه را تأیید کنید (بند ۸-۵ قرارداد)");
     if (!confirmChecked) return setError("صحت اطلاعات و دریافت وجه را تأیید کنید");
 
     setSubmitting(true);
@@ -238,6 +255,9 @@ function SellWizard() {
         paymentMethod,
         paymentReference: paymentReference.trim() || undefined,
         note: note.trim() || undefined,
+        salePriceRial,
+        agentInvoiceNumber: agentInvoiceNumber.trim() || undefined,
+        buyerConsent: true,
       });
       setResult(res.data);
     } catch (err) {
@@ -259,6 +279,9 @@ function SellWizard() {
     setBirth({ y: "", m: "", d: "" });
     setPaymentReference("");
     setNote("");
+    setSalePrice("");
+    setAgentInvoiceNumber("");
+    setConsent(false);
     setConfirmChecked(false);
     setError(null);
   };
@@ -270,7 +293,7 @@ function SellWizard() {
     return (
       <div className="max-w-xl mx-auto rounded-2xl p-6 space-y-4 text-center" style={cardStyle}>
         <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto" />
-        <h1 className="text-[18px] font-black text-gray-900">فروش با موفقیت ثبت شد</h1>
+        <h1 className="text-[18px] font-black text-gray-900">اصالت و مالکیت به نام خریدار ثبت شد</h1>
         <p className="text-[13px] text-gray-600">
           شمش <span className="font-mono font-bold">{result.hologramCode.code}</span> به نام{" "}
           <b>{result.buyerFullName}</b> ثبت شد.
@@ -280,26 +303,30 @@ function SellWizard() {
             شماره فروش: <b dir="ltr">{result.saleNumber}</b>
           </p>
           <p>
-            مبلغ دریافتی از مشتری: <b>{toman(result.totalRial)} تومان</b>
+            مبلغ فروش شما به مشتری: <b>{toman(result.totalRial)} تومان</b>
           </p>
-          <p>
-            حق‌العمل شما: <b className="text-amber-700">{toman(result.commissionRial)} تومان</b>
-          </p>
-          <p>
-            سهم شرکت (اضافه‌شده به بدهی شما): <b style={{ color: "var(--color-emerald)" }}>{toman(result.netPayableRial)} تومان</b>
-          </p>
+          {result.stockSource === "CONSIGNMENT" && (
+            <p>
+              قیمت نمایندگی شمش امانی (صورتحساب به نام شما و اضافه‌شده به بدهی):{" "}
+              <b style={{ color: "var(--color-emerald)" }}>{toman(result.netPayableRial)} تومان</b>
+            </p>
+          )}
         </div>
         <Alert
-          kind="info"
-          text={`${result.buyerAccountCreated ? "برای خریدار حساب کاربری جدید ساخته شد. " : ""}خریدار با شماره ${result.buyerPhone} و رمز یکبار مصرف (پیامکی) وارد اپلیکیشن می‌شود و شمش، سند مالکیت، فاکتور و امکان انتقال مالکیت را مانند سایر کاربران در پنل خود دارد. پیامک اطلاع‌رسانی برای او ارسال شد.`}
+          kind="warn"
+          text="آرکان گلد برای مشتری شما فاکتور صادر نمی‌کند. صورتحساب فروش را خودتان با کد اقتصادی نمایندگی در سامانه مؤدیان صادر و به مشتری تحویل دهید (بند ۸-۲ قرارداد)."
         />
-        {!result.invoiceId && (
-          <Alert kind="warn" text="فاکتور به‌صورت خودکار صادر نشد؛ از «فروش‌های من» دوباره اقدام به صدور کنید یا با واحد مالی تماس بگیرید." />
+        <Alert
+          kind="info"
+          text={`${result.buyerAccountCreated ? "برای خریدار حساب کاربری جدید ساخته شد. " : ""}خریدار با شماره ${result.buyerPhone} و رمز یکبار مصرف (پیامکی) وارد اپلیکیشن می‌شود و شمش، سند مالکیت و امکان استعلام و انتقال مالکیت را در پنل خود دارد.`}
+        />
+        {result.stockSource === "CONSIGNMENT" && !result.invoiceId && (
+          <Alert kind="warn" text="صورتحساب شرکت به نام شما (قیمت نمایندگی) خودکار صادر نشد؛ از «فروش‌های من» دوباره اقدام کنید یا با واحد مالی تماس بگیرید." />
         )}
         <div className="flex gap-2 justify-center flex-wrap">
           {result.invoiceId && (
-            <a href={`/invoices/${result.invoiceId}/print?scope=agent`} target="_blank" rel="noreferrer" className={primaryBtn} style={primaryBtnStyle}>
-              <FileText className="w-4 h-4" /> چاپ فاکتور مشتری
+            <a href={`/invoices/${result.invoiceId}/print?scope=agent-company`} target="_blank" rel="noreferrer" className={primaryBtn} style={primaryBtnStyle}>
+              <FileText className="w-4 h-4" /> صورتحساب شرکت به نام شما
             </a>
           )}
           <button type="button" onClick={reset} className={secondaryBtn}>
@@ -319,10 +346,11 @@ function SellWizard() {
     <div className="max-w-3xl space-y-5">
       <div>
         <h1 className="text-lg font-black text-gray-900 flex items-center gap-2">
-          <ShoppingCart className="w-5 h-5" /> ثبت فروش شمش برای مالک نهایی
+          <ShoppingCart className="w-5 h-5" /> ثبت فروش و اصالت شمش برای مشتری
         </h1>
         <p className="text-[12px] text-gray-400 mt-1">
-          شمش به نام خریدار ثبت می‌شود، برای او پنل کاربری ساخته/به‌روز می‌شود و فاکتور رسمی صادر می‌گردد.
+          اصالت و مالکیت شمش به نام خریدار در سامانه ثبت و برای او پنل کاربری ساخته/به‌روز می‌شود. فاکتور فروش را خودتان صادر کنید؛
+          آرکان گلد برای مشتری شما فاکتور صادر نمی‌کند.
         </p>
       </div>
 
@@ -345,7 +373,7 @@ function SellWizard() {
               inputMode="numeric"
             />
           </Field>
-          <Field label="یا انتخاب از موجودی امانی">
+          <Field label="یا انتخاب از موجودی (ملکی/امانی)">
             <select
               value=""
               onChange={(e) => {
@@ -359,6 +387,7 @@ function SellWizard() {
               {inventory?.data.map((i) => (
                 <option key={i.id} value={i.code}>
                   {i.code} · {faNum(i.weightGrams, 4)} گرم · {i.purityKarat ? PURITY_FA[i.purityKarat] : ""}
+                  {i.stockSource === "CONSIGNMENT" ? " · امانی" : ""}
                 </option>
               ))}
             </select>
@@ -399,21 +428,54 @@ function SellWizard() {
                 <p className="text-gray-400">اجرت / حق ضرب</p>
                 <p className="font-bold">{toman(quote.premiumRial)} ت</p>
               </div>
-              <div>
-                <p className="text-gray-400">مبلغ قابل دریافت از مشتری</p>
-                <p className="font-black text-[16px]">{toman(quote.totalRial)} تومان</p>
-              </div>
-              <div>
-                <p className="text-gray-400">حق‌العمل شما</p>
-                <p className="font-bold text-amber-700">{toman(quote.commissionRial)} ت</p>
-              </div>
-              <div>
-                <p className="text-gray-400">سهم شرکت (به بدهی شما اضافه می‌شود)</p>
-                <p className="font-bold" style={{ color: "var(--color-emerald)" }}>
-                  {toman(quote.netPayableRial)} ت
-                </p>
-              </div>
+              {quote.stockSource === "OWNED" ? (
+                <>
+                  <div>
+                    <p className="text-gray-400">سقف قیمت مصرف‌کننده (بند ۸-۳)</p>
+                    <p className="font-black text-[16px]">{toman(quote.consumerMaxPriceRial)} تومان</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-gray-400">شمش ملکی شما</p>
+                    <p className="font-bold text-purple-700">
+                      قیمت فروش را خودتان تعیین می‌کنید؛ اثر مالی برای شرکت ندارد و فقط اصالت/مالکیت ثبت می‌شود.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <p className="text-gray-400">مبلغ قابل دریافت از مشتری</p>
+                    <p className="font-black text-[16px]">{toman(quote.totalRial)} تومان</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">حق‌العمل شما</p>
+                    <p className="font-bold text-amber-700">{toman(quote.commissionRial)} ت</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">قیمت نمایندگی (صورتحساب به نام شما و بدهی)</p>
+                    <p className="font-bold" style={{ color: "var(--color-emerald)" }}>
+                      {toman(quote.netPayableRial)} ت
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
+            {quote.stockSource === "OWNED" && (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Field label="قیمت فروش شما به مشتری (تومان)">
+                  <input
+                    value={salePrice}
+                    onChange={(e) => setSalePrice(e.target.value.replace(/\D/g, ""))}
+                    className={`${inputCls} text-left font-black`}
+                    dir="ltr"
+                    inputMode="numeric"
+                  />
+                </Field>
+                <Field label="شماره صورتحساب شما برای مشتری (اختیاری)">
+                  <input value={agentInvoiceNumber} onChange={(e) => setAgentInvoiceNumber(e.target.value)} className={`${inputCls} text-left`} dir="ltr" />
+                </Field>
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -527,9 +589,15 @@ function SellWizard() {
           <input value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} maxLength={500} />
         </Field>
         <label className="flex items-start gap-2 text-[12px] font-bold text-gray-700">
+          <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />
+          <span>رضایت خریدار برای ثبت اطلاعات هویتی او در سامانه‌ی آرکان گلد (ثبت مالکیت و استعلام اصالت) اخذ شده است (بند ۸-۵ قرارداد).</span>
+        </label>
+        <label className="flex items-start gap-2 text-[12px] font-bold text-gray-700">
           <input type="checkbox" checked={confirmChecked} onChange={(e) => setConfirmChecked(e.target.checked)} className="mt-0.5" />
           <span>
-            تأیید می‌کنم مبلغ {quote ? <b>{toman(quote.totalRial)} تومان</b> : "فروش"} از خریدار دریافت شده، شمش با کد
+            تأیید می‌کنم مبلغ{" "}
+            {quote ? <b>{quote.stockSource === "OWNED" ? `${Number(salePrice || 0).toLocaleString("fa-IR")} تومان` : `${toman(quote.totalRial)} تومان`}</b> : "فروش"}{" "}
+            از خریدار دریافت شده، شمش با کد
             هولوگرام درج‌شده تحویل خریدار شده و اطلاعات هویتی از روی کارت ملی خریدار وارد شده است.
           </span>
         </label>
@@ -541,7 +609,7 @@ function SellWizard() {
           style={primaryBtnStyle}
         >
           {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-          ثبت نهایی فروش و صدور سند مالکیت
+          ثبت نهایی و ثبت مالکیت به نام خریدار
         </button>
       </section>
     </div>

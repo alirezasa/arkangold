@@ -15,6 +15,11 @@ export type DocumentPrefix =
   | 'AGV'
   | 'AGP'
   | 'AGJ'
+  // نمایندگان: سفارش خرید شمش، فروش شمش به شرکت، واریز و برداشت کیف پول
+  | 'AGO'
+  | 'AGB'
+  | 'AGD'
+  | 'AGW'
   // حسابداری پیشرفته: سند دستی، خرید/فروش خزانه، پرداخت تأمین‌کننده، شمارش خزانه،
   // سفارش و تسویه‌ی شرکای فروش
   | 'MJV'
@@ -41,6 +46,10 @@ const PREFIX_LABEL: Record<DocumentPrefix, string> = {
   AGV: 'AGV',
   AGP: 'AGP',
   AGJ: 'AGJ',
+  AGO: 'AGO',
+  AGB: 'AGB',
+  AGD: 'AGD',
+  AGW: 'AGW',
   MJV: 'MJV',
   TRP: 'TRP',
   TRS: 'TRS',

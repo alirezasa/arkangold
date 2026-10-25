@@ -496,6 +496,48 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
     body: '{agentName} گرامی، قرارداد {contractNumber} با موفقیت به‌صورت الکترونیک امضا شد.\n{brand}',
     variables: [V.agentName, V.contractNumber, V.brand],
   },
+  {
+    key: 'AGENT_ORDER_APPROVED',
+    title: 'تأیید سفارش خرید شمش نماینده و صدور حواله',
+    category: 'AGENT',
+    body: '{agentName} گرامی، سفارش خرید {requestNumber} تأیید شد. صورتحساب به نام شما و حواله‌ی تحویل در پنل نمایندگی صادر شده است.\n{brand}',
+    variables: [V.agentName, V.requestNumber, V.brand],
+  },
+  {
+    key: 'AGENT_ORDER_CANCELLED',
+    title: 'لغو سفارش خرید شمش نماینده',
+    category: 'AGENT',
+    body: '{agentName} گرامی، سفارش خرید {requestNumber} لغو شد.\nدلیل: {reason}\n{brand}',
+    variables: [V.agentName, V.requestNumber, V.reason, V.brand],
+  },
+  {
+    key: 'AGENT_WALLET_DEPOSIT',
+    title: 'واریز به کیف پول نماینده',
+    category: 'AGENT',
+    body: '{agentName} گرامی، مبلغ {amount} تومان (درخواست {requestNumber}) به کیف پول نمایندگی شما واریز شد.\n{brand}',
+    variables: [V.agentName, V.amount, V.requestNumber, V.brand],
+  },
+  {
+    key: 'AGENT_WALLET_REQUEST_REJECTED',
+    title: 'رد درخواست مالی نماینده',
+    category: 'AGENT',
+    body: '{agentName} گرامی، درخواست {requestNumber} رد شد.\nدلیل: {reason}\n{brand}',
+    variables: [V.agentName, V.requestNumber, V.reason, V.brand],
+  },
+  {
+    key: 'AGENT_WITHDRAWAL_PAID',
+    title: 'پرداخت برداشت کیف پول نماینده',
+    category: 'AGENT',
+    body: '{agentName} گرامی، مبلغ {amount} تومان (برداشت {requestNumber}) به حساب بانکی شما واریز شد.\nشماره پیگیری: {bankRef}\n{brand}',
+    variables: [V.agentName, V.amount, V.requestNumber, V.bankRef, V.brand],
+  },
+  {
+    key: 'AGENT_BUYBACK_PAID',
+    title: 'تسویه‌ی خرید شمش از نماینده',
+    category: 'AGENT',
+    body: '{agentName} گرامی، مبلغ {amount} تومان بابت فروش شمش به شرکت (سفارش {requestNumber}) تسویه شد.\n{brand}',
+    variables: [V.agentName, V.amount, V.requestNumber, V.brand],
+  },
 ];
 
 export const SMS_TEMPLATE_BY_KEY = new Map(

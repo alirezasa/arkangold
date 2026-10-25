@@ -155,23 +155,22 @@ run('ورود نماینده با کد یکبارمصرف (یکپارچه با P
 
     // کد با ارقام فارسی هم پذیرفته می‌شود
     const persian = code.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
-    const step = await otp.verifyCode(phone, persian);
-    // کد پیامکی فقط عامل اول است: هنوز نشستی صادر نشده و راه‌اندازی TOTP اجباری است
-    expect(step.next).toBe('MFA_SETUP');
-    expect(
-      await prisma.adminSession.count({ where: { adminUserId: accountId } }),
-    ).toBe(0);
-    const setup = await auth.loginMfaSetup(step.challengeToken);
-    const res = await auth.loginMfaSetupConfirm(
-      step.challengeToken,
-      hotp(setup.secret, currentStep()),
-    );
+    const res = await otp.verifyCode(phone, persian);
+    // ورود دومرحله‌ای برای نماینده به‌طور پیش‌فرض غیرفعال است: نشست مستقیم صادر می‌شود
+    if (!('accessToken' in res)) throw new Error('نشست صادر نشد');
     expect(res.accessToken).toBeTruthy();
     expect(res.admin.id).toBe(accountId);
-    expect(res.recoveryCodes).toHaveLength(10);
     expect(
       await prisma.adminSession.count({ where: { adminUserId: accountId } }),
     ).toBe(1);
+
+    // نماینده خودش ورود دومرحله‌ای را از پروفایل فعال می‌کند
+    const setup = await auth.beginOwnMfaEnable(accountId);
+    const enabled = await auth.confirmOwnMfaEnable(
+      accountId,
+      hotp(setup.secret, currentStep()),
+    );
+    expect(enabled.recoveryCodes).toHaveLength(10);
 
     await expect(otp.verifyCode(phone, code)).rejects.toThrow(
       'کد ورود نادرست یا منقضی شده است',
@@ -241,7 +240,7 @@ run('ورود نماینده با کد یکبارمصرف (یکپارچه با P
       ),
     ).rejects.toThrow('حساب نمایندگی از نشانی');
 
-    // نماینده TOTP را در آزمون قبلی فعال کرده است ← مرحله‌ی بررسی کد
+    // نماینده TOTP را داوطلبانه در آزمون قبلی فعال کرده است ← مرحله‌ی بررسی کد
     const agentLogin = await auth.login(
       {
         username: `agent-${suffix}`,
@@ -251,7 +250,7 @@ run('ورود نماینده با کد یکبارمصرف (یکپارچه با P
       '10.0.0.1',
       UA,
     );
-    expect(agentLogin.next).toBe('MFA_VERIFY');
+    expect('next' in agentLogin && agentLogin.next).toBe('MFA_VERIFY');
     const staffLogin = await auth.login(
       {
         username: `staff-${suffix}`,
@@ -261,7 +260,8 @@ run('ورود نماینده با کد یکبارمصرف (یکپارچه با P
       '10.0.0.1',
       UA,
     );
-    expect(staffLogin.next).toBe('MFA_SETUP');
+    // برای کارشناسان سازمان ورود دومرحله‌ای همیشه اجباری است
+    expect('next' in staffLogin && staffLogin.next).toBe('MFA_SETUP');
     expect(
       await prisma.adminSession.count({
         where: { adminUser: { username: `staff-${suffix}` } },

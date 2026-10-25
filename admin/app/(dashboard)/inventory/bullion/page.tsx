@@ -36,6 +36,8 @@ interface Summary {
   totals: {
     vaultCoded: { count: number; grams: string };
     atAgents: { count: number; grams: string };
+    /** فروخته‌شده به نمایندگان — ملک نماینده، خارج از دارایی شرکت */
+    agentOwned?: { count: number; grams: string };
     transferPending: { count: number; grams: string };
     soldWithOwner: { count: number; grams: string };
     /** شمش‌هایی که مالک برای فروش به آرکان گلد (بازخرید) درخواست داده است */
@@ -55,10 +57,11 @@ interface Summary {
   };
 }
 
-type Bucket = "VAULT_CODED" | "AT_AGENT" | "SOLD" | "TRANSFER_PENDING" | "BUYBACK_PENDING" | "AWAITING_CODE" | "BLANK" | "REVOKED";
+type Bucket = "VAULT_CODED" | "AT_AGENT" | "AGENT_OWNED" | "SOLD" | "TRANSFER_PENDING" | "BUYBACK_PENDING" | "AWAITING_CODE" | "BLANK" | "REVOKED";
 const BUCKETS: { key: Bucket; label: string }[] = [
   { key: "VAULT_CODED", label: "کددار در خزانه" },
-  { key: "AT_AGENT", label: "نزد نمایندگان" },
+  { key: "AT_AGENT", label: "امانی نزد نمایندگان" },
+  { key: "AGENT_OWNED", label: "فروخته به نمایندگان" },
   { key: "SOLD", label: "فروخته‌شده" },
   { key: "TRANSFER_PENDING", label: "در انتظار تأیید گیرنده" },
   { key: "BUYBACK_PENDING", label: "در فرآیند بازخرید" },
@@ -257,6 +260,9 @@ export default function BullionInventoryPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Kpi title="شمش کددار در خزانه" value={`${data.totals.vaultCoded.count.toLocaleString("fa-IR")} عدد`} hint={`${grams(data.totals.vaultCoded.grams)} گرم`} icon={Tag} />
             <Kpi title="امانی نزد نمایندگان" value={`${data.totals.atAgents.count.toLocaleString("fa-IR")} عدد`} hint={`${grams(data.totals.atAgents.grams)} گرم`} icon={Store} color="#2563eb" />
+            {data.totals.agentOwned && (
+              <Kpi title="فروخته به نمایندگان (ملک نماینده)" value={`${data.totals.agentOwned.count.toLocaleString("fa-IR")} عدد`} hint={`${grams(data.totals.agentOwned.grams)} گرم — صورتحساب به نام نماینده`} icon={Store} color="#9333ea" />
+            )}
             <Kpi title="موجودی بدون کد فروشگاه" value={`${data.totals.shopStock.units.toLocaleString("fa-IR")} عدد`} hint={`${grams(data.totals.shopStock.grams)} گرم`} icon={ShoppingBag} color="#7c3aed" />
             <Kpi title="کل شمش متعلق به شرکت" value={`${grams(data.totals.companyOwned.grams)} گرم`} hint="کددار + امانی + فروشگاه" icon={Boxes} color="#0d9488" />
             <Kpi title="فروخته‌شده (دارای مالک)" value={`${data.totals.soldWithOwner.count.toLocaleString("fa-IR")} عدد`} hint={`${grams(data.totals.soldWithOwner.grams)} گرم`} icon={CheckCircle2} />

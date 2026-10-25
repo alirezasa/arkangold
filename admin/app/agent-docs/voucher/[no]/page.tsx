@@ -1,5 +1,6 @@
 // admin/app/agent-docs/voucher/[no]/page.tsx
-// حواله‌ی تحویل امانی / عودت شمش — قابل چاپ و امضا توسط تحویل‌دهنده و نماینده
+// حواله‌ی تحویل امانی / عودت / تحویل شمش خریداری‌شده (فروش قطعی) / تحویل شمش به شرکت (فروش نماینده به شرکت)
+// — قابل چاپ و امضا توسط تحویل‌دهنده و تحویل‌گیرنده
 "use client";
 import { use, useEffect, useState } from "react";
 import axios from "axios";
@@ -7,7 +8,7 @@ import { DocShell, fa, faDateTime, getMessage } from "../../DocShell";
 
 interface Voucher {
   voucherNumber: string;
-  type: "ALLOCATION" | "RETURN";
+  type: "ALLOCATION" | "RETURN" | "PURCHASE" | "BUYBACK";
   createdAt: string;
   note: string | null;
   performedBy: string | null;
@@ -35,7 +36,16 @@ export default function VoucherPrintPage({ params }: { params: Promise<{ no: str
       .catch((err) => setError(getMessage(err, "این حواله در دسترس نیست")));
   }, [no]);
 
-  const isAllocation = doc?.type === "ALLOCATION";
+  // شرکت تحویل‌دهنده است: تحویل امانی و تحویل شمش خریداری‌شده
+  const isAllocation = doc?.type === "ALLOCATION" || doc?.type === "PURCHASE";
+  const title =
+    doc?.type === "PURCHASE"
+      ? "حواله تحویل شمش فروخته‌شده به نماینده (بیع قطعی)"
+      : doc?.type === "BUYBACK"
+        ? "حواله تحویل شمش نماینده به شرکت (خرید از نماینده)"
+        : doc?.type === "ALLOCATION"
+          ? "حواله تحویل امانی شمش به نماینده"
+          : "حواله عودت شمش از نماینده به خزانه";
 
   return (
     <DocShell loading={!doc && !error} error={error}>
@@ -45,7 +55,7 @@ export default function VoucherPrintPage({ params }: { params: Promise<{ no: str
             <div className="doc-head__brand">
               <div>
                 <div className="doc-head__legal">آرکان گلد</div>
-                <div className="doc-head__sub">{isAllocation ? "حواله تحویل امانی شمش به نماینده" : "حواله عودت شمش از نماینده به خزانه"}</div>
+                <div className="doc-head__sub">{title}</div>
               </div>
             </div>
             <div className="doc-meta">
@@ -110,11 +120,22 @@ export default function VoucherPrintPage({ params }: { params: Promise<{ no: str
           </table>
           {doc.note && <div className="doc-notes" style={{ marginTop: 10 }}>توضیحات: {doc.note}</div>}
           <ul className="doc-clauses">
-            {isAllocation ? (
+            {doc.type === "PURCHASE" ? (
+              <>
+                <li>شمش‌های فوق طبق صورتحساب فروش صادرشده به نام نماینده، به‌صورت قطعی به نماینده فروخته و تحویل شد و ملک نماینده است.</li>
+                <li>نماینده تعداد، وزن درج‌شده، سلامت بسته‌بندی و هولوگرام را بررسی کرد؛ ادعای کسری یا ایراد ظاهری پس از تأیید رسید پذیرفته نیست (بند ۶-۳ قرارداد).</li>
+                <li>مسئولیت تلف، سرقت یا آسیب از لحظه‌ی تحویل با نماینده است. نماینده هنگام فروش به مشتری، صورتحساب را خودش صادر می‌کند و فروش را برای ثبت اصالت در پنل ثبت می‌کند.</li>
+              </>
+            ) : doc.type === "BUYBACK" ? (
+              <>
+                <li>شمش‌های فوق از نماینده (فروشنده) تحویل گرفته شد و پس از بازرسی، با بهای تأییدشده وارد موجودی خزانه‌ی شرکت گردید.</li>
+                <li>نماینده صورتحساب الکترونیک فروش را به نام شرکت در سامانه مؤدیان صادر می‌کند.</li>
+              </>
+            ) : isAllocation ? (
               <>
                 <li>شمش‌های فوق به‌صورت امانی و متعلق به شرکت آرکان گلد در اختیار نماینده قرار گرفت و تا زمان فروش به مشتری نهایی، مالکیت آن با شرکت است.</li>
-                <li>فروش فقط از طریق پنل نمایندگی و با ثبت مشخصات هویتی خریدار مجاز است؛ قیمت فروش توسط سامانه تعیین می‌شود.</li>
-                <li>نماینده مسئول نگهداری، تطبیق کد هولوگرام و تسویه‌ی سهم شرکت طبق قرارداد است.</li>
+                <li>فروش فقط از طریق پنل نمایندگی و با ثبت مشخصات هویتی خریدار مجاز است؛ با ثبت فروش، همان شمش به قیمت نمایندگی به نماینده فروخته و صورتحساب آن به نام نماینده صادر می‌شود.</li>
+                <li>نماینده مسئول نگهداری، تطبیق کد هولوگرام و تسویه‌ی بدهی طبق قرارداد و الحاقیه‌ی امانت است.</li>
               </>
             ) : (
               <li>شمش‌های فوق از نماینده تحویل گرفته شد و از موجودی امانی نماینده کسر گردید.</li>

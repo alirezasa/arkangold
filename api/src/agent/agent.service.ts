@@ -28,6 +28,7 @@ import {
 } from '../common/auth-security/account-hygiene';
 import { AgentAccountingService, agentTag } from './agent-accounting.service';
 import {
+  AgentLegalFieldsDto,
   AllocateStockDto,
   ChangeAgentStatusDto,
   CreateAdjustmentDto,
@@ -152,6 +153,7 @@ export class AgentService {
                 : Math.round(dto.creditLimitRial),
             notes: dto.notes,
             createdById: adminId,
+            ...this.legalFields(dto),
           },
         });
       } catch (err) {
@@ -208,21 +210,72 @@ export class AgentService {
         commissionValue: dto.commissionValue,
         creditLimitRial,
         notes: dto.notes,
+        ...this.legalFields(dto),
       },
     });
+  }
+
+  /** مشخصات حقوقی/صنفی و مجوزهای امانی و اعتباری نماینده (قرارداد بیع قطعی) */
+  private legalFields(dto: AgentLegalFieldsDto) {
+    if (dto.legalType === 'LEGAL' && dto.agentNationalId === '') {
+      throw new BadRequestException('شناسه ملی نماینده‌ی حقوقی را وارد کنید');
+    }
+    return {
+      legalType: dto.legalType,
+      agentNationalId: dto.agentNationalId,
+      agentRegistrationNumber: dto.agentRegistrationNumber,
+      economicCode: dto.economicCode,
+      businessLicenseNumber: dto.businessLicenseNumber,
+      businessLicenseIssuer: dto.businessLicenseIssuer,
+      businessLicenseExpiresAt: dto.businessLicenseExpiresAt
+        ? new Date(dto.businessLicenseExpiresAt)
+        : undefined,
+      territory: dto.territory,
+      consignmentEnabled: dto.consignmentEnabled,
+      creditPurchaseEnabled: dto.creditPurchaseEnabled,
+      creditDays: dto.creditDays,
+      guaranteeType: dto.guaranteeType,
+      guaranteeAmountRial:
+        dto.guaranteeAmountRial == null
+          ? undefined
+          : Math.round(dto.guaranteeAmountRial),
+      guaranteeReference: dto.guaranteeReference,
+    };
   }
 
   async changeStatus(agentId: string, dto: ChangeAgentStatusDto) {
     const agent = await this.getAgentOrThrow(agentId);
     if (dto.status === 'TERMINATED') {
-      const [stock, pending] = await Promise.all([
-        this.prisma.hologramCode.count({
-          where: { agentId, status: 'AT_AGENT' },
-        }),
-        this.prisma.agentSettlement.count({
-          where: { agentId, status: 'PENDING' },
-        }),
-      ]);
+      const [stock, pending, openOrders, openFunds, openBuybacks, wallet] =
+        await Promise.all([
+          this.prisma.hologramCode.count({
+            where: { agentId, status: 'AT_AGENT' },
+          }),
+          this.prisma.agentSettlement.count({
+            where: { agentId, status: 'PENDING' },
+          }),
+          this.prisma.agentPurchaseOrder.count({
+            where: {
+              agentId,
+              status: { in: ['PAYMENT_REVIEW', 'PAID', 'APPROVED'] },
+            },
+          }),
+          Promise.all([
+            this.prisma.agentDepositRequest.count({
+              where: { agentId, status: 'PENDING_REVIEW' },
+            }),
+            this.prisma.agentWithdrawalRequest.count({
+              where: { agentId, status: { in: ['PENDING', 'APPROVED'] } },
+            }),
+          ]).then(([a, b]) => a + b),
+          this.prisma.agentBuybackOrder.count({
+            where: {
+              agentId,
+              status: { in: ['PENDING_DELIVERY', 'RECEIVED', 'APPROVED'] },
+            },
+          }),
+          this.prisma.agentWallet.findUnique({ where: { agentId } }),
+        ]);
       if (stock > 0) {
         throw new ConflictException(
           `پیش از خاتمه همکاری، ${stock} شمش امانی باید از نماینده عودت گرفته شود`,
@@ -231,6 +284,22 @@ export class AgentService {
       if (pending > 0) {
         throw new ConflictException(
           'پیش از خاتمه همکاری، تسویه‌های در انتظار بررسی را تعیین تکلیف کنید',
+        );
+      }
+      // بند ۱۲-۴: سفارش‌های قطعی‌شده انجام می‌شود و مانده‌ها تسویه می‌گردد
+      if (openOrders > 0 || openBuybacks > 0) {
+        throw new ConflictException(
+          'پیش از خاتمه همکاری، سفارش‌های خرید/فروش در جریان نماینده را تحویل یا تعیین تکلیف کنید',
+        );
+      }
+      if (openFunds > 0) {
+        throw new ConflictException(
+          'پیش از خاتمه همکاری، واریز/برداشت‌های در انتظار بررسی را تعیین تکلیف کنید',
+        );
+      }
+      if (wallet && d(wallet.balanceRial).greaterThan(0)) {
+        throw new ConflictException(
+          'کیف پول نماینده موجودی دارد؛ پیش از خاتمه همکاری مانده را به حساب بانکی او پرداخت کنید',
         );
       }
     }
@@ -387,13 +456,43 @@ export class AgentService {
 
     const balance = d(agent.balanceRial);
     const creditLimit = agent.creditLimitRial ? d(agent.creditLimitRial) : null;
+    const [owned, wallet, openOrders] = await Promise.all([
+      this.prisma.hologramCode.aggregate({
+        where: { agentId, status: 'AGENT_OWNED' },
+        _count: { _all: true },
+        _sum: { weightGrams: true },
+      }),
+      this.prisma.agentWallet.findUnique({ where: { agentId } }),
+      this.prisma.agentPurchaseOrder.count({
+        where: {
+          agentId,
+          status: {
+            in: ['PENDING_PAYMENT', 'PAYMENT_REVIEW', 'PAID', 'APPROVED'],
+          },
+        },
+      }),
+    ]);
+    const walletBalance = d(wallet?.balanceRial);
+    const walletBlocked = d(wallet?.blockedRial);
 
     return {
       agent,
+      /** موجودی امانی (ملک شرکت) */
       stock: {
         count: stock._count._all,
         grams: d(stock._sum.weightGrams).toString(),
       },
+      /** موجودی ملکی (خریداری‌شده از شرکت با صورتحساب به نام نماینده) */
+      ownedStock: {
+        count: owned._count._all,
+        grams: d(owned._sum.weightGrams).toString(),
+      },
+      wallet: {
+        balanceRial: walletBalance.toFixed(0),
+        blockedRial: walletBlocked.toFixed(0),
+        availableRial: walletBalance.minus(walletBlocked).toFixed(0),
+      },
+      openPurchaseOrders: openOrders,
       balanceRial: balance.toFixed(0),
       creditLimitRial: creditLimit?.toFixed(0) ?? null,
       availableCreditRial: creditLimit
@@ -655,6 +754,12 @@ export class AgentService {
     if (agent.status !== 'ACTIVE') {
       throw new ConflictException('تحویل شمش فقط به نماینده‌ی فعال ممکن است');
     }
+    // امانت فقط برای نمایندگان منتخب؛ بقیه شمش را با سفارش خرید قطعی و پرداخت کامل می‌گیرند
+    if (!agent.consignmentEnabled) {
+      throw new ForbiddenException(
+        'تحویل امانی برای این نماینده فعال نیست؛ نماینده باید از مسیر «سفارش خرید» شمش را بخرد (یا مجوز امانت را در پرونده‌ی نماینده فعال کنید)',
+      );
+    }
     const codes = dto.items.map((i) => i.code);
     const duplicate = codes.find((c, i) => codes.indexOf(c) !== i);
     if (duplicate) {
@@ -854,9 +959,15 @@ export class AgentService {
   }
 
   async inventory(agentId: string, query: InventoryQueryDto) {
+    const statuses: ('AT_AGENT' | 'AGENT_OWNED')[] =
+      query.source === 'CONSIGNMENT'
+        ? ['AT_AGENT']
+        : query.source === 'OWNED'
+          ? ['AGENT_OWNED']
+          : ['AT_AGENT', 'AGENT_OWNED'];
     const where: Prisma.HologramCodeWhereInput = {
       agentId,
-      status: 'AT_AGENT',
+      status: { in: statuses },
       ...(query.search
         ? {
             OR: [
@@ -880,6 +991,7 @@ export class AgentService {
         select: {
           id: true,
           code: true,
+          status: true,
           weightGrams: true,
           purityKarat: true,
           factorySerialNumber: true,
@@ -898,12 +1010,20 @@ export class AgentService {
       }),
       this.prisma.hologramCode.count({ where }),
       this.prisma.hologramCode.aggregate({
-        where: { agentId, status: 'AT_AGENT' },
+        where: { agentId, status: { in: statuses } },
         _sum: { weightGrams: true },
       }),
     ]);
     return {
-      ...paged(items, total, query.page, query.limit),
+      ...paged(
+        items.map((i) => ({
+          ...i,
+          stockSource: i.status === 'AGENT_OWNED' ? 'OWNED' : 'CONSIGNMENT',
+        })),
+        total,
+        query.page,
+        query.limit,
+      ),
       totalGrams: d(sums._sum.weightGrams).toString(),
     };
   }

@@ -82,7 +82,11 @@ export interface VerifyResponse {
   /** فقط وقتی شمش گزارش سرقت/مفقودی فعال دارد */
   incident?: VerifyIncidentAlert | null;
   /** فقط در پرتال نماینده */
-  custody?: { atThisAgent: boolean; atAnotherAgent: boolean };
+  custody?: {
+    atThisAgent: boolean;
+    atAnotherAgent: boolean;
+    ownedByThisAgent?: boolean;
+  };
 }
 
 @Injectable()
@@ -470,6 +474,11 @@ export class HologramService {
           'این شمش به‌صورت امانی نزد نماینده است؛ ابتدا آن را از نماینده عودت بگیرید',
         );
       }
+      if (hologramCode.status === 'AGENT_OWNED') {
+        throw new ConflictException(
+          'این شمش به نماینده فروخته شده و ملک اوست؛ ابطال کد ممکن نیست',
+        );
+      }
       if (hologramCode.status === 'BUYBACK_PENDING') {
         throw new ConflictException(
           'این شمش در فرآیند بازخرید است؛ ابتدا درخواست بازخرید را تکمیل یا عودت کنید',
@@ -543,14 +552,17 @@ export class HologramService {
       const incident = await findActiveIncident(this.prisma, hologramCode.id);
       incidentReportId = incident?.id;
       const incidentAlert = incident ? this.toIncidentAlert(incident) : null;
+      // شمش امانی یا ملک نماینده (خریداری‌شده از شرکت) — هر دو «نزد نماینده» است
+      const heldByAgent =
+        hologramCode.status === 'AT_AGENT' ||
+        hologramCode.status === 'AGENT_OWNED';
       const custody = ctx.agentId
         ? {
-            atThisAgent:
-              hologramCode.status === 'AT_AGENT' &&
+            atThisAgent: heldByAgent && hologramCode.agentId === ctx.agentId,
+            atAnotherAgent: heldByAgent && hologramCode.agentId !== ctx.agentId,
+            ownedByThisAgent:
+              hologramCode.status === 'AGENT_OWNED' &&
               hologramCode.agentId === ctx.agentId,
-            atAnotherAgent:
-              hologramCode.status === 'AT_AGENT' &&
-              hologramCode.agentId !== ctx.agentId,
           }
         : undefined;
 
@@ -559,7 +571,10 @@ export class HologramService {
         response = {
           status: 'VALID_UNASSIGNED',
           message:
-            incidentAlert?.message ?? 'این شمش هنوز به مالکی تخصیص نیافته است',
+            incidentAlert?.message ??
+            (heldByAgent
+              ? 'اصالت این شمش تأیید می‌شود؛ شمش نزد نماینده‌ی مجاز است و هنوز به نام مالک نهایی ثبت نشده است'
+              : 'این شمش هنوز به مالکی تخصیص نیافته است'),
           incident: incidentAlert,
           ...(custody ? { custody } : {}),
         };

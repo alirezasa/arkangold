@@ -84,7 +84,81 @@ export class DateRangeQueryDto extends PageQueryDto {
 
 // ─────────────────────────── نماینده ───────────────────────────
 
-export class CreateAgentDto {
+/** مشخصات حقوقی/صنفی، مجوز امانت و خرید اعتباری و تضمین (مشترک ایجاد و ویرایش) */
+export class AgentLegalFieldsDto {
+  @IsOptional()
+  @IsIn(['INDIVIDUAL', 'LEGAL'])
+  legalType?: 'INDIVIDUAL' | 'LEGAL';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  agentNationalId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  agentRegistrationNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  economicCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  businessLicenseNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  businessLicenseIssuer?: string;
+
+  @IsOptional()
+  @IsDateString()
+  businessLicenseExpiresAt?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  territory?: string;
+
+  /** مجوز دریافت شمش امانی — فقط نمایندگان منتخب */
+  @IsOptional()
+  @IsBoolean()
+  consignmentEnabled?: boolean;
+
+  /** مجوز خرید اعتباری (در سقف اعتبار) */
+  @IsOptional()
+  @IsBoolean()
+  creditPurchaseEnabled?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  creditDays?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  guaranteeType?: string;
+
+  @IsOptional()
+  @Transform(toOptionalNumber)
+  @IsNumber()
+  @Min(0)
+  guaranteeAmountRial?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  guaranteeReference?: string;
+}
+
+export class CreateAgentDto extends AgentLegalFieldsDto {
   @IsString()
   @Length(2, 120)
   name!: string;
@@ -159,7 +233,7 @@ export class CreateAgentDto {
   notes?: string;
 }
 
-export class UpdateAgentDto {
+export class UpdateAgentDto extends AgentLegalFieldsDto {
   @IsOptional()
   @IsString()
   @Length(2, 120)
@@ -370,12 +444,18 @@ export class InventoryQueryDto extends PageQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  /** CONSIGNMENT: امانی | OWNED: ملک نماینده | خالی: هر دو */
+  @IsOptional()
+  @IsIn(['CONSIGNMENT', 'OWNED'])
+  source?: 'CONSIGNMENT' | 'OWNED';
 }
 
 export class MovementsQueryDto extends DateRangeQueryDto {
   @IsOptional()
-  @IsIn(['ALLOCATION', 'RETURN', 'SALE', 'SALE_VOID'])
-  type?: 'ALLOCATION' | 'RETURN' | 'SALE' | 'SALE_VOID';
+  @IsIn(['ALLOCATION', 'RETURN', 'SALE', 'SALE_VOID', 'PURCHASE', 'BUYBACK'])
+  type?:
+    'ALLOCATION' | 'RETURN' | 'SALE' | 'SALE_VOID' | 'PURCHASE' | 'BUYBACK';
 }
 
 // ─────────────────────────── فروش ───────────────────────────
@@ -414,6 +494,27 @@ export class CreateAgentSaleDto {
   @IsString()
   @MaxLength(80)
   paymentReference?: string;
+
+  /**
+   * قیمت فروش نماینده به مشتری (ریال) — فقط برای شمش ملکی نماینده؛ نماینده قیمت را آزادانه
+   * تعیین می‌کند به شرط آنکه از سقف قیمت مصرف‌کننده بیشتر نباشد (بند ۸-۳ قرارداد)
+   */
+  @IsOptional()
+  @Transform(toOptionalNumber)
+  @IsNumber()
+  @Min(0)
+  salePriceRial?: number;
+
+  /** شماره صورتحساب الکترونیک نماینده برای مشتری (سامانه مؤدیان) — اختیاری */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  agentInvoiceNumber?: string;
+
+  /** تأیید اخذ رضایت مشتری برای ثبت اطلاعات او در سامانه‌ی شرکت (بند ۸-۵ قرارداد) */
+  @IsOptional()
+  @IsBoolean()
+  buyerConsent?: boolean;
 
   @IsOptional()
   @IsString()

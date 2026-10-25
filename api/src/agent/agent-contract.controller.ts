@@ -184,6 +184,16 @@ export class AgentContractAdminController {
   ) {
     return this.contracts.cancel(id, dto.reason, actorOf(req));
   }
+
+  @RequirePermission('agent.contract.manage')
+  @AuditLog('agent_contract.company_sign')
+  @Post(':id/countersign')
+  countersign(
+    @Req() req: AdminRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.contracts.countersign(id, actorOf(req));
+  }
 }
 
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard, AgentScopeGuard)

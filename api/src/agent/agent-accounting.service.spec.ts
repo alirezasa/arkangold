@@ -248,4 +248,118 @@ describe('AgentAccountingService', () => {
     expect(accounts).toEqual(['1030', '1040', '4040', '5050']);
     assertBalanced(journals[0].lines);
   });
+  it('چرخه‌ی خرید و فروش قطعی: واریز کیف پول → پرداخت سفارش → تأیید و حواله → فروش به شرکت → برداشت', async () => {
+    const { tx, journals, bal } = createFakeTx();
+    const t = tx as never;
+    const tag = '[AGT-0002]';
+
+    // واریز ۱ میلیارد ریال به کیف پول نماینده (بد 1010 / بس 2070)
+    await service.journalWalletDeposit(t, {
+      agentTag: tag,
+      number: 'AG-1405-AGD-000001',
+      amountRial: new Decimal('1000000000'),
+      methodLabel: 'درگاه پرداخت',
+    });
+    expect(bal('1010').rial.toString()).toBe('1000000000');
+    expect(bal('2070').rial.toString()).toBe('1000000000');
+
+    // پرداخت سفارش ۸۲۰ میلیون از کیف پول ← پیش‌دریافت
+    await service.journalOrderPayment(t, {
+      agentTag: tag,
+      orderNumber: 'AG-1405-AGO-000001',
+      amountRial: new Decimal('820000000'),
+    });
+    expect(bal('2070').rial.toString()).toBe('180000000');
+    expect(bal('2080').rial.toString()).toBe('820000000');
+
+    // تأیید سفارش و حواله: درآمد فروش به نماینده و خروج ۱۰ گرم از خزانه
+    await service.journalPurchaseSale(t, {
+      agentTag: tag,
+      orderNumber: 'AG-1405-AGO-000001',
+      goldValueRial: new Decimal('800000000'),
+      premiumRial: new Decimal('20000000'),
+      totalGrams: new Decimal('10'),
+      credit: false,
+    });
+    expect(bal('2080').rial.isZero()).toBe(true);
+    expect(bal('4040').rial.toString()).toBe('800000000');
+    expect(bal('4050').rial.toString()).toBe('20000000');
+    expect(bal('1025').grams.toNumber()).toBe(-10);
+    expect(bal('5050').grams.toNumber()).toBe(10);
+    // فروش قطعی است: هیچ اثری روی امانی (1030) یا دریافتنی نماینده (1040) ندارد
+    expect(bal('1030').grams.isZero()).toBe(true);
+    expect(bal('1040').rial.isZero()).toBe(true);
+
+    // خرید ۵ گرم از نماینده به ۳۹۰ میلیون و واریز به کیف پول او
+    await service.journalBuyback(t, {
+      agentTag: tag,
+      orderNumber: 'AG-1405-AGB-000001',
+      amountRial: new Decimal('390000000'),
+      grams: new Decimal('5'),
+      toWallet: true,
+    });
+    expect(bal('1025').grams.toNumber()).toBe(-5);
+    expect(bal('2070').rial.toString()).toBe('570000000');
+
+    // برداشت ۵۷۰ میلیون به حساب بانکی نماینده
+    await service.journalWalletWithdrawal(t, {
+      agentTag: tag,
+      number: 'AG-1405-AGW-000001',
+      amountRial: new Decimal('570000000'),
+    });
+    expect(bal('2070').rial.isZero()).toBe(true);
+    expect(bal('1010').rial.toString()).toBe('430000000');
+
+    for (const j of journals) assertBalanced(j.lines);
+  });
+
+  it('خرید اعتباری: دریافتنی نماینده به‌جای پیش‌دریافت و برگشت وجه سفارش لغوشده', async () => {
+    const { tx, journals, bal } = createFakeTx();
+    const t = tx as never;
+    await service.journalPurchaseSale(t, {
+      agentTag: '[AGT-0003]',
+      orderNumber: 'AG-1405-AGO-000002',
+      goldValueRial: new Decimal('400000000'),
+      premiumRial: new Decimal(0),
+      totalGrams: new Decimal('5'),
+      credit: true,
+    });
+    expect(bal('1040').rial.toString()).toBe('400000000');
+    expect(bal('2080').rial.isZero()).toBe(true);
+    // اجرت صفر سطر نمی‌سازد
+    expect(journals[0].lines.some((l) => l.accountId === '4050')).toBe(false);
+
+    await service.journalOrderPayment(t, {
+      agentTag: '[AGT-0003]',
+      orderNumber: 'AG-1405-AGO-000003',
+      amountRial: new Decimal('100000000'),
+    });
+    await service.journalOrderPayment(t, {
+      agentTag: '[AGT-0003]',
+      orderNumber: 'AG-1405-AGO-000003',
+      amountRial: new Decimal('100000000'),
+      refund: true,
+    });
+    expect(bal('2080').rial.isZero()).toBe(true);
+    expect(bal('2070').rial.isZero()).toBe(true);
+    for (const j of journals) assertBalanced(j.lines);
+  });
+
+  it('فروش امانی در مدل جدید: فروش شرکت به نماینده به قیمت نمایندگی، بدون هزینه‌ی حق‌العمل', async () => {
+    const { tx, journals, bal } = createFakeTx();
+    await service.journalConsignmentSaleToAgent(tx as never, {
+      agentTag: '[AGT-0001]',
+      saleNumber: 'AG-1405-AGS-000009',
+      hologramCode: '12345678',
+      weightGrams: new Decimal('10'),
+      premiumRial: new Decimal('20000000'),
+      netPayableRial: new Decimal('811800000'),
+    });
+    expect(bal('1040').rial.toString()).toBe('811800000');
+    expect(bal('4040').rial.toString()).toBe('791800000');
+    expect(bal('4050').rial.toString()).toBe('20000000');
+    expect(bal('5040').rial.isZero()).toBe(true);
+    expect(bal('5050').grams.toNumber()).toBe(10);
+    assertBalanced(journals[0].lines);
+  });
 });

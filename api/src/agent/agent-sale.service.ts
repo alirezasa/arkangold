@@ -1,13 +1,18 @@
 // api/src/agent/agent-sale.service.ts
 //
-// فروش شمش توسط نماینده به مالک نهایی:
-//   ۱) استعلام قیمت (قفل کوتاه‌مدت قیمت در Redis)
+// ثبت فروش شمش توسط نماینده به مشتری نهایی. فروشنده‌ی مشتری «خود نماینده» است و صورتحساب
+// را خود نماینده با شماره‌ی اقتصادی خودش صادر می‌کند؛ آرکان گلد هرگز برای مشتری نماینده فاکتور
+// صادر نمی‌کند و فقط «اصالت و مالکیت» شمش را به نام مشتری در سامانه ثبت می‌کند (بند ۷-۳ قرارداد).
+//   ۱) استعلام (قفل کوتاه‌مدت در Redis) — دو نوع شمش:
+//      • OWNED (ملک نماینده، خریداری‌شده از شرکت با صورتحساب به نام نماینده): نماینده قیمت را
+//        آزادانه تا سقف قیمت مصرف‌کننده تعیین می‌کند؛ اثر مالی برای شرکت ندارد
+//      • CONSIGNMENT (امانی — فقط نمایندگان مجاز): هم‌زمان با فروش، شرکت همان شمش را به قیمت
+//        نمایندگی به نماینده می‌فروشد؛ صورتحساب به نام نماینده و بدهی در حساب نماینده ثبت می‌شود
 //   ۲) احراز هویت خریدار از ثبت احوال (قابل تنظیم)
-//   ۳) در یک تراکنش: ساخت/یافتن حساب کاربری خریدار + پرونده هویتی، ثبت مالکیت
-//      شمش به نام خریدار، سند حسابداری، بدهی نماینده، حواله‌ی خروج از موجودی امانی
-//   ۴) صدور فاکتور رسمی به نام خریدار و پیامک اطلاع‌رسانی
-// خریدار بعد از فروش با همان شماره موبایل (ورود با رمز یکبار مصرف) وارد پنل کاربری
-// می‌شود و شمش، فاکتور و امکان انتقال/استعلام را مانند سایر کاربران دارد.
+//   ۳) در یک تراکنش: حساب کاربری و پرونده هویتی خریدار، ثبت مالکیت به نام خریدار، حواله‌ی خروج
+//      از موجودی نماینده و (فقط امانی) سند حسابداری و بدهی نماینده
+//   ۴) پیامک به خریدار: ثبت مالکیت + یادآوری دریافت فاکتور از نماینده
+// خریدار با همان شماره موبایل وارد پنل کاربری می‌شود و سند مالکیت و امکان انتقال/استعلام دارد.
 
 import {
   BadRequestException,
@@ -20,7 +25,6 @@ import {
 } from '@nestjs/common';
 import Redis from 'ioredis';
 import * as crypto from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
 import Decimal from 'decimal.js';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -33,6 +37,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { IdentityVerificationService } from '../integrations/services/identity-verification.service';
 import { IdentityVerificationResult } from '../integrations/interfaces/identity-verification.interface';
 import { AgentAccountingService, agentTag } from './agent-accounting.service';
+import { AgentPurchaseService } from './agent-purchase.service';
+import { AccountingService } from '../accounting/accounting.service';
 import { CreateAgentSaleDto, ListSalesQueryDto } from './agent.dto';
 import { toPersianDigits } from '../common/utils/jalali.util';
 
@@ -55,6 +61,10 @@ export interface AgentQuote {
   agentId: string;
   hologramCodeId: string;
   code: string;
+  /** CONSIGNMENT: امانی | OWNED: ملک نماینده (فقط ثبت اصالت) */
+  stockSource: 'CONSIGNMENT' | 'OWNED';
+  /** سقف قیمت فروش به مصرف‌کننده (بند ۸-۳) */
+  consumerMaxPriceRial: string;
   weightGrams: string;
   purityKarat: 'K18' | 'K24';
   goldPricePerGramRial: string;
@@ -91,6 +101,8 @@ export class AgentSaleService {
     private readonly notifications: NotificationsService,
     private readonly identityVerification: IdentityVerificationService,
     private readonly agentAccounting: AgentAccountingService,
+    private readonly purchases: AgentPurchaseService,
+    private readonly accounting: AccountingService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
   ) {}
 
@@ -128,14 +140,22 @@ export class AgentSaleService {
     }
 
     const bar = await this.prisma.hologramCode.findUnique({ where: { code } });
-    if (!bar || bar.status !== 'AT_AGENT' || bar.agentId !== agentId) {
-      throw new NotFoundException('این شمش در موجودی امانی شما نیست');
+    if (
+      !bar ||
+      (bar.status !== 'AT_AGENT' && bar.status !== 'AGENT_OWNED') ||
+      bar.agentId !== agentId
+    ) {
+      throw new NotFoundException('این شمش در موجودی (امانی یا ملکی) شما نیست');
     }
+    const stockSource = bar.status === 'AGENT_OWNED' ? 'OWNED' : 'CONSIGNMENT';
     await assertNoActiveIncident(this.prisma, bar.id);
     if (!bar.weightGrams || !bar.purityKarat) {
       throw new ConflictException(
         'مشخصات وزن/عیار این شمش ثبت نشده است؛ با واحد مالی تماس بگیرید',
       );
+    }
+    if (stockSource === 'OWNED') {
+      await this.assertOwnedBarDelivered(bar.id);
     }
 
     const weight = d(bar.weightGrams);
@@ -144,14 +164,27 @@ export class AgentSaleService {
     ).toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
     const goldValue = roundToman(weight.times(pricePerGram));
     const premium = d(bar.agentPremiumRial);
-    const total = goldValue.plus(premium);
-    const commissionValue = d(agent.commissionValue);
-    const commission = this.computeCommission(
-      agent.commissionType,
-      commissionValue,
-      total,
+    const consumerCap = await this.purchases.consumerCapFor(
       weight,
+      bar.purityKarat,
     );
+    // شمش ملکی: قیمت پیشنهادی = سقف مصرف‌کننده (نماینده می‌تواند کمتر بفروشد)؛ حق‌العمل و سهم
+    // شرکت ندارد چون شرکت قبلاً با صورتحساب به نام نماینده فروخته است
+    const total =
+      stockSource === 'OWNED'
+        ? Decimal.max(consumerCap, goldValue.plus(premium))
+        : goldValue.plus(premium);
+    const commissionValue =
+      stockSource === 'OWNED' ? new Decimal(0) : d(agent.commissionValue);
+    const commission =
+      stockSource === 'OWNED'
+        ? new Decimal(0)
+        : this.computeCommission(
+            agent.commissionType,
+            commissionValue,
+            total,
+            weight,
+          );
     if (commission.greaterThan(total)) {
       throw new ConflictException(
         'حق‌العمل تنظیم‌شده برای نماینده از مبلغ فروش بیشتر است؛ با واحد مالی تماس بگیرید',
@@ -164,10 +197,12 @@ export class AgentSaleService {
     );
     const now = new Date();
     const quote: AgentQuote = {
-      quoteId: uuidv4(),
+      quoteId: crypto.randomUUID(),
       agentId,
       hologramCodeId: bar.id,
       code: bar.code,
+      stockSource,
+      consumerMaxPriceRial: Decimal.max(consumerCap, total).toFixed(0),
       weightGrams: weight.toString(),
       purityKarat: bar.purityKarat,
       goldPricePerGramRial: pricePerGram.toFixed(0),
@@ -177,7 +212,8 @@ export class AgentSaleService {
       commissionType: agent.commissionType,
       commissionValue: commissionValue.toString(),
       commissionRial: commission.toFixed(0),
-      netPayableRial: total.minus(commission).toFixed(0),
+      netPayableRial:
+        stockSource === 'OWNED' ? '0' : total.minus(commission).toFixed(0),
       createdAt: now.toISOString(),
       expiresAt: new Date(now.getTime() + ttl * 1000).toISOString(),
     };
@@ -187,6 +223,28 @@ export class AgentSaleService {
       JSON.stringify(quote),
     );
     return quote;
+  }
+
+  /**
+   * شمش ملکی فقط پس از تحویل فیزیکی به نماینده قابل فروش است (حواله‌ی سفارش خرید باید
+   * تحویل شده باشد) — جلوگیری از فروش شمشی که هنوز در خزانه‌ی شرکت است.
+   */
+  private async assertOwnedBarDelivered(hologramCodeId: string) {
+    const movement = await this.prisma.agentStockMovement.findFirst({
+      where: { hologramCodeId, type: 'PURCHASE' },
+      orderBy: { createdAt: 'desc' },
+      select: { referenceId: true },
+    });
+    if (!movement?.referenceId) return;
+    const order = await this.prisma.agentPurchaseOrder.findUnique({
+      where: { id: movement.referenceId },
+      select: { orderNumber: true, deliveredAt: true },
+    });
+    if (order && !order.deliveredAt) {
+      throw new ConflictException(
+        `شمش‌های سفارش ${order.orderNumber} هنوز به شما تحویل نشده است؛ پس از تحویل قابل فروش است`,
+      );
+    }
   }
 
   private async loadQuote(quoteId: string, agentId: string, code: string) {
@@ -242,6 +300,36 @@ export class AgentSaleService {
       actor.agentId,
       dto.hologramCode,
     );
+    const owned = quote.stockSource === 'OWNED';
+    if (dto.buyerConsent === false) {
+      throw new BadRequestException(
+        'بدون رضایت مشتری، ثبت اطلاعات او در سامانه ممکن نیست (بند ۸-۵ قرارداد)',
+      );
+    }
+
+    // ── قیمت فروش نماینده (فقط شمش ملکی): آزاد تا سقف مصرف‌کننده (بند ۸-۳) ──
+    let ownedSalePrice: Decimal | null = null;
+    if (owned) {
+      ownedSalePrice =
+        dto.salePriceRial != null
+          ? new Decimal(Math.round(dto.salePriceRial))
+          : d(quote.totalRial);
+      const enforceCap = await this.systemConfig.getBoolean(
+        'agent.sale.enforce_consumer_cap',
+        true,
+      );
+      if (
+        enforceCap &&
+        ownedSalePrice.greaterThan(d(quote.consumerMaxPriceRial))
+      ) {
+        throw new BadRequestException(
+          `قیمت فروش از سقف قیمت مصرف‌کننده (${d(quote.consumerMaxPriceRial)
+            .dividedBy(10)
+            .toNumber()
+            .toLocaleString('fa-IR')} تومان) بیشتر است (بند ۸-۳ قرارداد)`,
+        );
+      }
+    }
 
     // ── احراز هویت خریدار (خارج از تراکنش دیتابیس — فراخوانی سرویس بیرونی) ──
     const requireVerification = await this.systemConfig.getBoolean(
@@ -281,9 +369,13 @@ export class AgentSaleService {
       const bar = await tx.hologramCode.findUnique({
         where: { id: quote.hologramCodeId },
       });
-      if (!bar || bar.status !== 'AT_AGENT' || bar.agentId !== actor.agentId) {
+      if (
+        !bar ||
+        bar.status !== (owned ? 'AGENT_OWNED' : 'AT_AGENT') ||
+        bar.agentId !== actor.agentId
+      ) {
         throw new ConflictException(
-          'این شمش دیگر در موجودی امانی شما نیست (احتمالاً قبلاً فروخته یا عودت شده است)',
+          'این شمش دیگر در موجودی شما نیست (احتمالاً قبلاً فروخته، عودت یا به شرکت فروخته شده است)',
         );
       }
       await assertNoActiveIncident(tx, bar.id);
@@ -300,6 +392,7 @@ export class AgentSaleService {
 
       const netPayable = d(quote.netPayableRial);
       if (
+        !owned &&
         agent.creditLimitRial &&
         d(agent.balanceRial)
           .plus(netPayable)
@@ -350,6 +443,7 @@ export class AgentSaleService {
       const goldValue = d(quote.goldValueRial);
       const premium = d(quote.premiumRial);
       const commission = d(quote.commissionRial);
+      const saleTotal = ownedSalePrice ?? d(quote.totalRial);
 
       const sale = await tx.agentSale.create({
         data: {
@@ -371,7 +465,7 @@ export class AgentSaleService {
           goldPricePerGramRial: quote.goldPricePerGramRial,
           goldValueRial: goldValue.toFixed(0),
           premiumRial: premium.toFixed(0),
-          totalRial: quote.totalRial,
+          totalRial: saleTotal.toFixed(0),
           commissionType: quote.commissionType,
           commissionValue: quote.commissionValue,
           commissionRial: commission.toFixed(0),
@@ -379,33 +473,41 @@ export class AgentSaleService {
           paymentMethod: dto.paymentMethod,
           paymentReference: dto.paymentReference,
           note: dto.note,
+          stockSource: quote.stockSource,
+          billedToAgent: !owned,
+          agentInvoiceNumber: dto.agentInvoiceNumber?.trim() || null,
           ownershipId: ownership.id,
           soldByAdminId: actor.adminUserId,
         },
       });
 
-      // ── سند حسابداری + بدهی نماینده + حواله خروج از موجودی امانی ──
-      const journal = await this.agentAccounting.journalSale(tx, {
-        agentTag: agentTag(agent.code),
-        saleNumber,
-        hologramCode: bar.code,
-        weightGrams: weight,
-        goldValueRial: goldValue,
-        premiumRial: premium,
-        commissionRial: commission,
-        netPayableRial: netPayable,
-      });
-      await this.agentAccounting.postLedger(tx, {
-        agentId: agent.id,
-        type: 'SALE',
-        debitRial: netPayable,
-        description: `فروش شمش ${toPersianDigits(weight.toString())} گرمی (کد ${bar.code}) به ${buyer.fullName} — سهم شرکت پس از کسر حق‌العمل`,
-        referenceType: 'AGENT_SALE',
-        referenceId: sale.id,
-        referenceNumber: saleNumber,
-        journalEntryId: journal.id,
-        createdByAdminId: actor.adminUserId,
-      });
+      // ── شمش ملکی: فقط ثبت اصالت/مالکیت؛ بدون سند و بدهی (فروش شرکت قبلاً با صورتحساب
+      // سفارش خرید به نام نماینده ثبت شده است) ──
+      let journalId: string | null = null;
+      if (!owned) {
+        // ── امانی: فروش هم‌زمان شرکت به نماینده + بدهی نماینده ──
+        const journal =
+          await this.agentAccounting.journalConsignmentSaleToAgent(tx, {
+            agentTag: agentTag(agent.code),
+            saleNumber,
+            hologramCode: bar.code,
+            weightGrams: weight,
+            premiumRial: premium,
+            netPayableRial: netPayable,
+          });
+        journalId = journal.id;
+        await this.agentAccounting.postLedger(tx, {
+          agentId: agent.id,
+          type: 'SALE',
+          debitRial: netPayable,
+          description: `خرید شمش امانی ${toPersianDigits(weight.toString())} گرمی (کد ${bar.code}) هم‌زمان با فروش به ${buyer.fullName} — قیمت نمایندگی`,
+          referenceType: 'AGENT_SALE',
+          referenceId: sale.id,
+          referenceNumber: saleNumber,
+          journalEntryId: journal.id,
+          createdByAdminId: actor.adminUserId,
+        });
+      }
       await tx.agentStockMovement.create({
         data: {
           voucherNumber: saleNumber,
@@ -414,24 +516,23 @@ export class AgentSaleService {
           type: 'SALE',
           weightGrams: weight.toString(),
           referenceId: sale.id,
-          journalEntryId: journal.id,
+          journalEntryId: journalId,
           performedByAdminId: actor.adminUserId,
-          note: `فروش به ${buyer.fullName}`,
+          note: `ثبت مالکیت به نام ${buyer.fullName}${owned ? ' (شمش ملکی نماینده)' : ' (شمش امانی)'}`,
         },
       });
 
       return tx.agentSale.update({
         where: { id: sale.id },
-        data: { journalEntryId: journal.id },
+        data: { journalEntryId: journalId },
       });
     }, TX_OPTIONS);
 
     await this.redis.del(QUOTE_KEY(dto.quoteId)).catch(() => undefined);
 
-    // صدور فاکتور در تراکنش جدا: فروش حضوری انجام و وجه دریافت شده؛ خطای صدور
-    // (مثلاً تنظیمات ناقص شرکت) نباید ثبت مالکیت را برگرداند. صدور ضدتکرار است
-    // و از صفحه‌ی جزئیات فروش قابل تکرار است.
-    const invoiceId = await this.issueInvoice(result.id);
+    // امانی: صورتحساب به نام «نماینده» در تراکنش جدا (خطای صدور ثبت مالکیت را برنمی‌گرداند و
+    // از صفحه‌ی جزئیات قابل تکرار است). شرکت برای مشتری نهایی هیچ فاکتوری صادر نمی‌کند.
+    const invoiceId = owned ? null : await this.issueInvoice(result.id);
 
     const notify = await this.systemConfig.getBoolean(
       'agent.sale.notify_buyer_sms',
@@ -440,13 +541,13 @@ export class AgentSaleService {
     if (notify) {
       void this.notifications.notifyUserSms(
         result.buyerUserId,
-        `آرکان گلد: شمش ${toPersianDigits(
+        `آرکان گلد: اصالت و مالکیت شمش ${toPersianDigits(
           quote.weightGrams,
         )} گرمی با کد هولوگرام ${toPersianDigits(
           quote.code,
-        )} به نام ${result.buyerFullName} ثبت شد. فاکتور و سند مالکیت را با ورود به پنل کاربری با شماره ${toPersianDigits(
+        )} به نام ${result.buyerFullName} ثبت شد. سند مالکیت را با ورود به پنل کاربری با شماره ${toPersianDigits(
           dto.buyerPhone,
-        )} مشاهده کنید.`,
+        )} ببینید. فاکتور خرید را از نماینده‌ی فروشنده دریافت کنید.`,
       );
     }
 
@@ -488,6 +589,11 @@ export class AgentSaleService {
       throw new ConflictException('برای فروش ابطال‌شده فاکتور صادر نمی‌شود');
     }
     if (sale.invoiceId) return { invoiceId: sale.invoiceId };
+    if (!sale.billedToAgent) {
+      throw new ConflictException(
+        'شرکت برای مشتری نهایی نماینده فاکتور صادر نمی‌کند؛ صورتحساب فروش را نماینده صادر می‌کند',
+      );
+    }
     const invoiceId = await this.issueInvoice(saleId);
     if (!invoiceId) {
       throw new ConflictException(
@@ -670,41 +776,59 @@ export class AgentSaleService {
         );
       }
 
+      const owned = s.stockSource === 'OWNED';
       await tx.hologramOwnership.update({
         where: { id: active.id },
         data: { status: 'VOIDED', ownershipEndAt: new Date() },
       });
       await tx.hologramCode.update({
         where: { id: s.hologramCodeId },
-        data: { status: 'AT_AGENT', agentId: s.agentId },
+        data: {
+          status: owned ? 'AGENT_OWNED' : 'AT_AGENT',
+          agentId: s.agentId,
+        },
       });
 
-      const journal = await this.agentAccounting.journalSale(
-        tx,
-        {
-          agentTag: agentTag(s.agent.code),
-          saleNumber: s.saleNumber,
-          hologramCode: s.hologramCode.code,
-          weightGrams: d(s.weightGrams),
-          goldValueRial: d(s.goldValueRial),
-          premiumRial: d(s.premiumRial),
-          commissionRial: d(s.commissionRial),
-          netPayableRial: d(s.netPayableRial),
-          originalJournalId: s.journalEntryId,
-        },
-        true,
-      );
-      await this.agentAccounting.postLedger(tx, {
-        agentId: s.agentId,
-        type: 'SALE_VOID',
-        creditRial: d(s.netPayableRial),
-        description: `ابطال فروش ${s.saleNumber} (کد ${s.hologramCode.code}): ${reason.trim()}`,
-        referenceType: 'AGENT_SALE',
-        referenceId: s.id,
-        referenceNumber: s.saleNumber,
-        journalEntryId: journal.id,
-        createdByAdminId: adminId,
-      });
+      // شمش ملکی: اثر مالی برای شرکت نداشت — فقط مالکیت برمی‌گردد
+      let journalId: string | null = null;
+      if (!owned) {
+        const journal = s.billedToAgent
+          ? s.journalEntryId
+            ? await this.accounting.reverseJournal(tx, s.journalEntryId, {
+                description: `ابطال فروش شمش امانی به نماینده ${agentTag(
+                  s.agent.code,
+                )} — ${s.saleNumber}: ${reason.trim()}`,
+                createdByAdminId: adminId,
+              })
+            : null
+          : await this.agentAccounting.journalSale(
+              tx,
+              {
+                agentTag: agentTag(s.agent.code),
+                saleNumber: s.saleNumber,
+                hologramCode: s.hologramCode.code,
+                weightGrams: d(s.weightGrams),
+                goldValueRial: d(s.goldValueRial),
+                premiumRial: d(s.premiumRial),
+                commissionRial: d(s.commissionRial),
+                netPayableRial: d(s.netPayableRial),
+                originalJournalId: s.journalEntryId,
+              },
+              true,
+            );
+        journalId = journal?.id ?? null;
+        await this.agentAccounting.postLedger(tx, {
+          agentId: s.agentId,
+          type: 'SALE_VOID',
+          creditRial: d(s.netPayableRial),
+          description: `ابطال فروش ${s.saleNumber} (کد ${s.hologramCode.code}): ${reason.trim()}`,
+          referenceType: 'AGENT_SALE',
+          referenceId: s.id,
+          referenceNumber: s.saleNumber,
+          journalEntryId: journalId,
+          createdByAdminId: adminId,
+        });
+      }
       await tx.agentStockMovement.create({
         data: {
           voucherNumber: s.saleNumber,
@@ -713,9 +837,9 @@ export class AgentSaleService {
           type: 'SALE_VOID',
           weightGrams: s.weightGrams,
           referenceId: s.id,
-          journalEntryId: journal.id,
+          journalEntryId: journalId,
           performedByAdminId: adminId,
-          note: `بازگشت به موجودی امانی — ابطال فروش: ${reason.trim()}`,
+          note: `بازگشت به موجودی ${owned ? 'ملکی' : 'امانی'} — ابطال فروش: ${reason.trim()}`,
         },
       });
 
@@ -726,7 +850,7 @@ export class AgentSaleService {
           voidReason: reason.trim(),
           voidedAt: new Date(),
           voidedByAdminId: adminId,
-          voidJournalEntryId: journal.id,
+          voidJournalEntryId: journalId,
         },
       });
     }, TX_OPTIONS);
@@ -752,7 +876,10 @@ export class AgentSaleService {
     );
 
     return {
-      message: 'فروش ابطال شد و شمش به موجودی امانی نماینده بازگشت',
+      message:
+        sale.stockSource === 'OWNED'
+          ? 'ثبت مالکیت ابطال شد و شمش به موجودی ملکی نماینده بازگشت'
+          : 'فروش ابطال شد و شمش به موجودی امانی نماینده بازگشت',
       sale,
     };
   }

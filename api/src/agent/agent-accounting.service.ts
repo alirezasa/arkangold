@@ -12,6 +12,16 @@
 //   4040 درآمد فروش شمش (نمایندگی)        4050 درآمد اجرت/حق ضرب شمش
 //   4060 درآمد متفرقه نمایندگان           5040 هزینه حق‌العمل نمایندگان
 //   5050 بهای تمام‌شده شمش فروخته‌شده (گرم + ریال به بهای میانگین موزون)
+//   2070 بدهی ریالی به نمایندگان (کیف پول) 2080 پیش‌دریافت سفارش‌های خرید نمایندگان
+//
+// خرید و فروش قطعی (مدل جدید):
+//   واریز به کیف پول        بد 1010 / بس 2070
+//   پرداخت سفارش از کیف پول  بد 2070 / بس 2080
+//   تأیید سفارش و حواله      بد 2080 (یا 1040 در خرید اعتباری) / بس 4040 + 4050 ؛ بد 5050 / بس 1025
+//   لغو سفارش پرداخت‌شده     بد 2080 / بس 2070
+//   خرید شمش از نماینده      بد 1025 (گرم + ریال) / بس 2070 (کیف پول) یا 1010 (بانک) + بس 1095 (گرم)
+//   برداشت از کیف پول        بد 2070 / بس 1010
+//   تسویه بدهی از کیف پول     بد 2070 / بس 1040
 
 import { Injectable, NotFoundException } from '@nestjs/common';
 import Decimal from 'decimal.js';
@@ -33,11 +43,14 @@ export const AGENT_ACCOUNTS = {
   OTHER_INCOME: '4060',
   COMMISSION_EXPENSE: '5040',
   BAR_COGS: '5050',
+  AGENT_WALLET: '2070',
+  ORDER_ADVANCE: '2080',
+  BULLION_CLEARING: '1095',
 } as const;
 
 export interface AgentLedgerInput {
   agentId: string;
-  type: 'SALE' | 'SALE_VOID' | 'SETTLEMENT' | 'ADJUSTMENT';
+  type: 'SALE' | 'SALE_VOID' | 'SETTLEMENT' | 'ADJUSTMENT' | 'PURCHASE';
   debitRial?: Decimal;
   creditRial?: Decimal;
   description: string;
@@ -329,6 +342,366 @@ export class AgentAccountingService {
               accountCode: AGENT_ACCOUNTS.RECEIVABLE,
               side: 'CREDIT',
               amountRial: params.amountRial,
+            },
+          ],
+    });
+  }
+
+  // ═══════════════════════════════════════════
+  // خرید و فروش قطعی نمایندگان
+  // ═══════════════════════════════════════════
+
+  /**
+   * فروش شمش امانی در مدل جدید: شرکت شمش را به قیمت نمایندگی (سهم شرکت) به نماینده
+   * می‌فروشد؛ حاشیه‌ی فروش نماینده به مشتری درآمد نماینده است، نه شرکت (حق‌العملی ثبت نمی‌شود).
+   *   بد 1040 سهم شرکت / بس 4040 ارزش طلا + بس 4050 اجرت ؛ بد 5050 / بس 1030 (بهای تمام‌شده)
+   */
+  async journalConsignmentSaleToAgent(
+    tx: Tx,
+    input: {
+      agentTag: string;
+      saleNumber: string;
+      hologramCode: string;
+      weightGrams: Decimal;
+      premiumRial: Decimal;
+      netPayableRial: Decimal;
+    },
+  ) {
+    const premiumPart = Decimal.min(input.premiumRial, input.netPayableRial);
+    const goldPart = input.netPayableRial.minus(premiumPart);
+    const costRial = await this.accounting.averageCostRial(
+      tx,
+      AGENT_ACCOUNTS.CONSIGNMENT,
+      input.weightGrams,
+    );
+    const lines: LedgerLineInput[] = [
+      {
+        accountCode: AGENT_ACCOUNTS.RECEIVABLE,
+        side: 'DEBIT',
+        amountRial: input.netPayableRial,
+      },
+    ];
+    if (goldPart.greaterThan(0)) {
+      lines.push({
+        accountCode: AGENT_ACCOUNTS.BAR_SALE_INCOME,
+        side: 'CREDIT',
+        amountRial: goldPart,
+      });
+    }
+    if (premiumPart.greaterThan(0)) {
+      lines.push({
+        accountCode: AGENT_ACCOUNTS.PREMIUM_INCOME,
+        side: 'CREDIT',
+        amountRial: premiumPart,
+      });
+    }
+    lines.push(
+      {
+        accountCode: AGENT_ACCOUNTS.BAR_COGS,
+        side: 'DEBIT',
+        amountRial: costRial,
+        amountGrams: input.weightGrams,
+      },
+      {
+        accountCode: AGENT_ACCOUNTS.CONSIGNMENT,
+        side: 'CREDIT',
+        amountRial: costRial,
+        amountGrams: input.weightGrams,
+      },
+    );
+    return this.accounting.postJournal(tx, {
+      description: `فروش شمش امانی به نماینده ${input.agentTag} (هم‌زمان با فروش نماینده به مشتری) — ${input.saleNumber} — کد هولوگرام ${input.hologramCode}`,
+      totalRial: input.netPayableRial,
+      totalGrams: input.weightGrams,
+      referenceType: 'AGENT_SALE',
+      referenceId: input.saleNumber,
+      lines,
+    });
+  }
+
+  /** واریز به کیف پول نماینده: بد 1010 موجودی نقد / بس 2070 کیف پول نمایندگان */
+  async journalWalletDeposit(
+    tx: Tx,
+    p: {
+      agentTag: string;
+      number: string;
+      amountRial: Decimal;
+      methodLabel: string;
+    },
+  ) {
+    return this.accounting.postJournal(tx, {
+      description: `واریز به کیف پول نماینده ${p.agentTag} — ${p.number} (${p.methodLabel})`,
+      totalRial: p.amountRial,
+      totalGrams: 0,
+      referenceType: 'AGENT_DEPOSIT',
+      referenceId: p.number,
+      lines: [
+        {
+          accountCode: AGENT_ACCOUNTS.CASH,
+          side: 'DEBIT',
+          amountRial: p.amountRial,
+        },
+        {
+          accountCode: AGENT_ACCOUNTS.AGENT_WALLET,
+          side: 'CREDIT',
+          amountRial: p.amountRial,
+        },
+      ],
+    });
+  }
+
+  /**
+   * پرداخت سفارش از کیف پول (بد 2070 / بس 2080) یا برگشت آن هنگام لغو (بد 2080 / بس 2070).
+   */
+  async journalOrderPayment(
+    tx: Tx,
+    p: {
+      agentTag: string;
+      orderNumber: string;
+      amountRial: Decimal;
+      refund?: boolean;
+    },
+  ) {
+    const refund = !!p.refund;
+    return this.accounting.postJournal(tx, {
+      description: `${refund ? 'برگشت وجه سفارش لغوشده' : 'پرداخت سفارش خرید شمش از کیف پول'} نماینده ${p.agentTag} — ${p.orderNumber}`,
+      totalRial: p.amountRial,
+      totalGrams: 0,
+      referenceType: 'AGENT_PURCHASE',
+      referenceId: p.orderNumber,
+      lines: [
+        {
+          accountCode: refund
+            ? AGENT_ACCOUNTS.ORDER_ADVANCE
+            : AGENT_ACCOUNTS.AGENT_WALLET,
+          side: 'DEBIT',
+          amountRial: p.amountRial,
+        },
+        {
+          accountCode: refund
+            ? AGENT_ACCOUNTS.AGENT_WALLET
+            : AGENT_ACCOUNTS.ORDER_ADVANCE,
+          side: 'CREDIT',
+          amountRial: p.amountRial,
+        },
+      ],
+    });
+  }
+
+  /**
+   * تأیید سفارش خرید و صدور حواله: شناسایی درآمد فروش به نماینده و خروج شمش از خزانه.
+   *   بد 2080 پیش‌دریافت (یا 1040 در خرید اعتباری) / بس 4040 ارزش طلا + بس 4050 اجرت
+   *   بد 5050 بهای تمام‌شده (گرم) / بس 1025 موجودی شمش خزانه (گرم)
+   */
+  async journalPurchaseSale(
+    tx: Tx,
+    p: {
+      agentTag: string;
+      orderNumber: string;
+      goldValueRial: Decimal;
+      premiumRial: Decimal;
+      totalGrams: Decimal;
+      credit: boolean;
+    },
+  ) {
+    const total = p.goldValueRial.plus(p.premiumRial);
+    const costRial = await this.accounting.averageCostRial(
+      tx,
+      AGENT_ACCOUNTS.VAULT_BULLION,
+      p.totalGrams,
+    );
+    const lines: LedgerLineInput[] = [
+      {
+        accountCode: p.credit
+          ? AGENT_ACCOUNTS.RECEIVABLE
+          : AGENT_ACCOUNTS.ORDER_ADVANCE,
+        side: 'DEBIT',
+        amountRial: total,
+      },
+      {
+        accountCode: AGENT_ACCOUNTS.BAR_SALE_INCOME,
+        side: 'CREDIT',
+        amountRial: p.goldValueRial,
+      },
+    ];
+    if (p.premiumRial.greaterThan(0)) {
+      lines.push({
+        accountCode: AGENT_ACCOUNTS.PREMIUM_INCOME,
+        side: 'CREDIT',
+        amountRial: p.premiumRial,
+      });
+    }
+    lines.push(
+      {
+        accountCode: AGENT_ACCOUNTS.BAR_COGS,
+        side: 'DEBIT',
+        amountRial: costRial,
+        amountGrams: p.totalGrams,
+      },
+      {
+        accountCode: AGENT_ACCOUNTS.VAULT_BULLION,
+        side: 'CREDIT',
+        amountRial: costRial,
+        amountGrams: p.totalGrams,
+      },
+    );
+    return this.accounting.postJournal(tx, {
+      description: `فروش قطعی شمش به نماینده ${p.agentTag}${
+        p.credit ? ' (اعتباری)' : ''
+      } — سفارش ${p.orderNumber}`,
+      totalRial: total,
+      totalGrams: p.totalGrams,
+      referenceType: 'AGENT_PURCHASE',
+      referenceId: p.orderNumber,
+      lines,
+    });
+  }
+
+  /**
+   * خرید شمش ملکی نماینده توسط شرکت: شمش با بهای خرید وارد موجودی خزانه می‌شود.
+   *   بد 1025 (گرم + ریال) / بس 2070 کیف پول نماینده یا 1010 (پرداخت مستقیم بانکی)
+   *   + بس 1095 واسط مقداری ورود شمش (فقط گرم)
+   */
+  async journalBuyback(
+    tx: Tx,
+    p: {
+      agentTag: string;
+      orderNumber: string;
+      amountRial: Decimal;
+      grams: Decimal;
+      toWallet: boolean;
+    },
+  ) {
+    return this.accounting.postJournal(tx, {
+      description: `خرید شمش از نماینده ${p.agentTag} — ${p.orderNumber} (${
+        p.toWallet ? 'واریز به کیف پول نماینده' : 'پرداخت بانکی'
+      })`,
+      totalRial: p.amountRial,
+      totalGrams: p.grams,
+      referenceType: 'AGENT_BUYBACK',
+      referenceId: p.orderNumber,
+      lines: [
+        {
+          accountCode: AGENT_ACCOUNTS.VAULT_BULLION,
+          side: 'DEBIT',
+          amountRial: p.amountRial,
+          amountGrams: p.grams,
+        },
+        {
+          accountCode: p.toWallet
+            ? AGENT_ACCOUNTS.AGENT_WALLET
+            : AGENT_ACCOUNTS.CASH,
+          side: 'CREDIT',
+          amountRial: p.amountRial,
+        },
+        {
+          // طرف مقداری ورود شمش (همان الگوی بازخرید از کاربران)
+          accountCode: AGENT_ACCOUNTS.BULLION_CLEARING,
+          side: 'CREDIT',
+          amountGrams: p.grams,
+        },
+      ],
+    });
+  }
+
+  /** برداشت از کیف پول نماینده (پرداخت بانکی): بد 2070 / بس 1010 */
+  async journalWalletWithdrawal(
+    tx: Tx,
+    p: { agentTag: string; number: string; amountRial: Decimal },
+  ) {
+    return this.accounting.postJournal(tx, {
+      description: `برداشت از کیف پول نماینده ${p.agentTag} — ${p.number}`,
+      totalRial: p.amountRial,
+      totalGrams: 0,
+      referenceType: 'AGENT_WITHDRAWAL',
+      referenceId: p.number,
+      lines: [
+        {
+          accountCode: AGENT_ACCOUNTS.AGENT_WALLET,
+          side: 'DEBIT',
+          amountRial: p.amountRial,
+        },
+        {
+          accountCode: AGENT_ACCOUNTS.CASH,
+          side: 'CREDIT',
+          amountRial: p.amountRial,
+        },
+      ],
+    });
+  }
+
+  /** تسویه‌ی بدهی نماینده از محل کیف پول: بد 2070 / بس 1040 */
+  async journalWalletDebtSettlement(
+    tx: Tx,
+    p: { agentTag: string; number: string; amountRial: Decimal },
+  ) {
+    return this.accounting.postJournal(tx, {
+      description: `تسویه بدهی نماینده ${p.agentTag} از کیف پول — ${p.number}`,
+      totalRial: p.amountRial,
+      totalGrams: 0,
+      referenceType: 'AGENT_SETTLEMENT',
+      referenceId: p.number,
+      lines: [
+        {
+          accountCode: AGENT_ACCOUNTS.AGENT_WALLET,
+          side: 'DEBIT',
+          amountRial: p.amountRial,
+        },
+        {
+          accountCode: AGENT_ACCOUNTS.RECEIVABLE,
+          side: 'CREDIT',
+          amountRial: p.amountRial,
+        },
+      ],
+    });
+  }
+
+  /**
+   * اصلاحیه‌ی کیف پول نماینده توسط مالی:
+   *   افزایش موجودی (پاداش/اصلاح): بد 5040 / بس 2070
+   *   کاهش موجودی (جریمه/اصلاح):  بد 2070 / بس 4060
+   */
+  async journalWalletAdjustment(
+    tx: Tx,
+    p: {
+      agentTag: string;
+      number: string;
+      amountRial: Decimal;
+      direction: 'CREDIT' | 'DEBIT';
+      reason: string;
+    },
+  ) {
+    // افزایش موجودی کیف پول = بدهی بیشتر شرکت به نماینده (هزینه/اصلاح) و برعکس
+    const credit = p.direction === 'CREDIT';
+    return this.accounting.postJournal(tx, {
+      description: `اصلاحیه کیف پول نماینده ${p.agentTag} — ${p.number}: ${p.reason}`,
+      totalRial: p.amountRial,
+      totalGrams: 0,
+      referenceType: 'AGENT_WALLET_ADJUSTMENT',
+      referenceId: p.number,
+      lines: credit
+        ? [
+            {
+              accountCode: AGENT_ACCOUNTS.COMMISSION_EXPENSE,
+              side: 'DEBIT',
+              amountRial: p.amountRial,
+            },
+            {
+              accountCode: AGENT_ACCOUNTS.AGENT_WALLET,
+              side: 'CREDIT',
+              amountRial: p.amountRial,
+            },
+          ]
+        : [
+            {
+              accountCode: AGENT_ACCOUNTS.AGENT_WALLET,
+              side: 'DEBIT',
+              amountRial: p.amountRial,
+            },
+            {
+              accountCode: AGENT_ACCOUNTS.OTHER_INCOME,
+              side: 'CREDIT',
+              amountRial: p.amountRial,
             },
           ],
     });

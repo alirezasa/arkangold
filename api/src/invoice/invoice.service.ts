@@ -39,9 +39,12 @@ interface IssueParams {
     | 'PHYSICAL_DELIVERY'
     | 'DEPOSIT'
     | 'AGENT_SALE'
-    | 'PARTNER_ORDER';
+    | 'PARTNER_ORDER'
+    | 'AGENT_PURCHASE';
   sourceId: string;
-  userId: string;
+  /** خریدار: دقیقاً یکی از userId (کاربر) یا agentId (نماینده‌ی فروش) */
+  userId?: string;
+  agentId?: string;
   items: InvoiceItemInput[];
   extraData?: ProformaExtraData | SaleInvoiceExtraData | null;
   expiresAt?: Date | null;
@@ -208,6 +211,36 @@ export class InvoiceService {
     };
   }
 
+  /**
+   * مشخصات نماینده‌ی خریدار (فروش قطعی شرکت به نماینده) در لحظه‌ی صدور. نماینده‌ی حقوقی با
+   * شناسه ملی/شماره ثبت/کد اقتصادی شرکت و نماینده‌ی حقیقی با کد ملی مدیر درج می‌شود.
+   */
+  async buildAgentSnapshot(tx: Tx, agentId: string): Promise<CustomerSnapshot> {
+    const agent = await tx.agent.findUnique({ where: { id: agentId } });
+    if (!agent) throw new NotFoundException('نماینده یافت نشد');
+    const isLegal = agent.legalType === 'LEGAL';
+    const address = [agent.province, agent.city, agent.address]
+      .map((v) => this.toText(v))
+      .filter((v): v is string => v !== null)
+      .join('، ');
+    return {
+      displayName: isLegal
+        ? agent.name
+        : `${agent.name} (${agent.managerName})`.trim(),
+      isLegal,
+      nationalId: isLegal
+        ? (agent.agentNationalId ?? null)
+        : (agent.nationalCode ?? null),
+      economicCode: agent.economicCode ?? null,
+      registrationNumber: isLegal
+        ? (agent.agentRegistrationNumber ?? null)
+        : null,
+      phone: agent.phone,
+      address: address || null,
+      postalCode: agent.postalCode ?? null,
+    };
+  }
+
   private toText(value: unknown): string | null {
     if (typeof value === 'string') {
       const text = value.trim();
@@ -244,10 +277,17 @@ export class InvoiceService {
    * پرداخت/تایید rollback شد، سند و شماره‌اش هم مصرف نشوند.
    */
   async issue(tx: Tx, params: IssueParams) {
-    const { kind, sourceType, sourceId, userId, items } = params;
+    const { kind, sourceType, sourceId, items } = params;
+    const userId = params.userId ?? null;
+    const agentId = params.agentId ?? null;
 
     if (!items.length) {
       throw new BadRequestException('سند بدون قلم قابل صدور نیست');
+    }
+    if (!userId === !agentId) {
+      throw new BadRequestException(
+        'خریدار سند باید دقیقاً یکی از کاربر یا نماینده باشد',
+      );
     }
 
     // ضدتکرار در سطح اپلیکیشن؛ قید @@unique دیتابیس خط دفاع دوم است
@@ -262,7 +302,9 @@ export class InvoiceService {
     }
 
     const company = await this.buildCompanySnapshot();
-    const customer = await this.buildCustomerSnapshot(tx, userId);
+    const customer = agentId
+      ? await this.buildAgentSnapshot(tx, agentId)
+      : await this.buildCustomerSnapshot(tx, userId);
 
     // ستون‌های فاکتور جمع‌پذیرند: جمع کل − تخفیف + کارمزد + مالیات = قابل پرداخت
     // (مبلغ واحد اقلام بدون اجرت/کارمزد/مالیات ثبت می‌شود)
@@ -292,7 +334,9 @@ export class InvoiceService {
     const contentHash = this.computeHash({
       invoiceNumber,
       kind,
+      // سازگاری hash اسناد قبلی: agentId فقط در اسناد نماینده وارد payload می‌شود
       userId,
+      ...(agentId ? { agentId } : {}),
       company,
       customer,
       items,
@@ -312,6 +356,7 @@ export class InvoiceService {
         sourceType,
         sourceId,
         userId,
+        agentId,
         companySnapshot: company as unknown as Prisma.InputJsonValue,
         customerSnapshot: customer as unknown as Prisma.InputJsonValue,
         extraData:
@@ -552,15 +597,17 @@ export class InvoiceService {
   // ═══════════════════════════════════════════════════════════
 
   /**
-   * فاکتور رسمی مشتری نهایی برای فروش حضوری شمش توسط نماینده. مبالغ فقط از
-   * snapshot قفل‌شده‌ی AgentSale خوانده می‌شود (بدون محاسبه‌ی مجدد قیمت).
-   * ارزش طلا در ستون «مبلغ واحد» و اجرت/حق ضرب در ستون «اجرت» درج می‌شود.
+   * صورتحساب فروش شمش امانی به نام «نماینده». شرکت هرگز برای مشتری نهایی نماینده فاکتور
+   * صادر نمی‌کند (فروشنده‌ی مشتری، خود نماینده است و با صورتحساب خودش می‌فروشد). در فروش
+   * شمش امانی، هم‌زمان با فروش نماینده به مشتری، شرکت همان شمش را به قیمت نمایندگی
+   * (مبلغ فروش − حق‌العمل = سهم شرکت) به نماینده می‌فروشد و بدهی آن در حساب نماینده ثبت می‌شود.
+   * مبالغ فقط از snapshot قفل‌شده‌ی AgentSale خوانده می‌شود.
    */
   async issueForAgentSale(tx: Tx, saleId: string) {
     const sale = await tx.agentSale.findUnique({
       where: { id: saleId },
       include: {
-        agent: { select: { code: true, name: true, phone: true } },
+        agent: { select: { id: true, code: true, name: true } },
         hologramCode: {
           select: {
             code: true,
@@ -571,10 +618,15 @@ export class InvoiceService {
       },
     });
     if (!sale) throw new NotFoundException('فروش نماینده یافت نشد');
+    if (sale.stockSource !== 'CONSIGNMENT') {
+      throw new BadRequestException(
+        'برای فروش شمش ملکی نماینده، شرکت صورتحسابی صادر نمی‌کند (صورتحساب خرید هنگام سفارش صادر شده است)',
+      );
+    }
 
     const weight = Number(sale.weightGrams);
-    const goldValueRial = Number(sale.goldValueRial);
-    const premiumRial = Number(sale.premiumRial);
+    const netRial = Number(sale.netPayableRial);
+    const premiumPart = Math.min(Number(sale.premiumRial), netRial);
     const karatLabel = sale.purityKarat === 'K24' ? '۲۴' : '۱۸';
     const productName = sale.hologramCode.product?.name ?? 'شمش طلا';
 
@@ -582,7 +634,7 @@ export class InvoiceService {
       kind: 'INVOICE',
       sourceType: 'AGENT_SALE',
       sourceId: sale.id,
-      userId: sale.buyerUserId,
+      agentId: sale.agent.id,
       items: [
         {
           rowNo: 1,
@@ -593,36 +645,230 @@ export class InvoiceService {
             sale.hologramCode.factorySerialNumber
               ? ` — سریال ${sale.hologramCode.factorySerialNumber}`
               : ''
-          }`,
+          } (شمش امانی فروخته‌شده — مرجع ${sale.saleNumber})`,
           unit: 'عدد',
           purityKarat: sale.purityKarat,
           quantity: 1,
           weightGrams: weight,
-          unitPriceRial: goldValueRial,
+          unitPriceRial: netRial - premiumPart,
           discountRial: 0,
-          makingRial: premiumRial,
+          makingRial: premiumPart,
           feeRial: 0,
           taxRate: 0,
           taxRial: 0,
-          totalRial: goldValueRial + premiumRial,
+          totalRial: netRial,
           meta: {
-            type: 'AGENT_SALE',
+            type: 'AGENT_CONSIGNMENT_SALE',
             saleNumber: sale.saleNumber,
             goldPricePerGramRial: sale.goldPricePerGramRial.toString(),
+            agentSaleTotalRial: sale.totalRial.toString(),
+            commissionRial: sale.commissionRial.toString(),
           },
         },
       ],
       extraData: {
         discountCode: null,
-        paymentMethod: `پرداخت حضوری نزد نماینده «${sale.agent.name}» (کد ${sale.agent.code})${
-          sale.paymentReference ? ` — مرجع ${sale.paymentReference}` : ''
-        }`,
+        paymentMethod: `خرید اعتباری شمش امانی — بدهی در صورتحساب نمایندگی «${sale.agent.name}» (کد ${sale.agent.code}) ثبت شد`,
         agentCode: sale.agent.code,
         agentName: sale.agent.name,
         agentSaleNumber: sale.saleNumber,
       },
-      status: 'PAID',
+      status: 'ISSUED',
     });
+  }
+
+  /**
+   * پیش‌فاکتور سفارش خرید شمش نماینده (برای پرداخت با واریز بانکی/حساب به حساب).
+   * مهلت اعتبار = مهلت قفل قیمت سفارش (بند ۴-۱ قرارداد).
+   */
+  async issueAgentPurchaseProforma(
+    tx: Tx,
+    orderId: string,
+    destination: {
+      owner: string;
+      bank: string;
+      accountNumber: string;
+      sheba: string;
+    },
+  ) {
+    const order = await tx.agentPurchaseOrder.findUnique({
+      where: { id: orderId },
+      include: { items: true, agent: { select: { id: true } } },
+    });
+    if (!order) throw new NotFoundException('سفارش خرید یافت نشد');
+    return this.issue(tx, {
+      kind: 'PROFORMA',
+      sourceType: 'AGENT_PURCHASE',
+      sourceId: order.id,
+      agentId: order.agentId,
+      items: this.agentPurchaseItems(order.items),
+      extraData: {
+        depositTrackingId: order.orderNumber,
+        destination,
+        subject: `پیش‌فاکتور سفارش خرید شمش نماینده — ${order.orderNumber}`,
+        legalClauses: [
+          `قیمت این پیش‌فاکتور فقط تا ${formatJalaliDateTime(order.priceLockedUntil)} معتبر است؛ پرداخت پس از این مهلت پذیرفته نمی‌شود و سفارش خودبه‌خود لغو می‌گردد.`,
+          'واریز فقط از حساب بانکی متعلق به خود نماینده و به حساب رسمی شرکت مندرج در این سند معتبر است؛ پرداخت نقدی یا به حساب هر شخص دیگر تعهد نماینده را ساقط نمی‌کند.',
+          'مشخصات واریز (شماره پیگیری/مرجع) باید در همین مهلت در پنل نمایندگی ثبت شود.',
+          'پس از تأیید پرداخت، شمش‌ها تخصیص داده شده و صورتحساب فروش به نام نماینده و حواله‌ی تحویل صادر می‌شود.',
+        ],
+        depositRequestId: order.id,
+        requestNumber: order.orderNumber,
+      },
+      expiresAt: order.priceLockedUntil,
+      status: 'ISSUED',
+    });
+  }
+
+  /**
+   * صورتحساب فروش قطعی شمش به نام نماینده — هنگام تأیید سفارش و تخصیص شمش‌ها صادر
+   * می‌شود تا کد هولوگرام هر شمش در سند درج شود (بند ۴-۴ قرارداد).
+   */
+  async issueAgentPurchaseInvoice(
+    tx: Tx,
+    orderId: string,
+    bars: { code: string; weightGrams: string; purityKarat: string }[],
+    paymentLabel: string,
+  ) {
+    const order = await tx.agentPurchaseOrder.findUnique({
+      where: { id: orderId },
+      include: { items: true, agent: { select: { code: true, name: true } } },
+    });
+    if (!order) throw new NotFoundException('سفارش خرید یافت نشد');
+    const pool = [...bars];
+    const items = this.agentPurchaseItems(order.items).map((it, idx) => {
+      const src = order.items[idx];
+      const codes = pool
+        .filter(
+          (b) =>
+            b.purityKarat === src.purityKarat &&
+            Number(b.weightGrams) === Number(src.weightGrams),
+        )
+        .map((b) => b.code);
+      // کدهای این ردیف (بر اساس وزن و عیار) — هر کد فقط یک‌بار مصرف می‌شود
+      const used = codes.slice(0, src.quantity);
+      for (const c of used) {
+        const i = pool.findIndex((b) => b.code === c);
+        if (i >= 0) pool.splice(i, 1);
+      }
+      return {
+        ...it,
+        title: used.length
+          ? `${it.title} — کدهای هولوگرام: ${used.map((c) => toPersianDigits(c)).join('، ')}`
+          : it.title,
+      };
+    });
+    return this.issue(tx, {
+      kind: 'INVOICE',
+      sourceType: 'AGENT_PURCHASE',
+      sourceId: order.id,
+      agentId: order.agentId,
+      items,
+      extraData: {
+        discountCode: null,
+        paymentMethod: paymentLabel,
+        agentCode: order.agent.code,
+        agentName: order.agent.name,
+        agentSaleNumber: order.orderNumber,
+      },
+      status: order.paymentMethod === 'CREDIT' ? 'ISSUED' : 'PAID',
+    });
+  }
+
+  private agentPurchaseItems(
+    rows: {
+      title: string;
+      weightGrams: Prisma.Decimal;
+      purityKarat: string;
+      quantity: number;
+      unitGoldValueRial: Prisma.Decimal;
+      unitPremiumRial: Prisma.Decimal;
+      lineTotalRial: Prisma.Decimal;
+      pricePerGramRial: Prisma.Decimal;
+    }[],
+  ): InvoiceItemInput[] {
+    return rows.map((r, idx) => {
+      const unitGold = Number(r.unitGoldValueRial);
+      const premium = Number(r.unitPremiumRial) * r.quantity;
+      const karat = r.purityKarat === 'K24' ? '۲۴ (۹۹۹٫۹)' : '۱۸ (۷۵۰)';
+      return {
+        rowNo: idx + 1,
+        productCode: null,
+        title: `${r.title} — وزن ${toPersianDigits(Number(r.weightGrams))} گرم، عیار ${karat}`,
+        unit: 'عدد',
+        purityKarat: r.purityKarat,
+        quantity: r.quantity,
+        weightGrams: Number(r.weightGrams) * r.quantity,
+        unitPriceRial: unitGold,
+        discountRial: 0,
+        makingRial: premium,
+        feeRial: 0,
+        taxRate: 0,
+        taxRial: 0,
+        totalRial: Number(r.lineTotalRial),
+        meta: {
+          type: 'AGENT_PURCHASE',
+          pricePerGramRial: r.pricePerGramRial.toString(),
+        },
+      };
+    });
+  }
+
+  /** فهرست اسناد صادرشده به نام یک نماینده (پرتال نماینده و پنل مدیریت) */
+  async listForAgent(
+    agentId: string,
+    query: { kind?: 'INVOICE' | 'PROFORMA'; page?: number; limit?: number },
+  ) {
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.min(100, Math.max(1, query.limit ?? 20));
+    const where: Prisma.InvoiceWhereInput = {
+      agentId,
+      ...(query.kind ? { kind: query.kind } : {}),
+    };
+    const [total, rows] = await Promise.all([
+      this.prisma.invoice.count({ where }),
+      this.prisma.invoice.findMany({
+        where,
+        orderBy: { issuedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          kind: true,
+          invoiceNumber: true,
+          status: true,
+          totalRial: true,
+          issuedAt: true,
+          expiresAt: true,
+          sourceType: true,
+          sourceId: true,
+        },
+      }),
+    ]);
+    return {
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      items: rows.map((r) => ({
+        ...r,
+        totalRial: r.totalRial.toString(),
+        invoiceNumberFa: DocumentSequenceService.toDisplay(r.invoiceNumber),
+        issuedAtJalali: formatJalaliDate(r.issuedAt),
+      })),
+    };
+  }
+
+  /** سند برای نماینده — فقط اسنادی که به نام خود نماینده صادر شده‌اند */
+  async getDocumentForAgent(invoiceId: string, agentId: string) {
+    const row = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { agentId: true },
+    });
+    if (!row || row.agentId !== agentId) {
+      throw new NotFoundException('سند یافت نشد');
+    }
+    return this.getDocument(invoiceId, null, true);
   }
 
   /** فاکتور فروش سفارش شریک (خرید اقساطی طلا / اپ همکار) */
@@ -906,7 +1152,8 @@ export class InvoiceService {
     if (!invoice) throw new NotFoundException('سند یافت نشد');
 
     // اتکا به حدس‌ناپذیر بودن UUID کافی نیست
-    if (!isAdmin && invoice.userId !== requesterUserId) {
+    // سند به نام نماینده (userId خالی) هرگز از مسیر کاربر قابل دسترس نیست
+    if (!isAdmin && (!invoice.userId || invoice.userId !== requesterUserId)) {
       throw new ForbiddenException('دسترسی به این سند مجاز نیست');
     }
 

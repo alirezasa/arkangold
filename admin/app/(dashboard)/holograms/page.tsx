@@ -37,7 +37,7 @@ function getErrorMessage(err: unknown, fallback: string): string {
 interface HologramCodeItem {
   id: string;
   code: string;
-  status: "UNASSIGNED" | "ASSIGNED" | "TRANSFER_PENDING" | "REVOKED" | "AT_AGENT" | "BUYBACK_PENDING";
+  status: "UNASSIGNED" | "ASSIGNED" | "TRANSFER_PENDING" | "REVOKED" | "AT_AGENT" | "BUYBACK_PENDING" | "AGENT_OWNED";
   batch: { id: string; batchNumber: string };
   agent: { id: string; code: string; name: string } | null;
   product: { id: string; name: string } | null;
@@ -152,6 +152,7 @@ const CODE_STATUS_META: Record<string, { label: string; bg: string; color: strin
   BUYBACK_PENDING: { label: "در فرآیند بازخرید", bg: "#ffedd5", color: "#c2410c" },
   REVOKED: { label: "باطل‌شده", bg: "#fee2e2", color: "#dc2626" },
   AT_AGENT: { label: "امانی نزد نماینده", bg: "#e0f2fe", color: "#0369a1" },
+  AGENT_OWNED: { label: "ملک نماینده", bg: "#f3e8ff", color: "#7e22ce" },
 };
 
 const TRANSFER_STATUS_META: Record<string, { label: string; bg: string; color: string }> = {
@@ -599,9 +600,9 @@ function CodesTab() {
                     مالک: {owner.fullName} — {owner.nationalCode}
                   </p>
                 )}
-                {c.status === "AT_AGENT" && c.agent && (
+                {(c.status === "AT_AGENT" || c.status === "AGENT_OWNED") && c.agent && (
                   <p className="text-[12px] text-sky-700 mb-2">
-                    امانی نزد نماینده:{" "}
+                    {c.status === "AT_AGENT" ? "امانی نزد نماینده:" : "فروخته‌شده به نماینده:"}{" "}
                     <a href={`/agents/${c.agent.id}`} className="font-bold underline">
                       {c.agent.name} ({c.agent.code})
                     </a>

@@ -19,9 +19,11 @@ export interface InventoryItem {
   batch: { batchNumber: string };
   /** گزارش سرقت/مفقودی فعال — شمش قابل فروش/عودت عادی نیست */
   incidentReports?: { reportNumber: string; type: "THEFT" | "LOSS"; status: string }[];
+  /** OWNED: خریداری‌شده از شرکت (ملک نماینده) | CONSIGNMENT: امانی (ملک شرکت) */
+  stockSource?: "OWNED" | "CONSIGNMENT";
 }
 
-/** موجودی امانی نماینده — در مدیریت قابل انتخاب برای عودت؛ در پرتال با دکمه‌ی فروش */
+/** موجودی نماینده (ملکی و امانی) — در مدیریت امانی‌ها قابل انتخاب برای عودت؛ در پرتال با دکمه‌ی فروش */
 export default function InventoryTable({
   endpoint,
   selectable = false,
@@ -29,6 +31,7 @@ export default function InventoryTable({
   onSelectedChange,
   sellLink = false,
   refreshKey = 0,
+  source,
 }: {
   endpoint: string;
   selectable?: boolean;
@@ -36,12 +39,15 @@ export default function InventoryTable({
   onSelectedChange?: (codes: string[]) => void;
   sellLink?: boolean;
   refreshKey?: number;
+  /** فقط امانی یا فقط ملکی — خالی: هر دو */
+  source?: "CONSIGNMENT" | "OWNED";
 }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const qs = new URLSearchParams({ page: String(page), limit: "50" });
   if (query) qs.set("search", query);
+  if (source) qs.set("source", source);
   const { data, isLoading } = useSWR<{ data: InventoryItem[]; totalPages: number; total: number; totalGrams: string }>(
     [`${endpoint}?${qs.toString()}`, refreshKey],
     ([url]: [string, number]) => fetcher(url),
@@ -86,7 +92,7 @@ export default function InventoryTable({
       {isLoading ? (
         <Spinner />
       ) : !data?.data.length ? (
-        <Empty text="شمش امانی موجود نیست" />
+        <Empty text={source === "CONSIGNMENT" ? "شمش امانی موجود نیست" : "شمشی در موجودی نیست"} />
       ) : (
         <div className="overflow-x-auto">
           <table className="admin-table w-full min-w-[720px]">
@@ -108,11 +114,12 @@ export default function InventoryTable({
                   </th>
                 )}
                 <th>کد هولوگرام</th>
+                <th>نوع</th>
                 <th>محصول / سریال</th>
                 <th>وزن</th>
                 <th>عیار</th>
                 <th>اجرت (تومان)</th>
-                <th>تاریخ تحویل</th>
+                <th>تاریخ تخصیص</th>
                 {sellLink && <th></th>}
               </tr>
             </thead>
@@ -135,6 +142,13 @@ export default function InventoryTable({
                         <Siren className="w-3 h-3" />
                         {i.incidentReports[0].type === "THEFT" ? "گزارش سرقت" : "گزارش مفقودی"}
                       </span>
+                    )}
+                  </td>
+                  <td>
+                    {i.stockSource === "OWNED" ? (
+                      <span className="badge bg-purple-50 text-purple-700">ملکی</span>
+                    ) : (
+                      <span className="badge bg-sky-50 text-sky-700">امانی</span>
                     )}
                   </td>
                   <td className="text-[12px]">

@@ -1,6 +1,7 @@
 // admin/app/(dashboard)/profile/MfaCard.tsx
-// ورود دومرحله‌ای ادمین (اجباری): وضعیت، کدهای بازیابی، جایگزینی برنامه‌ی احراز هویت روی گوشی جدید
-// و دستگاه‌های شناخته‌شده (FIA_UAU_EXT.2.3، 3.6 و 2.5). غیرفعال‌سازی برای حساب‌های پنل ممکن نیست؛
+// ورود دومرحله‌ای: وضعیت، کدهای بازیابی، جایگزینی برنامه‌ی احراز هویت روی گوشی جدید و دستگاه‌های
+// شناخته‌شده (FIA_UAU_EXT.2.3، 3.6 و 2.5). برای کارشناسان سازمان اجباری و غیرقابل غیرفعال‌سازی است؛
+// برای نمایندگان به‌طور پیش‌فرض اختیاری است و خود نماینده آن را فعال/غیرفعال می‌کند.
 // در صورت گم شدن گوشی و کدهای بازیابی، مدیر دیگری از «مدیریت ادمین‌ها» آن را بازنشانی می‌کند.
 "use client";
 import { useState } from "react";
@@ -31,7 +32,7 @@ function errorText(err: unknown, fallback: string) {
   return fallback;
 }
 
-type Mode = "idle" | "regenerate" | "reconfigure" | "scan" | "codes";
+type Mode = "idle" | "regenerate" | "reconfigure" | "scan" | "codes" | "enableScan" | "disable";
 
 export default function MfaCard() {
   const { data, mutate } = useSWR<MfaStatus>("/api/admin-auth/mfa", fetcher);
@@ -75,9 +76,34 @@ export default function MfaCard() {
         setSetup(null);
         setCodes(r.recoveryCodes);
         go("codes");
+      } else if (mode === "enableScan") {
+        const { data: r } = await axios.post("/api/admin-auth/mfa/enable/confirm", { code });
+        setSetup(null);
+        setCodes(r.recoveryCodes);
+        go("codes");
+      } else if (mode === "disable") {
+        await axios.post("/api/admin-auth/mfa/disable", { code });
+        go("idle");
       }
       await mutate();
     });
+
+  const startEnable = () =>
+    run(async () => {
+      const { data: r } = await axios.post("/api/admin-auth/mfa/enable", {});
+      setSetup(r);
+      go("enableScan");
+    });
+
+  const badge = !data
+    ? null
+    : data.enabled
+      ? data.required
+        ? "فعال (اجباری)"
+        : "فعال"
+      : data.required
+        ? "راه‌اندازی نشده"
+        : "غیرفعال (اختیاری)";
 
   return (
     <div className="rounded-2xl p-6 space-y-4 max-w-xl" style={cardStyle}>
@@ -87,15 +113,33 @@ export default function MfaCard() {
           ورود دومرحله‌ای
         </h2>
         {data && (
-          <span className={`text-[11px] font-black px-2.5 py-1 rounded-full ${data.enabled ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
-            {data.enabled ? "فعال (اجباری)" : "راه‌اندازی نشده"}
+          <span
+            className={`text-[11px] font-black px-2.5 py-1 rounded-full ${
+              data.enabled ? "bg-green-50 text-green-700" : data.required ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-600"
+            }`}
+          >
+            {badge}
           </span>
         )}
       </div>
       <p className="text-[12px] text-gray-500 leading-relaxed">
-        ورود به پنل با رمز عبور و کد ۶ رقمی برنامه‌ی احراز هویت انجام می‌شود و قابل غیرفعال‌سازی نیست.
+        {data?.required
+          ? "ورود به پنل با رمز عبور و کد ۶ رقمی برنامه‌ی احراز هویت انجام می‌شود و قابل غیرفعال‌سازی نیست."
+          : "ورود دومرحله‌ای برای حساب نمایندگی اختیاری است. با فعال‌سازی، پس از کد پیامکی یا رمز عبور، کد ۶ رقمی برنامه‌ی احراز هویت (مثل Google Authenticator) هم لازم می‌شود و امنیت حساب و کیف پول شما بیشتر می‌شود."}
         {data?.enabledAt && <> فعال از {fmt(data.enabledAt)}.</>}
       </p>
+
+      {data && !data.enabled && !data.required && mode === "idle" && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={startEnable}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-[12px] font-black disabled:opacity-60"
+          style={{ backgroundColor: "var(--color-emerald)" }}
+        >
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />} فعال‌سازی ورود دومرحله‌ای
+        </button>
+      )}
 
       {error && <p className="text-[12px] font-bold text-red-600 bg-red-50 border border-red-100 rounded-xl p-3">{error}</p>}
 
@@ -112,15 +156,24 @@ export default function MfaCard() {
             <button type="button" onClick={() => go("reconfigure")} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-[12px] font-bold text-gray-700">
               <RefreshCw className="w-3.5 h-3.5" /> انتقال به گوشی جدید
             </button>
+            {!data.required && (
+              <button type="button" onClick={() => go("disable")} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 text-[12px] font-bold text-red-600">
+                غیرفعال‌سازی
+              </button>
+            )}
           </div>
         </>
       )}
 
-      {(mode === "regenerate" || mode === "reconfigure" || mode === "scan") && (
+      {(mode === "regenerate" || mode === "reconfigure" || mode === "scan" || mode === "enableScan" || mode === "disable") && (
         <div className="space-y-3">
-          {mode === "scan" && setup && (
+          {(mode === "scan" || mode === "enableScan") && setup && (
             <>
-              <p className="text-[12px] text-gray-600">کد QR را با برنامه‌ی احراز هویت گوشی جدید اسکن کنید:</p>
+              <p className="text-[12px] text-gray-600">
+                {mode === "enableScan"
+                  ? "کد QR را با برنامه‌ی احراز هویت گوشی خود (Google Authenticator، Microsoft Authenticator و ...) اسکن کنید:"
+                  : "کد QR را با برنامه‌ی احراز هویت گوشی جدید اسکن کنید:"}
+              </p>
               <div className="flex justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={`data:image/svg+xml;utf8,${encodeURIComponent(setup.qrSvg)}`} alt="کد QR برنامه‌ی احراز هویت" className="w-44 h-44 rounded-xl border border-gray-100 bg-white p-2" />
@@ -131,9 +184,11 @@ export default function MfaCard() {
             </>
           )}
           <label className="block text-[12px] font-bold text-gray-500">
-            {mode === "scan"
-              ? "کد ۶ رقمی برنامه‌ی جدید"
-              : "کد ۶ رقمی برنامه‌ی فعلی یا یکی از کدهای بازیابی"}
+            {mode === "scan" || mode === "enableScan"
+              ? "کد ۶ رقمی نمایش‌داده‌شده در برنامه"
+              : mode === "disable"
+                ? "برای غیرفعال‌سازی، کد ۶ رقمی برنامه یا یکی از کدهای بازیابی را وارد کنید"
+                : "کد ۶ رقمی برنامه‌ی فعلی یا یکی از کدهای بازیابی"}
           </label>
           <input dir="ltr" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} className={inputCls} />
           <div className="flex gap-2">

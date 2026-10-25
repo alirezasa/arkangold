@@ -14,11 +14,11 @@ export default function AgentInventoryPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-lg font-black text-gray-900 flex items-center gap-2">
-          <Boxes className="w-5 h-5" /> موجودی امانی
+          <Boxes className="w-5 h-5" /> موجودی شمش
         </h1>
         <p className="text-[12px] text-gray-400 mt-1">
-          شمش‌هایی که شرکت به‌صورت امانی به شما تحویل داده و هنوز فروخته نشده‌اند. پیش از فروش، کد هولوگرام روی شمش را با
-          این فهرست تطبیق دهید.
+          «ملکی»: شمش‌هایی که از شرکت خریده‌اید (صورتحساب به نام شما). «امانی»: شمش‌هایی که شرکت به‌صورت امانی تحویل داده و تا
+          فروش ملک شرکت است. پیش از فروش، کد هولوگرام روی شمش را با این فهرست تطبیق دهید.
         </p>
       </div>
       <div className="rounded-2xl p-4 sm:p-5" style={cardStyle}>

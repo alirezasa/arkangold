@@ -316,7 +316,7 @@ run('خرید و فروش قطعی نمایندگان (یکپارچه با Postg
     expect(approved.order.bars).toHaveLength(2);
 
     const invoice = await prisma.invoice.findUniqueOrThrow({
-      where: { id: approved.order.invoiceId as string },
+      where: { id: approved.order.invoiceId },
       include: { items: true },
     });
     expect(invoice.agentId).toBe(agentId);

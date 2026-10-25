@@ -30,11 +30,14 @@ function goBack(router: ReturnType<typeof useRouter>, fallback: string) {
   window.setTimeout(() => router.replace(fallback), 150);
 }
 
-// فاکتور فروش نماینده به فهرست فروش‌های پرتال نمایندگی برمی‌گردد
-const backFallbackPath = () =>
-  new URLSearchParams(window.location.search).get("scope") === "agent"
-    ? "/agent-portal/sales"
-    : "/shop-orders";
+// فاکتور فروش نماینده به فهرست فروش‌های پرتال نمایندگی و صورتحساب‌های صادرشده به نام نماینده
+// به فهرست صورتحساب‌های پرتال برمی‌گردند
+const backFallbackPath = () => {
+  const scope = new URLSearchParams(window.location.search).get("scope");
+  if (scope === "agent") return "/agent-portal/sales";
+  if (scope === "agent-company") return "/agent-portal/invoices";
+  return "/shop-orders";
+};
 
 export default function AdminInvoicePrintPage({
   params,
@@ -50,10 +53,13 @@ export default function AdminInvoicePrintPage({
     let cancelled = false;
     // نماینده‌ی فروش فاکتور فروش‌های خودش را از مسیر پرتال نمایندگی می‌گیرد
     const scope = new URLSearchParams(window.location.search).get("scope");
+    // صورتحساب/پیش‌فاکتورهایی که شرکت به نام خود نماینده صادر کرده (scope=agent-company)
     const url =
       scope === "agent"
         ? `/api/agent-portal/invoices/${id}`
-        : `/api/admin/invoices/${id}`;
+        : scope === "agent-company"
+          ? `/api/agent-portal/company-invoices/${id}`
+          : `/api/admin/invoices/${id}`;
     axios
       .get<InvoiceDocument>(url)
       .then((res) => {

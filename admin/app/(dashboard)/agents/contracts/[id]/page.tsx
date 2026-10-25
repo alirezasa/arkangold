@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
-import { ChevronRight, Send, XCircle } from "lucide-react";
+import { ChevronRight, FileSignature, Send, XCircle } from "lucide-react";
 import JalaliDateInput from "@/app/components/JalaliDateInput";
 import {
   CONTRACT_EVENT_FA,
@@ -79,7 +79,22 @@ export default function AdminContractPage() {
               </ActionButton>
             </>
           )}
-          {manage && (c.status === "DRAFT" || c.status === "ISSUED" || c.status === "SIGNED") && (
+          {manage && c.status === "SIGNED" && !c.companySignature && (
+            <ActionButton
+              busy={act.busy}
+              onClick={() =>
+                void act
+                  .run(
+                    () => api.post(`/api/admin/agent-contracts/${c.id}/countersign`),
+                    "قرارداد از طرف شرکت امضا شود؟ نام و سمت صاحب امضای مجاز از تنظیمات (company.signatory_name/title) ثبت می‌شود.",
+                  )
+                  .then(() => mutate())
+              }
+            >
+              <FileSignature className="w-4 h-4" /> امضای طرف اول (شرکت)
+            </ActionButton>
+          )}
+                    {manage && (c.status === "DRAFT" || c.status === "ISSUED" || c.status === "SIGNED") && (
             <ActionButton variant="danger" onClick={() => setShowCancel(true)}>
               <XCircle className="w-4 h-4" /> ابطال
             </ActionButton>

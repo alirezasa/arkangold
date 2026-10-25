@@ -59,6 +59,13 @@ import {
   StatusModal,
 } from "@/app/components/agents/AgentActionModals";
 import { AgentContractsPanel } from "@/app/components/agents/ContractViews";
+import {
+  AgentBankAccountsPanel,
+  AgentCompanyInvoicesPanel,
+  AgentWalletPanel,
+  BuybacksTable,
+  PurchaseOrdersTable,
+} from "@/app/components/agents/TradingPanels";
 
 interface AgentDetail {
   agent: AgentFormValue & {
@@ -69,6 +76,9 @@ interface AgentDetail {
     createdAt: string;
   };
   stock: { count: number; grams: string };
+  ownedStock: { count: number; grams: string };
+  wallet: { balanceRial: string; blockedRial: string; availableRial: string };
+  openPurchaseOrders: number;
   balanceRial: string;
   creditLimitRial: string | null;
   availableCreditRial: string | null;
@@ -89,7 +99,15 @@ interface AgentDetail {
   createdBy: string | null;
 }
 
-type Tab = "inventory" | "sales" | "settlements" | "statement" | "movements" | "journals" | "accounts" | "contracts" | "info";
+type Tab =
+  | "inventory"
+  | "owned"
+  | "orders"
+  | "wallet"
+  | "banks"
+  | "buybacks"
+  | "invoices"
+  | "sales" | "settlements" | "statement" | "movements" | "journals" | "accounts" | "contracts" | "info";
 
 type ModalState =
   | null
@@ -108,7 +126,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   const { me } = useAdminMe();
   const perm = (p: string) => me?.permissions.includes(p) ?? false;
   const { data, isLoading, error, mutate } = useSWR<AgentDetail>(`/api/admin/agents/${id}`, fetcher);
-  const [tab, setTab] = useState<Tab>("inventory");
+  const [tab, setTab] = useState<Tab>("orders");
   const [modal, setModal] = useState<ModalState>(null);
   const [message, setMessage] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
@@ -140,7 +158,17 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   const balance = Number(data.balanceRial);
 
   const TABS: { key: Tab; label: string; show: boolean }[] = [
-    { key: "inventory", label: `موجودی امانی (${faNum(data.stock.count)})`, show: true },
+    { key: "orders", label: `سفارش‌های خرید${data.openPurchaseOrders ? ` (${faNum(data.openPurchaseOrders)} باز)` : ""}`, show: true },
+    { key: "owned", label: `موجودی ملکی (${faNum(data.ownedStock.count)})`, show: true },
+    {
+      key: "inventory",
+      label: `موجودی امانی (${faNum(data.stock.count)})`,
+      show: !!a.consignmentEnabled || data.stock.count > 0,
+    },
+    { key: "wallet", label: "کیف پول", show: true },
+    { key: "banks", label: "حساب‌های بانکی", show: true },
+    { key: "buybacks", label: "فروش شمش به شرکت", show: true },
+    { key: "invoices", label: "صورتحساب‌های شرکت", show: true },
     { key: "sales", label: "فروش‌ها", show: true },
     {
       key: "settlements",
@@ -188,9 +216,9 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {perm("agent.stock.manage") && a.status === "ACTIVE" && (
+          {perm("agent.stock.manage") && a.status === "ACTIVE" && a.consignmentEnabled && (
             <button type="button" onClick={() => setModal("allocate")} className={primaryBtn} style={primaryBtnStyle}>
-              <PackagePlus className="w-4 h-4" /> تحویل شمش
+              <PackagePlus className="w-4 h-4" /> تحویل امانی
             </button>
           )}
           {perm("agent.settlement.manage") && (
@@ -219,7 +247,21 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
       {message && <Alert kind={message.kind} text={message.text} />}
 
       {/* ── شاخص‌ها ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <Kpi
+          title="موجودی ملکی (خریداری‌شده)"
+          icon={Boxes}
+          color="#7c3aed"
+          value={`${faNum(data.ownedStock.count)} شمش`}
+          hint={`${faNum(data.ownedStock.grams, 4)} گرم`}
+        />
+        <Kpi
+          title="کیف پول نماینده"
+          icon={Wallet}
+          color="#0369a1"
+          value={`${toman(data.wallet.balanceRial)} تومان`}
+          hint={Number(data.wallet.blockedRial) ? `رزرو برداشت: ${toman(data.wallet.blockedRial)}` : "قابل استفاده برای خرید/برداشت"}
+        />
         <Kpi
           title="موجودی امانی"
           icon={Boxes}
@@ -292,6 +334,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
             )}
             <InventoryTable
               endpoint={`/api/admin/agents/${id}/inventory`}
+              source="CONSIGNMENT"
               selectable={perm("agent.stock.manage")}
               selected={selectedCodes}
               onSelectedChange={setSelectedCodes}
@@ -299,6 +342,29 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
             />
           </div>
         )}
+        {tab === "owned" && (
+          <div className="space-y-2">
+            <p className="text-[11px] text-gray-500">
+              شمش‌هایی که نماینده از شرکت خریده و صورتحساب آن به نام نماینده صادر شده است؛ ملک نماینده‌اند و فقط ثبت مالکیت/اصالت آن‌ها
+              با شرکت است.
+            </p>
+            <InventoryTable endpoint={`/api/admin/agents/${id}/inventory`} source="OWNED" refreshKey={refreshKey} />
+          </div>
+        )}
+        {tab === "orders" && <PurchaseOrdersTable agentId={id} />}
+        {tab === "wallet" && (
+          <AgentWalletPanel
+            agentId={id}
+            debtRial={data.balanceRial}
+            canManage={perm("agent.funds.manage")}
+            onChanged={() => void mutate()}
+          />
+        )}
+        {tab === "banks" && <AgentBankAccountsPanel agentId={id} canManage={perm("agent.funds.manage")} />}
+        {tab === "buybacks" && (
+          <BuybacksTable agentId={id} canManage={perm("agent.buyback.manage")} canPay={perm("agent.funds.manage")} />
+        )}
+        {tab === "invoices" && <AgentCompanyInvoicesPanel agentId={id} />}
         {tab === "sales" && (
           <SalesTable
             listEndpoint="/api/admin/agents/sales"
@@ -439,7 +505,25 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
               ["نشانی", a.address ?? "—"],
               ["شماره قرارداد", a.contractNumber ?? "—"],
               ["مدت قرارداد", `${faDate(a.contractStartAt)} تا ${faDate(a.contractEndAt)}`],
-              ["حق‌العمل", commissionLabel(a.commissionType, a.commissionValue)],
+              ["حق‌العمل (فروش امانی)", commissionLabel(a.commissionType, a.commissionValue)],
+              ["نوع شخصیت", a.legalType === "LEGAL" ? "حقوقی" : "حقیقی"],
+              ["شناسه ملی / شماره ثبت", [a.agentNationalId, a.agentRegistrationNumber].filter(Boolean).join(" / ") || "—"],
+              ["کد اقتصادی", a.economicCode ?? "—"],
+              [
+                "پروانه کسب",
+                a.businessLicenseNumber
+                  ? `${a.businessLicenseNumber}${a.businessLicenseIssuer ? ` — ${a.businessLicenseIssuer}` : ""} (اعتبار تا ${faDate(a.businessLicenseExpiresAt)})`
+                  : "—",
+              ],
+              ["محدوده‌ی فعالیت", a.territory ?? "—"],
+              ["فروش امانی", a.consignmentEnabled ? "فعال (الحاقیه امانی)" : "غیرفعال — فقط خرید قطعی"],
+              ["خرید اعتباری", a.creditPurchaseEnabled ? `فعال — مهلت ${faNum(a.creditDays ?? 0)} روز` : "غیرفعال"],
+              [
+                "تضمین",
+                a.guaranteeType
+                  ? `${a.guaranteeType}${a.guaranteeAmountRial ? ` — ${toman(a.guaranteeAmountRial)} تومان` : ""}${a.guaranteeReference ? ` (${a.guaranteeReference})` : ""}`
+                  : "—",
+              ],
               ["سقف اعتبار", data.creditLimitRial ? `${toman(data.creditLimitRial)} تومان` : "بدون سقف"],
               ["تعریف‌شده توسط", `${data.createdBy ?? "—"} · ${faDate(a.createdAt)}`],
             ].map(([label, value], i) => (

@@ -35,6 +35,21 @@ export interface AgentFormValue {
   commissionValue: string;
   creditLimitRial: string | null;
   notes: string | null;
+  // ── مشخصات حقوقی/صنفی و مجوزها (قرارداد بیع قطعی) ──
+  legalType?: "INDIVIDUAL" | "LEGAL";
+  agentNationalId?: string | null;
+  agentRegistrationNumber?: string | null;
+  economicCode?: string | null;
+  businessLicenseNumber?: string | null;
+  businessLicenseIssuer?: string | null;
+  businessLicenseExpiresAt?: string | null;
+  territory?: string | null;
+  consignmentEnabled?: boolean;
+  creditPurchaseEnabled?: boolean;
+  creditDays?: number | null;
+  guaranteeType?: string | null;
+  guaranteeAmountRial?: string | null;
+  guaranteeReference?: string | null;
 }
 
 const toDateInput = (iso: string | null | undefined) => (iso ? iso.slice(0, 10) : "");
@@ -72,6 +87,20 @@ export default function AgentFormModal({
       : "1",
     creditLimitToman: initial?.creditLimitRial ? String(Number(initial.creditLimitRial) / 10) : "",
     notes: initial?.notes ?? "",
+    legalType: initial?.legalType ?? "INDIVIDUAL",
+    agentNationalId: initial?.agentNationalId ?? "",
+    agentRegistrationNumber: initial?.agentRegistrationNumber ?? "",
+    economicCode: initial?.economicCode ?? "",
+    businessLicenseNumber: initial?.businessLicenseNumber ?? "",
+    businessLicenseIssuer: initial?.businessLicenseIssuer ?? "",
+    businessLicenseExpiresAt: toDateInput(initial?.businessLicenseExpiresAt),
+    territory: initial?.territory ?? "",
+    consignmentEnabled: initial?.consignmentEnabled ?? false,
+    creditPurchaseEnabled: initial?.creditPurchaseEnabled ?? false,
+    creditDays: initial?.creditDays != null ? String(initial.creditDays) : "",
+    guaranteeType: initial?.guaranteeType ?? "",
+    guaranteeAmountToman: initial?.guaranteeAmountRial ? String(Number(initial.guaranteeAmountRial) / 10) : "",
+    guaranteeReference: initial?.guaranteeReference ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +117,8 @@ export default function AgentFormModal({
     const cv = Number(f.commissionValue);
     if (!Number.isFinite(cv) || cv < 0) return setError("مقدار حق‌العمل معتبر نیست");
     if (f.commissionType === "PERCENT" && cv > 50) return setError("درصد حق‌العمل حداکثر ۵۰٪ است");
+    if (f.legalType === "LEGAL" && !f.agentNationalId.trim()) return setError("شناسه ملی نماینده‌ی حقوقی را وارد کنید");
+    if (f.creditPurchaseEnabled && !f.creditLimitToman) return setError("برای خرید اعتباری، سقف اعتبار را تعیین کنید");
 
     const payload: Record<string, unknown> = {
       name: f.name.trim(),
@@ -108,6 +139,23 @@ export default function AgentFormModal({
       "notes",
     ];
     for (const k of optional) if (f[k]) payload[k] = String(f[k]).trim();
+    payload.legalType = f.legalType;
+    payload.consignmentEnabled = f.consignmentEnabled;
+    payload.creditPurchaseEnabled = f.creditPurchaseEnabled;
+    const legalOptional = [
+      "agentNationalId",
+      "agentRegistrationNumber",
+      "economicCode",
+      "businessLicenseNumber",
+      "businessLicenseIssuer",
+      "territory",
+      "guaranteeType",
+      "guaranteeReference",
+    ] as const;
+    for (const k of legalOptional) if (f[k]) payload[k] = String(f[k]).trim();
+    if (f.businessLicenseExpiresAt) payload.businessLicenseExpiresAt = f.businessLicenseExpiresAt;
+    if (f.creditDays) payload.creditDays = Number(f.creditDays);
+    if (f.guaranteeAmountToman) payload.guaranteeAmountRial = tomanToRial(f.guaranteeAmountToman);
     if (f.contractStartAt) payload.contractStartAt = f.contractStartAt;
     if (f.contractEndAt) payload.contractEndAt = f.contractEndAt;
     if (!isEdit && payload.creditLimitRial === null) delete payload.creditLimitRial;
@@ -173,6 +221,89 @@ export default function AgentFormModal({
         </div>
 
         <div className="rounded-xl bg-gray-50 p-4 space-y-3">
+          <p className="text-[12px] font-black text-gray-700">مشخصات حقوقی و صنفی (برای قرارداد و صورتحساب به نام نماینده)</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="نوع شخص">
+              <select value={f.legalType} onChange={set("legalType")} className={inputCls}>
+                <option value="INDIVIDUAL">حقیقی</option>
+                <option value="LEGAL">حقوقی</option>
+              </select>
+            </Field>
+            {f.legalType === "LEGAL" && (
+              <>
+                <Field label="شناسه ملی شرکت *">
+                  <input value={f.agentNationalId} onChange={set("agentNationalId")} className={`${inputCls} text-left`} dir="ltr" />
+                </Field>
+                <Field label="شماره ثبت">
+                  <input value={f.agentRegistrationNumber} onChange={set("agentRegistrationNumber")} className={`${inputCls} text-left`} dir="ltr" />
+                </Field>
+              </>
+            )}
+            <Field label="کد اقتصادی" hint="برای صورتحساب سامانه مؤدیان">
+              <input value={f.economicCode} onChange={set("economicCode")} className={`${inputCls} text-left`} dir="ltr" />
+            </Field>
+            <Field label="شماره پروانه کسب">
+              <input value={f.businessLicenseNumber} onChange={set("businessLicenseNumber")} className={`${inputCls} text-left`} dir="ltr" />
+            </Field>
+            <Field label="مرجع صدور پروانه">
+              <input value={f.businessLicenseIssuer} onChange={set("businessLicenseIssuer")} className={inputCls} />
+            </Field>
+            <Field label="اعتبار پروانه تا" hint="پس از انقضا، ثبت سفارش خرید متوقف می‌شود">
+              <JalaliDateInput value={f.businessLicenseExpiresAt} onChange={(v) => setF((prev) => ({ ...prev, businessLicenseExpiresAt: v }))} className={inputCls} />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="محدوده نمایندگی (غیرانحصاری)">
+                <input value={f.territory} onChange={set("territory")} className={inputCls} placeholder="مثلاً شهر اصفهان" />
+              </Field>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-gray-50 p-4 space-y-3">
+          <p className="text-[12px] font-black text-gray-700">مدل همکاری</p>
+          <label className="flex items-start gap-2 text-[12px] font-bold text-gray-700">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={f.consignmentEnabled}
+              onChange={(e) => setF((p) => ({ ...p, consignmentEnabled: e.target.checked }))}
+            />
+            <span>
+              مجوز دریافت شمش امانی
+              <span className="block text-[11px] font-normal text-gray-500">
+                فقط برای نمایندگان منتخب (با الحاقیه‌ی امانت و تضمین). بقیه‌ی نمایندگان شمش را با سفارش خرید و پرداخت کامل می‌خرند.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-[12px] font-bold text-gray-700">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={f.creditPurchaseEnabled}
+              onChange={(e) => setF((p) => ({ ...p, creditPurchaseEnabled: e.target.checked }))}
+            />
+            <span>
+              مجوز خرید اعتباری
+              <span className="block text-[11px] font-normal text-gray-500">تحویل پیش از پرداخت در سقف اعتبار؛ بدهی ظرف مهلت تعیین‌شده تسویه می‌شود (بند ۵-۲).</span>
+            </span>
+          </label>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <Field label="مهلت پرداخت اعتباری (روز)">
+              <input type="number" min={0} max={365} value={f.creditDays} onChange={set("creditDays")} className={`${inputCls} text-left`} dir="ltr" />
+            </Field>
+            <Field label="نوع تضمین" hint="چک صیادی / ضمانت‌نامه بانکی">
+              <input value={f.guaranteeType} onChange={set("guaranteeType")} className={inputCls} />
+            </Field>
+            <Field label="مبلغ تضمین (تومان)">
+              <input type="number" min={0} value={f.guaranteeAmountToman} onChange={set("guaranteeAmountToman")} className={`${inputCls} text-left`} dir="ltr" />
+            </Field>
+            <Field label="شماره/مرجع تضمین">
+              <input value={f.guaranteeReference} onChange={set("guaranteeReference")} className={inputCls} />
+            </Field>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-gray-50 p-4 space-y-3">
           <p className="text-[12px] font-black text-gray-700">قرارداد و شرایط مالی</p>
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="شماره قرارداد">
@@ -184,7 +315,7 @@ export default function AgentFormModal({
             <Field label="پایان قرارداد">
               <JalaliDateInput value={f.contractEndAt} onChange={(v) => setF((prev) => ({ ...prev, contractEndAt: v }))} className={inputCls} />
             </Field>
-            <Field label="نوع حق‌العمل (کمیسیون)">
+            <Field label="نوع حق‌العمل (فقط فروش امانی)">
               <select value={f.commissionType} onChange={set("commissionType")} className={inputCls}>
                 {Object.entries(COMMISSION_TYPE_FA).map(([k, v]) => (
                   <option key={k} value={k}>
@@ -213,7 +344,7 @@ export default function AgentFormModal({
                 dir="ltr"
               />
             </Field>
-            <Field label="سقف بدهی مجاز (تومان)" hint="خالی = بدون سقف؛ با رسیدن بدهی به سقف، ثبت فروش متوقف می‌شود">
+            <Field label="سقف اعتبار / بدهی مجاز (تومان)" hint="سقف بدهی امانی و خرید اعتباری؛ خالی = بدون سقف برای امانی و بدون خرید اعتباری">
               <input
                 type="number"
                 min={0}

@@ -69,6 +69,8 @@ export interface ContractDetail {
     signatureHash: string | null;
     method: string;
   } | null;
+  /** امضای طرف اول (شرکت) پس از امضای نماینده */
+  companySignature?: { signedAt: string; signedAtJalali: string; signerName: string | null } | null;
   events: { id: string; type: string; actorType: string; ip: string | null; note: string | null; createdAt: string }[];
 }
 
@@ -88,6 +90,7 @@ export const CONTRACT_EVENT_FA: Record<string, string> = {
   OTP_SENT: "ارسال کد امضا",
   OTP_FAILED: "ورود کد نادرست",
   SIGNED: "امضای الکترونیک",
+  COMPANY_SIGNED: "امضای طرف اول (شرکت)",
   CANCELLED: "ابطال",
   EXPIRED: "پایان مهلت امضا",
 };
@@ -142,6 +145,21 @@ export function ContractDocument({ c }: { c: ContractDetail }) {
             اثر انگشت متن (SHA-256): <span dir="ltr" className="font-mono">{c.bodyHash}</span>
           </p>
         )
+      )}
+
+      {c.status === "SIGNED" && (
+        <div
+          className={`rounded-xl border-2 p-4 text-[12px] leading-6 break-inside-avoid ${c.companySignature ? "border-emerald-600" : "border-dashed border-amber-400"}`}
+        >
+          <p className={`font-black ${c.companySignature ? "text-emerald-700" : "text-amber-700"}`}>امضای طرف اول (شرکت)</p>
+          {c.companySignature ? (
+            <p>
+              {c.companySignature.signerName} — {c.companySignature.signedAtJalali}
+            </p>
+          ) : (
+            <p>در انتظار امضای صاحب امضای مجاز شرکت؛ تا آن زمان ثبت سفارش خرید برای نماینده فعال نمی‌شود.</p>
+          )}
+        </div>
       )}
     </div>
   );

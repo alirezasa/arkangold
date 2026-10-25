@@ -2,7 +2,7 @@
 "use client";
 import Link from "next/link";
 import useSWR from "swr";
-import { Boxes, Wallet, Coins, HandCoins, ShoppingCart, FileSpreadsheet, Receipt, ArrowLeft, Store } from "lucide-react";
+import { Boxes, Wallet, Coins, HandCoins, ShoppingCart, FileSpreadsheet, Receipt, ArrowLeft, Store, ShoppingBag, PiggyBank, ReceiptText } from "lucide-react";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
 import {
   Alert,
@@ -20,8 +20,21 @@ import {
 } from "@/app/components/agents/ui";
 
 interface Summary {
-  agent: { code: string; name: string; status: string; commissionType: string; commissionValue: string };
+  agent: {
+    code: string;
+    name: string;
+    status: string;
+    commissionType: string;
+    commissionValue: string;
+    consignmentEnabled: boolean;
+    creditPurchaseEnabled: boolean;
+  };
+  /** امانی (ملک شرکت) */
   stock: { count: number; grams: string };
+  /** ملکی (خریداری‌شده از شرکت با صورتحساب به نام نماینده) */
+  ownedStock: { count: number; grams: string };
+  wallet: { balanceRial: string; blockedRial: string; availableRial: string };
+  openPurchaseOrders: number;
   balanceRial: string;
   creditLimitRial: string | null;
   availableCreditRial: string | null;
@@ -70,19 +83,31 @@ export default function AgentPortalHome() {
               <Store className="w-3.5 h-3.5" /> پنل نمایندگی · <span dir="ltr">{data.agent.code}</span>
             </p>
             <h1 className="text-[20px] font-black text-white">{data.agent.name}</h1>
-            <p className="text-[12px] text-white/60 mt-1">
-              حق‌العمل شما: {commissionLabel(data.agent.commissionType, data.agent.commissionValue)}
-            </p>
+            {data.agent.consignmentEnabled && (
+              <p className="text-[12px] text-white/60 mt-1">
+                حق‌العمل فروش امانی: {commissionLabel(data.agent.commissionType, data.agent.commissionValue)}
+              </p>
+            )}
           </div>
-          {canSell && (
-            <Link
-              href="/agent-portal/sell"
-              className="flex items-center gap-2 px-5 py-3 rounded-2xl text-[14px] font-black"
-              style={{ backgroundColor: "var(--color-gold-500)", color: "var(--color-emerald)" }}
-            >
-              <ShoppingCart className="w-5 h-5" /> ثبت فروش شمش
-            </Link>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {data.agent.status === "ACTIVE" && me?.permissions.includes("agent_portal.purchase") && (
+              <Link
+                href="/agent-portal/purchase"
+                className="flex items-center gap-2 px-5 py-3 rounded-2xl text-[14px] font-black bg-white/10 text-white border border-white/20"
+              >
+                <ShoppingBag className="w-5 h-5" /> خرید شمش از شرکت
+              </Link>
+            )}
+            {canSell && (
+              <Link
+                href="/agent-portal/sell"
+                className="flex items-center gap-2 px-5 py-3 rounded-2xl text-[14px] font-black"
+                style={{ backgroundColor: "var(--color-gold-500)", color: "var(--color-emerald)" }}
+              >
+                <ShoppingCart className="w-5 h-5" /> ثبت فروش و اصالت
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
@@ -96,8 +121,29 @@ export default function AgentPortalHome() {
         <Alert kind="error" text="سقف اعتبار شما تکمیل شده است. برای ادامه‌ی فروش، ابتدا بدهی خود را تسویه کنید." />
       )}
 
+      <Alert
+        kind="info"
+        text="شمش‌هایی که از شرکت می‌خرید با صورتحساب به نام شما صادر می‌شود. هنگام فروش به مشتری، فاکتور را خودتان (با کد اقتصادی خود در سامانه مؤدیان) صادر کنید؛ آرکان گلد فقط اصالت و مالکیت شمش را به نام مشتری ثبت می‌کند."
+      />
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Kpi title="موجودی امانی نزد شما" icon={Boxes} color="#0f766e" value={`${faNum(data.stock.count)} شمش`} hint={`${faNum(data.stock.grams, 4)} گرم`} />
+        <Kpi
+          title="موجودی شمش ملکی شما"
+          icon={Boxes}
+          color="#7e22ce"
+          value={`${faNum(data.ownedStock.count)} شمش`}
+          hint={`${faNum(data.ownedStock.grams, 4)} گرم — خریداری‌شده از شرکت`}
+        />
+        <Kpi
+          title="کیف پول نمایندگی"
+          icon={PiggyBank}
+          color="#0f766e"
+          value={`${toman(data.wallet.availableRial)} تومان`}
+          hint={Number(data.wallet.blockedRial) > 0 ? `${toman(data.wallet.blockedRial)} تومان رزرو برداشت` : "قابل استفاده برای خرید یا برداشت"}
+        />
+        {(data.agent.consignmentEnabled || data.stock.count > 0) && (
+          <Kpi title="موجودی امانی (ملک شرکت)" icon={Boxes} color="#0369a1" value={`${faNum(data.stock.count)} شمش`} hint={`${faNum(data.stock.grams, 4)} گرم`} />
+        )}
         <Kpi
           title="بدهی شما به شرکت"
           icon={Wallet}
@@ -110,21 +156,24 @@ export default function AgentPortalHome() {
           icon={Coins}
           color="#c5a059"
           value={`${toman(data.salesThisMonth.totalRial)} تومان`}
-          hint={`${faNum(data.salesThisMonth.count)} شمش · حق‌العمل شما ${toman(data.salesThisMonth.commissionRial)}`}
+          hint={`${faNum(data.salesThisMonth.count)} شمش ثبت‌شده به نام مشتری`}
         />
         <Kpi
-          title="حق‌العمل کل"
-          icon={HandCoins}
-          value={`${toman(data.sales.commissionRial)} تومان`}
-          hint={`${faNum(data.sales.count)} فروش قطعی`}
+          title="سفارش‌های خرید باز"
+          icon={ShoppingBag}
+          value={`${faNum(data.openPurchaseOrders)} سفارش`}
+          hint={`${faNum(data.sales.count)} فروش ثبت‌شده به مشتریان`}
         />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         {[
-          { href: "/agent-portal/inventory", icon: Boxes, title: "موجودی امانی", sub: "شمش‌های تحویلی و آماده فروش" },
-          { href: "/agent-portal/settlements", icon: HandCoins, title: "تسویه و واریز", sub: data.settlements.pendingCount ? `${faNum(data.settlements.pendingCount)} اعلام واریز در انتظار تأیید` : "اعلام واریز سهم شرکت" },
-          { href: "/agent-portal/statement", icon: FileSpreadsheet, title: "صورتحساب", sub: "گردش بدهکار/بستانکار و مانده" },
+          { href: "/agent-portal/purchase", icon: ShoppingBag, title: "خرید شمش", sub: "قیمت لحظه‌ای نمایندگی و ثبت سفارش" },
+          { href: "/agent-portal/wallet", icon: Wallet, title: "کیف پول و حساب بانکی", sub: "واریز، برداشت و حساب‌های تأییدشده" },
+          { href: "/agent-portal/buyback", icon: HandCoins, title: "فروش شمش به شرکت", sub: "فروش شمش‌های ملکی به آرکان گلد" },
+          { href: "/agent-portal/inventory", icon: Boxes, title: "موجودی شمش", sub: "ملکی و امانی" },
+          { href: "/agent-portal/invoices", icon: ReceiptText, title: "صورتحساب‌های شرکت", sub: "فاکتورها و پیش‌فاکتورهای به نام شما" },
+          { href: "/agent-portal/statement", icon: FileSpreadsheet, title: "صورتحساب معین", sub: data.settlements.pendingCount ? `${faNum(data.settlements.pendingCount)} اعلام واریز در انتظار تأیید` : "بدهی امانی/اعتباری و تسویه" },
         ].map((l) => (
           <Link key={l.href} href={l.href} className="flex items-center gap-3 p-4 rounded-2xl hover:bg-gray-50" style={cardStyle}>
             <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "var(--color-emerald-light)", color: "var(--color-emerald)" }}>

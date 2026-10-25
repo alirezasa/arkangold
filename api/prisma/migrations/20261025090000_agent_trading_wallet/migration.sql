@@ -300,7 +300,7 @@ CREATE TABLE "agent_deposit_requests" (
     CONSTRAINT "agent_deposit_requests_pkey" PRIMARY KEY ("id")
 );
 CREATE UNIQUE INDEX "agent_deposit_requests_request_number_key" ON "agent_deposit_requests"("request_number");
-CREATE UNIQUE INDEX "agent_deposit_requests_gateway_provider_gateway_provider_ref_key" ON "agent_deposit_requests"("gateway_provider", "gateway_provider_ref");
+CREATE UNIQUE INDEX "agent_deposit_requests_gateway_provider_gateway_provider_re_key" ON "agent_deposit_requests"("gateway_provider", "gateway_provider_ref");
 CREATE INDEX "agent_deposit_requests_agent_id_status_idx" ON "agent_deposit_requests"("agent_id", "status");
 CREATE INDEX "agent_deposit_requests_status_created_at_idx" ON "agent_deposit_requests"("status", "created_at");
 -- یک مرجع بانکی فقط یک‌بار قابل ثبت است (ضد ثبت تکراری یک واریز)

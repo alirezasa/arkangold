@@ -10,7 +10,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import Decimal from 'decimal.js';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -63,7 +63,7 @@ export class AgentWalletService {
   async lockWallet(tx: Tx, agentId: string) {
     await tx.$executeRaw`
       INSERT INTO "agent_wallets" ("id", "agent_id", "balance_rial", "blocked_rial", "created_at", "updated_at")
-      VALUES (${uuidv4()}::uuid, ${agentId}::uuid, 0, 0, NOW(), NOW())
+      VALUES (${randomUUID()}::uuid, ${agentId}::uuid, 0, 0, NOW(), NOW())
       ON CONFLICT ("agent_id") DO NOTHING`;
     await tx.$executeRaw`SELECT 1 FROM "agent_wallets" WHERE "agent_id" = ${agentId}::uuid FOR UPDATE`;
     return tx.agentWallet.findUniqueOrThrow({ where: { agentId } });

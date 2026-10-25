@@ -25,7 +25,6 @@ import {
 } from '@nestjs/common';
 import Redis from 'ioredis';
 import * as crypto from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
 import Decimal from 'decimal.js';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -198,7 +197,7 @@ export class AgentSaleService {
     );
     const now = new Date();
     const quote: AgentQuote = {
-      quoteId: uuidv4(),
+      quoteId: crypto.randomUUID(),
       agentId,
       hologramCodeId: bar.id,
       code: bar.code,

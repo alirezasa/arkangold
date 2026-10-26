@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigurationError } from '../errors/integration-error';
+import {
+  MOCK_PROVIDER_CODE,
+  testIntegrationsBlocked,
+} from '../../common/environment/test-integrations';
 
 export interface ResolvedProviderEntry {
   providerCode: string;
@@ -54,7 +58,22 @@ export class ProviderRegistryService {
       );
     }
 
-    return links.map((l) => ({
+    // Mock در production هرگز اجرا نمی‌شود (هر هویت/کارتی را تأیید می‌کند)؛ حتی اگر در پنل فعال مانده باشد
+    const usable = testIntegrationsBlocked()
+      ? links.filter((l) => l.provider.code !== MOCK_PROVIDER_CODE)
+      : links;
+    if (usable.length !== links.length) {
+      this.logger.error(
+        `Provider آزمایشی MOCK برای سرویس ${serviceCode} فعال است ولی در production اجرا نمی‌شود — آن را از پنل غیرفعال و ارائه‌دهنده‌ی واقعی را فعال کنید`,
+      );
+    }
+    if (usable.length === 0) {
+      throw new ConfigurationError(
+        `برای سرویس ${serviceCode} فقط Provider آزمایشی (MOCK) فعال است که در production مجاز نیست`,
+      );
+    }
+
+    return usable.map((l) => ({
       providerCode: l.provider.code,
       providerId: l.providerId,
       isFallback: l.isFallback,

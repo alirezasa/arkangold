@@ -1,4 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  ALLOW_TEST_INTEGRATIONS_ENV,
+  MOCK_PROVIDER_CODE,
+  isProduction,
+  testIntegrationsBlocked,
+} from '../../common/environment/test-integrations';
 import { PrismaService } from '../../prisma/prisma.service';
 
 interface ServiceDefinition {
@@ -159,6 +165,26 @@ export class IntegrationSyncService implements OnModuleInit {
     await this.syncServices();
     await this.syncProviders();
     await this.syncInitialLinks();
+    await this.warnActiveMockLinks();
+  }
+
+  /** هشدار راه‌اندازی: لینک‌های فعال MOCK در production (که اجرا نمی‌شوند) */
+  private async warnActiveMockLinks() {
+    if (!isProduction()) return;
+    if (!testIntegrationsBlocked()) {
+      this.logger.error(
+        `${ALLOW_TEST_INTEGRATIONS_ENV}=true است: Mock و Sandbox در production اجرا می‌شوند و هر هویت/کارت/پرداختی پذیرفته می‌شود — فوراً حذف کنید`,
+      );
+    }
+    const links = await this.prisma.integrationProviderService.findMany({
+      where: { isActive: true, provider: { code: MOCK_PROVIDER_CODE } },
+      include: { service: { select: { code: true } } },
+    });
+    if (links.length) {
+      this.logger.error(
+        `Provider آزمایشی MOCK برای این سرویس‌ها هنوز فعال است: ${links.map((l) => l.service.code).join('، ')} — از پنل یکپارچه‌سازی‌ها غیرفعال کنید`,
+      );
+    }
   }
 
   private async syncServices() {

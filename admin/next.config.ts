@@ -32,8 +32,8 @@ const csp = [
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'none'",
-  // فرم پرداخت به درگاه بانکی (POST) ارسال می‌شود
-  "form-action 'self' https:",
+  // ارسال فرم فقط به همین مبدأ؛ انتقال به درگاه پرداخت با تغییر نشانی صفحه انجام می‌شود (نه فرم)
+  "form-action 'self'",
 ].join("; ");
 
 const securityHeaders = [

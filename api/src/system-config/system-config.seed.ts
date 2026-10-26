@@ -231,6 +231,12 @@ export const WALLET_CONFIG_DEFAULTS = [
       'پذیرش درخواست تحویل وزنی قدیمی (به‌جای خرید شمش موجود). پیش‌فرض خاموش',
   },
   {
+    key: 'security.admin.mfa_required',
+    value: 'false',
+    description:
+      'اجباری بودن ورود دومرحله‌ای (برنامه‌ی احراز هویت) برای کارشناسان پنل مدیریت — پیش‌فرض false: هر کارشناس خودش از پروفایل فعال می‌کند؛ با true، کارشناس بدون برنامه در ورود بعدی به راه‌اندازی هدایت می‌شود (FIA_UAU_EXT.2.3)',
+  },
+  {
     key: 'security.login.user_sms_otp_enabled',
     value: 'true',
     description:
@@ -401,6 +407,12 @@ export const WALLET_CONFIG_DEFAULTS = [
       'حداکثر عمر قیمت بازار برای قفل قیمت (ثانیه، حداقل ۶۰) — در قطعی منبع قیمت، معامله با قیمت کهنه متوقف می‌شود',
   },
   {
+    key: 'trade.gold.max_price_jump_percent',
+    value: '5',
+    description:
+      'حداکثر تغییر مجاز قیمت منبع نسبت به آخرین قیمت (درصد؛ صفر = بدون کنترل) — جهش بیشتر تا تأیید با ۳ دریافت پیاپی پذیرفته نمی‌شود و قفل قیمت جدید متوقف است (محافظت در برابر پاسخ اشتباه یا دستکاری‌شده‌ی منبع قیمت)',
+  },
+  {
     key: 'trade.gold.respect_source_disable',
     value: 'true',
     description:
@@ -468,7 +480,7 @@ export const WALLET_CONFIG_DEFAULTS = [
   {
     key: 'payment.behpardakht.password',
     value: '',
-    description: 'رمز عبور وب‌سرویس (رمزنگاری‌شده)',
+    description: 'رمز عبور وب‌سرویس (محرمانه؛ مقدار در پنل نمایش داده نمی‌شود)',
   },
 
   // ══ احراز هویت (KYC) ══

@@ -16,6 +16,7 @@ import {
 } from 'crypto';
 
 const CHALLENGE_TTL_SECONDS = 300;
+const EPHEMERAL_POW_KEY = randomBytes(32);
 /** بازه‌ی جست‌وجو؛ میانگین ۴۰ هزار محاسبه‌ی SHA-256 در مرورگر */
 export const POW_MAX_NUMBER = 80_000;
 
@@ -56,11 +57,14 @@ const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 export class PowCaptchaService {
   constructor(@Inject('REDIS_CLIENT') private redis: Redis) {}
 
+  /**
+   * کلید امضای چالش از راز موجود مشتق می‌شود (HMAC با برچسب جدا، نه خود راز). اگر هیچ رازی تنظیم
+   * نشده باشد (فقط توسعه‌ی محلی؛ production بدون اسرار JWT اجرا نمی‌شود)، کلید تصادفی همین
+   * فرآیند استفاده می‌شود — هرگز مقدار ثابت قابل حدس.
+   */
   private key(): Buffer {
-    const base =
-      process.env.JWT_TEMP_SECRET ||
-      process.env.JWT_ADMIN_SECRET ||
-      'arkan-pow-captcha';
+    const base = process.env.JWT_TEMP_SECRET || process.env.JWT_ADMIN_SECRET;
+    if (!base) return EPHEMERAL_POW_KEY;
     return createHmac('sha256', base).update('pow-captcha-v1').digest();
   }
 

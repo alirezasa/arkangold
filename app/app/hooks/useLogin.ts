@@ -18,7 +18,7 @@ export function apiErrorMessage(err: unknown, fallback = "خطایی در ارت
 
 /**
  * ورود دومرحله‌ای (FIA_UAU_EXT.2.3): رمز عبور ← کد پیامکی یا کد برنامه‌ی احراز هویت؛
- * یا ورود با کد پیامکی (requestOtp) که مرحله‌ی برنامه‌ی احراز هویت ندارد.
+ * یا ورود با کد پیامکی (requestOtp) که برای حساب دارای برنامه‌ی احراز هویت کد برنامه را هم می‌خواهد.
  * «بررسی امنیتی» در صورت درخواست سرور به‌طور خودکار حل می‌شود (FIA_UAU_EXT.2.1).
  */
 export const useLogin = () => {
@@ -48,7 +48,7 @@ export const useLogin = () => {
     }
   };
 
-  // ورود با کد پیامکی: بدون رمز و بدون مرحله‌ی برنامه‌ی احراز هویت
+  // ورود با کد پیامکی: بدون رمز؛ اگر برنامه‌ی احراز هویت فعال باشد پس از کد پیامکی خواسته می‌شود
   const requestOtp = async (phone: string): Promise<number> => {
     setLoading(true);
     setError(null);
@@ -68,13 +68,20 @@ export const useLogin = () => {
     }
   };
 
-  const verifyCode = async (code: string) => {
-    if (!challenge) return;
+  /** true یعنی مرحله‌ی دیگری (کد برنامه‌ی احراز هویت) لازم است و ورودی کد باید خالی شود */
+  const verifyCode = async (code: string): Promise<boolean> => {
+    if (!challenge) return false;
     setLoading(true);
     setError(null);
     try {
-      await AuthService.verifyLogin(challenge.challengeToken, code);
+      const res = await AuthService.verifyLogin(challenge.challengeToken, code);
+      // پس از کد پیامکی، حساب دارای برنامه‌ی احراز هویت به مرحله‌ی کد برنامه می‌رود
+      if (res?.mfaRequired) {
+        setChallenge(res as LoginChallenge);
+        return true;
+      }
       router.replace(consumeReturnPath() ?? "/dashboard");
+      return false;
     } catch (err) {
       setError(apiErrorMessage(err));
       // پایان مهلت/تلاش‌ها → بازگشت به مرحله‌ی رمز
@@ -82,6 +89,7 @@ export const useLogin = () => {
         setStep("credentials");
         setChallenge(null);
       }
+      return false;
     } finally {
       setLoading(false);
     }

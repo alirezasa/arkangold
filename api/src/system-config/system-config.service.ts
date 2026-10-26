@@ -222,6 +222,12 @@ export class SystemConfigService implements OnModuleInit {
     this.cache.set(key, value);
   }
 
+  /** مقدار ذخیره‌شده‌ی یک کلید (بدون کش)؛ null اگر کلید وجود نداشته باشد */
+  async find(key: string): Promise<string | null> {
+    const row = await this.prisma.systemConfig.findUnique({ where: { key } });
+    return row?.value ?? null;
+  }
+
   async getAll() {
     return this.prisma.systemConfig.findMany({ orderBy: { key: 'asc' } });
   }

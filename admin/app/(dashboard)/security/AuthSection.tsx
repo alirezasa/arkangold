@@ -182,7 +182,7 @@ export default function AuthSection() {
         title="ورود دومرحله‌ای"
         subtitle={
           <>
-            کاربران: رمز + کد پیامکی یا برنامه‌ی احراز هویت — پنل: رمز/کد پیامکی + <Tech>TOTP</Tech> اجباری —{" "}
+            کاربران: رمز + کد پیامکی یا برنامه‌ی احراز هویت — پنل: رمز/کد پیامکی + <Tech>TOTP</Tech> (اختیاری؛ قابل اجباری‌سازی از تنظیمات) —{" "}
             {m.totp.algorithm}، {fa(m.totp.digits)} رقم، اعتبار حداکثر {fa(m.totp.maxValiditySeconds)} ثانیه
           </>
         }

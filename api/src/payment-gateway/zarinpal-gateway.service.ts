@@ -5,6 +5,7 @@ import {
   isUpstreamFailure,
 } from '../common/resilience/circuit-breaker';
 import { SystemConfigService } from '../system-config/system-config.service';
+import { testIntegrationsBlocked } from '../common/environment/test-integrations';
 import {
   PaymentGatewayProvider,
   PaymentRequestParams,
@@ -64,7 +65,15 @@ export class ZarinpalGatewayService implements PaymentGatewayProvider {
   constructor(private readonly systemConfig: SystemConfigService) {}
 
   async isEnabled(): Promise<boolean> {
-    return this.systemConfig.getBoolean('payment.zarinpal.enabled', false);
+    if (
+      !(await this.systemConfig.getBoolean('payment.zarinpal.enabled', false))
+    )
+      return false;
+    // درگاهی که در production روی Sandbox مانده به کاربر عرضه نمی‌شود
+    return !(
+      testIntegrationsBlocked() &&
+      (await this.systemConfig.getBoolean('payment.zarinpal.sandbox', true))
+    );
   }
 
   private async getConfig() {
@@ -74,6 +83,12 @@ export class ZarinpalGatewayService implements PaymentGatewayProvider {
     ]);
     if (!merchantId) {
       throw new Error('مرچنت آیدی زرین‌پال تنظیم نشده است');
+    }
+    // Sandbox هر پرداختی را بدون واریز واقعی موفق اعلام می‌کند؛ در production ممنوع است
+    if (sandbox && testIntegrationsBlocked()) {
+      throw new Error(
+        'زرین‌پال در حالت Sandbox است که در production مجاز نیست؛ payment.zarinpal.sandbox را false کنید',
+      );
     }
     return {
       merchantId,

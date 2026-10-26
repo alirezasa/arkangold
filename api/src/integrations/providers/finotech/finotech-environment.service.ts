@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { SystemConfigService } from '../../../system-config/system-config.service';
 import { FINOTECH_CONFIG } from './finotech-config';
+import { ConfigurationError } from '../../errors/integration-error';
+import { testIntegrationsBlocked } from '../../../common/environment/test-integrations';
 
 /**
  * تعیین می‌کند فراخوانی‌های فینوتک به Sandbox بروند یا Production — بر اساس کلید
@@ -21,6 +23,12 @@ export class FinotechEnvironmentService {
 
   async getBaseUrl(): Promise<string> {
     const sandbox = await this.isSandbox();
+    // Sandbox فینوتک داده‌ی آزمایشی برمی‌گرداند؛ در production استعلام هویت جعلی ممنوع است
+    if (sandbox && testIntegrationsBlocked()) {
+      throw new ConfigurationError(
+        'فینوتک در حالت Sandbox است که در production مجاز نیست؛ identity.finotech.sandbox را false کنید',
+      );
+    }
     return sandbox
       ? FINOTECH_CONFIG.SANDBOX_BASE_URL
       : FINOTECH_CONFIG.PRODUCTION_BASE_URL;

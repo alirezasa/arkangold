@@ -30,8 +30,11 @@ export const MAX_CHALLENGE_ATTEMPTS = 5;
 const EXPIRED_MESSAGE =
   'مهلت این مرحله‌ی ورود به پایان رسیده است؛ دوباره وارد شوید';
 
-const keyOf = (token: string) =>
-  `login-ch:${createHash('sha256').update(token).digest('hex')}`;
+const hashOf = (token: string) =>
+  createHash('sha256').update(token).digest('hex');
+const keyOf = (token: string) => `login-ch:${hashOf(token)}`;
+/** شمارنده‌ی اتمی تلاش‌های ناموفق هر مرحله (جدا از JSON مرحله تا درخواست‌های همزمان گم نشوند) */
+const attemptsKeyOf = (token: string) => `login-ch-att:${hashOf(token)}`;
 
 @Injectable()
 export class LoginChallengeService {
@@ -63,34 +66,43 @@ export class LoginChallengeService {
     if (ch.kind !== kind || !stages.includes(ch.stage)) {
       throw new UnauthorizedException(EXPIRED_MESSAGE);
     }
-    return ch;
+    const attempts = Number((await this.redis.get(attemptsKeyOf(token))) ?? 0);
+    if (attempts >= MAX_CHALLENGE_ATTEMPTS) {
+      await this.redis.del(keyOf(token), attemptsKeyOf(token));
+      throw new UnauthorizedException(EXPIRED_MESSAGE);
+    }
+    return { ...ch, attempts };
   }
 
   /** مرحله‌ی بعد؛ شمارنده‌ی تلاش صفر می‌شود و مهلت تمدید */
   async advance(token: string, ch: LoginChallenge, stage: ChallengeStage) {
     const next: LoginChallenge = { ...ch, stage, attempts: 0 };
     await this.redis.setex(keyOf(token), TTL_SECONDS, JSON.stringify(next));
+    await this.redis.del(attemptsKeyOf(token));
     return next;
   }
 
-  /** ثبت تلاش ناموفق؛ پس از ۵ تلاش توکن باطل می‌شود. تعداد تلاش باقی‌مانده برگردانده می‌شود */
-  async fail(token: string, ch: LoginChallenge): Promise<number> {
-    const attempts = ch.attempts + 1;
+  /**
+   * ثبت تلاش ناموفق (اتمی با INCR تا تلاش‌های همزمان هم شمرده شوند)؛ پس از ۵ تلاش توکن باطل
+   * می‌شود. تعداد تلاش باقی‌مانده برگردانده می‌شود.
+   */
+  async fail(token: string): Promise<number> {
+    const key = attemptsKeyOf(token);
+    const attempts = await this.redis.incr(key);
+    if (attempts === 1) {
+      const ttl = await this.redis.ttl(keyOf(token));
+      await this.redis.expire(key, Math.max(ttl, 1));
+    }
     if (attempts >= MAX_CHALLENGE_ATTEMPTS) {
-      await this.redis.del(keyOf(token));
+      await this.redis.del(keyOf(token), key);
       return 0;
     }
-    const ttl = await this.redis.ttl(keyOf(token));
-    await this.redis.setex(
-      keyOf(token),
-      Math.max(ttl, 1),
-      JSON.stringify({ ...ch, attempts }),
-    );
     return MAX_CHALLENGE_ATTEMPTS - attempts;
   }
 
   /** پایان موفق؛ توکن فقط یک‌بار قابل استفاده است */
   async consume(token: string): Promise<boolean> {
+    await this.redis.del(attemptsKeyOf(token));
     return (await this.redis.del(keyOf(token))) === 1;
   }
 }

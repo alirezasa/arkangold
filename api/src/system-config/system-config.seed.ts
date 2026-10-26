@@ -401,6 +401,12 @@ export const WALLET_CONFIG_DEFAULTS = [
       'حداکثر عمر قیمت بازار برای قفل قیمت (ثانیه، حداقل ۶۰) — در قطعی منبع قیمت، معامله با قیمت کهنه متوقف می‌شود',
   },
   {
+    key: 'trade.gold.max_price_jump_percent',
+    value: '5',
+    description:
+      'حداکثر تغییر مجاز قیمت منبع نسبت به آخرین قیمت (درصد؛ صفر = بدون کنترل) — جهش بیشتر تا تأیید با ۳ دریافت پیاپی پذیرفته نمی‌شود و قفل قیمت جدید متوقف است (محافظت در برابر پاسخ اشتباه یا دستکاری‌شده‌ی منبع قیمت)',
+  },
+  {
     key: 'trade.gold.respect_source_disable',
     value: 'true',
     description:
@@ -468,7 +474,7 @@ export const WALLET_CONFIG_DEFAULTS = [
   {
     key: 'payment.behpardakht.password',
     value: '',
-    description: 'رمز عبور وب‌سرویس (رمزنگاری‌شده)',
+    description: 'رمز عبور وب‌سرویس (محرمانه؛ مقدار در پنل نمایش داده نمی‌شود)',
   },
 
   // ══ احراز هویت (KYC) ══
@@ -750,12 +756,6 @@ export const WALLET_CONFIG_DEFAULTS = [
     value: '24',
     description:
       'مهلت ثبت فروش نماینده در پنل پس از معامله با مشتری (ساعت) — متغیر {saleReportHours} قرارداد',
-  },
-  {
-    key: 'agent.mfa_required',
-    value: 'false',
-    description:
-      'اجباری بودن ورود دومرحله‌ای (برنامه‌ی احراز هویت) برای حساب‌های نمایندگان — پیش‌فرض false: نماینده در صورت تمایل خودش از پروفایل فعال می‌کند',
   },
   // ── خرید و فروش قطعی نمایندگان ──
   {

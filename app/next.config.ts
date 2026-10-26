@@ -38,8 +38,8 @@ const csp = [
   "object-src 'none'",
   "base-uri 'self'",
   "frame-ancestors 'none'",
-  // فرم پرداخت به درگاه بانکی (POST) ارسال می‌شود
-  "form-action 'self' https:",
+  // ارسال فرم فقط به همین مبدأ و درگاه‌های شاپرک (فرم POST به‌پرداخت ملت)؛ زرین‌پال با تغییر نشانی صفحه
+  "form-action 'self' https://*.shaparak.ir",
 ].join("; ");
 
 const securityHeaders = [

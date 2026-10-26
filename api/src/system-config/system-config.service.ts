@@ -49,6 +49,8 @@ const DEPRECATED_KEYS = [
   'transfer.monthly_limit_rial',
   // جایگزین با referral.reward_amount_mg (پاداش طلایی به میلی‌گرم)
   'referral.reward_amount_grams',
+  // ورود دومرحله‌ای نمایندگان دیگر اختیاری نیست (admin-auth.service → mfaRequiredFor)
+  'agent.mfa_required',
 ];
 
 @Injectable()
@@ -220,6 +222,12 @@ export class SystemConfigService implements OnModuleInit {
       update: { value },
     });
     this.cache.set(key, value);
+  }
+
+  /** مقدار ذخیره‌شده‌ی یک کلید (بدون کش)؛ null اگر کلید وجود نداشته باشد */
+  async find(key: string): Promise<string | null> {
+    const row = await this.prisma.systemConfig.findUnique({ where: { key } });
+    return row?.value ?? null;
   }
 
   async getAll() {

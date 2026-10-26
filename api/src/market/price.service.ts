@@ -5,8 +5,22 @@ import axios, { isAxiosError } from 'axios';
 import Decimal from 'decimal.js';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
+import { SystemConfigService } from '../system-config/system-config.service';
 
 const REDIS_KEY_GOLD = 'market:price:GOLD';
+/**
+ * کنترل انحراف قیمت منبع: قیمتی که بیش از trade.gold.max_price_jump_percent با آخرین قیمت پذیرفته‌شده
+ * فاصله دارد (پاسخ اشتباه یا دستکاری‌شده‌ی منبع) پذیرفته نمی‌شود و تا تأیید با چند دریافت پیاپی
+ * سازگار، قفل قیمت جدید متوقف است. این پرچم در Redis نشان‌دهنده‌ی همین حالت تعلیق است.
+ */
+const REDIS_KEY_GOLD_SUSPECT = 'market:price:GOLD:suspect';
+const SUSPECT_FLAG_TTL_SECONDS = 120;
+const DEFAULT_MAX_JUMP_PERCENT = 5;
+/** قیمت جهش‌یافته پس از این تعداد دریافت پیاپی (هر ۳۰ ثانیه) در بازه‌ی ۱٪ از هم، واقعی شمرده می‌شود */
+const JUMP_CONFIRMATIONS = 3;
+const JUMP_CONFIRM_TOLERANCE = new Decimal('0.01');
+/** مقایسه فقط با قیمت مرجع تازه انجام می‌شود (پس از قطعی طولانی مرجعی برای مقایسه نیست) */
+const REFERENCE_MAX_AGE_MS = 30 * 60 * 1000;
 const REDIS_TTL_SECONDS = 35;
 const GOLD_METAL = 'GOLD' as const;
 const TALASEA_SOURCE = 'talasea.ir';
@@ -158,9 +172,11 @@ export class PriceService implements OnModuleInit {
   private readonly BACKOFF_MS = 5 * 60 * 1000;
   private circuitOpenedAt: number | null = null;
   private isFetching = false;
+  private pendingJump: { price: Decimal; count: number } | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly systemConfig: SystemConfigService,
 
     @Inject('REDIS_CLIENT')
     private readonly redis: Redis,
@@ -198,6 +214,10 @@ export class PriceService implements OnModuleInit {
       const priceRial = new Decimal(quote.price)
         .mul(TALASEA_TO_RIAL_FACTOR)
         .toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
+
+      if (!(await this.passesDeviationCheck(priceRial))) {
+        return;
+      }
 
       // فیلد Decimal(18, 0) در Prisma؛ ارسال به‌صورت string از ناسازگاری نوع جلوگیری می‌کند.
       const priceRialText = priceRial.toFixed(0);
@@ -249,6 +269,70 @@ export class PriceService implements OnModuleInit {
     } finally {
       this.isFetching = false;
     }
+  }
+
+  /**
+   * قیمت تازه با آخرین قیمت پذیرفته‌شده مقایسه می‌شود. جهش بیش از حد مجاز رد و معامله تا تأیید
+   * متوقف می‌شود؛ اگر چند دریافت پیاپی همان قیمت جدید را تأیید کنند (حرکت واقعی بازار)، پذیرفته
+   * می‌شود. true یعنی قیمت قابل ذخیره است.
+   */
+  private async passesDeviationCheck(priceRial: Decimal): Promise<boolean> {
+    const reference = await this.prisma.marketPrice.findUnique({
+      where: { metal: GOLD_METAL },
+    });
+    const maxJumpPercent = await this.systemConfig.getNumber(
+      'trade.gold.max_price_jump_percent',
+      DEFAULT_MAX_JUMP_PERCENT,
+    );
+    const accept = async () => {
+      this.pendingJump = null;
+      await this.redis.del(REDIS_KEY_GOLD_SUSPECT).catch(() => undefined);
+      return true;
+    };
+    if (
+      maxJumpPercent <= 0 ||
+      !reference ||
+      Date.now() - reference.fetchedAt.getTime() > REFERENCE_MAX_AGE_MS
+    ) {
+      return accept();
+    }
+    const referencePrice = toDecimal(reference.pricePerGramRial);
+    if (referencePrice.lte(0)) return accept();
+
+    const jumpPercent = priceRial
+      .minus(referencePrice)
+      .abs()
+      .div(referencePrice)
+      .mul(100);
+    if (jumpPercent.lte(maxJumpPercent)) return accept();
+
+    const pending = this.pendingJump;
+    if (
+      pending &&
+      priceRial
+        .minus(pending.price)
+        .abs()
+        .div(pending.price)
+        .lte(JUMP_CONFIRM_TOLERANCE)
+    ) {
+      pending.count += 1;
+    } else {
+      this.pendingJump = { price: priceRial, count: 1 };
+    }
+    if ((this.pendingJump?.count ?? 0) >= JUMP_CONFIRMATIONS) {
+      this.logger.warn(
+        `جهش ${jumpPercent.toFixed(2)}٪ قیمت طلا (${referencePrice.toFixed(0)} → ${priceRial.toFixed(0)} ریال) با ${JUMP_CONFIRMATIONS} دریافت پیاپی تأیید و پذیرفته شد`,
+      );
+      return accept();
+    }
+
+    await this.redis
+      .set(REDIS_KEY_GOLD_SUSPECT, '1', 'EX', SUSPECT_FLAG_TTL_SECONDS)
+      .catch(() => undefined);
+    this.logger.error(
+      `قیمت منبع ${jumpPercent.toFixed(2)}٪ با آخرین قیمت فاصله دارد (${referencePrice.toFixed(0)} → ${priceRial.toFixed(0)} ریال؛ سقف ${maxJumpPercent}٪) — پذیرفته نشد و قفل قیمت جدید تا تأیید متوقف است`,
+    );
+    return false;
   }
 
   @Cron('0 */5 * * * *')
@@ -358,6 +442,15 @@ export class PriceService implements OnModuleInit {
     disableBuy: boolean;
     disableSell: boolean;
   } | null> {
+    // جهش تأییدنشده‌ی قیمت منبع: تا روشن شدن وضعیت هیچ قیمتی برای معامله عرضه نمی‌شود
+    try {
+      if (await this.redis.exists(REDIS_KEY_GOLD_SUSPECT)) return null;
+    } catch (error) {
+      this.logger.warn(
+        `خواندن وضعیت تعلیق قیمت از Redis ناموفق بود: ${getErrorMessage(error)}`,
+      );
+      return null;
+    }
     const res = await this.getGoldPriceResponse();
     if (!res) return null;
     const fetchedAt = new Date(res.fetchedAt);

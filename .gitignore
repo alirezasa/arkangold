@@ -64,3 +64,7 @@ Desktop.ini
 api/dist/
 app/.next/
 admin/.next/
+
+# مدارک هویتی/حقوقی کاربران هرگز نباید در مخزن ثبت شوند (فقط روی دیسک سرور)
+api/uploads/legal-documents/*
+!api/uploads/legal-documents/.gitkeep

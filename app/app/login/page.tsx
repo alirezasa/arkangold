@@ -93,13 +93,22 @@ export default function LoginPage() {
   };
 
   // مدیریت فیلدهای OTP
+  // ورود پیامکی حساب دارای برنامه‌ی احراز هویت: پس از کد پیامکی، ورودی برای کد برنامه خالی می‌شود
+  const submitCode = async (code: string) => {
+    if (await verifyCode(code)) {
+      setOtp(["", "", "", "", "", ""]);
+      setUseRecovery(false);
+      setRecoveryCode("");
+    }
+  };
+
   const handleOtpChange = (next: string[]) => {
     setOtp(next);
     if (error) setError(null);
   };
 
   const handleOtpComplete = async (code: string) => {
-    if (!loading) await verifyCode(code);
+    if (!loading) await submitCode(code);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,13 +138,13 @@ export default function LoginPage() {
     if (useRecovery) {
       if (recoveryCode.replace(/[^A-Za-z0-9]/g, "").length < 10)
         return setError("کد بازیابی ۱۰ کاراکتری را کامل وارد کنید.");
-      await verifyCode(recoveryCode);
+      await submitCode(recoveryCode);
       return;
     }
     const fullCode = otp.join("");
     if (fullCode.length < 6)
       return setError("لطفاً کد ۶ رقمی را کامل وارد کنید.");
-    await verifyCode(fullCode);
+    await submitCode(fullCode);
   };
 
   const handleResend = async () => {
@@ -289,7 +298,7 @@ export default function LoginPage() {
                   )}
                 </div>
                 <p className="font-black text-emerald">
-                  {mode === "otp" ? "کد ورود پیامکی" : "تأیید دومرحله‌ای"}
+                  {mode === "otp" && challenge.method === "SMS" ? "کد ورود پیامکی" : "تأیید دومرحله‌ای"}
                 </p>
                 <p className="mt-1 text-sm font-medium leading-relaxed text-gray-500">
                   {challenge.method === "TOTP" ? (

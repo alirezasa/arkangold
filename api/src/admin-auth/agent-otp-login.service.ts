@@ -259,7 +259,7 @@ export class AgentOtpLoginService {
       success: true,
       newValue: { via: 'agent_otp' },
     });
-    return this.adminAuth.startSecondStage(account, 'agent_otp', phone, ctx);
+    return this.adminAuth.startSecondStage(account, 'agent_otp', phone);
   }
 
   private auditFailure(accountId: string, ctx: RequestCtx, reason: string) {

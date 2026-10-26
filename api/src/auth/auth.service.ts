@@ -16,7 +16,6 @@ import { AuditService } from '../common/audit/audit.service';
 import { maskPhone } from '../common/audit/mask.util';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
 import Redis from 'ioredis';
 import {
   SendOtpDto,
@@ -54,6 +53,7 @@ const AUDIT_SOURCE = 'AuthService';
 
 const OTP_ATTEMPTS_EXCEEDED_MSG = 'تعداد تلاش‌های مجاز به پایان رسید';
 const OTP_TTL_SECONDS = 180;
+const OTP_MAX_ATTEMPTS = 5;
 // FIA_UAU_EXT.2.7: یک پیام برای شماره‌ی ناموجود، رمز نادرست و حساب بدون رمز
 const INVALID_CREDENTIALS_MSG = 'شماره همراه یا رمز عبور نادرست است';
 const RESET_SENT_MSG = 'در صورت وجود حساب کاربری، کد بازیابی ارسال خواهد شد';
@@ -589,7 +589,7 @@ export class AuthService {
     if (!user) {
       if (ch.via === 'sms_otp') {
         // مرحله‌ی ساختگی ورود پیامکی (شماره‌ی ناموجود): همان پاسخ کد نادرست
-        const remaining = await this.challenges.fail(challengeToken, ch);
+        const remaining = await this.challenges.fail(challengeToken);
         if (ch.identifier)
           await this.loginThrottle.recordFailure('user', ch.identifier, ip);
         throw new UnauthorizedException(
@@ -624,7 +624,34 @@ export class AuthService {
       },
     );
 
-    await this.challenges.consume(challengeToken);
+    // FIA_UAU_EXT.2.3: ورود پیامکی بدون رمز برای حسابی که برنامه‌ی احراز هویت را فعال کرده فقط
+    // یک عامل است؛ پس از کد پیامکی، کد برنامه (یا کد بازیابی) هم در همان مرحله خواسته می‌شود
+    // تا تصاحب سیم‌کارت به‌تنهایی برای ورود کافی نباشد.
+    if (ch.via === 'sms_otp' && ch.stage === 'SMS_OTP' && user.totpEnabled) {
+      await this.challenges.advance(challengeToken, ch, 'TOTP');
+      await this.auditService.logUser({
+        userId: user.id,
+        actorLabel: maskedPhone,
+        action: 'auth.login_first_factor',
+        ip,
+        userAgent,
+        source: AUDIT_SOURCE,
+        success: true,
+        newValue: { via: 'sms_otp', secondFactor: 'totp' },
+      });
+      return {
+        mfaRequired: true as const,
+        method: 'TOTP' as const,
+        challengeToken,
+      };
+    }
+
+    // مرحله فقط یک‌بار قابل تکمیل است (دو درخواست همزمان با یک کد دو نشست نمی‌سازند)
+    if (!(await this.challenges.consume(challengeToken))) {
+      throw new UnauthorizedException(
+        'مرحله‌ی ورود نامعتبر است؛ دوباره وارد شوید',
+      );
+    }
     await this.loginThrottle.recordSuccess('user', user.phone);
     await this.loginThrottle.recordSuccess('mfa', `user:${user.id}`);
     if (user.failedLoginCount !== 0 || user.lockedUntil) {
@@ -730,7 +757,7 @@ export class AuthService {
     }
     if (used) return used;
 
-    const remaining = await this.challenges.fail(challengeToken, ch);
+    const remaining = await this.challenges.fail(challengeToken);
     await this.loginThrottle.recordFailure('mfa', `user:${user.id}`, ctx.ip);
     await this.auditService.logUser({
       userId: user.id,
@@ -921,7 +948,12 @@ export class AuthService {
       userAgent,
       action: 'auth.reset_password_mfa',
     });
-    await this.challenges.consume(challengeToken);
+    // مرحله فقط یک‌بار قابل تکمیل است (دو درخواست همزمان با یک کد دو نشست نمی‌سازند)
+    if (!(await this.challenges.consume(challengeToken))) {
+      throw new UnauthorizedException(
+        'مرحله‌ی ورود نامعتبر است؛ دوباره وارد شوید',
+      );
+    }
     await this.loginThrottle.recordSuccess('mfa', `user:${user.id}`);
     return {
       resetToken: this.signResetToken(user.id, user.phone),
@@ -935,7 +967,7 @@ export class AuthService {
         phone,
         purpose: 'reset_password',
         userId,
-        jti: uuidv4(),
+        jti: crypto.randomUUID(),
       } as ResetTokenPayload,
       { ...jwtSignOptions('JWT_RESET_SECRET'), expiresIn: 600 },
     );
@@ -1288,6 +1320,11 @@ export class AuthService {
     }
   }
 
+  /**
+   * FIA_UAU_EXT.2.1 — هر تلاش پیش از مقایسه‌ی کد به‌صورت اتمی شمرده می‌شود (INCR در Redis /
+   * به‌روزرسانی شرطی در پایگاه داده)؛ درخواست‌های همزمان نمی‌توانند پیش از ثبت شکست‌ها بیش از
+   * ۵ حدس بزنند. مصرف کد هم اتمی است تا یک کد فقط یک‌بار پذیرفته شود.
+   */
   private async validateOtp(phone: string, code: string, purpose: OtpPurpose) {
     const redisKey = `otp:${phone}:${purpose}`;
     const attemptsKey = `otp_attempts:${phone}:${purpose}`;
@@ -1295,8 +1332,9 @@ export class AuthService {
     // ۱. Redis
     const otpHashRedis = await this.redis.get(redisKey);
     if (otpHashRedis) {
-      const attempts = parseInt((await this.redis.get(attemptsKey)) || '0', 10);
-      if (attempts >= 5) {
+      const attempts = await this.redis.incr(attemptsKey);
+      if (attempts === 1) await this.redis.expire(attemptsKey, OTP_TTL_SECONDS);
+      if (attempts > OTP_MAX_ATTEMPTS) {
         await this.redis.del(redisKey);
         await this.redis.del(attemptsKey);
         await this.prisma.userOtp.deleteMany({ where: { phone, purpose } });
@@ -1304,13 +1342,12 @@ export class AuthService {
       }
 
       const valid = await bcrypt.compare(code, otpHashRedis);
-      if (!valid) {
-        await this.redis.incr(attemptsKey);
-        await this.redis.expire(attemptsKey, 180);
-        throw new BadRequestException('کد تایید نادرست است');
-      }
+      if (!valid) throw new BadRequestException('کد تایید نادرست است');
 
-      await this.redis.del(redisKey);
+      // فقط درخواستی که کد را واقعاً حذف کند برنده است (جلوگیری از مصرف همزمان یک کد)
+      if ((await this.redis.del(redisKey)) !== 1) {
+        throw new BadRequestException('کد تایید منقضی شده یا نامعتبر است');
+      }
       await this.redis.del(attemptsKey);
       await this.prisma.userOtp.deleteMany({ where: { phone, purpose } });
       return;
@@ -1323,21 +1360,24 @@ export class AuthService {
     });
     if (!otpRecord)
       throw new BadRequestException('کد تایید منقضی شده یا نامعتبر است');
-    if (otpRecord.attempts >= 5) {
-      await this.prisma.userOtp.delete({ where: { id: otpRecord.id } });
+    const claimed = await this.prisma.userOtp.updateMany({
+      where: { id: otpRecord.id, attempts: { lt: OTP_MAX_ATTEMPTS } },
+      data: { attempts: { increment: 1 } },
+    });
+    if (claimed.count === 0) {
+      await this.prisma.userOtp.deleteMany({ where: { id: otpRecord.id } });
       throw new BadRequestException(OTP_ATTEMPTS_EXCEEDED_MSG);
     }
 
     const valid = await bcrypt.compare(code, otpRecord.codeHash);
-    if (!valid) {
-      await this.prisma.userOtp.update({
-        where: { id: otpRecord.id },
-        data: { attempts: { increment: 1 } },
-      });
-      throw new BadRequestException('کد تایید نادرست است');
-    }
+    if (!valid) throw new BadRequestException('کد تایید نادرست است');
 
-    await this.prisma.userOtp.delete({ where: { id: otpRecord.id } });
+    const consumed = await this.prisma.userOtp.deleteMany({
+      where: { id: otpRecord.id },
+    });
+    if (consumed.count !== 1) {
+      throw new BadRequestException('کد تایید منقضی شده یا نامعتبر است');
+    }
   }
 
   private async createSession(
@@ -1346,7 +1386,7 @@ export class AuthService {
     ip?: string,
     device?: string,
   ) {
-    const sessionId = uuidv4();
+    const sessionId = crypto.randomUUID();
     // عمر نشست از تنظیمات سیستم (session.user.*) — expiresIn پاسخ مبنای maxAge کوکی در BFF است
     const { accessTtlSeconds, refreshTtlSeconds } =
       await this.systemConfig.getSessionPolicy('user');

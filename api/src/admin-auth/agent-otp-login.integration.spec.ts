@@ -155,22 +155,28 @@ run('ورود نماینده با کد یکبارمصرف (یکپارچه با P
 
     // کد با ارقام فارسی هم پذیرفته می‌شود
     const persian = code.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
-    const res = await otp.verifyCode(phone, persian);
-    // ورود دومرحله‌ای برای نماینده به‌طور پیش‌فرض غیرفعال است: نشست مستقیم صادر می‌شود
-    if (!('accessToken' in res)) throw new Error('نشست صادر نشد');
+    const step = await otp.verifyCode(phone, persian);
+    // کد پیامکی فقط عامل اول است؛ ورود دومرحله‌ای برای نماینده اجباری است و پیش از
+    // راه‌اندازی برنامه‌ی احراز هویت هیچ نشستی صادر نمی‌شود
+    if (!('next' in step)) throw new Error('نشست بدون عامل دوم صادر شد');
+    expect(step.next).toBe('MFA_SETUP');
+    expect(
+      await prisma.adminSession.count({ where: { adminUserId: accountId } }),
+    ).toBe(0);
+
+    const setup = await auth.loginMfaSetup(step.challengeToken);
+    const res = await auth.loginMfaSetupConfirm(
+      step.challengeToken,
+      hotp(setup.secret, currentStep()),
+      '10.0.0.1',
+      UA,
+    );
     expect(res.accessToken).toBeTruthy();
     expect(res.admin.id).toBe(accountId);
+    expect(res.recoveryCodes).toHaveLength(10);
     expect(
       await prisma.adminSession.count({ where: { adminUserId: accountId } }),
     ).toBe(1);
-
-    // نماینده خودش ورود دومرحله‌ای را از پروفایل فعال می‌کند
-    const setup = await auth.beginOwnMfaEnable(accountId);
-    const enabled = await auth.confirmOwnMfaEnable(
-      accountId,
-      hotp(setup.secret, currentStep()),
-    );
-    expect(enabled.recoveryCodes).toHaveLength(10);
 
     await expect(otp.verifyCode(phone, code)).rejects.toThrow(
       'کد ورود نادرست یا منقضی شده است',
@@ -240,7 +246,7 @@ run('ورود نماینده با کد یکبارمصرف (یکپارچه با P
       ),
     ).rejects.toThrow('حساب نمایندگی از نشانی');
 
-    // نماینده TOTP را داوطلبانه در آزمون قبلی فعال کرده است ← مرحله‌ی بررسی کد
+    // نماینده TOTP را در آزمون قبلی راه‌اندازی کرده است ← مرحله‌ی بررسی کد
     const agentLogin = await auth.login(
       {
         username: `agent-${suffix}`,

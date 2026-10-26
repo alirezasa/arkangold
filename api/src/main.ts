@@ -21,29 +21,7 @@ import {
 import { isOtpDebugLogEnabledInProduction } from './common/logging/otp-debug';
 import { securityHeadersMiddleware } from './common/network/security-headers';
 import { sensitiveQueryMiddleware } from './common/network/sensitive-query';
-
-// دامنه‌های مجاز CORS — arkan.gold (سایت اصلی) و app.arkan.gold/admin هر دو باید
-// بتوانند مستقیماً از مرورگر به API عمومی هولوگرام (POST /public/hologram/verify)
-// و سایر endpointها دسترسی داشته باشند (بند ۴.۱). دامنه‌های اضافه را می‌توان بدون
-// تغییر کد از طریق CORS_EXTRA_ORIGINS (جدا شده با کاما) اضافه کرد.
-const DEFAULT_CORS_ORIGINS = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'https://arkan.gold',
-  'https://www.arkan.gold',
-  'https://app.arkan.gold',
-  'https://admin.arkan.gold',
-  // پنل نمایندگان فروش (همان برنامه‌ی admin روی دامنه‌ی جدا)
-  'https://panel.arkan.gold',
-];
-
-function resolveCorsOrigins(): string[] {
-  const extra = (process.env.CORS_EXTRA_ORIGINS ?? '')
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
-  return [...DEFAULT_CORS_ORIGINS, ...extra];
-}
+import { resolveCorsOrigins } from './common/network/cors-origins';
 
 /**
  * FPT_FLS_EXT.1.4 — دریافت متمرکز استثناهای مدیریت‌نشده در سطح فرآیند: هیچ Promise رد‌شده یا

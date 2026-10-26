@@ -12,6 +12,21 @@ import { AccountingService } from '../accounting/accounting.service';
 import { DocumentSequenceService } from '../common/documents/document-sequence.service';
 import { SmsTemplateService } from '../notifications/sms-template.service';
 import { DepositService } from '../deposit/deposit.service';
+import {
+  startOfJalaliMonthTehran,
+  startOfTehranDay,
+} from '../common/utils/jalali.util';
+
+/**
+ * آغاز بازه‌ی سقف‌های روزانه/ماهانه به وقت تهران و ماه شمسی (همانند سقف معاملات طلا)؛
+ * سرور روی UTC است و نیمه‌شب UTC ساعت ۳:۳۰ بامداد تهران است.
+ */
+function limitPeriods() {
+  return {
+    today: startOfTehranDay(),
+    firstOfMonth: startOfJalaliMonthTehran(),
+  };
+}
 
 @Injectable()
 export class WalletService {
@@ -51,8 +66,7 @@ export class WalletService {
     );
 
     // محاسبه واریز روزانه امروز
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const { today, firstOfMonth: firstDayOfMonth } = limitPeriods();
     const dailyDeposit = await this.prisma.transaction.aggregate({
       where: {
         userId,
@@ -64,7 +78,6 @@ export class WalletService {
     });
 
     // محاسبه برداشت ماهانه
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthlyWithdrawal = await this.prisma.transaction.aggregate({
       where: {
         userId,
@@ -359,43 +372,6 @@ export class WalletService {
         `حداکثر مبلغ برداشت در یک تراکنش ${(maxAmount / 10).toLocaleString('fa-IR')} تومان است`,
       );
 
-    // چک سقف روزانه
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayWithdrawal = await this.prisma.transaction.aggregate({
-      where: {
-        userId,
-        type: 'WITHDRAWAL',
-        status: { in: ['PENDING', 'COMPLETED'] },
-        createdAt: { gte: today },
-      },
-      _sum: { amountRial: true },
-    });
-    const usedToday = Number(todayWithdrawal._sum.amountRial ?? 0);
-    if (usedToday + amount > dailyLimit) {
-      throw new BadRequestException(
-        `سقف برداشت روزانه ${(dailyLimit / 10).toLocaleString('fa-IR')} تومان است`,
-      );
-    }
-
-    // چک سقف ماهانه
-    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const monthWithdrawal = await this.prisma.transaction.aggregate({
-      where: {
-        userId,
-        type: 'WITHDRAWAL',
-        status: { in: ['PENDING', 'COMPLETED'] },
-        createdAt: { gte: firstOfMonth },
-      },
-      _sum: { amountRial: true },
-    });
-    const usedMonth = Number(monthWithdrawal._sum.amountRial ?? 0);
-    if (usedMonth + amount > monthlyLimit) {
-      throw new BadRequestException(
-        `سقف برداشت ماهانه ${(monthlyLimit / 10).toLocaleString('fa-IR')} تومان است`,
-      );
-    }
-
     // بررسی حساب بانکی
     const bankAccount = await this.prisma.bankAccount.findFirst({
       where: { id: bankAccountId, userId, isVerified: true },
@@ -416,6 +392,16 @@ export class WalletService {
       const fresh = await tx.wallet.findUniqueOrThrow({
         where: { id: wallet.id },
       });
+
+      // سقف روزانه/ماهانه پس از قفل کیف پول بررسی می‌شود تا درخواست‌های همزمان نتوانند
+      // هر کدام جداگانه از سقف عبور کنند
+      await this.assertWithinWithdrawalLimits(
+        tx,
+        userId,
+        amount,
+        dailyLimit,
+        monthlyLimit,
+      );
 
       const holdRial = await this.getActiveHoldRial(wallet.id, tx);
       const availableBalance = Number(fresh.rialBalance) - holdRial;
@@ -601,9 +587,7 @@ export class WalletService {
       ]);
 
     // محاسبه مقدار مصرف شده امروز و این ماه
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const { today, firstOfMonth } = limitPeriods();
 
     const [todayUsed, monthUsed] = await Promise.all([
       this.prisma.transaction.aggregate({
@@ -673,9 +657,7 @@ export class WalletService {
       this.systemConfig.getNumber('transfer.monthly_limit_grams', 20),
     ]);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const { today, firstOfMonth } = limitPeriods();
 
     const [todayUsed, monthUsed] = await Promise.all([
       this.prisma.transaction.aggregate({
@@ -748,6 +730,21 @@ export class WalletService {
     if (!destinationWallet) {
       throw new NotFoundException('کیف پول مقصد یافت نشد');
     }
+    // طلا فقط به حساب فعال و احرازهویت‌شده منتقل می‌شود (جلوگیری از انتقال به حساب‌های
+    // ناشناس/مسدود برای پول‌شویی)
+    const recipient = await this.prisma.user.findUnique({
+      where: { id: destinationWallet.userId },
+      select: { status: true, identity: { select: { status: true } } },
+    });
+    if (
+      !recipient ||
+      recipient.status !== 'ACTIVE' ||
+      recipient.identity?.status !== 'VERIFIED'
+    ) {
+      throw new BadRequestException(
+        'انتقال به این کیف پول امکان‌پذیر نیست؛ گیرنده باید حساب فعال و احرازهویت‌شده داشته باشد',
+      );
+    }
 
     // ── بررسی محدودیت‌های داینامیک روزانه/ماهانه ──
     const [dailyLimitGrams, monthlyLimitGrams] = await Promise.all([
@@ -755,9 +752,7 @@ export class WalletService {
       this.systemConfig.getDecimal('transfer.monthly_limit_grams', '20'),
     ]);
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const { today, firstOfMonth } = limitPeriods();
 
     const result = await this.prisma.$transaction(async (tx) => {
       // ترتیب ثابت قفل‌گیری بر اساس id برای جلوگیری از deadlock
@@ -790,9 +785,18 @@ export class WalletService {
         'گرم',
       );
 
-      const availableGrams = new Prisma.Decimal(freshSender.goldBalanceGrams);
+      // طلای رزروشده (تحویل فیزیکی، سفارش فروشگاه) قابل انتقال نیست؛ فقط موجودی آزاد
+      const holds = await tx.walletHold.aggregate({
+        where: { walletId: senderWallet.id, expiresAt: { gt: new Date() } },
+        _sum: { amountGrams: true },
+      });
+      const availableGrams = new Prisma.Decimal(
+        freshSender.goldBalanceGrams,
+      ).minus(holds._sum.amountGrams ?? 0);
       if (availableGrams.lessThan(gramsAmount)) {
-        throw new BadRequestException('موجودی طلا کافی نیست');
+        throw new BadRequestException(
+          `موجودی طلای قابل انتقال کافی نیست. موجودی قابل استفاده: ${Prisma.Decimal.max(availableGrams, 0).toString()} گرم`,
+        );
       }
 
       await tx.wallet.update({
@@ -872,6 +876,40 @@ export class WalletService {
       );
     }
   }
+  private async assertWithinWithdrawalLimits(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    amount: number,
+    dailyLimit: number,
+    monthlyLimit: number,
+  ) {
+    const { today, firstOfMonth } = limitPeriods();
+    const used = async (since: Date) =>
+      Number(
+        (
+          await tx.transaction.aggregate({
+            where: {
+              userId,
+              type: 'WITHDRAWAL',
+              status: { in: ['PENDING', 'COMPLETED'] },
+              createdAt: { gte: since },
+            },
+            _sum: { amountRial: true },
+          })
+        )._sum.amountRial ?? 0,
+      );
+    if ((await used(today)) + amount > dailyLimit) {
+      throw new BadRequestException(
+        `سقف برداشت روزانه ${(dailyLimit / 10).toLocaleString('fa-IR')} تومان است`,
+      );
+    }
+    if ((await used(firstOfMonth)) + amount > monthlyLimit) {
+      throw new BadRequestException(
+        `سقف برداشت ماهانه ${(monthlyLimit / 10).toLocaleString('fa-IR')} تومان است`,
+      );
+    }
+  }
+
   private async getActiveHoldRial(
     walletId: string,
     tx: Prisma.TransactionClient | PrismaService = this.prisma,

@@ -200,26 +200,21 @@ export class AdminAuthService {
       source: AUDIT_SOURCE,
       success: true,
     });
-    return this.startSecondStage(admin, 'password', username, {
-      ip,
-      userAgent,
-    });
+    return this.startSecondStage(admin, 'password', username);
   }
 
   /**
-   * ورود دومرحله‌ای برای حساب نماینده اجباری است؟ پیش‌فرض خیر (agent.mfa_required=false):
-   * نماینده در صورت تمایل خودش برنامه‌ی احراز هویت را از پروفایل فعال می‌کند و از آن پس
-   * ورودش دومرحله‌ای است. برای کارشناسان سازمان همیشه اجباری است.
+   * FIA_UAU_EXT.2.3 — ورود دومرحله‌ای (برنامه‌ی احراز هویت) برای همه‌ی حساب‌های پنل اجباری است:
+   * کارشناسان سازمان و نمایندگان (که با کیف پول و خرید طلا عملیات مالی انجام می‌دهند). نماینده‌ای
+   * که هنوز برنامه را راه‌اندازی نکرده، در ورود بعدی به مرحله‌ی راه‌اندازی هدایت می‌شود.
    */
-  private async mfaRequiredFor(admin: { agentId?: string | null }) {
-    if (!admin.agentId) return true;
-    return this.systemConfig.getBoolean('agent.mfa_required', false);
+  private mfaRequiredFor() {
+    return Promise.resolve(true);
   }
 
   /**
    * مرحله‌ی بعد از عامل اول (رمز یا کد پیامکی نماینده): تغییر رمز موقت (فقط مسیر رمز)،
-   * سپس راه‌اندازی/بررسی برنامه‌ی احراز هویت. حساب نماینده‌ای که ورود دومرحله‌ای را فعال
-   * نکرده (و اجباری هم نیست) پس از عامل اول مستقیم وارد می‌شود.
+   * سپس راه‌اندازی/بررسی برنامه‌ی احراز هویت؛ هیچ حسابی بدون عامل دوم وارد نمی‌شود.
    */
   async startSecondStage(
     admin: LoginAdmin & {
@@ -230,25 +225,8 @@ export class AdminAuthService {
     },
     via: LoginChallenge['via'],
     identifier: string,
-    ctx: { ip?: string; userAgent?: string } = {},
-  ): Promise<AdminLoginStep | AdminSessionResult> {
+  ): Promise<AdminLoginStep> {
     const mustChange = via === 'password' && admin.mustChangePassword;
-    if (
-      !mustChange &&
-      !admin.totpEnabled &&
-      !(await this.mfaRequiredFor(admin))
-    ) {
-      const ch: LoginChallenge = {
-        kind: 'admin',
-        accountId: admin.id,
-        stage: 'MFA_SETUP',
-        via,
-        identifier,
-        attempts: 0,
-        createdAt: Date.now(),
-      };
-      return this.finishLogin(admin, ch, ctx.ip, ctx.userAgent, 'none');
-    }
     const stage = mustChange
       ? 'CHANGE_PASSWORD'
       : admin.totpEnabled
@@ -329,11 +307,6 @@ export class AdminAuthService {
       source: AUDIT_SOURCE,
       success: true,
     });
-    // نماینده‌ی بدون ورود دومرحله‌ای (اختیاری) پس از تعیین رمز جدید مستقیم وارد می‌شود
-    if (!admin.totpEnabled && !(await this.mfaRequiredFor(admin))) {
-      await this.challenges.consume(challengeToken);
-      return this.finishLogin(admin, ch, ip, userAgent, 'none');
-    }
     const stage = admin.totpEnabled ? 'MFA_VERIFY' : 'MFA_SETUP';
     await this.challenges.advance(challengeToken, ch, stage);
     return this.stepResponse(stage, challengeToken);
@@ -372,7 +345,7 @@ export class AdminAuthService {
         code,
       );
     } catch (err) {
-      const remaining = await this.challenges.fail(challengeToken, ch);
+      const remaining = await this.challenges.fail(challengeToken);
       if (remaining === 0) {
         throw new UnauthorizedException(
           'تعداد تلاش‌های مجاز به پایان رسید؛ دوباره وارد شوید',
@@ -416,7 +389,7 @@ export class AdminAuthService {
     await this.loginThrottle.assertAllowed('mfa', mfaKey, ip);
     const used = await this.mfa.verify({ kind: 'admin', id: admin.id }, code);
     if (!used) {
-      const remaining = await this.challenges.fail(challengeToken, ch);
+      const remaining = await this.challenges.fail(challengeToken);
       await this.loginThrottle.recordFailure('mfa', mfaKey, ip);
       await this.auditService.logAdmin({
         adminUserId: admin.id,
@@ -433,7 +406,12 @@ export class AdminAuthService {
           : 'تعداد تلاش‌های مجاز به پایان رسید؛ دوباره وارد شوید',
       );
     }
-    await this.challenges.consume(challengeToken);
+    // مرحله فقط یک‌بار قابل تکمیل است (دو درخواست همزمان با یک کد دو نشست نمی‌سازند)
+    if (!(await this.challenges.consume(challengeToken))) {
+      throw new UnauthorizedException(
+        'مرحله‌ی ورود نامعتبر است؛ دوباره وارد شوید',
+      );
+    }
     await this.loginThrottle.recordSuccess('mfa', mfaKey);
     if (used === 'recovery_code') {
       await this.loginAlerts.onSecurityChange(
@@ -1106,13 +1084,9 @@ export class AdminAuthService {
 
   async ownMfaStatus(adminUserId: string) {
     const owner = { kind: 'admin' as const, id: adminUserId };
-    const admin = await this.prisma.adminUser.findUnique({
-      where: { id: adminUserId },
-      select: { agentId: true },
-    });
     return {
       ...(await this.mfa.status(owner)),
-      required: await this.mfaRequiredFor({ agentId: admin?.agentId }),
+      required: await this.mfaRequiredFor(),
       devices: await this.loginAlerts.listDevices(owner),
     };
   }
@@ -1175,7 +1149,7 @@ export class AdminAuthService {
     const admin = await this.prisma.adminUser.findUniqueOrThrow({
       where: { id: adminUserId },
     });
-    if (await this.mfaRequiredFor(admin)) {
+    if (await this.mfaRequiredFor()) {
       throw new ForbiddenException(
         'ورود دومرحله‌ای برای این حساب اجباری است و غیرفعال نمی‌شود',
       );

@@ -49,8 +49,6 @@ const DEPRECATED_KEYS = [
   'transfer.monthly_limit_rial',
   // جایگزین با referral.reward_amount_mg (پاداش طلایی به میلی‌گرم)
   'referral.reward_amount_grams',
-  // ورود دومرحله‌ای نمایندگان دیگر اختیاری نیست (admin-auth.service → mfaRequiredFor)
-  'agent.mfa_required',
 ];
 
 @Injectable()

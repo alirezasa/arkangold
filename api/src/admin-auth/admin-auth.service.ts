@@ -47,7 +47,8 @@ interface LoginDto {
 
 /**
  * پاسخ هر مرحله‌ی ورود پنل تا وقتی همه‌ی مراحل کامل نشده؛ نشست فقط در پایان صادر می‌شود.
- * FIA_UAU_EXT.2.3: برای ادمین‌ها و نمایندگان، رمز عبور + برنامه‌ی احراز هویت (TOTP) اجباری است.
+ * FIA_UAU_EXT.2.3: پس از رمز عبور، برنامه‌ی احراز هویت (TOTP) برای حسابی که آن را فعال کرده یا
+ * اجباری شده باشد (security.admin.mfa_required / agent.mfa_required) خواسته می‌شود.
  */
 export interface AdminLoginStep {
   next: 'CHANGE_PASSWORD' | 'MFA_SETUP' | 'MFA_VERIFY';
@@ -200,21 +201,29 @@ export class AdminAuthService {
       source: AUDIT_SOURCE,
       success: true,
     });
-    return this.startSecondStage(admin, 'password', username);
+    return this.startSecondStage(admin, 'password', username, {
+      ip,
+      userAgent,
+    });
   }
 
   /**
-   * FIA_UAU_EXT.2.3 — ورود دومرحله‌ای (برنامه‌ی احراز هویت) برای همه‌ی حساب‌های پنل اجباری است:
-   * کارشناسان سازمان و نمایندگان (که با کیف پول و خرید طلا عملیات مالی انجام می‌دهند). نماینده‌ای
-   * که هنوز برنامه را راه‌اندازی نکرده، در ورود بعدی به مرحله‌ی راه‌اندازی هدایت می‌شود.
+   * ورود دومرحله‌ای (برنامه‌ی احراز هویت) برای حساب‌های پنل اجباری است؟ پیش‌فرض خیر: هر کاربر
+   * (کارشناس سازمان یا نماینده) خودش آن را از پروفایل فعال می‌کند و از آن پس ورودش دومرحله‌ای
+   * است. با security.admin.mfa_required (کارشناسان) و agent.mfa_required (نمایندگان) برای همه
+   * اجباری می‌شود (FIA_UAU_EXT.2.3) و حساب بدون برنامه در ورود بعدی به راه‌اندازی هدایت می‌شود.
    */
-  private mfaRequiredFor() {
-    return Promise.resolve(true);
+  private async mfaRequiredFor(admin: { agentId?: string | null }) {
+    return this.systemConfig.getBoolean(
+      admin.agentId ? 'agent.mfa_required' : 'security.admin.mfa_required',
+      false,
+    );
   }
 
   /**
    * مرحله‌ی بعد از عامل اول (رمز یا کد پیامکی نماینده): تغییر رمز موقت (فقط مسیر رمز)،
-   * سپس راه‌اندازی/بررسی برنامه‌ی احراز هویت؛ هیچ حسابی بدون عامل دوم وارد نمی‌شود.
+   * سپس راه‌اندازی/بررسی برنامه‌ی احراز هویت. حسابی که ورود دومرحله‌ای را فعال نکرده
+   * (و اجباری هم نیست) پس از عامل اول مستقیم وارد می‌شود.
    */
   async startSecondStage(
     admin: LoginAdmin & {
@@ -225,8 +234,25 @@ export class AdminAuthService {
     },
     via: LoginChallenge['via'],
     identifier: string,
-  ): Promise<AdminLoginStep> {
+    ctx: { ip?: string; userAgent?: string } = {},
+  ): Promise<AdminLoginStep | AdminSessionResult> {
     const mustChange = via === 'password' && admin.mustChangePassword;
+    if (
+      !mustChange &&
+      !admin.totpEnabled &&
+      !(await this.mfaRequiredFor(admin))
+    ) {
+      const ch: LoginChallenge = {
+        kind: 'admin',
+        accountId: admin.id,
+        stage: 'MFA_SETUP',
+        via,
+        identifier,
+        attempts: 0,
+        createdAt: Date.now(),
+      };
+      return this.finishLogin(admin, ch, ctx.ip, ctx.userAgent, 'none');
+    }
     const stage = mustChange
       ? 'CHANGE_PASSWORD'
       : admin.totpEnabled
@@ -307,6 +333,11 @@ export class AdminAuthService {
       source: AUDIT_SOURCE,
       success: true,
     });
+    // حساب بدون ورود دومرحله‌ای (اختیاری) پس از تعیین رمز جدید مستقیم وارد می‌شود
+    if (!admin.totpEnabled && !(await this.mfaRequiredFor(admin))) {
+      await this.challenges.consume(challengeToken);
+      return this.finishLogin(admin, ch, ip, userAgent, 'none');
+    }
     const stage = admin.totpEnabled ? 'MFA_VERIFY' : 'MFA_SETUP';
     await this.challenges.advance(challengeToken, ch, stage);
     return this.stepResponse(stage, challengeToken);
@@ -1084,14 +1115,18 @@ export class AdminAuthService {
 
   async ownMfaStatus(adminUserId: string) {
     const owner = { kind: 'admin' as const, id: adminUserId };
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: adminUserId },
+      select: { agentId: true },
+    });
     return {
       ...(await this.mfa.status(owner)),
-      required: await this.mfaRequiredFor(),
+      required: await this.mfaRequiredFor({ agentId: admin?.agentId }),
       devices: await this.loginAlerts.listDevices(owner),
     };
   }
 
-  /** فعال‌سازی داوطلبانه‌ی ورود دومرحله‌ای توسط نماینده (برای کارشناسان از ابتدا فعال است) */
+  /** فعال‌سازی داوطلبانه‌ی ورود دومرحله‌ای توسط خود کاربر پنل (کارشناس یا نماینده) */
   async beginOwnMfaEnable(adminUserId: string) {
     const admin = await this.prisma.adminUser.findUniqueOrThrow({
       where: { id: adminUserId },
@@ -1139,7 +1174,7 @@ export class AdminAuthService {
     return { recoveryCodes };
   }
 
-  /** غیرفعال‌سازی ورود دومرحله‌ای — فقط حساب نماینده و وقتی اجباری نباشد؛ با کد فعلی */
+  /** غیرفعال‌سازی ورود دومرحله‌ای — فقط وقتی برای آن نوع حساب اجباری نباشد؛ با کد فعلی */
   async disableOwnMfa(
     adminUserId: string,
     code: string,
@@ -1149,7 +1184,7 @@ export class AdminAuthService {
     const admin = await this.prisma.adminUser.findUniqueOrThrow({
       where: { id: adminUserId },
     });
-    if (await this.mfaRequiredFor()) {
+    if (await this.mfaRequiredFor(admin)) {
       throw new ForbiddenException(
         'ورود دومرحله‌ای برای این حساب اجباری است و غیرفعال نمی‌شود',
       );

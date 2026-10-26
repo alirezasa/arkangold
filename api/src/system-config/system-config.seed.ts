@@ -231,6 +231,12 @@ export const WALLET_CONFIG_DEFAULTS = [
       'پذیرش درخواست تحویل وزنی قدیمی (به‌جای خرید شمش موجود). پیش‌فرض خاموش',
   },
   {
+    key: 'security.admin.mfa_required',
+    value: 'false',
+    description:
+      'اجباری بودن ورود دومرحله‌ای (برنامه‌ی احراز هویت) برای کارشناسان پنل مدیریت — پیش‌فرض false: هر کارشناس خودش از پروفایل فعال می‌کند؛ با true، کارشناس بدون برنامه در ورود بعدی به راه‌اندازی هدایت می‌شود (FIA_UAU_EXT.2.3)',
+  },
+  {
     key: 'security.login.user_sms_otp_enabled',
     value: 'true',
     description:
@@ -756,6 +762,12 @@ export const WALLET_CONFIG_DEFAULTS = [
     value: '24',
     description:
       'مهلت ثبت فروش نماینده در پنل پس از معامله با مشتری (ساعت) — متغیر {saleReportHours} قرارداد',
+  },
+  {
+    key: 'agent.mfa_required',
+    value: 'false',
+    description:
+      'اجباری بودن ورود دومرحله‌ای (برنامه‌ی احراز هویت) برای حساب‌های نمایندگان — پیش‌فرض false: نماینده در صورت تمایل خودش از پروفایل فعال می‌کند',
   },
   // ── خرید و فروش قطعی نمایندگان ──
   {

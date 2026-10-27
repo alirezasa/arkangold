@@ -1,11 +1,9 @@
 // admin/app/components/MobileDrawer.tsx
 "use client";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { NAV_SECTIONS, canSeeNavItem, isNavActive } from "@/app/utils/nav";
 import { X } from "lucide-react";
 import type { AdminMe } from "@/app/hooks/useAdminMe";
 import UserMenuCard from "./UserMenuCard";
+import NavMenu from "./NavMenu";
 
 export default function MobileDrawer({
   open,
@@ -16,7 +14,6 @@ export default function MobileDrawer({
   onClose: () => void;
   me: AdminMe;
 }) {
-  const pathname = usePathname();
   if (!open) return null;
 
   return (
@@ -32,38 +29,7 @@ export default function MobileDrawer({
             <X className="w-5 h-5" />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
-          {NAV_SECTIONS.map((section) => {
-            const visibleItems = section.items.filter((item) => canSeeNavItem(item, me));
-            if (visibleItems.length === 0) return null;
-            return (
-              <div key={section.title}>
-                <p className="px-3 mb-1.5 text-[10px] font-bold text-white/90! uppercase tracking-wider">
-                  {section.title}
-                </p>
-                <div className="space-y-1">
-                  {visibleItems.map((item) => {
-                    const active = isNavActive(pathname, item.href);
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={onClose}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-bold ${
-                          active ? "" : "text-white!"
-                        }`}
-                        style={active ? { backgroundColor: "var(--color-gold-500)", color: "var(--color-emerald)" } : undefined}
-                      >
-                        <item.icon className="w-4 h-4 shrink-0" />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </nav>
+        <NavMenu me={me} onNavigate={onClose} />
         <UserMenuCard me={me} onNavigate={onClose} />
       </div>
     </div>

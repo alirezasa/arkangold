@@ -67,12 +67,19 @@ export interface NavItem {
 
 export interface NavSection {
   title: string;
+  icon: typeof LayoutDashboard;
   items: NavItem[];
+  /** آیتم‌ها همیشه باز و بدون سرتیتر نمایش داده شوند (مثل داشبورد) */
+  flat?: boolean;
 }
 
+// بخش‌ها بر اساس موضوع کار گروه‌بندی شده‌اند تا آیتم‌های مرتبط کنار هم باشند؛
+// در منوی کناری هر بخش جمع است و با کلیک روی عنوانش زیربخش‌ها باز می‌شوند.
 export const NAV_SECTIONS: NavSection[] = [
   {
     title: "کلی",
+    icon: LayoutDashboard,
+    flat: true,
     items: [
       { label: "داشبورد", href: "/", icon: LayoutDashboard, perm: null, hideForAgent: true },
       { label: "دسترسی سریع", href: "/modules", icon: LayoutGrid, perm: null, hideForAgent: true },
@@ -80,15 +87,29 @@ export const NAV_SECTIONS: NavSection[] = [
   },
   {
     title: "پرتال نماینده",
+    icon: Store,
+    flat: true,
     items: [
       { label: "داشبورد نمایندگی", href: "/agent-portal", icon: Store, perm: "agent_portal.view", agentOnly: true },
+    ],
+  },
+  {
+    title: "خرید و فروش شمش",
+    icon: ShoppingBag,
+    items: [
       { label: "خرید شمش از شرکت", href: "/agent-portal/purchase", icon: ShoppingBag, perm: "agent_portal.view", agentOnly: true },
-      { label: "کیف پول و حساب بانکی", href: "/agent-portal/wallet", icon: Wallet, perm: "agent_portal.view", agentOnly: true },
       { label: "ثبت فروش و اصالت", href: "/agent-portal/sell", icon: ShoppingCart, perm: "agent_portal.sell", agentOnly: true },
       { label: "فروش شمش به شرکت", href: "/agent-portal/buyback", icon: HandCoins, perm: "agent_portal.view", agentOnly: true },
-      { label: "استعلام شمش", href: "/agent-portal/inquiry", icon: SearchCheck, perm: "agent_portal.view", agentOnly: true },
-      { label: "موجودی شمش", href: "/agent-portal/inventory", icon: Boxes, perm: "agent_portal.view", agentOnly: true },
       { label: "فروش‌های من", href: "/agent-portal/sales", icon: Receipt, perm: "agent_portal.view", agentOnly: true },
+      { label: "موجودی شمش", href: "/agent-portal/inventory", icon: Boxes, perm: "agent_portal.view", agentOnly: true },
+      { label: "استعلام شمش", href: "/agent-portal/inquiry", icon: SearchCheck, perm: "agent_portal.view", agentOnly: true },
+    ],
+  },
+  {
+    title: "مالی نمایندگی",
+    icon: Wallet,
+    items: [
+      { label: "کیف پول و حساب بانکی", href: "/agent-portal/wallet", icon: Wallet, perm: "agent_portal.view", agentOnly: true },
       { label: "صورتحساب‌های شرکت", href: "/agent-portal/invoices", icon: ReceiptText, perm: "agent_portal.view", agentOnly: true },
       { label: "تسویه بدهی", href: "/agent-portal/settlements", icon: Coins, perm: "agent_portal.view", agentOnly: true },
       { label: "صورتحساب (معین)", href: "/agent-portal/statement", icon: FileSpreadsheet, perm: "agent_portal.view", agentOnly: true },
@@ -96,16 +117,29 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: "مالی",
+    title: "کاربران",
+    icon: Users,
     items: [
+      { label: "لیست کاربران", href: "/users", icon: Users, perm: "users.view" },
+      { label: "پروفایل‌های حقوقی", href: "/legal-profiles", icon: Building2, perm: "legal_profile.view" },
+      { label: "کارت‌های بانکی کاربران", href: "/bank-accounts", icon: CreditCard, perm: "bank_account.view" },
+      { label: "دعوت از دوستان", href: "/referrals", icon: Gift, perm: "referral.view" },
+    ],
+  },
+  {
+    title: "واریز و برداشت",
+    icon: Wallet,
+    items: [
+      { label: "درخواست‌های واریز", href: "/deposits", icon: Wallet, perm: "deposit.view" },
       { label: "درخواست‌های برداشت", href: "/withdrawals", icon: Wallet, perm: "withdrawal.view" },
       { label: "تراکنش‌های کاربران", href: "/transactions", icon: Wallet, perm: "transactions.view" },
-      { label: "درخواست‌های واریز", href: "/deposits", icon: Wallet, perm: "deposit.view" },
+      { label: "پی‌رول (شارژ دستی)", href: "/payroll", icon: Wallet, perm: "payroll.view" },
       { label: "گزارش واریز و برداشت", href: "/finance-report", icon: BarChart3, perm: "withdrawal.view" },
     ],
   },
   {
     title: "حسابداری",
+    icon: BookOpen,
     items: [
       { label: "داشبورد مالی", href: "/accounting", icon: LineChart, perm: "accounting.view" },
       { label: "سرفصل حساب‌ها", href: "/accounting/chart-of-accounts", icon: BookOpen, perm: "accounting.view" },
@@ -119,7 +153,8 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: "خزانه و شمش",
+    title: "خزانه و موجودی شمش",
+    icon: Vault,
     items: [
       { label: "پوشش و خرید طلا", href: "/treasury", icon: Vault, perm: "treasury.view" },
       { label: "سفارش‌های خزانه", href: "/treasury/orders", icon: ClipboardList, perm: "treasury.view" },
@@ -130,48 +165,37 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: "شرکای فروش (اقساطی)",
+    title: "اصالت‌سنجی شمش",
+    icon: ScanLine,
     items: [
-      { label: "شرکا", href: "/partners", icon: Handshake, perm: "partner.view" },
-      { label: "سفارش‌ها و قراردادها", href: "/partners/orders", icon: ReceiptText, perm: "partner.view" },
-      { label: "تسویه‌ها", href: "/partners/settlements", icon: HandCoins, perm: "partner.view" },
-      { label: "گزارش و مطالبات", href: "/partners/report", icon: BarChart3, perm: "partner.view" },
-    ],
-  },
-  {
-    title: "کاربران",
-    items: [
-      { label: "لیست کاربران", href: "/users", icon: Users, perm: "users.view" },
-      { label: "پروفایل‌های حقوقی", href: "/legal-profiles", icon: Building2, perm: "legal_profile.view" },
-      { label: "کارت‌های بانکی کاربران", href: "/bank-accounts", icon: CreditCard, perm: "bank_account.view" },
-      { label: "اعلان‌های کاربران", href: "/notifications", icon: Bell, perm: "notifications.view" },
-      { label: "دعوت از دوستان", href: "/referrals", icon: Gift, perm: "referral.view" },
+      { label: "اصالت‌سنجی هولوگرام", href: "/holograms", icon: ScanLine, perm: "hologram.code.view" },
+      { label: "گزارش سرقت و مفقودی شمش", href: "/holograms/incidents", icon: Siren, perm: "hologram.incident.view" },
     ],
   },
   {
     title: "فروشگاه",
+    icon: Package,
     items: [
       { label: "محصولات", href: "/shop/products", icon: Package, perm: "shop.manage" },
       { label: "دسته‌بندی‌ها", href: "/shop/categories", icon: FolderTree, perm: "shop.manage" },
       { label: "بسته‌بندی ارسال", href: "/shop/packaging", icon: Box, perm: "shop.manage" },
-      { label: "سفارشات فروشگاه", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
-      { label: "مراجع ارسال", href: "/shop/shipping-methods", icon: Truck, perm: "shop.view" },
-      { label: "مناطق و تعرفه‌های ارسال", href: "/shop/shipping-zones", icon: MapPinned, perm: "shop.view" },
-      { label: "برچسب و لیبل پرینتر", href: "/shop/labels", icon: Printer, perm: "shop.label.manage" },
       { label: "کدهای تخفیف", href: "/discount-codes", icon: TicketPercent, perm: "discount.view" },
     ],
   },
   {
-    title: "عملیات",
+    title: "سفارش‌ها و ارسال",
+    icon: Truck,
     items: [
+      { label: "سفارشات فروشگاه", href: "/shop-orders", icon: ShoppingBag, perm: "shop.view" },
       { label: "تحویل فیزیکی طلا", href: "/physical-deliveries", icon: Package, perm: "physical_delivery.view" },
-      { label: "اصالت‌سنجی هولوگرام", href: "/holograms", icon: ScanLine, perm: "hologram.code.view" },
-      { label: "گزارش سرقت و مفقودی شمش", href: "/holograms/incidents", icon: Siren, perm: "hologram.incident.view" },
-      { label: "پی‌رول (شارژ دستی)", href: "/payroll", icon: Wallet, perm: "payroll.view" },
+      { label: "مراجع ارسال", href: "/shop/shipping-methods", icon: Truck, perm: "shop.view" },
+      { label: "مناطق و تعرفه‌های ارسال", href: "/shop/shipping-zones", icon: MapPinned, perm: "shop.view" },
+      { label: "برچسب و لیبل پرینتر", href: "/shop/labels", icon: Printer, perm: "shop.label.manage" },
     ],
   },
   {
     title: "نمایندگان فروش",
+    icon: Store,
     items: [
       { label: "نمایندگان", href: "/agents", icon: Store, perm: "agent.view" },
       { label: "کارتابل خرید و فروش نمایندگان", href: "/agents/trading", icon: ClipboardList, perm: "agent.view" },
@@ -182,23 +206,37 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: "پشتیبانی",
+    title: "شرکای فروش (اقساطی)",
+    icon: Handshake,
     items: [
-      { label: "تیکت‌ها", href: "/tickets", icon: Headset, perm: "tickets.view" },
-      { label: "دسته‌بندی تیکت‌ها", href: "/tickets/categories", icon: Tags, perm: "tickets.manage_categories" },
+      { label: "شرکا", href: "/partners", icon: Handshake, perm: "partner.view" },
+      { label: "سفارش‌ها و قراردادها", href: "/partners/orders", icon: ReceiptText, perm: "partner.view" },
+      { label: "تسویه‌ها", href: "/partners/settlements", icon: HandCoins, perm: "partner.view" },
+      { label: "گزارش و مطالبات", href: "/partners/report", icon: BarChart3, perm: "partner.view" },
     ],
   },
   {
-    title: "سیستم",
+    title: "پشتیبانی و اطلاع‌رسانی",
+    icon: Headset,
+    items: [
+      { label: "تیکت‌ها", href: "/tickets", icon: Headset, perm: "tickets.view" },
+      { label: "دسته‌بندی تیکت‌ها", href: "/tickets/categories", icon: Tags, perm: "tickets.manage_categories" },
+      { label: "اعلان‌های کاربران", href: "/notifications", icon: Bell, perm: "notifications.view" },
+      { label: "مرکز پیامک", href: "/sms", icon: MessageSquareText, perm: "sms.view" },
+    ],
+  },
+  {
+    title: "تنظیمات و اتصالات",
+    icon: Settings2,
     items: [
       { label: "تنظیمات سیستم", href: "/system-config", icon: Settings2, perm: "system_config.view" },
-      { label: "مرکز پیامک", href: "/sms", icon: MessageSquareText, perm: "sms.view" },
       { label: "یکپارچه‌سازی‌ها (KYC/فینوتک)", href: "/integrations", icon: Plug, perm: "integrations.view" },
       { label: "سامانه ناظر طلا (زر پایش)", href: "/zarpayesh", icon: Eye, perm: "zarpayesh.view" },
     ],
   },
   {
-    title: "مدیریت پنل",
+    title: "مدیریت پنل و امنیت",
+    icon: ShieldCheck,
     items: [
       { label: "مدیریت ادمین‌ها", href: "/admins", icon: UserCog, perm: "admin.manage" },
       { label: "نقش‌ها و دسترسی‌ها", href: "/roles", icon: ShieldCheck, perm: "admin.manage" },

@@ -19,6 +19,7 @@ export default function ModulesPage() {
     const term = q.trim();
     return NAV_SECTIONS.map((section) => ({
       title: section.title,
+      icon: section.icon,
       items: section.items.filter(
         (item) =>
           !SKIP_HREFS.has(item.href) &&
@@ -58,7 +59,10 @@ export default function ModulesPage() {
         <div className="space-y-6">
           {sections.map((section) => (
             <section key={section.title}>
-              <h2 className="mb-2.5 text-[12.5px] font-black text-gray-600">{section.title}</h2>
+              <h2 className="mb-2.5 flex items-center gap-1.5 text-[12.5px] font-black text-gray-600">
+                <section.icon className="h-4 w-4 text-gray-400" />
+                {section.title}
+              </h2>
               <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
                 {section.items.map((item) => (
                   <Link

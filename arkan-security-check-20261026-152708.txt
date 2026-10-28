@@ -1,0 +1,138 @@
+Arkan Gold external security check — 2026-10-26 11:57:08 UTC
+APP=https://app.arkan.gold ADMIN=https://admin.arkan.gold PANEL=https://panel.arkan.gold API=https://api.arkan.gold
+  [INFO] IP عمومی اجراکننده: 46.209.151.230
+
+=== 1. DNS و دسترسی ===
+  [INFO] app.arkan.gold → HTTP 307
+  [INFO] admin.arkan.gold → HTTP 307
+  [INFO] panel.arkan.gold → HTTP 307
+  [INFO] api.arkan.gold → HTTP 404
+
+=== 2. TLS و گواهی ===
+  [INFO] app.arkan.gold: پروتکل TLSv1.3، رمز ?
+  [INFO] app.arkan.gold: گواهی تا Jan  2 11:50:29 2027 GMT — subject=CN=arkan.gold
+  [OK]   app.arkan.gold: گواهی بیش از ۱۴ روز اعتبار دارد
+  [OK]   app.arkan.gold: زنجیره‌ی گواهی معتبر است
+  [OK]   app.arkan.gold: tls1 پذیرفته نمی‌شود
+  [OK]   app.arkan.gold: tls1_1 پذیرفته نمی‌شود
+  [OK]   app.arkan.gold: HTTP به HTTPS هدایت می‌شود
+  [INFO] admin.arkan.gold: پروتکل TLSv1.3، رمز ?
+  [INFO] admin.arkan.gold: گواهی تا Jan  2 11:50:29 2027 GMT — subject=CN=arkan.gold
+  [OK]   admin.arkan.gold: گواهی بیش از ۱۴ روز اعتبار دارد
+  [OK]   admin.arkan.gold: زنجیره‌ی گواهی معتبر است
+  [OK]   admin.arkan.gold: tls1 پذیرفته نمی‌شود
+  [OK]   admin.arkan.gold: tls1_1 پذیرفته نمی‌شود
+  [OK]   admin.arkan.gold: HTTP به HTTPS هدایت می‌شود
+  [INFO] panel.arkan.gold: پروتکل TLSv1.3، رمز ?
+  [INFO] panel.arkan.gold: گواهی تا Jan  2 11:50:29 2027 GMT — subject=CN=arkan.gold
+  [OK]   panel.arkan.gold: گواهی بیش از ۱۴ روز اعتبار دارد
+  [OK]   panel.arkan.gold: زنجیره‌ی گواهی معتبر است
+  [OK]   panel.arkan.gold: tls1 پذیرفته نمی‌شود
+  [OK]   panel.arkan.gold: tls1_1 پذیرفته نمی‌شود
+  [OK]   panel.arkan.gold: HTTP به HTTPS هدایت می‌شود
+  [INFO] api.arkan.gold: پروتکل TLSv1.3، رمز ?
+  [INFO] api.arkan.gold: گواهی تا Jan  2 11:50:29 2027 GMT — subject=CN=arkan.gold
+  [OK]   api.arkan.gold: گواهی بیش از ۱۴ روز اعتبار دارد
+  [OK]   api.arkan.gold: زنجیره‌ی گواهی معتبر است
+  [OK]   api.arkan.gold: tls1 پذیرفته نمی‌شود
+  [OK]   api.arkan.gold: tls1_1 پذیرفته نمی‌شود
+  [OK]   api.arkan.gold: HTTP به HTTPS هدایت می‌شود
+
+=== 3. هدرهای امنیتی ===
+  [INFO] اپ کاربر (https://app.arkan.gold/) → HTTP 307
+  [OK]   HSTS: max-age=31536000; includeSubDomains
+  [OK]   CSP وجود دارد
+  [WARN] CSP شامل 'unsafe-inline' است
+  [WARN] CSP اسکریپت شخص ثالث (goftino) را مجاز کرده است
+  [WARN] CSP: form-action به همه‌ی دامنه‌های https باز است
+  [OK]   X-Frame-Options: DENY
+  [OK]   X-Content-Type-Options: nosniff
+  [OK]   Referrer-Policy: strict-origin-when-cross-origin
+  [WARN] افشای اطلاعات سرور: Server: ArvanCloud
+  [INFO] پنل مدیریت (https://admin.arkan.gold/) → HTTP 307
+  [OK]   HSTS: max-age=31536000; includeSubDomains
+  [OK]   CSP وجود دارد
+  [WARN] CSP شامل 'unsafe-inline' است
+  [WARN] CSP: form-action به همه‌ی دامنه‌های https باز است
+  [OK]   X-Frame-Options: DENY
+  [OK]   X-Content-Type-Options: nosniff
+  [OK]   Referrer-Policy: strict-origin-when-cross-origin
+  [WARN] افشای اطلاعات سرور: Server: ArvanCloud
+  [INFO] پنل نمایندگان (https://panel.arkan.gold/) → HTTP 307
+  [OK]   HSTS: max-age=31536000; includeSubDomains
+  [OK]   CSP وجود دارد
+  [WARN] CSP شامل 'unsafe-inline' است
+  [WARN] CSP: form-action به همه‌ی دامنه‌های https باز است
+  [OK]   X-Frame-Options: DENY
+  [OK]   X-Content-Type-Options: nosniff
+  [OK]   Referrer-Policy: strict-origin-when-cross-origin
+  [WARN] افشای اطلاعات سرور: Server: ArvanCloud
+  [INFO] API (https://api.arkan.gold/market/price) → HTTP 200
+  [OK]   HSTS: max-age=31536000; includeSubDomains
+  [OK]   CSP وجود دارد
+  [OK]   X-Frame-Options: DENY
+  [OK]   X-Content-Type-Options: nosniff
+  [OK]   Referrer-Policy: no-referrer
+  [WARN] افشای اطلاعات سرور: Server: ArvanCloud
+  [OK]   API: Cache-Control: no-store, max-age=0
+
+=== 4. فایل‌ها و مسیرهای حساس (باید 404/403 باشند) ===
+  [OK]   app.arkan.gold/.env → 404
+  [OK]   app.arkan.gold/.git/config → 404
+  [OK]   app.arkan.gold/.git/HEAD → 404
+  [OK]   app.arkan.gold/package.json → 404
+  [OK]   admin.arkan.gold/.env → 404
+  [INFO] admin.arkan.gold/.git/config → 307 (هدایت به /login)
+  [INFO] admin.arkan.gold/.git/HEAD → 307 (هدایت به /login)
+  [OK]   admin.arkan.gold/package.json → 404
+  [OK]   api.arkan.gold/.env → 404
+  [OK]   api.arkan.gold/.git/config → 404
+  [OK]   api.arkan.gold/.git/HEAD → 404
+  [OK]   api.arkan.gold/package.json → 404
+  [OK]   Swagger UI (api/docs) → 404
+  [OK]   Swagger JSON (api/docs-json) → 404
+  [OK]   مدارک حقوقی از مسیر ایستا → 404
+  [OK]   فهرست پوشه‌ی uploads → 404
+  [OK]   فهرست پوشه‌ی تصاویر محصول → 404
+
+=== 5. دسترسی بدون احراز هویت به API (باید 401/403 باشد) ===
+  [OK]   GET /admin/users → 401
+  [OK]   GET /admin/system-config → 401
+  [OK]   GET /admin/admins → 401
+  [OK]   GET /admin/audit-log → 401
+  [OK]   GET /wallet → 401
+  [OK]   GET /auth/me → 401
+  [OK]   GET /agent-portal/wallet → 401
+  [OK]   GET /admin/integrations/providers → 401
+  [OK]   توکن با الگوریتم none رد شد → 401
+  [INFO] BFF app.arkan.gold بدون کوکی → 401
+  [INFO] BFF admin.arkan.gold بدون کوکی → 401
+
+=== 6. CORS ===
+  [OK]   Origin بیگانه پذیرفته نشد
+  [OK]   Origin: null پذیرفته نشد
+  [WARN] http://localhost:3000 در production پذیرفته می‌شود (حذف از DEFAULT_CORS_ORIGINS)
+  [OK]   زیردامنه‌ی جعلی app.arkan.gold.evil… پذیرفته نشد
+  [OK]   Origin اپ پذیرفته شد: https://app.arkan.gold
+  [OK]   WebSocket قیمت: Origin بیگانه پذیرفته نشد
+  [OK]   متد TRACE → 405
+
+=== 7. افشای اطلاعات در خطاها ===
+  [OK]   GET /market/price/history?hours=abc → 200 بدون جزئیات داخلی
+  [OK]   GET /this-route-does-not-exist-26633 → 404 بدون جزئیات داخلی
+  [OK]   GET /invoices/not-a-uuid → 401 بدون جزئیات داخلی
+  [OK]   GET /verify/AG-0000-XX-0 → 200 بدون جزئیات داخلی
+
+=== 8. endpointهای عمومی ===
+  [INFO] قیمت عمومی → 200: {"metal":"GOLD","pricePerGramRial":"262570000","pricePerGramToman":"26257000","change24h":0.28,"source":"talasea.ir","fetchedAt":"2026-10-26T11:57:30.045Z","disableBuy":false,"disableSell":false,"fromCache":true}
+  [INFO] درگاه‌های فعال → 200: []
+  [INFO] برندینگ عمومی → 404
+  [INFO] صفحه‌ی ورود admin.arkan.gold از این IP → 200 (اگر 200 است، پنل از اینترنت عمومی در دسترس است)
+  [INFO] صفحه‌ی ورود panel.arkan.gold از این IP → 200 (اگر 200 است، پنل از اینترنت عمومی در دسترس است)
+
+=== 9. محدودیت نرخ (rate limit) ===
+  [OK]   پس از 33 درخواست پاسخ 429 دریافت شد
+
+=== خلاصه ===
+  OK: 76   WARN: 12   FAIL: 0
+  گزارش در فایل: arkan-security-check-20261026-152708.txt

@@ -19,4 +19,8 @@ export interface IStorageService {
     expiresInSeconds?: number,
   ): Promise<string>;
   delete(storageKey: string): Promise<void>;
+  /** دریافت محتوای فایل (برای عبور امن از API، مثلاً تصویر پیوست چت) */
+  download?(storageKey: string): Promise<Buffer>;
+  /** آیا اتصال ذخیره‌ساز پیکربندی شده است */
+  isReady?(): boolean;
 }

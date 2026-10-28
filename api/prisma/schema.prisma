@@ -61,6 +61,7 @@ model User {
   taxConfigs                 TaxConfig[]
   transactions               Transaction[]
   identity                   UserIdentity?
+  livechatVisitors           LivechatVisitor[]
   limits                     UserLimit?
   sessions                   UserSession[]
   referredBy                 User?                      @relation("Referral", fields: [referredById], references: [id])
@@ -1472,6 +1473,7 @@ model AdminUser {
   agentSettlementsSubmitted  AgentSettlement[]          @relation("AgentSettlementSubmittedBy")
   agentSettlementsReviewed   AgentSettlement[]          @relation("AgentSettlementReviewedBy")
   agentLedgerEntries         AgentLedgerEntry[]         @relation("AgentLedgerCreatedBy")
+  livechatOperator           LivechatOperator?
 
   @@index([agentId])
   @@map("admin_users")
@@ -4243,4 +4245,363 @@ enum ZarPayeshTradeStatus {
   FAILED
   /// نتیجه‌ی Approve/Cancel نامشخص ماند (Timeout/قطعی) — پیگیری خودکار با TxnFollowup
   UNKNOWN
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  آرکان گلد — چت آنلاین پشتیبانی (جایگزین گفتینو)
+//  بازدیدکننده (مهمان یا کاربر واردشده) ← گفتگو ← پیام‌ها؛ ربات منوی پاسخ‌های آماده، حالت هوشمند
+//  (پایگاه دانش)، صف انتظار و تخصیص به اپراتور، دپارتمان‌ها، پاسخ‌های سریع و پیام‌های خودکار.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// تنظیمات کلی چت (یک ردیف؛ ساختار JSON در livechat-settings.types.ts با پیش‌فرض‌ها ادغام می‌شود)
+model LivechatSettings {
+  id          Int      @id @default(1)
+  data        Json     @default("{}")
+  updatedById String?  @map("updated_by_id") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("livechat_settings")
+}
+
+/// دپارتمان (واحد پاسخ‌گو) — مثل «پشتیبانی عمومی»، «واحد مالی»، «تحویل و ارسال»
+model LivechatDepartment {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  operators     LivechatOperatorDepartment[]
+  conversations LivechatConversation[]
+  botNodes      LivechatBotNode[]
+  cannedReplies LivechatCannedResponse[]
+
+  @@map("livechat_departments")
+}
+
+/// پروفایل اپراتور چت (هر ادمین دارای دسترسی livechat.view با اولین ورود به میز کار ساخته می‌شود)
+model LivechatOperator {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  adminUserId        String                 @unique @map("admin_user_id") @db.Uuid
+  /// نام نمایشی برای بازدیدکننده (نام واقعی ادمین نمایش داده نمی‌شود مگر همین باشد)
+  displayName        String                 @map("display_name")
+  title              String?
+  avatarUrl          String?                @map("avatar_url")
+  /// وضعیت انتخابی اپراتور؛ «آنلاین» واقعی = همین وضعیت + اتصال زنده به میز کار
+  status             LivechatOperatorStatus @default(OFFLINE)
+  maxConcurrentChats Int                    @default(5) @map("max_concurrent_chats")
+  /// در تخصیص خودکار شرکت کند
+  acceptsAutoAssign  Boolean                @default(true) @map("accepts_auto_assign")
+  isActive           Boolean                @default(true) @map("is_active")
+  lastSeenAt         DateTime?              @map("last_seen_at")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+
+  adminUser     AdminUser                    @relation(fields: [adminUserId], references: [id])
+  departments   LivechatOperatorDepartment[]
+  conversations LivechatConversation[]
+  messages      LivechatMessage[]
+  cannedReplies LivechatCannedResponse[]
+
+  @@map("livechat_operators")
+}
+
+model LivechatOperatorDepartment {
+  operatorId   String @map("operator_id") @db.Uuid
+  departmentId String @map("department_id") @db.Uuid
+
+  operator   LivechatOperator   @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  department LivechatDepartment @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+
+  @@id([operatorId, departmentId])
+  @@index([departmentId])
+  @@map("livechat_operator_departments")
+}
+
+/// بازدیدکننده‌ی چت — مهمان (بدون حساب) یا متصل به کاربر واردشده
+model LivechatVisitor {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String?   @map("user_id") @db.Uuid
+  name           String?
+  phone          String?
+  email          String?
+  /// یادداشت اپراتورها درباره‌ی بازدیدکننده (فقط پنل)
+  notes          String?   @db.Text
+  tags           String[]  @default([])
+  isBanned       Boolean   @default(false) @map("is_banned")
+  bannedReason   String?   @map("banned_reason")
+  bannedAt       DateTime? @map("banned_at")
+  lastIp         String?   @map("last_ip")
+  userAgent      String?   @map("user_agent")
+  currentUrl     String?   @map("current_url")
+  currentTitle   String?   @map("current_title")
+  referrer       String?
+  visitsCount    Int       @default(1) @map("visits_count")
+  firstSeenAt    DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt     DateTime  @default(now()) @map("last_seen_at")
+  /// آخرین پیامک اطلاع‌رسانی پاسخ (جلوگیری از پیامک‌های پشت‌سرهم)
+  lastNotifiedAt DateTime? @map("last_notified_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user          User?                    @relation(fields: [userId], references: [id])
+  sessions      LivechatVisitorSession[]
+  conversations LivechatConversation[]
+
+  @@index([userId])
+  @@index([phone])
+  @@index([lastSeenAt])
+  @@map("livechat_visitors")
+}
+
+/// توکن‌های دستگاه‌های بازدیدکننده (هش SHA-256؛ خود توکن فقط در مرورگر بازدیدکننده است)
+model LivechatVisitorSession {
+  id         String   @id @default(uuid()) @db.Uuid
+  visitorId  String   @map("visitor_id") @db.Uuid
+  tokenHash  String   @unique @map("token_hash")
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastUsedAt DateTime @default(now()) @map("last_used_at")
+
+  visitor LivechatVisitor @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@index([visitorId])
+  @@map("livechat_visitor_sessions")
+}
+
+model LivechatConversation {
+  id                 String                     @id @default(uuid()) @db.Uuid
+  /// شماره‌ی نمایشی گفتگو
+  number             Int                        @unique @default(autoincrement())
+  visitorId          String                     @map("visitor_id") @db.Uuid
+  status             LivechatConversationStatus @default(BOT)
+  departmentId       String?                    @map("department_id") @db.Uuid
+  operatorId         String?                    @map("operator_id") @db.Uuid
+  subject            String?
+  /// گفتگو زمانی شروع/ثبت شد که هیچ اپراتوری در دسترس نبود (پیام آفلاین)
+  isOffline          Boolean                    @default(false) @map("is_offline")
+  /// گفتگو بدون پاسخ اپراتور بسته شد (از دست رفته)
+  isMissed           Boolean                    @default(false) @map("is_missed")
+  startUrl           String?                    @map("start_url")
+  /// آخرین گره منوی ربات که برای بازدیدکننده نمایش داده شد
+  botNodeId          String?                    @map("bot_node_id") @db.Uuid
+  tags               String[]                   @default([])
+  rating             Int?
+  ratingComment      String?                    @map("rating_comment")
+  ratedAt            DateTime?                  @map("rated_at")
+  unreadByOperator   Int                        @default(0) @map("unread_by_operator")
+  unreadByVisitor    Int                        @default(0) @map("unread_by_visitor")
+  lastMessageAt      DateTime                   @default(now()) @map("last_message_at")
+  lastMessagePreview String?                    @map("last_message_preview")
+  lastVisitorMsgAt   DateTime?                  @map("last_visitor_msg_at")
+  queuedAt           DateTime?                  @map("queued_at")
+  assignedAt         DateTime?                  @map("assigned_at")
+  firstResponseAt    DateTime?                  @map("first_response_at")
+  closedAt           DateTime?                  @map("closed_at")
+  /// VISITOR | OPERATOR | SYSTEM
+  closedBy           String?                    @map("closed_by")
+  createdAt          DateTime                   @default(now()) @map("created_at")
+  updatedAt          DateTime                   @updatedAt @map("updated_at")
+
+  visitor    LivechatVisitor     @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  department LivechatDepartment? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  operator   LivechatOperator?   @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+  messages   LivechatMessage[]
+
+  @@index([visitorId, status])
+  @@index([status, lastMessageAt])
+  @@index([operatorId, status])
+  @@index([createdAt])
+  @@map("livechat_conversations")
+}
+
+model LivechatMessage {
+  id              String              @id @default(uuid()) @db.Uuid
+  conversationId  String              @map("conversation_id") @db.Uuid
+  senderType      LivechatSenderType  @map("sender_type")
+  operatorId      String?             @map("operator_id") @db.Uuid
+  type            LivechatMessageType @default(TEXT)
+  body            String              @default("") @db.Text
+  /// دکمه‌های ربات، اطلاعات رویداد سیستمی، ارجاع به پاسخ پایگاه دانش و ...
+  payload         Json?
+  /// یادداشت داخلی اپراتورها (بازدیدکننده نمی‌بیند)
+  isInternal      Boolean             @default(false) @map("is_internal")
+  /// شناسه‌ی سمت کلاینت برای جلوگیری از ثبت تکراری هنگام ارسال مجدد
+  clientMessageId String?             @map("client_message_id")
+  attachmentKey   String?             @map("attachment_key")
+  attachmentName  String?             @map("attachment_name")
+  attachmentMime  String?             @map("attachment_mime")
+  attachmentSize  Int?                @map("attachment_size")
+  seenAt          DateTime?           @map("seen_at")
+  editedAt        DateTime?           @map("edited_at")
+  deletedAt       DateTime?           @map("deleted_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  conversation LivechatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  operator     LivechatOperator?    @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+
+  @@unique([conversationId, clientMessageId])
+  @@index([conversationId, createdAt])
+  @@map("livechat_messages")
+}
+
+/// گره‌های منوی ربات (پاسخ‌های آماده‌ی درختی) — گره‌های بدون والد منوی اصلی هستند
+model LivechatBotNode {
+  id           String            @id @default(uuid()) @db.Uuid
+  parentId     String?           @map("parent_id") @db.Uuid
+  /// متن دکمه
+  label        String
+  action       LivechatBotAction @default(MENU)
+  /// پاسخ ربات پس از انتخاب (متغیرها: {{name}}، {{gold_price}}، {{working_hours}}، ...)
+  replyText    String?           @map("reply_text") @db.Text
+  /// برای LINK: نشانی؛ برای HANDOFF: دپارتمان مقصد
+  url          String?
+  departmentId String?           @map("department_id") @db.Uuid
+  /// کلمات کلیدی تا با نوشتن بازدیدکننده هم همین گره پیدا شود
+  keywords     String[]          @default([])
+  icon         String?
+  sortOrder    Int               @default(0) @map("sort_order")
+  isActive     Boolean           @default(true) @map("is_active")
+  /// فقط برای کاربران واردشده / فقط مهمان‌ها نمایش داده شود
+  audience     String            @default("ALL")
+  hits         Int               @default(0)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  parent     LivechatBotNode?    @relation("BotNodeTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children   LivechatBotNode[]   @relation("BotNodeTree")
+  department LivechatDepartment? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([parentId, sortOrder])
+  @@map("livechat_bot_nodes")
+}
+
+/// پاسخ‌های سریع اپراتورها (با میانبر «/» در میز کار)
+model LivechatCannedResponse {
+  id           String   @id @default(uuid()) @db.Uuid
+  shortcut     String
+  title        String
+  body         String   @db.Text
+  /// پاسخ شخصی یک اپراتور؛ خالی = مشترک
+  operatorId   String?  @map("operator_id") @db.Uuid
+  departmentId String?  @map("department_id") @db.Uuid
+  usageCount   Int      @default(0) @map("usage_count")
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  operator   LivechatOperator?   @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  department LivechatDepartment? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([operatorId])
+  @@map("livechat_canned_responses")
+}
+
+/// پایگاه دانش حالت هوشمند — پرسش (و عبارت‌های مشابه) و پاسخ
+model LivechatKnowledgeItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  question       String
+  /// عبارت‌های دیگری که همین معنی را دارند
+  variants       String[] @default([])
+  keywords       String[] @default([])
+  answer         String   @db.Text
+  /// پس از پاسخ، این گره منو هم نمایش داده شود (اختیاری)
+  followUpNodeId String?  @map("follow_up_node_id") @db.Uuid
+  isActive       Boolean  @default(true) @map("is_active")
+  hits           Int      @default(0)
+  helpful        Int      @default(0)
+  notHelpful     Int      @default(0) @map("not_helpful")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("livechat_knowledge_items")
+}
+
+/// پرسش‌هایی که ربات نتوانست پاسخ دهد — برای تکمیل پایگاه دانش
+model LivechatUnanswered {
+  id             String    @id @default(uuid()) @db.Uuid
+  text           String
+  normalized     String    @unique
+  count          Int       @default(1)
+  conversationId String?   @map("conversation_id") @db.Uuid
+  resolvedAt     DateTime? @map("resolved_at")
+  lastAskedAt    DateTime  @default(now()) @map("last_asked_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([resolvedAt, count])
+  @@map("livechat_unanswered")
+}
+
+/// پیام‌های خودکار (پیشگام) — مثلاً پس از ۳۰ ثانیه ماندن در صفحه‌ی خرید شمش
+model LivechatTrigger {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  message        String   @db.Text
+  /// بخشی از مسیر صفحه (خالی = همه‌ی صفحات)
+  urlContains    String?  @map("url_contains")
+  delaySeconds   Int      @default(15) @map("delay_seconds")
+  /// ALL | GUEST | USER
+  audience       String   @default("ALL")
+  /// فقط وقتی اپراتور آنلاین است
+  onlyWhenOnline Boolean  @default(false) @map("only_when_online")
+  /// باز کردن خودکار پنجره‌ی چت (در غیر این صورت حباب کوچک)
+  openWidget     Boolean  @default(false) @map("open_widget")
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("livechat_triggers")
+}
+
+enum LivechatOperatorStatus {
+  ONLINE
+  AWAY
+  OFFLINE
+}
+
+enum LivechatConversationStatus {
+  /// در گفتگو با ربات / منوی پاسخ‌های آماده
+  BOT
+  /// در صف انتظار اپراتور
+  WAITING
+  /// اپراتور پذیرفته و در حال گفتگوست
+  OPEN
+  CLOSED
+}
+
+enum LivechatSenderType {
+  VISITOR
+  OPERATOR
+  BOT
+  SYSTEM
+}
+
+enum LivechatMessageType {
+  TEXT
+  FILE
+  /// پیام ربات همراه با دکمه‌ها
+  OPTIONS
+  /// رویداد سیستمی (تخصیص، انتقال، بسته شدن)
+  EVENT
+  /// درخواست امتیاز پس از پایان گفتگو
+  RATING
+  /// فرم دریافت اطلاعات تماس (حالت آفلاین)
+  FORM
+}
+
+enum LivechatBotAction {
+  /// نمایش زیرمنو (فرزندان)
+  MENU
+  /// فقط پاسخ متنی (به‌همراه فرزندان اگر باشد)
+  ANSWER
+  /// اتصال به اپراتور / دپارتمان
+  HANDOFF
+  /// دکمه‌ی پیوند
+  LINK
+  /// بازگشت به منوی اصلی
+  MAIN_MENU
+  /// پایان گفتگو
+  CLOSE
 }

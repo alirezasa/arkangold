@@ -369,6 +369,31 @@ export const ADMIN_PERMISSIONS = [
   },
 
   {
+    key: 'livechat.view',
+    group: 'livechat',
+    description:
+      'میز کار چت آنلاین: پذیرش گفتگوهای صف، پاسخ به گفتگوهای خود، یادداشت داخلی و پاسخ‌های سریع شخصی',
+  },
+  {
+    key: 'livechat.view_all',
+    group: 'livechat',
+    description:
+      'نظارت بر همه‌ی گفتگوهای چت آنلاین، ورود به گفتگوی کارشناسان دیگر، انتقال و بستن آن‌ها',
+  },
+  {
+    key: 'livechat.manage',
+    group: 'livechat',
+    description:
+      'مدیریت چت آنلاین: تنظیمات و ظاهر ویجت، ساعات کاری و حالت آفلاین، منوی ربات و پاسخ‌های آماده، پایگاه دانش حالت هوشمند، دپارتمان‌ها، اپراتورها و پیام‌های خودکار',
+  },
+  {
+    key: 'livechat.reports',
+    group: 'livechat',
+    description:
+      'گزارش‌های چت آنلاین (حجم گفتگو، زمان پاسخ، رضایت، عملکرد کارشناسان)',
+  },
+
+  {
     key: 'hologram.batch.manage',
     group: 'hologram',
     description: 'ایجاد دسته‌های جدید کد هولوگرام و مشاهده خروجی چاپ',
@@ -635,6 +660,7 @@ export const ADMIN_ROLES = [
       'invoice.view',
       'tickets.view',
       'tickets.update',
+      'livechat.view',
     ] as PermissionKey[],
   },
   {
@@ -659,6 +685,10 @@ export const ADMIN_ROLES = [
       'tickets.close',
       'tickets.reopen',
       'tickets.manage_categories',
+      'livechat.view',
+      'livechat.view_all',
+      'livechat.manage',
+      'livechat.reports',
       'notifications.view',
       'notifications.manage',
     ] as PermissionKey[],

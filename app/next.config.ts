@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 // ── سرآیندهای امنیتی (FDP_ACC_EXT.1.3/1.4، FDP_RIP_EXT.1.2) ─────────────────
-// CSP: منابع فقط از همین مبدأ و API خودمان بارگذاری می‌شوند (بدون CDN/سرویس ثالث؛ به‌جز گفتینو در صورت تنظیم).
+// CSP: منابع فقط از همین مبدأ و API خودمان بارگذاری می‌شوند (بدون CDN/سرویس ثالث).
 const isDev = process.env.NODE_ENV !== "production";
 const originOf = (u?: string) => {
   try {
@@ -19,39 +19,58 @@ const apiOrigins = Array.from(
     ].filter(Boolean) as string[],
   ),
 ).join(" ");
-// چت پشتیبانی گفتینو تنها سرویس ثالث مجاز است (پیش‌فرض روشن؛ NEXT_PUBLIC_GOFTINO_WIDGET_ID=off خاموش)
-const goftino =
-  (process.env.NEXT_PUBLIC_GOFTINO_WIDGET_ID ?? "").trim().toLowerCase() === "off"
-    ? ""
-    : " https://goftino.com https://*.goftino.com";
-const csp = [
+// چت آنلاین پشتیبانی از Socket.IO روی همان دامنه‌ی API استفاده می‌کند (wss)
+const apiSocketOrigins = apiOrigins
+  .split(" ")
+  .map((o) => o.replace(/^http/, "ws"))
+  .join(" ");
+// سایت‌هایی که اجازه دارند چت آنلاین را با iframe جاسازی کنند (فقط مسیر /embed/*؛ بقیه‌ی اپ
+// قاب‌شدنی نیست). مقدار زمان build خوانده می‌شود؛ فهرست با فاصله یا ویرگول.
+const livechatEmbedOrigins = (
+  process.env.LIVECHAT_EMBED_ORIGINS ??
+  `https://arkan.gold https://www.arkan.gold${isDev ? " http://localhost:4321 http://localhost:8080" : ""}`
+)
+  .split(/[\s,]+/)
+  .filter((o) => /^https?:\/\/[^/\s'";]+$/.test(o))
+  .join(" ");
+
+const cspWith = (frameAncestors: string) => [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${goftino}`,
-  `style-src 'self' 'unsafe-inline'${goftino}`,
-  `img-src 'self' data: blob: ${apiOrigins}${goftino}`,
-  `font-src 'self' data:${goftino}`,
-  `connect-src 'self' ${apiOrigins}${isDev ? " ws: wss:" : ""}${goftino}${goftino ? " wss://*.goftino.com" : ""}`,
-  `media-src 'self'${goftino}`,
-  ...(goftino ? [`frame-src 'self'${goftino}`] : []),
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: blob: ${apiOrigins}`,
+  "font-src 'self' data:",
+  `connect-src 'self' ${apiOrigins} ${apiSocketOrigins}${isDev ? " ws: wss:" : ""}`,
+  "media-src 'self'",
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
-  "frame-ancestors 'none'",
+  `frame-ancestors ${frameAncestors}`,
   // ارسال فرم فقط به همین مبدأ و درگاه‌های شاپرک (فرم POST به‌پرداخت ملت)؛ زرین‌پال با تغییر نشانی صفحه
   "form-action 'self' https://*.shaparak.ir",
 ].join("; ");
+const csp = cspWith("'none'");
 
-const securityHeaders = [
-  { key: "Content-Security-Policy", value: csp },
+const baseSecurityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   ...(isDev
     ? []
     : [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }]),
+];
+const securityHeaders = [
+  { key: "Content-Security-Policy", value: csp },
+  { key: "X-Frame-Options", value: "DENY" },
+  ...baseSecurityHeaders,
+];
+// صفحه‌ی جاسازی چت: فقط سایت‌های مجاز می‌توانند آن را قاب کنند (X-Frame-Options ندارد چون
+// ALLOW-FROM منسوخ است و frame-ancestors جای آن را می‌گیرد)
+const embedSecurityHeaders = [
+  { key: "Content-Security-Policy", value: cspWith(livechatEmbedOrigins || "'none'") },
+  ...baseSecurityHeaders,
 ];
 // پاسخ‌های BFF و صفحات پویای حاوی داده‌ی کاربر هرگز در مرورگر/پراکسی/CDN کش نشوند
 const noStore = [
@@ -83,8 +102,18 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/(.*)",
+        // همه‌ی مسیرها به‌جز صفحه‌ی جاسازی چت
+        source: "/:path((?!embed/).*)",
         headers: securityHeaders,
+      },
+      { source: "/embed/:path*", headers: [...embedSecurityHeaders, ...noStore, ...noIndex] },
+      {
+        // اسکریپت جاسازی چت در سایت‌های دیگر؛ کش کوتاه تا تغییرات زود برسد
+        source: "/livechat-embed.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "public, max-age=3600" },
+        ],
       },
       { source: "/api/:path*", headers: noStore },
       { source: "/dashboard/:path*", headers: [...noStore, ...noIndex] },

@@ -22,6 +22,7 @@ export const FORBIDDEN_RESPONSE_FIELDS = new Set([
   'accessTokenHash',
   'apiKeyHash',
   'courierTokenHash',
+  'tokenHash',
   'otpHash',
   'codeHash',
   'encryptedValue',

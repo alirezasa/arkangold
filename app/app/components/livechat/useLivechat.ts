@@ -83,11 +83,25 @@ function beep() {
   }
 }
 
+/** صفحه‌ای که بازدیدکننده در آن است (در حالت جاسازی، صفحه‌ی سایت میزبان نه خود iframe) */
+export interface PageInfo {
+  url: string;
+  title: string;
+  referrer: string;
+}
+
+const currentPage = (): PageInfo => ({
+  url: window.location.href,
+  title: document.title,
+  referrer: document.referrer,
+});
+
 export function useLivechat(
   pathname: string,
   isOpen: boolean,
   muted: boolean,
   onRemoteOpen: () => void,
+  pageInfo: () => PageInfo = currentPage,
 ) {
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -107,25 +121,28 @@ export function useLivechat(
   const soundRef = useRef(true);
   const mutedRef = useRef(muted);
   const remoteOpenRef = useRef(onRemoteOpen);
+  const pageRef = useRef(pageInfo);
   const typingTimer = useRef<number | null>(null);
   const lastTypingSent = useRef(0);
   useEffect(() => {
     openRef.current = isOpen;
     mutedRef.current = muted;
     remoteOpenRef.current = onRemoteOpen;
-  }, [isOpen, muted, onRemoteOpen]);
+    pageRef.current = pageInfo;
+  }, [isOpen, muted, onRemoteOpen, pageInfo]);
 
   const inDashboard = pathname.startsWith("/dashboard");
 
   const loadSession = useCallback(async () => {
+    const page = pageRef.current();
     const res = await fetch("/api/livechat/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         token: readToken() ?? undefined,
-        url: window.location.href.slice(0, 1000),
-        title: document.title.slice(0, 300),
-        referrer: document.referrer.slice(0, 1000) || undefined,
+        url: page.url.slice(0, 1000),
+        title: page.title.slice(0, 300),
+        referrer: page.referrer.slice(0, 1000) || undefined,
       }),
     });
     if (!res.ok) throw new Error("session");
@@ -164,8 +181,9 @@ export function useLivechat(
   const enabled = !!session?.settings.enabled && !session?.banned;
   useEffect(() => {
     if (!token || !enabled) return;
+    const page = pageRef.current();
     const socket = io(`${SOCKET_ORIGIN}/livechat`, {
-      auth: { visitorToken: token, url: window.location.href.slice(0, 1000), title: document.title.slice(0, 300) },
+      auth: { visitorToken: token, url: page.url.slice(0, 1000), title: page.title.slice(0, 300) },
       reconnectionDelayMax: 15_000,
     });
     socketRef.current = socket;
@@ -226,7 +244,8 @@ export function useLivechat(
     const s = socketRef.current;
     if (!s?.connected) return;
     const t = window.setTimeout(() => {
-      s.emit("visitor:page", { url: window.location.href.slice(0, 1000), title: document.title.slice(0, 300) });
+      const page = pageRef.current();
+      s.emit("visitor:page", { url: page.url.slice(0, 1000), title: page.title.slice(0, 300) });
     }, 500);
     return () => window.clearTimeout(t);
   }, [pathname, connected]);

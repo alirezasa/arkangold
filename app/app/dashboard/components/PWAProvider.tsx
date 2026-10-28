@@ -55,12 +55,14 @@ export default function PWAProvider({
   // دکمه‌ی اصلی فرم قرار می‌گرفت و مانع ورود کاربر می‌شد
   const pathname = usePathname();
   const showInstallHint = !dismissed && (pathname?.startsWith("/dashboard") ?? false);
+  // چت جاسازی‌شده در سایت‌های دیگر (iframe): هیچ اعلان PWA نمایش داده نمی‌شود
+  const embedded = pathname?.startsWith("/embed") ?? false;
 
   return (
     <>
       {children}
 
-      {hydrated && isOffline && (
+      {hydrated && isOffline && !embedded && (
         <div
           className="fixed left-0 right-0 z-9999 flex items-center justify-center gap-2 px-4 py-2 text-[13px] font-bold text-white"
           style={{ background: "#dc2626", top: "env(safe-area-inset-top)" }}

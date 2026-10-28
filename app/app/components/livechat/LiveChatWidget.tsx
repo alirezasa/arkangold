@@ -5,14 +5,21 @@
 // ربات، گفتگوی بلادرنگ با کارشناس، حالت آفلاین، ارسال فایل، امتیازدهی و پیام‌های خودکار.
 // همه‌ی متن‌ها، رنگ‌ها، جای دکمه و رفتارها از «پنل ← چت آنلاین ← تنظیمات» می‌آیند.
 // باز کردن از هر جای اپ: window.dispatchEvent(new Event("arkan-livechat:open")) یا ?chat=open
+//
+// حالت جاسازی (embed): همین ویجت داخل iframe صفحه‌ی /embed/livechat روی سایت‌های دیگر
+// (arkan.gold، مجله) نمایش داده می‌شود؛ جای iframe را اسکریپت public/livechat-embed.js در صفحه‌ی
+// میزبان تعیین می‌کند و ویجت اندازه/وضعیت خود را با postMessage به آن اعلام می‌کند.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, Loader2, LogOut, MessageCircle, Paperclip, Send, Smile, Volume2, VolumeX, X } from "lucide-react";
 import LiveChatMessages, { RichText } from "./LiveChatMessages";
-import { useLivechat } from "./useLivechat";
+import { useLivechat, type PageInfo } from "./useLivechat";
 import type { BotOption, ChatMessage, ChatTrigger } from "./types";
 
 const OPEN_EVENT = "arkan-livechat:open";
+const CLOSE_EVENT = "arkan-livechat:close";
+/** فاصله‌ی داخلی دکمه در iframe تا سایه و نشان خوانده‌نشده بریده نشود */
+const EMBED_PAD = 12;
 const OPEN_KEY = "arkan_livechat_open";
 const SOUND_KEY = "arkan_livechat_sound";
 const TRIGGER_KEY = "arkan_livechat_triggers";
@@ -34,9 +41,33 @@ function sessionSet(key: string, value: string) {
   }
 }
 
-export default function LiveChatWidget() {
-  const pathname = usePathname() ?? "";
+export interface HostPage extends PageInfo {
+  pathname: string;
+  search: string;
+}
+
+export interface EmbedBridge {
+  /** صفحه‌ی سایت میزبان (تا رسیدن پیام میزبان null) */
+  host: HostPage | null;
+  /** پیام به اسکریپت میزبان */
+  post: (msg: Record<string, unknown>) => void;
+}
+
+export default function LiveChatWidget({ embed }: { embed?: EmbedBridge }) {
+  const appPath = usePathname() ?? "";
+  // ویجت سراسری layout در صفحه‌ی جاسازی رندر نمی‌شود (آن صفحه نسخه‌ی خودش را دارد)
+  if (!embed && appPath.startsWith("/embed")) return null;
+  return <Widget embed={embed} appPath={appPath} />;
+}
+
+function Widget({ embed, appPath }: { embed?: EmbedBridge; appPath: string }) {
+  const host = embed?.host ?? null;
+  const pathname = embed ? (host?.pathname ?? "/") : appPath;
   const router = useRouter();
+  const pageInfo = useCallback((): PageInfo => {
+    if (embed) return host ?? { url: "", title: "", referrer: "" };
+    return { url: window.location.href, title: document.title, referrer: document.referrer };
+  }, [embed, host]);
   // وضعیت باز بودن در همین برگه حفظ می‌شود؛ ?chat=open (پیوند پیامک پاسخ) پنجره را باز می‌کند
   const [open, setOpen] = useState(
     () =>
@@ -55,7 +86,7 @@ export default function LiveChatWidget() {
     sessionSet(OPEN_KEY, "1");
   }, []);
   // کارشناس گفتگو را آغاز کرد ← پنجره باز می‌شود
-  const api = useLivechat(pathname, open, muted, openRemote);
+  const api = useLivechat(embed ? `${pathname}${host?.search ?? ""}` : pathname, open, muted, openRemote, pageInfo);
   const { session, messages, conversation, availability, connected, operatorTyping, unread, banned } = api;
 
   const [text, setText] = useState("");
@@ -82,8 +113,13 @@ export default function LiveChatWidget() {
 
   useEffect(() => {
     const onOpen = () => setOpenPersist(true);
+    const onClose = () => setOpenPersist(false);
     window.addEventListener(OPEN_EVENT, onOpen);
-    return () => window.removeEventListener(OPEN_EVENT, onOpen);
+    window.addEventListener(CLOSE_EVENT, onClose);
+    return () => {
+      window.removeEventListener(OPEN_EVENT, onOpen);
+      window.removeEventListener(CLOSE_EVENT, onClose);
+    };
   }, [setOpenPersist]);
 
   useEffect(() => {
@@ -213,8 +249,12 @@ export default function LiveChatWidget() {
   const onOption = (o: BotOption) => {
     if (o.kind === "link" && o.url) {
       if (o.url.startsWith("/")) {
-        router.push(o.url);
-        if (window.innerWidth < 640) setOpenPersist(false);
+        // روی سایت میزبان، صفحه‌های اپ در برگه‌ی جدید باز می‌شوند
+        if (embed) window.open(`${window.location.origin}${o.url}`, "_blank", "noopener");
+        else {
+          router.push(o.url);
+          if (window.innerWidth < 640) setOpenPersist(false);
+        }
       }
       return;
     }
@@ -240,10 +280,39 @@ export default function LiveChatWidget() {
   };
 
   // ── نمایش ──
-  if (!session || !settings?.enabled || !w) return null;
-  const hiddenHere = w.hiddenPaths.some((p) => pathname.startsWith(p));
-  if (hiddenHere) return null;
-  if (availability?.hidden && !active && !open) return null;
+  const hidden =
+    !session ||
+    !settings?.enabled ||
+    !w ||
+    w.hiddenPaths.some((p) => pathname.startsWith(p)) ||
+    (!!availability?.hidden && !active && !open);
+
+  // حالت جاسازی: اعلام وضعیت و اندازه‌ی دکمه به صفحه‌ی میزبان تا iframe را همان‌قدر نگه دارد
+  const [launcherEl, setLauncherEl] = useState<HTMLDivElement | null>(null);
+  const post = embed?.post;
+  const layoutBase = useMemo(
+    () =>
+      w
+        ? { side: w.position === "right" ? "right" : "left", offsetX: w.offsetX, offsetBottom: w.offsetBottom, showOnMobile: w.showOnMobile, pad: EMBED_PAD }
+        : null,
+    [w],
+  );
+  useEffect(() => {
+    if (!post) return;
+    if (hidden || !layoutBase) return post({ type: "layout", state: "hidden" });
+    if (open) return post({ type: "layout", state: "open", ...layoutBase });
+    if (!launcherEl) return;
+    const report = () => {
+      const r = launcherEl.getBoundingClientRect();
+      post({ type: "layout", state: "closed", width: Math.ceil(r.width), height: Math.ceil(r.height), ...layoutBase });
+    };
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(launcherEl);
+    return () => ro.disconnect();
+  }, [post, hidden, open, launcherEl, layoutBase]);
+
+  if (hidden || !session || !settings || !w) return null;
 
   const inDashboard = pathname.startsWith("/dashboard");
   const onAuthPage = AUTH_PREFIXES.some((p) => pathname.startsWith(p));
@@ -263,10 +332,15 @@ export default function LiveChatWidget() {
       {/* دکمه‌ی شناور */}
       {!open && (
         <div
-          className={`fixed z-9990 flex flex-col gap-2 ${side === "left" ? "left-(--lc-x) items-start" : "right-(--lc-x) items-end"} ${
-            w.showOnMobile ? "" : "max-sm:hidden"
+          ref={setLauncherEl}
+          className={`fixed z-9990 flex flex-col gap-2 ${
+            embed
+              ? `bottom-0 p-3 ${side === "left" ? "left-0 items-start" : "right-0 items-end"}`
+              : `${side === "left" ? "left-(--lc-x) items-start" : "right-(--lc-x) items-end"} ${w.showOnMobile ? "" : "max-sm:hidden"}`
           } ${
-            inDashboard
+            embed
+              ? ""
+              : inDashboard
               ? "bottom-[calc(var(--lc-b)+4.5rem+env(safe-area-inset-bottom))] lg:bottom-(--lc-b)"
               : onAuthPage
                 ? "top-[calc(0.75rem+env(safe-area-inset-top))] lg:top-auto lg:bottom-(--lc-b)"
@@ -299,7 +373,9 @@ export default function LiveChatWidget() {
             style={{ backgroundColor: primary, boxShadow: `0 10px 25px -8px ${primary}99`, minWidth: "3rem" }}
           >
             <MessageCircle className="h-5 w-5" />
-            {w.showLauncherText && <span className="text-[13px] font-bold max-sm:hidden">{w.launcherText}</span>}
+            {w.showLauncherText && (
+              <span className={`text-[13px] font-bold ${embed ? "" : "max-sm:hidden"}`}>{w.launcherText}</span>
+            )}
             {unread > 0 ? (
               <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-red-500 px-1 text-[10px] font-black">
                 {unread > 9 ? "۹+" : unread.toLocaleString("fa-IR")}
@@ -322,8 +398,12 @@ export default function LiveChatWidget() {
           role="dialog"
           aria-label={w.title}
           dir="rtl"
-          className={`fixed z-9991 flex flex-col overflow-hidden bg-[#f6f5f1] shadow-2xl max-sm:inset-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-[env(safe-area-inset-bottom)] sm:bottom-(--lc-b) sm:h-[min(640px,calc(100dvh-2.5rem))] sm:w-[380px] sm:rounded-3xl sm:ring-1 sm:ring-black/10 ${
-            side === "left" ? "sm:left-(--lc-x)" : "sm:right-(--lc-x)"
+          className={`fixed z-9991 flex flex-col overflow-hidden bg-[#f6f5f1] ${
+            embed
+              ? "inset-0"
+              : `shadow-2xl max-sm:inset-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-[env(safe-area-inset-bottom)] sm:bottom-(--lc-b) sm:h-[min(640px,calc(100dvh-2.5rem))] sm:w-[380px] sm:rounded-3xl sm:ring-1 sm:ring-black/10 ${
+                  side === "left" ? "sm:left-(--lc-x)" : "sm:right-(--lc-x)"
+                }`
           }`}
           style={vars}
         >
@@ -362,8 +442,8 @@ export default function LiveChatWidget() {
                 </button>
               )}
               <button type="button" onClick={() => setOpenPersist(false)} aria-label="بستن چت" className="rounded-full p-2 hover:bg-white/10">
-                <ChevronDown className="h-5 w-5 max-sm:hidden" />
-                <X className="h-5 w-5 sm:hidden" />
+                <ChevronDown className={`h-5 w-5 ${embed ? "hidden" : "max-sm:hidden"}`} />
+                <X className={`h-5 w-5 ${embed ? "" : "sm:hidden"}`} />
               </button>
             </div>
             {!online && !operator && availability && (

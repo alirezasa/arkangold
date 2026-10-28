@@ -128,6 +128,19 @@ export class S3StorageService implements IStorageService, OnModuleInit {
     return getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });
   }
 
+  isReady(): boolean {
+    return !!this.client;
+  }
+
+  async download(storageKey: string): Promise<Buffer> {
+    this.assertReady();
+    const res = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: storageKey }),
+    );
+    if (!res.Body) throw new InternalServerErrorException('فایل یافت نشد');
+    return Buffer.from(await res.Body.transformToByteArray());
+  }
+
   async delete(storageKey: string): Promise<void> {
     this.assertReady();
     await this.client.send(

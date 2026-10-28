@@ -20,13 +20,18 @@ const apiOrigins = Array.from(
     ].filter(Boolean) as string[],
   ),
 ).join(" ");
+// میز کار چت آنلاین از Socket.IO روی همان دامنه‌ی API استفاده می‌کند (wss)
+const apiSocketOrigins = apiOrigins
+  .split(" ")
+  .map((o) => o.replace(/^http/, "ws"))
+  .join(" ");
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' data: blob: ${apiOrigins}`,
   "font-src 'self' data:",
-  `connect-src 'self' ${apiOrigins}${isDev ? " ws: wss:" : ""}`,
+  `connect-src 'self' ${apiOrigins} ${apiSocketOrigins}${isDev ? " ws: wss:" : ""}`,
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",

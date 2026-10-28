@@ -51,6 +51,12 @@ import {
   LayoutGrid,
   MapPinned,
   Eye,
+  MessagesSquare,
+  Bot,
+  BrainCircuit,
+  Zap,
+  Megaphone,
+  SlidersHorizontal,
 } from "lucide-react";
 
 export interface NavItem {
@@ -213,6 +219,20 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "سفارش‌ها و قراردادها", href: "/partners/orders", icon: ReceiptText, perm: "partner.view" },
       { label: "تسویه‌ها", href: "/partners/settlements", icon: HandCoins, perm: "partner.view" },
       { label: "گزارش و مطالبات", href: "/partners/report", icon: BarChart3, perm: "partner.view" },
+    ],
+  },
+  {
+    title: "چت آنلاین",
+    icon: MessagesSquare,
+    items: [
+      { label: "میز کار چت", href: "/livechat", icon: MessagesSquare, perm: "livechat.view" },
+      { label: "پاسخ‌های سریع", href: "/livechat/canned", icon: Zap, perm: "livechat.view" },
+      { label: "منوی ربات و پاسخ‌های آماده", href: "/livechat/bot", icon: Bot, perm: "livechat.manage" },
+      { label: "پایگاه دانش (حالت هوشمند)", href: "/livechat/knowledge", icon: BrainCircuit, perm: "livechat.manage" },
+      { label: "کارشناسان و دپارتمان‌ها", href: "/livechat/team", icon: Users, perm: "livechat.manage" },
+      { label: "پیام‌های خودکار", href: "/livechat/triggers", icon: Megaphone, perm: "livechat.manage" },
+      { label: "گزارش‌های چت", href: "/livechat/reports", icon: BarChart3, perm: "livechat.reports" },
+      { label: "تنظیمات چت", href: "/livechat/settings", icon: SlidersHorizontal, perm: "livechat.manage" },
     ],
   },
   {

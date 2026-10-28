@@ -10,6 +10,7 @@ import MobileDrawer from "@/app/components/MobileDrawer";
 import BottomNav from "@/app/components/BottomNav";
 import OfflineBanner from "@/app/components/OfflineBanner";
 import NewOrderAlert from "@/app/components/NewOrderAlert";
+import LivechatAlert from "@/app/components/livechat/LivechatAlert";
 import IdleLock from "@/app/components/IdleLock";
 import axios from "axios";
 import { Loader2, ShieldOff } from "lucide-react";
@@ -130,6 +131,8 @@ export default function DashboardLayout({
       />
       {/* اعلان صوتی سفارش جدید فروشگاه (فقط کارشناسان با دسترسی مشاهده‌ی سفارش) */}
       {!me.agent && me.permissions.includes("shop.view") && <NewOrderAlert />}
+      {/* اعلان گفتگوهای چت آنلاین (کارشناسان چت، بیرون از میز کار) */}
+      {!me.agent && me.permissions.includes("livechat.view") && <LivechatAlert />}
     </div>
   );
 }

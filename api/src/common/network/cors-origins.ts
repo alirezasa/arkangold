@@ -5,7 +5,12 @@
 // و سایر endpointها دسترسی داشته باشند (بند ۴.۱). دامنه‌های اضافه را می‌توان بدون
 // تغییر کد از طریق CORS_EXTRA_ORIGINS (جدا شده با کاما) اضافه کرد.
 // نشانی‌های localhost فقط در محیط توسعه پذیرفته می‌شوند (نه در production)
-const DEV_CORS_ORIGINS = ['http://localhost:3000', 'http://localhost:3001'];
+const DEV_CORS_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  // پنل مدیریت در توسعه‌ی محلی (next dev -p 3002)
+  'http://localhost:3002',
+];
 
 export const PRODUCTION_CORS_ORIGINS = [
   'https://arkan.gold',

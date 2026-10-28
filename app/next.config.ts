@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 // ── سرآیندهای امنیتی (FDP_ACC_EXT.1.3/1.4، FDP_RIP_EXT.1.2) ─────────────────
-// CSP: منابع فقط از همین مبدأ و API خودمان بارگذاری می‌شوند (بدون CDN/سرویس ثالث؛ به‌جز گفتینو در صورت تنظیم).
+// CSP: منابع فقط از همین مبدأ و API خودمان بارگذاری می‌شوند (بدون CDN/سرویس ثالث).
 const isDev = process.env.NODE_ENV !== "production";
 const originOf = (u?: string) => {
   try {
@@ -19,20 +19,19 @@ const apiOrigins = Array.from(
     ].filter(Boolean) as string[],
   ),
 ).join(" ");
-// چت پشتیبانی گفتینو تنها سرویس ثالث مجاز است (پیش‌فرض روشن؛ NEXT_PUBLIC_GOFTINO_WIDGET_ID=off خاموش)
-const goftino =
-  (process.env.NEXT_PUBLIC_GOFTINO_WIDGET_ID ?? "").trim().toLowerCase() === "off"
-    ? ""
-    : " https://goftino.com https://*.goftino.com";
+// چت آنلاین پشتیبانی از Socket.IO روی همان دامنه‌ی API استفاده می‌کند (wss)
+const apiSocketOrigins = apiOrigins
+  .split(" ")
+  .map((o) => o.replace(/^http/, "ws"))
+  .join(" ");
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}${goftino}`,
-  `style-src 'self' 'unsafe-inline'${goftino}`,
-  `img-src 'self' data: blob: ${apiOrigins}${goftino}`,
-  `font-src 'self' data:${goftino}`,
-  `connect-src 'self' ${apiOrigins}${isDev ? " ws: wss:" : ""}${goftino}${goftino ? " wss://*.goftino.com" : ""}`,
-  `media-src 'self'${goftino}`,
-  ...(goftino ? [`frame-src 'self'${goftino}`] : []),
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  `img-src 'self' data: blob: ${apiOrigins}`,
+  "font-src 'self' data:",
+  `connect-src 'self' ${apiOrigins} ${apiSocketOrigins}${isDev ? " ws: wss:" : ""}`,
+  "media-src 'self'",
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",

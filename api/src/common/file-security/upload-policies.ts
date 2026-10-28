@@ -66,3 +66,11 @@ export const BRANDING_IMAGE_POLICY: UploadPolicy = {
   maxBytes: 2 * MB,
   maxImageDimension: 1600,
 };
+
+/** پیوست چت آنلاین (بازدیدکننده و اپراتور) — تصویر و PDF */
+export const CHAT_ATTACHMENT_POLICY: UploadPolicy = {
+  purpose: 'chat_attachment',
+  allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+  maxBytes: 5 * MB,
+  maxImageDimension: 2000,
+};

@@ -49,6 +49,7 @@ export interface UploadPolicy {
   purpose:
     | 'legal_document'
     | 'ticket_attachment'
+    | 'chat_attachment'
     | 'deposit_receipt'
     | 'catalog_image'
     | 'branding_image';

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local"; // ۱. تغییر ایمپورت به local
 import PWAProvider from "./dashboard/components/PWAProvider"; 
-import GoftinoChat from "./components/GoftinoChat";
+import LiveChatWidget from "./components/livechat/LiveChatWidget";
 // آیکون‌های Tabler از خود سایت (قبلاً از CDN jsdelivr بارگذاری می‌شد که در صورت
 // کندی/فیلتر شدن، آیکون‌ها — از جمله ضربدر بستن منو و آیکون‌های منوی پایین — دیده نمی‌شدند)
 import "@tabler/icons-webfont/tabler-icons.min.css";
@@ -86,8 +86,8 @@ export default function RootLayout({
         <div className="pwa-status-bar" aria-hidden="true" />
         {/* رپر PWA برای مدیریت آفلاین و نصب */}
         <PWAProvider>{children}</PWAProvider>
-        {/* چت پشتیبانی گفتینو (NEXT_PUBLIC_GOFTINO_WIDGET_ID=off برای خاموش کردن) */}
-        <GoftinoChat />
+        {/* چت آنلاین پشتیبانی (روشن/خاموش و همه‌ی تنظیمات از پنل مدیریت ← چت آنلاین) */}
+        <LiveChatWidget />
       </body>
     </html>
   );

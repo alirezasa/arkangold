@@ -50,6 +50,7 @@ import { TreasuryModule } from './treasury/treasury.module';
 import { PartnersModule } from './partners/partners.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { BuybackModule } from './buyback/buyback.module';
+import { LivechatModule } from './livechat/livechat.module';
 
 @Module({
   imports: [
@@ -93,6 +94,7 @@ import { BuybackModule } from './buyback/buyback.module';
     DepositModule,
     IntegrationsModule,
     TicketsModule,
+    LivechatModule, // چت آنلاین پشتیبانی
     HologramModule,
     BuybackModule,
     ReferralModule,

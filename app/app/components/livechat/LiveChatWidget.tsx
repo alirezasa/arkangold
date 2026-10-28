@@ -549,7 +549,7 @@ function Widget({ embed, appPath }: { embed?: EmbedBridge; appPath: string }) {
                       send();
                     }
                   }}
-                  className="max-h-[120px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[13.5px] leading-6 outline-none"
+                  className="lc-input max-h-[120px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[13.5px] leading-6 outline-none"
                   aria-label="متن پیام"
                 />
                 <button type="button" onClick={() => setShowEmoji((v) => !v)} aria-label="شکلک" className="rounded-full p-2 text-gray-500 hover:bg-gray-100">

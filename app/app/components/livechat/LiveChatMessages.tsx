@@ -197,7 +197,7 @@ function FormCard({ m, api, primary }: { m: ChatMessage; api: LivechatApi; prima
 
   const input = (f: FormField) => {
     const common =
-      "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-gray-400";
+      "lc-input w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-gray-400";
     if (f.name === "department") {
       return (
         <select
@@ -334,7 +334,7 @@ function RatingCard({ m, api, primary, thanks }: { m: ChatMessage; api: Livechat
               placeholder="نظر شما (اختیاری)"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-[12.5px] outline-none"
+              className="lc-input w-full rounded-lg border border-gray-200 px-3 py-2 text-[12.5px] outline-none"
             />
             <button
               type="button"

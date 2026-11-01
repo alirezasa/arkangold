@@ -10,7 +10,7 @@ import { Loader2, Tags, Search, Headset, AlertTriangle, UserX, type LucideIcon }
 import { STATUS_META, PRIORITY_META } from "./ticket-meta";
 
 const STAT_TILES: { key: keyof DashboardSummary; label: string; color: string; icon: LucideIcon }[] = [
-  { key: "total", label: "کل", color: "#330509", icon: Headset },
+  { key: "total", label: "کل", color: "var(--color-emerald)", icon: Headset },
   { key: "open", label: "باز", color: STATUS_META.OPEN.color, icon: STATUS_META.OPEN.icon },
   { key: "inProgress", label: "در حال بررسی", color: STATUS_META.IN_PROGRESS.color, icon: STATUS_META.IN_PROGRESS.icon },
   { key: "waitingForUser", label: "منتظر کاربر", color: STATUS_META.WAITING_FOR_USER.color, icon: STATUS_META.WAITING_FOR_USER.icon },

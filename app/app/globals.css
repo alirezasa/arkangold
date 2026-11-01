@@ -205,7 +205,7 @@ body {
 ::-webkit-scrollbar           { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track     { background: transparent; }
 ::-webkit-scrollbar-thumb     { background: var(--color-border); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #c5a059; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-gold-500); }
 
 /* ── Animations ──────────────────────────────────────────── */
 

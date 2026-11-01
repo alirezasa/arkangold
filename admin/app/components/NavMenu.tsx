@@ -41,7 +41,7 @@ export default function NavMenu({ me, onNavigate }: { me: AdminMe; onNavigate?: 
         className={`flex items-center gap-3 rounded-xl font-bold transition-colors ${
           nested ? "px-3 py-2 text-[12.5px]" : "px-3 py-2.5 text-[13px]"
         } ${active ? "" : "text-white! hover:bg-white/5 hover:text-white!"}`}
-        style={active ? { backgroundColor: "var(--color-gold-500)", color: "var(--color-emerald)" } : undefined}
+        style={active ? { backgroundColor: "var(--color-gold-500)", color: "var(--color-sidebar)" } : undefined}
       >
         <item.icon className="w-4 h-4 shrink-0" />
         {item.label}

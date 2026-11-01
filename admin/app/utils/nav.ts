@@ -57,6 +57,7 @@ import {
   Zap,
   Megaphone,
   SlidersHorizontal,
+  Palette,
 } from "lucide-react";
 
 export interface NavItem {
@@ -250,6 +251,7 @@ export const NAV_SECTIONS: NavSection[] = [
     icon: Settings2,
     items: [
       { label: "تنظیمات سیستم", href: "/system-config", icon: Settings2, perm: "system_config.view" },
+      { label: "ظاهر، رنگ و فونت", href: "/appearance", icon: Palette, perm: "system_config.view" },
       { label: "یکپارچه‌سازی‌ها (KYC/فینوتک)", href: "/integrations", icon: Plug, perm: "integrations.view" },
       { label: "سامانه ناظر طلا (زر پایش)", href: "/zarpayesh", icon: Eye, perm: "zarpayesh.view" },
     ],

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Menu, LogOut, UserCircle, Loader2 } from "lucide-react";
 import { roleNamesOf, type AdminMe } from "@/app/hooks/useAdminMe";
 import { useLogout } from "@/app/hooks/useLogout";
+import { ThemeToggleButton } from "./theme/ThemeMode";
 
 export default function MobileHeader({ onMenuOpen, me }: { onMenuOpen: () => void; me: AdminMe }) {
   const [open, setOpen] = useState(false);
@@ -23,11 +24,14 @@ export default function MobileHeader({ onMenuOpen, me }: { onMenuOpen: () => voi
   return (
     <header
       className="lg:hidden flex items-center justify-between px-4 py-3.5 sticky top-0 z-30 print:hidden"
-      style={{ backgroundColor: "var(--color-emerald)" }}
+      style={{ backgroundColor: "var(--color-sidebar)" }}
     >
-      <button onClick={onMenuOpen} className="p-1.5 text-white/90" aria-label="باز کردن منو">
-        <Menu className="w-6 h-6" />
-      </button>
+      <div className="flex items-center gap-1">
+        <button onClick={onMenuOpen} className="p-1.5 text-white/90" aria-label="باز کردن منو">
+          <Menu className="w-6 h-6" />
+        </button>
+        <ThemeToggleButton className="p-1.5 rounded-lg text-white/80! hover:bg-white/10" iconClassName="w-5 h-5" />
+      </div>
       <div className="relative" ref={ref}>
         <button
           type="button"
@@ -38,7 +42,7 @@ export default function MobileHeader({ onMenuOpen, me }: { onMenuOpen: () => voi
           <span className="text-white! text-[13px] font-bold">{me.fullName}</span>
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-black"
-            style={{ backgroundColor: "var(--color-gold-500)", color: "var(--color-emerald)" }}
+            style={{ backgroundColor: "var(--color-gold-500)", color: "var(--color-sidebar)" }}
           >
             {me.fullName?.charAt(0) ?? "؟"}
           </div>

@@ -8,7 +8,7 @@ export default function Sidebar({ me }: { me: AdminMe }) {
   return (
     <aside
       className="hidden lg:flex lg:flex-col w-64 shrink-0 h-screen sticky top-0 print:hidden"
-      style={{ backgroundColor: "var(--color-emerald)" }}
+      style={{ backgroundColor: "var(--color-sidebar)" }}
     >
       <div className="px-5 py-5 border-b border-white/10 flex items-center gap-2.5">
         {/* لوگوی پویا (تنظیمات سیستم ← لوگو، مهر و امضا) */}

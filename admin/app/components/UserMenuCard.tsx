@@ -4,8 +4,9 @@ import Link from "next/link";
 import { LogOut, Loader2, UserCircle, Store } from "lucide-react";
 import { roleNamesOf, type AdminMe } from "@/app/hooks/useAdminMe";
 import { useLogout } from "@/app/hooks/useLogout";
+import { ThemeSegmented } from "./theme/ThemeMode";
 
-/** کارت کاربر در پایین منوی کناری/کشویی: پروفایل + خروج */
+/** کارت کاربر در پایین منوی کناری/کشویی: پروفایل + حالت نمایش (روشن/تاریک) + خروج */
 export default function UserMenuCard({
   me,
   onNavigate,
@@ -24,7 +25,7 @@ export default function UserMenuCard({
       >
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-[14px] font-black"
-          style={{ backgroundColor: "var(--color-gold-500)", color: "var(--color-emerald)" }}
+          style={{ backgroundColor: "var(--color-gold-500)", color: "var(--color-sidebar)" }}
         >
           {me.fullName?.charAt(0) ?? "؟"}
         </div>
@@ -37,6 +38,7 @@ export default function UserMenuCard({
         </div>
         <UserCircle className="w-4 h-4 text-white/60! shrink-0" />
       </Link>
+      <ThemeSegmented />
       <button
         type="button"
         onClick={() => void logout()}

@@ -67,6 +67,16 @@ export const BRANDING_IMAGE_POLICY: UploadPolicy = {
   maxImageDimension: 1600,
 };
 
+/**
+ * فونت سفارشی پنل‌ها و اپلیکیشن (پنل مدیریت ← ظاهر و تم). فونت قابل بازانکود نیست؛ ساختار
+ * سرآیند و جدول‌ها اعتبارسنجی و فایل با نام و MIME تعیین‌شده‌ی سرور ذخیره می‌شود.
+ */
+export const BRANDING_FONT_POLICY: UploadPolicy = {
+  purpose: 'branding_font',
+  allowedExtensions: ['woff2', 'woff', 'ttf', 'otf'],
+  maxBytes: 3 * MB,
+};
+
 /** پیوست چت آنلاین (بازدیدکننده و اپراتور) — تصویر و PDF */
 export const CHAT_ATTACHMENT_POLICY: UploadPolicy = {
   purpose: 'chat_attachment',

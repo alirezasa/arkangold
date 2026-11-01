@@ -499,6 +499,8 @@ export default function SystemConfigPage() {
     const map = new Map<string, ConfigItem[]>();
     for (const item of data ?? []) {
       const prefix = item.key.split(".")[0];
+      // رنگ‌ها و فونت در صفحه‌ی «ظاهر، رنگ و فونت» مدیریت می‌شوند (JSON و مرجع فایل، نه متن آزاد)
+      if (prefix === "appearance") continue;
       if (!map.has(prefix)) map.set(prefix, []);
       map.get(prefix)!.push(item);
     }

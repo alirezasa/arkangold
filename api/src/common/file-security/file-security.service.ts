@@ -52,7 +52,8 @@ export interface UploadPolicy {
     | 'chat_attachment'
     | 'deposit_receipt'
     | 'catalog_image'
-    | 'branding_image';
+    | 'branding_image'
+    | 'branding_font';
   allowedExtensions: string[];
   maxBytes: number;
   /** بیشینه‌ی طول/عرض تصویر خروجی (بزرگ‌تر کوچک می‌شود) */
@@ -137,6 +138,49 @@ function hasActivePdfContent(obj: PDFObject, depth = 0): boolean {
     }
   }
   return false;
+}
+
+/**
+ * اعتبارسنجی ساختاری فونت (بدون بازانکود): طول اعلام‌شده در سرآیند WOFF/WOFF2 باید با حجم فایل
+ * برابر باشد و فهرست جدول‌های TTF/OTF/WOFF باید معقول و داخل محدوده‌ی فایل باشد. فونت فقط با
+ * MIME ثابت font/* ارائه می‌شود و هرگز به‌عنوان سند/اسکریپت تفسیر نمی‌شود.
+ */
+export function validateFontStructure(
+  buffer: Buffer,
+  kind: 'woff' | 'woff2' | 'ttf' | 'otf',
+): Buffer {
+  const reject = () => {
+    throw new FileRejectedError('FONT_INVALID', 'فایل فونت معتبر نیست');
+  };
+  if (buffer.length < 12) reject();
+  if (kind === 'woff' || kind === 'woff2') {
+    if (buffer.length < 44) reject();
+    const declaredLength = buffer.readUInt32BE(8);
+    const numTables = buffer.readUInt16BE(12);
+    if (declaredLength !== buffer.length) reject();
+    if (numTables < 1 || numTables > 128) reject();
+    if (kind === 'woff') {
+      // هر رکورد جدول WOFF بیست بایت است و پس از سرآیند ۴۴ بایتی می‌آید
+      if (44 + numTables * 20 > buffer.length) reject();
+      for (let i = 0; i < numTables; i++) {
+        const rec = 44 + i * 20;
+        const offset = buffer.readUInt32BE(rec + 4);
+        const compLength = buffer.readUInt32BE(rec + 8);
+        if (offset < 44 || offset + compLength > buffer.length) reject();
+      }
+    }
+    return buffer;
+  }
+  const numTables = buffer.readUInt16BE(4);
+  if (numTables < 1 || numTables > 128) reject();
+  if (12 + numTables * 16 > buffer.length) reject();
+  for (let i = 0; i < numTables; i++) {
+    const rec = 12 + i * 16;
+    const offset = buffer.readUInt32BE(rec + 8);
+    const length = buffer.readUInt32BE(rec + 12);
+    if (offset < 12 || offset + length > buffer.length) reject();
+  }
+  return buffer;
 }
 
 export class FileRejectedError extends BadRequestException {
@@ -274,6 +318,11 @@ export class FileSecurityService {
         return this.sanitizePdf(buffer);
       case 'text':
         return buffer;
+      case 'woff':
+      case 'woff2':
+      case 'ttf':
+      case 'otf':
+        return validateFontStructure(buffer, kind);
       case 'zip':
         if (ext === 'docx' || ext === 'xlsx')
           return this.sanitizeOoxml(buffer, ext, policy);

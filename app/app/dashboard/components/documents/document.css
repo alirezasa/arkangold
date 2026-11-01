@@ -3,8 +3,8 @@
    وارد کنید در app/app/invoice/[id]/layout.tsx */
 
 :root {
-  --doc-ink: #330509;      /* قرمز تیره برند */
-  --doc-gold: #c5a059;
+  --doc-ink: var(--color-emerald, #330509);      /* رنگ اصلی برند (ظاهر، رنگ و فونت) */
+  --doc-gold: var(--color-gold-500, #c5a059);
   --doc-gold-soft: #f6efe1;
   --doc-line: #d8d2c4;
   --doc-muted: #6b6459;

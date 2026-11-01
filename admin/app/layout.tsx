@@ -5,6 +5,10 @@ import { headers } from "next/headers";
 import { PORTAL_LABEL, portalFromHeaders } from "@/lib/portal";
 import "./globals.css";
 import SensitiveQueryGuard from "./components/SensitiveQueryGuard";
+import { NEST } from "./lib/adminProxy";
+import { DEFAULT_THEME_COLOR, fetchTheme } from "./lib/theme";
+import { ThemeSync } from "./components/theme/ThemeMode";
+import { THEME_INIT_SCRIPT } from "./components/theme/theme-mode";
 
 const dana = localFont({
   src: [
@@ -49,22 +53,34 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export const viewport: Viewport = {
-  themeColor: "#330509",
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-};
+// رنگ نوار مرورگر موبایل از رنگ اصلی تنظیم‌شده در «ظاهر، رنگ و فونت»
+export async function generateViewport(): Promise<Viewport> {
+  const theme = await fetchTheme(NEST);
+  return {
+    themeColor: theme?.themeColor ?? DEFAULT_THEME_COLOR,
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // رنگ‌ها و فونت سیستم (پنل مدیریت ← ظاهر، رنگ و فونت)؛ بدون پاسخ API پیش‌فرض‌های globals.css
+  const theme = await fetchTheme(NEST);
   return (
-    <html lang="fa" dir="rtl" className={`${dana.variable} font-sans`}>
+    // suppressHydrationWarning: کلاس dark پیش از hydration با اسکریپت head افزوده می‌شود
+    <html lang="fa" dir="rtl" className={`${dana.variable} font-sans`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {theme && <style id="arkan-theme" dangerouslySetInnerHTML={{ __html: theme.css }} />}
+      </head>
       <body className="antialiased bg-gray-50 text-gray-900 overscroll-none">
+        <ThemeSync />
         <SensitiveQueryGuard />
         {children}
       </body>

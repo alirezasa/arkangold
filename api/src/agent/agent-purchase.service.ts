@@ -219,6 +219,8 @@ export class AgentPurchaseService {
       where: { id },
       data: {
         title: dto.title?.trim(),
+        weightGrams: dto.weightGrams,
+        purityKarat: dto.purityKarat,
         premiumRial: dto.premiumRial,
         consumerPremiumRial: dto.consumerPremiumRial,
         productId: dto.productId,
@@ -227,6 +229,17 @@ export class AgentPurchaseService {
         sortOrder: dto.sortOrder,
       },
     });
+  }
+
+  /**
+   * حذف قلم فهرست قیمت. اقلام سفارش‌های قبلی (عنوان، وزن، عیار و قیمت) در لحظه‌ی ثبت سفارش
+   * snapshot شده‌اند، پس حذف روی سفارش‌ها، صورتحساب‌ها و اسناد صادرشده اثری ندارد.
+   */
+  async deletePriceItem(id: string) {
+    const row = await this.prisma.agentPriceItem.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('قلم فهرست قیمت یافت نشد');
+    await this.prisma.agentPriceItem.delete({ where: { id } });
+    return { message: 'قلم فهرست قیمت حذف شد', id };
   }
 
   /** سقف قیمت مصرف‌کننده برای یک شمش (وزن/عیار) — مبنای کنترل بند ۸-۳ در ثبت فروش */

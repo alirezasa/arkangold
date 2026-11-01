@@ -6,6 +6,8 @@ import LiveChatWidget from "./components/livechat/LiveChatWidget";
 // کندی/فیلتر شدن، آیکون‌ها — از جمله ضربدر بستن منو و آیکون‌های منوی پایین — دیده نمی‌شدند)
 import "@tabler/icons-webfont/tabler-icons.min.css";
 import "./globals.css";
+import { NEST } from "./api/_lib/proxy";
+import { DEFAULT_THEME_COLOR, fetchTheme } from "./lib/theme";
 
 
 // ۲. تعریف فونت دانا با مسیر جدید (public/fonts)
@@ -35,9 +37,6 @@ const dana = localFont({
   variable: "--font-dana",
 });
 
-// رنگ اصلی برند (همان --color-emerald در globals.css)
-const BRAND_COLOR = "#330509";
-
 // تنظیمات PWA و متادیتا
 export const metadata: Metadata = {
   title: "آرکان گلد | پلتفرم طلای آب‌شده",
@@ -62,25 +61,35 @@ export const metadata: Metadata = {
   other: { "mobile-web-app-capable": "yes" },
 };
 
-export const viewport: Viewport = {
-  // رنگ نوار وضعیت/آدرس در Android و Safari
-  themeColor: BRAND_COLOR,
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  // بدون cover، مقدار env(safe-area-inset-*) در آیفون همیشه صفر است
-  viewportFit: "cover",
-};
+export async function generateViewport(): Promise<Viewport> {
+  const theme = await fetchTheme(NEST);
+  return {
+    // رنگ نوار وضعیت/آدرس در Android و Safari — رنگ اصلی تنظیم‌شده در پنل مدیریت (ظاهر، رنگ و فونت)
+    themeColor: theme?.themeColor ?? DEFAULT_THEME_COLOR,
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+    // بدون cover، مقدار env(safe-area-inset-*) در آیفون همیشه صفر است
+    viewportFit: "cover",
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // رنگ‌ها و فونت سیستم (پنل مدیریت ← ظاهر، رنگ و فونت)؛ بدون پاسخ API پیش‌فرض‌های globals.css
+  const theme = await fetchTheme(NEST);
   return (
     // ۳. تزریق متغیر دانا و اعمال کلاس font-sans پیش‌فرض تلوند روی کل پروژه
     <html lang="fa" dir="rtl" className={`${dana.variable} font-sans`}>
+      {theme && (
+        <head>
+          <style id="arkan-theme" dangerouslySetInnerHTML={{ __html: theme.css }} />
+        </head>
+      )}
       <body className="antialiased bg-gray-50 text-gray-900">
         {/* پس‌زمینه‌ی ناحیه‌ی ساعت/باتری آیفون (safe-area) با رنگ اصلی برند */}
         <div className="pwa-status-bar" aria-hidden="true" />

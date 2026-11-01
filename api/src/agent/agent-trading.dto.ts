@@ -234,14 +234,25 @@ export class AgentPriceItemDto {
 
 export class UpdateAgentPriceItemDto {
   @IsOptional() @IsString() @Length(2, 120) title?: string;
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  @Max(10000)
+  weightGrams?: number;
+  @IsOptional()
+  @IsIn(GOLD_PURITIES)
+  purityKarat?: (typeof GOLD_PURITIES)[number];
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) premiumRial?: number;
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   consumerPremiumRial?: number;
-  @IsOptional() @IsUUID() productId?: string;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) maxPerOrder?: number;
+  @IsOptional() @IsUUID() productId?: string | null;
+  /** null یعنی حذف سقف تعداد در هر سفارش */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) maxPerOrder?:
+    number | null;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @Type(() => Number) @IsInt() sortOrder?: number;
 }

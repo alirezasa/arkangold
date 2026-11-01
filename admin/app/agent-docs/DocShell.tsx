@@ -29,7 +29,7 @@ export function DocShell({
   if (loading) {
     return (
       <div className="doc-root">
-        <div style={{ display: "flex", justifyContent: "center", paddingTop: 100, color: "#330509" }}>
+        <div style={{ display: "flex", justifyContent: "center", paddingTop: 100, color: "var(--color-emerald)" }}>
           <Loader2 className="animate-spin" size={30} />
         </div>
       </div>

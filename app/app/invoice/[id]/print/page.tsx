@@ -98,7 +98,7 @@ export default function InvoicePrintPage({
             display: "flex",
             justifyContent: "center",
             paddingTop: 100,
-            color: "#330509",
+            color: "var(--color-emerald)",
           }}
         >
           <Loader2 className="animate-spin" size={30} />

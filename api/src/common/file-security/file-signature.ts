@@ -3,7 +3,18 @@
 // FPT_RVM_EXT.1.2 — تشخیص نوع واقعی فایل از «بایت‌های جادویی» (هدر Content-Type و پسوند
 // ارسالی کلاینت قابل جعل‌اند) و تطبیق آن با پسوند اعلام‌شده.
 
-export type FileKind = 'jpeg' | 'png' | 'webp' | 'pdf' | 'zip' | 'ole' | 'text';
+export type FileKind =
+  | 'jpeg'
+  | 'png'
+  | 'webp'
+  | 'pdf'
+  | 'zip'
+  | 'ole'
+  | 'woff'
+  | 'woff2'
+  | 'ttf'
+  | 'otf'
+  | 'text';
 
 const startsWith = (buf: Buffer, bytes: number[], offset = 0) =>
   buf.length >= offset + bytes.length &&
@@ -26,6 +37,17 @@ export function detectFileKind(buf: Buffer): FileKind | null {
     return 'zip';
   if (startsWith(buf, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))
     return 'ole';
+  // فونت‌ها (فقط برای فونت سفارشی پنل مدیریت پذیرفته می‌شوند)
+  if (startsWith(buf, [0x77, 0x4f, 0x46, 0x46])) return 'woff'; // wOFF
+  if (startsWith(buf, [0x77, 0x4f, 0x46, 0x32])) return 'woff2'; // wOF2
+  if (startsWith(buf, [0x4f, 0x54, 0x54, 0x4f])) return 'otf'; // OTTO
+  if (
+    startsWith(buf, [0x00, 0x01, 0x00, 0x00]) ||
+    startsWith(buf, [0x74, 0x72, 0x75, 0x65]) // 'true' (TrueType قدیمی مک)
+  ) {
+    // 'true' به‌تنهایی می‌تواند ابتدای یک فایل متنی باشد؛ فونت واقعی پس از آن بایت‌های دودویی دارد
+    if (buf[0] === 0x00 || !isPlainText(buf)) return 'ttf';
+  }
   if (isPlainText(buf)) return 'text';
   return null;
 }
@@ -67,6 +89,10 @@ export const EXTENSION_RULES: Record<
   },
   zip: { kind: 'zip', mime: 'application/zip', canonicalExt: 'zip' },
   txt: { kind: 'text', mime: 'text/plain; charset=utf-8', canonicalExt: 'txt' },
+  woff: { kind: 'woff', mime: 'font/woff', canonicalExt: 'woff' },
+  woff2: { kind: 'woff2', mime: 'font/woff2', canonicalExt: 'woff2' },
+  ttf: { kind: 'ttf', mime: 'font/ttf', canonicalExt: 'ttf' },
+  otf: { kind: 'otf', mime: 'font/otf', canonicalExt: 'otf' },
 };
 
 export function extensionOf(filename: string): string {

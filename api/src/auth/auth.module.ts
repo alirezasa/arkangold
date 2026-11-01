@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { UserMfaController } from './user-mfa.controller';
+import { StepUpController } from './step-up.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -24,7 +25,7 @@ import { ReferralModule } from '../referral/referral.module';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AuthController, UserMfaController],
+  controllers: [AuthController, UserMfaController, StepUpController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard],
   exports: [JwtAuthGuard, AuthService],
 })

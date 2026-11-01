@@ -46,6 +46,7 @@ export default function MobileVerificationPage() {
 
   const [step, setStep] = useState<Step>("phone");
   const [phone, setPhone] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [notice, setNotice] = useState<string | null>(null);
   const [timer, setTimer] = useState(0);
@@ -65,7 +66,12 @@ export default function MobileVerificationPage() {
       setError("شماره موبایل باید ۱۱ رقم و با ۰۹ شروع شود");
       return;
     }
-    const res = await requestChange(phone);
+    if (!currentPassword) {
+      setError("برای تغییر شماره، رمز عبور فعلی را وارد کنید");
+      return;
+    }
+    const res = await requestChange(phone, currentPassword);
+    setCurrentPassword("");
     if (res) {
       setNotice(res.message);
       setOtp(Array(OTP_LENGTH).fill(""));
@@ -287,6 +293,22 @@ export default function MobileVerificationPage() {
                 سیم‌کارت این شماره باید با همین کد ملی ثبت شده باشد (قابل استعلام از
                 سامانه شاهکار).
               </p>
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="current-password" className="text-xs font-bold text-gray-500">
+                رمز عبور فعلی (برای تأیید هویت شما)
+              </label>
+              <input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => {
+                  setCurrentPassword(e.target.value);
+                  if (error) setError(null);
+                }}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3.5 text-sm outline-none transition-all focus:border-gold-500"
+              />
             </div>
             <PrimaryButton type="submit" disabled={busy !== null}>
               {busy === "request" ? (

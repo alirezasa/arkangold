@@ -13,6 +13,8 @@ import BottomNav from "./components/BottomNav";
 import MobileHeader from "./components/MobileHeader";
 import IdentityBanner from "./components/IdentityBanner";
 import { saveReturnPath } from "@/app/utils/return-path";
+import StepUpProvider from "@/app/components/StepUpProvider";
+import LastLoginNotice from "@/app/components/LastLoginNotice";
 import LegalProfileBanner from "./components/LegalProfileBanner";
 import MobileVerificationBanner from "./components/MobileVerificationBanner";
 import { BankAccountBanner } from "./components/BankAccountGate";
@@ -299,7 +301,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             صفحات نباید pb اضافه بگذارند وگرنه اسکرول خالی زیادی ایجاد می‌شود */}
         <main className="flex-1 overflow-y-auto overscroll-contain p-4 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(6rem+env(safe-area-inset-bottom))] lg:p-8 lg:pb-8">
           {bannerNode}
-          {children}
+          <LastLoginNotice />
+          <StepUpProvider>{children}</StepUpProvider>
         </main>
       </div>
 

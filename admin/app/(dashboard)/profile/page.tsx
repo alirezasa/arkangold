@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { roleNamesOf, useAdminMe } from "@/app/hooks/useAdminMe";
 import { useLogout } from "@/app/hooks/useLogout";
+import LastLoginNotice from "@/app/components/LastLoginNotice";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -84,6 +85,7 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-4xl space-y-5">
+      <LastLoginNotice variant="card" />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-lg font-black text-gray-900 mb-1">پروفایل کاربری</h1>

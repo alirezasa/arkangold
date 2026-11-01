@@ -22,6 +22,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
+import { StepUpCancelledError, adminStepUpHeaders } from "@/app/utils/step-up";
 
 // تعریف اینترفیس‌ها برای تایپ‌سیف کردن پروژه
 interface BankAccount {
@@ -163,6 +164,7 @@ const IDENTITY_STATUS_META: Record<
 };
 
 function apiError(err: unknown, fallback: string) {
+  if (err instanceof StepUpCancelledError) return err.message;
   if (axios.isAxiosError(err)) {
     const msg = (err.response?.data as { message?: string } | undefined)?.message;
     if (msg) return msg;
@@ -270,6 +272,57 @@ function MobileSection({
   );
 }
 
+// ── خاتمه‌ی نشست‌های کاربر (FTA_TSE_EXT.3.5) ──
+function SessionsSection({ user }: { user: UserDetail }) {
+  const { me } = useAdminMe();
+  const canRevoke = me?.permissions.includes("users.sessions.revoke") ?? false;
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  if (!canRevoke) return null;
+
+  const revoke = async () => {
+    if (!confirm("همه‌ی نشست‌های این کاربر در همه‌ی دستگاه‌ها بسته شود؟ کاربر باید دوباره وارد شود.")) return;
+    setBusy(true);
+    setNote(null);
+    try {
+      const { data } = await axios.post(`/api/admin/users/${user.id}/sessions/revoke`);
+      setNote({ ok: true, text: data.message });
+    } catch (err) {
+      setNote({ ok: false, text: apiError(err, "خاتمه‌ی نشست‌ها ممکن نشد") });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="rounded-2xl p-5 mb-5"
+      style={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[13px] font-black text-gray-700">نشست‌های فعال</h2>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            برای حساب مشکوک به سرقت یا درخواست کاربر: همه‌ی نشست‌ها فوراً بسته و به کاربر اطلاع داده می‌شود
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void revoke()}
+          disabled={busy}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold text-white bg-red-600 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+          خاتمه‌ی همه‌ی نشست‌ها
+        </button>
+      </div>
+      {note && (
+        <p className={`mt-3 text-[12px] font-bold ${note.ok ? "text-emerald-700" : "text-red-600"}`}>{note.text}</p>
+      )}
+    </div>
+  );
+}
+
 // ── ورود دومرحله‌ای: بازیابی پس از احراز هویت مجدد (FIA_UID_EXT.1.4) ──
 function MfaSection({
   user,
@@ -293,10 +346,11 @@ function MfaSection({
     setBusy(true);
     setError(null);
     try {
+      const headers = await adminStepUpHeaders("بازنشانی ورود دومرحله‌ای کاربر");
       const { data } = await axios.post(`/api/admin/users/${user.id}/mfa/reset`, {
         nationalCode,
         reason,
-      });
+      }, { headers });
       setDone(data?.message ?? "انجام شد");
       setOpen(false);
       await onUpdated();
@@ -970,6 +1024,7 @@ export default function UserDetailPage() {
         <div className="space-y-5 lg:sticky lg:top-4">
           <MobileSection user={data} onUpdated={() => mutate()} />
           <MfaSection user={data} onUpdated={() => mutate()} />
+          <SessionsSection user={data} />
         </div>
       </div>
     </div>

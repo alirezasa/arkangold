@@ -4,11 +4,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios, { type AxiosRequestConfig } from "axios";
+import { ACCESS_COOKIE } from "@/lib/cookie-names";
 
 export const NEST = process.env.NEST_ORIGIN || process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 export async function getAccessToken() {
-  return (await cookies()).get("accessToken")?.value;
+  return (await cookies()).get(ACCESS_COOKIE)?.value;
 }
 
 export function errorResponse(e: unknown) {

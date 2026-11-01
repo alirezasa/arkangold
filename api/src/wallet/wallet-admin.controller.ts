@@ -34,6 +34,7 @@ import { RequirePermission } from '../admin-auth/decorators/require-permission.d
 import { AuditLog } from '../admin-auth/decorators/audit-log.decorator';
 import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interceptor';
 import { AdminAuthenticatedUser } from '../admin-auth/interfaces/admin-jwt-payload.interface';
+import { RequireAdminStepUp } from '../common/auth-security/step-up.guard';
 
 class RejectWithdrawalDto {
   @IsString()
@@ -246,6 +247,8 @@ export class WalletAdjustmentController {
   @RequirePermission('wallet.adjust')
   @AuditLog('wallet.adjust')
   @UseInterceptors(AuditLogInterceptor)
+  // FTA_TSE_EXT.4.2 — کد برنامه‌ی احراز هویت برای اصلاح دستی موجودی
+  @RequireAdminStepUp('اصلاح دستی موجودی کیف پول')
   @Post(':id/adjust')
   adjust(
     @Req() req: AdminRequest,

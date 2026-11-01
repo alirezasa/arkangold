@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { UsersService } from './users.service';
+import { LoginHistoryService } from '../common/auth-security/login-history.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SubmitIdentityDto } from '@arkan-gold/shared';
 import { UpdateLegalProfileDto } from '@arkan-gold/shared';
@@ -16,12 +17,21 @@ interface AuthenticatedRequest extends Request {
 @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly loginHistory: LoginHistoryService,
+  ) {}
 
   @Get('me')
   @ApiOperation({ summary: 'پروفایل کاربر جاری' })
   getProfile(@Req() req: AuthenticatedRequest) {
     return this.usersService.getProfile(req.user.userId);
+  }
+
+  /** FTA_TAH_EXT.1.1 — آخرین ورود موفق پیش از نشست فعلی */
+  @Get('me/last-login')
+  lastLogin(@Req() req: AuthenticatedRequest) {
+    return this.loginHistory.forUser(req.user.userId, req.user.sessionId);
   }
 
   @Post('me/identity/reveal')

@@ -10,6 +10,9 @@ import { LoginAlertService } from './login-alert.service';
 import { LoginChallengeService } from './login-challenge.service';
 import { CredentialExpiryService } from './credential-expiry.service';
 import { SessionContextService } from './session-context.service';
+import { StepUpService } from './step-up.service';
+import { LoginHistoryService } from './login-history.service';
+import { AdminStepUpGuard, StepUpGuard } from './step-up.guard';
 
 /** مسیرهای عمومی مشترک ورود کاربران و پنل‌ها */
 @Controller('auth-security')
@@ -51,6 +54,10 @@ export class AuthSecurityController {
     LoginChallengeService,
     CredentialExpiryService,
     SessionContextService,
+    StepUpService,
+    LoginHistoryService,
+    StepUpGuard,
+    AdminStepUpGuard,
   ],
   exports: [
     PasswordPolicyService,
@@ -62,6 +69,10 @@ export class AuthSecurityController {
     LoginChallengeService,
     CredentialExpiryService,
     SessionContextService,
+    StepUpService,
+    LoginHistoryService,
+    StepUpGuard,
+    AdminStepUpGuard,
   ],
 })
 export class AuthSecurityModule {}

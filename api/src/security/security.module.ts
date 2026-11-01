@@ -4,6 +4,7 @@ import { RetentionModule } from '../common/retention/retention.module';
 import { SecurityAdminController } from './security-admin.controller';
 import { SecurityAuthController } from './security-auth.controller';
 import { SecurityDataProtectionController } from './security-data-protection.controller';
+import { SecuritySessionsController } from './security-sessions.controller';
 
 @Module({
   imports: [RetentionModule],
@@ -11,6 +12,7 @@ import { SecurityDataProtectionController } from './security-data-protection.con
     SecurityAdminController,
     SecurityAuthController,
     SecurityDataProtectionController,
+    SecuritySessionsController,
   ],
 })
 export class SecurityModule {}

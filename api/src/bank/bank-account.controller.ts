@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AddBankAccountDto } from '@arkan-gold/shared';
 import { ActiveUserGuard } from '../auth/guards/active-user.guard';
 import { OwnedResource } from '../common/audit/owned-resource.decorator';
+import { RequireStepUp } from '../common/auth-security/step-up.guard';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -36,6 +37,7 @@ export class BankAccountController {
   }
 
   // هر ثبت دو استعلام هزینه‌دار (تطبیق کارت + شبا) دارد → محدودیت نرخ
+  @RequireStepUp('bank_account_add')
   @Post()
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({

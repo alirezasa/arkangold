@@ -2,8 +2,9 @@
 //
 // route handlerهای این برنامه در سمت سرور به API وصل می‌شوند، پس API همه‌ی درخواست‌ها را با IP
 // همین سرور می‌بیند و rate limit / مسدودسازی بین همه‌ی کاربران مشترک می‌شود. این ماژول IP و
-// User-Agent درخواست ورودی کاربر را همراه راز مشترک INTERNAL_PROXY_SECRET به درخواست‌های API اضافه
-// می‌کند و API فقط با همین راز این مقادیر را می‌پذیرد (api/src/common/network/client-ip.ts):
+// User-Agent درخواست ورودی کاربر را به درخواست‌های API اضافه می‌کند. خود راز INTERNAL_PROXY_SECRET
+// هرگز ارسال نمی‌شود: هر درخواست امضای HMAC-SHA256 کوتاه‌عمر (۶۰ ثانیه) و یک‌بارمصرف (nonce) روی
+// زمان، nonce، IP و User-Agent دارد (FMT_CFG_EXT.1.1 — api/src/common/network/client-ip.ts):
 //   - axios: interceptor سراسری که instrumentation.ts یک‌بار نصب می‌کند (axios در next.config
 //     به‌عنوان serverExternalPackages تعریف شده تا همه‌ی routeها همین نمونه را استفاده کنند)
 //   - fetch: fetch سراسری در اختیار Next.js است؛ هدرهای clientIdentityHeaders() را صریحاً اضافه کنید
@@ -11,11 +12,14 @@
 // این فایل در app/lib و admin/lib یکسان است؛ تغییرات را در هر دو اعمال کنید.
 import axios from "axios";
 import { BlockList, isIP } from "node:net";
+import { createHmac, randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 
 const CLIENT_IP_HEADER = "x-arkan-client-ip";
 const CLIENT_UA_HEADER = "x-arkan-client-ua";
-const PROXY_SECRET_HEADER = "x-arkan-proxy-secret";
+const PROXY_TS_HEADER = "x-arkan-ts";
+const PROXY_NONCE_HEADER = "x-arkan-nonce";
+const PROXY_SIG_HEADER = "x-arkan-sig";
 
 // پراکسی‌های مورد اعتماد: شبکه‌ی داخلی پلتفرم (همان پیش‌فرض TRUST_PROXY در API) و رنج‌های CDN
 const internal = new BlockList();
@@ -109,7 +113,13 @@ export async function clientIdentityHeaders(): Promise<Record<string, string>> {
   if (ip) result[CLIENT_IP_HEADER] = ip;
   if (ua) result[CLIENT_UA_HEADER] = ua;
   if (!ip && !ua) return {};
-  result[PROXY_SECRET_HEADER] = secret;
+  const ts = String(Date.now());
+  const nonce = randomBytes(18).toString("base64url");
+  result[PROXY_TS_HEADER] = ts;
+  result[PROXY_NONCE_HEADER] = nonce;
+  result[PROXY_SIG_HEADER] = createHmac("sha256", secret)
+    .update(`arkan-bff-v1|${ts}|${nonce}|${ip ?? ""}|${ua ?? ""}`, "utf8")
+    .digest("base64url");
   return result;
 }
 
@@ -124,12 +134,37 @@ async function incomingSensitiveQuery(): Promise<string | null> {
   }
 }
 
+const STEP_UP_HEADERS = ["x-step-up-token", "x-step-up-code"];
+
+async function incomingStepUpHeaders(): Promise<[string, string][]> {
+  try {
+    const incoming = await headers();
+    return STEP_UP_HEADERS.map((n) => [n, incoming.get(n) ?? ""] as [string, string]).filter(
+      ([, v]) => v.length > 0 && v.length <= 128,
+    );
+  } catch {
+    return []; // خارج از چرخه‌ی یک درخواست
+  }
+}
+
 const INSTALLED = Symbol.for("arkan.clientIdentityForwarding");
 
 export function installClientIdentityForwarding(): void {
   const scope = globalThis as typeof globalThis & { [INSTALLED]?: boolean };
   if (scope[INSTALLED]) return;
   scope[INSTALLED] = true;
+
+  // FTP_DIT_EXT.3.3 — ارتباط داخلی BFF → API باید رمزنگاری‌شده (https) باشد
+  const internalApi = process.env.NEST_API_URL || process.env.NEST_ORIGIN || "";
+  if (
+    process.env.NODE_ENV === "production" &&
+    /^http:\/\//i.test(internalApi) &&
+    !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(internalApi)
+  ) {
+    console.warn(
+      `[security] NEST_API_URL بدون TLS است (${new URL(internalApi).host})؛ برای رمزنگاری ارتباط داخلی از نشانی https استفاده کنید (FTP_DIT_EXT.3.3)`,
+    );
+  }
 
   const origins = apiOrigins();
   const isApiUrl = (url: string) => {
@@ -149,6 +184,10 @@ export function installClientIdentityForwarding(): void {
       // به API منتقل می‌شوند (api/src/common/network/sensitive-query.ts)
       const sensitive = await incomingSensitiveQuery();
       if (sensitive) config.headers.set(SENSITIVE_QUERY_HEADER, sensitive);
+      // FTA_TSE_EXT.4.2 — توکن/کد تأیید ثانویه‌ی عملیات حساس از مرورگر به API منتقل می‌شود
+      for (const [name, value] of await incomingStepUpHeaders()) {
+        config.headers.set(name, value);
+      }
     }
     return config;
   });

@@ -15,11 +15,12 @@ const SESSION_LIMITS = {
     timeoutDefault: 15,
     timeoutMin: 5,
     timeoutMax: 1440,
-    refreshKey: 'session.user.refresh_days',
-    refreshDefault: 7,
+    // FTA_TSE_EXT.2.2 — انقضای مطلق نشست کاربر از لحظه‌ی ورود (تمدید با refresh آن را جابه‌جا نمی‌کند)
+    refreshKey: 'session.user.absolute_hours',
+    refreshDefault: 12,
     refreshMin: 1,
-    refreshMax: 90,
-    refreshUnitSeconds: 24 * 60 * 60,
+    refreshMax: 168,
+    refreshUnitSeconds: 60 * 60,
   },
   admin: {
     timeoutKey: 'session.admin.timeout_minutes',
@@ -36,15 +37,17 @@ const SESSION_LIMITS = {
 
 export interface SessionPolicy {
   /**
-   * عمر توکن دسترسی و کوکی نشست (ثانیه). برای ادمین همین مقدار «زمان عدم فعالیت» است
-   * (قفل نشست پس از این مدت بدون فعالیت)؛ عمر کل نشست ادمین refreshTtlSeconds است.
+   * «زمان عدم فعالیت» (ثانیه): پس از این مدت بدون درخواست، نشست کاربر باطل و نشست ادمین قفل
+   * می‌شود (FTA_TSE_EXT.2.1)؛ عمر کل نشست (انقضای مطلق) refreshTtlSeconds است.
    */
   accessTtlSeconds: number;
-  /** عمر توکن تمدید و رکورد نشست (ثانیه) — هرگز کمتر از عمر توکن دسترسی نیست */
+  /** انقضای مطلق نشست از لحظه‌ی ورود (ثانیه) — هرگز کمتر از زمان عدم فعالیت نیست (FTA_TSE_EXT.2.2) */
   refreshTtlSeconds: number;
 }
 
 const DEPRECATED_KEYS = [
+  // جایگزین با session.user.absolute_hours (انقضای مطلق نشست کاربر)
+  'session.user.refresh_days',
   'transfer.daily_limit_rial',
   'transfer.monthly_limit_rial',
   // جایگزین با referral.reward_amount_mg (پاداش طلایی به میلی‌گرم)

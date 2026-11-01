@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
+import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
 
 const NEST = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 async function getToken() {
-  return (await cookies()).get("adminAccessToken")?.value;
+  return (await cookies()).get(ADMIN_ACCESS_COOKIE)?.value;
 }
 
 function errRes(e: unknown) {

@@ -58,13 +58,14 @@ export const useMobileVerification = () => {
     }
   }, [mutate]);
 
-  const requestChange = useCallback(async (phone: string) => {
+  // FTA_TSE_EXT.4.1 — تغییر شماره (عامل ورود و بازیابی) با رمز عبور فعلی احراز هویت مجدد می‌شود
+  const requestChange = useCallback(async (phone: string, currentPassword: string) => {
     setBusy('request');
     setError(null);
     try {
       const res = await axios.post(
         '/api/user/mobile-verification/change-phone/request',
-        { phone },
+        { phone, currentPassword },
       );
       return res.data as { message: string; phone: string; expiresIn: number };
     } catch (err) {

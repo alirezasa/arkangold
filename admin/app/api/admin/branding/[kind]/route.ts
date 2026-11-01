@@ -3,13 +3,14 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminProxy, NEST } from "@/app/lib/adminProxy";
 import { clientIdentityHeaders } from "@/lib/client-identity";
+import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
 
 const KINDS = new Set(["logo", "seal", "signature"]);
 
 export async function POST(req: Request, { params }: { params: Promise<{ kind: string }> }) {
   const { kind } = await params;
   if (!KINDS.has(kind)) return NextResponse.json({ message: "نوع نامعتبر" }, { status: 400 });
-  const token = (await cookies()).get("adminAccessToken")?.value;
+  const token = (await cookies()).get(ADMIN_ACCESS_COOKIE)?.value;
   if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   try {
     const res = await fetch(`${NEST}/admin/branding/${kind}`, {

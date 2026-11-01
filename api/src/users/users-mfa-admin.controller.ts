@@ -27,6 +27,7 @@ import { AuditLogInterceptor } from '../admin-auth/interceptors/audit-log.interc
 import { MfaService } from '../common/mfa/mfa.service';
 import { LoginAlertService } from '../common/auth-security/login-alert.service';
 import { LoginThrottleService } from '../common/auth-security/login-throttle.service';
+import { RequireAdminStepUp } from '../common/auth-security/step-up.guard';
 
 class ResetUserMfaDto {
   // کد ملی‌ای که کاربر در فرایند احراز هویت مجدد ارائه کرده است
@@ -54,6 +55,7 @@ export class UsersMfaAdminController {
   @RequirePermission('users.mfa.reset')
   @AuditLog('user.mfa_reset')
   @UseInterceptors(AuditLogInterceptor)
+  @RequireAdminStepUp('بازنشانی ورود دومرحله‌ای کاربر')
   @Post(':id/mfa/reset')
   async reset(
     @Param('id', ParseUUIDPipe) id: string,

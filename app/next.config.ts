@@ -45,7 +45,9 @@ const cspWith = (frameAncestors: string) => [
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",
-  "base-uri 'self'",
+  "base-uri 'none'",
+  // FTP_DIT_EXT.2.1 — هیچ منبع ترکیبی (http) در صفحه‌ی https بارگذاری نمی‌شود
+  ...(isDev ? [] : ["upgrade-insecure-requests"]),
   `frame-ancestors ${frameAncestors}`,
   // ارسال فرم فقط به همین مبدأ و درگاه‌های شاپرک (فرم POST به‌پرداخت ملت)؛ زرین‌پال با تغییر نشانی صفحه
   "form-action 'self' https://*.shaparak.ir",
@@ -54,7 +56,8 @@ const csp = cspWith("'none'");
 
 const baseSecurityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // FMT_CFG_EXT.5.1 — هیچ نشانی (شامل مسیر و پارامتر) به سایت دیگر ارسال نمی‌شود
+  { key: "Referrer-Policy", value: "no-referrer" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   ...(isDev
@@ -87,6 +90,8 @@ const noIndex = [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }]
 const buildCpus = Math.max(1, Number(process.env.NEXT_BUILD_CPUS) || 2);
 
 const nextConfig: NextConfig = {
+  // FMT_CFG_EXT.2.5 — بدون سرآیند X-Powered-By: Next.js (افشای فناوری/نسخه)
+  poweredByHeader: false,
   experimental: {
     cpus: buildCpus,
   },

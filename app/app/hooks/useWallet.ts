@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import useSWR from 'swr';
+import { STEP_UP_CANCELLED_MESSAGE, StepUpCancelledError, stepUpHeaders } from '../utils/step-up';
 
 // ── Types ──
 export interface WalletData {
@@ -157,13 +158,17 @@ export const useInternalTransfer = () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await axios.post('/api/wallet/transfer', {
-          destinationCardNumber,
-          amountGrams,
-        });
+        // FTA_TSE_EXT.4.2 — تأیید ثانویه پیش از انتقال موجودی
+        const headers = await stepUpHeaders('internal_transfer');
+        const res = await axios.post(
+          '/api/wallet/transfer',
+          { destinationCardNumber, amountGrams },
+          { headers },
+        );
         return res.data;
       } catch (e: unknown) {
-        if (axios.isAxiosError(e)) {
+        if (e instanceof StepUpCancelledError) setError(STEP_UP_CANCELLED_MESSAGE);
+        else if (axios.isAxiosError(e)) {
           const msg = e.response?.data?.message;
           setError(Array.isArray(msg) ? msg[0] : msg || 'خطا در ثبت انتقال');
         } else setError('خطای ناشناخته');
@@ -252,10 +257,17 @@ export const useWithdrawal = () => {
   const request = useCallback(async (bankAccountId: string, amountRial: number) => {
     setLoading(true); setError(null);
     try {
-      const res = await axios.post('/api/wallet/withdrawal/request', { bankAccountId, amountRial });
+      // FTA_TSE_EXT.4.2 — تأیید ثانویه پیش از ثبت برداشت
+      const headers = await stepUpHeaders('withdrawal');
+      const res = await axios.post(
+        '/api/wallet/withdrawal/request',
+        { bankAccountId, amountRial },
+        { headers },
+      );
       return res.data;
     } catch (e: unknown) {
-      if (axios.isAxiosError(e)) {
+      if (e instanceof StepUpCancelledError) setError(STEP_UP_CANCELLED_MESSAGE);
+      else if (axios.isAxiosError(e)) {
         const msg = e.response?.data?.message;
         setError(Array.isArray(msg) ? msg[0] : msg || 'خطا در ثبت برداشت');
       } else setError('خطای ناشناخته');

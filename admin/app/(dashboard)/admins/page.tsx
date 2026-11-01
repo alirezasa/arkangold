@@ -19,10 +19,12 @@ import {
   Smartphone,
   CheckCircle2,
 } from "lucide-react";
+import { StepUpCancelledError, adminStepUpHeaders } from "@/app/utils/step-up";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
 function getErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof StepUpCancelledError) return err.message;
   if (axios.isAxiosError(err)) {
     const data = err.response?.data as
       | { message?: string | string[] }
@@ -205,12 +207,13 @@ function CreateAdminModal({
     setLoading(true);
     setError(null);
     try {
+      const headers = await adminStepUpHeaders("ایجاد حساب ادمین");
       const { data } = await axios.post("/api/admin/admins", {
         ...form,
         username: form.username.trim(),
         fullName: form.fullName.trim(),
         phone: form.phone.trim(),
-      });
+      }, { headers });
       onCreated(data?.message ?? "حساب ساخته شد");
       onClose();
     } catch (err: unknown) {
@@ -311,12 +314,13 @@ function EditAdminModal({
     setLoading(true);
     setError(null);
     try {
+      const headers = await adminStepUpHeaders("تغییر نقش‌ها و وضعیت ادمین");
       await axios.patch(`/api/admin/admins/${admin.id}`, {
         fullName: form.fullName.trim(),
         phone: form.phone.trim() || undefined,
         // نقش‌ها فقط در صورت تغییر ارسال می‌شوند (تغییر نقش، نشست‌های ادمین را می‌بندد)
         roleKeys: rolesChanged ? form.roleKeys : undefined,
-      });
+      }, { headers });
       onSaved();
       onClose();
     } catch (err: unknown) {
@@ -411,7 +415,10 @@ function SecurityActionModal({
     setLoading(true);
     setError(null);
     try {
-      const { data } = await axios.post(`/api/admin/admins/${admin.id}/${kind}`);
+      const headers = await adminStepUpHeaders(
+        kind === "reset-password" ? "بازنشانی رمز ادمین" : "بازنشانی ورود دومرحله‌ای ادمین",
+      );
+      const { data } = await axios.post(`/api/admin/admins/${admin.id}/${kind}`, null, { headers });
       setDone(data?.message ?? "انجام شد");
     } catch (err: unknown) {
       setError(getErrorMessage(err, "انجام عملیات ممکن نشد"));
@@ -529,7 +536,12 @@ export default function AdminsPage() {
     )
       return;
     void run(
-      () => axios.patch(`/api/admin/admins/${admin.id}`, { isActive: !admin.isActive }),
+      async () =>
+        axios.patch(
+          `/api/admin/admins/${admin.id}`,
+          { isActive: !admin.isActive },
+          { headers: await adminStepUpHeaders("تغییر نقش‌ها و وضعیت ادمین") },
+        ),
       "خطا در تغییر وضعیت",
     );
   };

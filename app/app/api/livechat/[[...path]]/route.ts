@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { clientIdentityHeaders } from "@/lib/client-identity";
+import { ACCESS_COOKIE } from "@/lib/cookie-names";
 
 const API =
   process.env.NEST_ORIGIN ||
@@ -27,7 +28,7 @@ async function headersFor(req: NextRequest, json: boolean) {
   const h: Record<string, string> = { ...(await clientIdentityHeaders()) };
   const token = req.headers.get("x-livechat-token");
   if (token && token.length <= 200) h["x-livechat-token"] = token;
-  const access = (await cookies()).get("accessToken")?.value;
+  const access = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (access) h.Authorization = `Bearer ${access}`;
   if (json) h["Content-Type"] = "application/json";
   return h;

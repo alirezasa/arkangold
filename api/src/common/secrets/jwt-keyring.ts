@@ -20,9 +20,33 @@ export const JWT_KEY_NAMES = [
 
 export type JwtKeyName = (typeof JWT_KEY_NAMES)[number];
 
+/**
+ * FTA_TSE_EXT.6.2 / FTA_TSE_EXT.6.3 — صادرکننده (iss) ثابت و مخاطب (aud) مشخص و محدود برای هر نوع
+ * توکن: توکن هر مسیر فقط در همان مسیر پذیرفته می‌شود (مثلاً توکن موقت ثبت‌نام به‌جای توکن دسترسی یا
+ * توکن کاربر به‌جای توکن ادمین قابل استفاده نیست). مخاطب را خود سرور تعیین می‌کند و هیچ درخواستی
+ * نمی‌تواند مخاطب توکن را انتخاب کند.
+ */
+export const JWT_ISSUER = 'https://api.arkan.gold';
+export const JWT_AUDIENCES: Record<JwtKeyName, string> = {
+  JWT_ACCESS_SECRET: 'arkan:user-api',
+  JWT_REFRESH_SECRET: 'arkan:user-refresh',
+  JWT_TEMP_SECRET: 'arkan:user-signup',
+  JWT_RESET_SECRET: 'arkan:user-password-reset',
+  JWT_ADMIN_SECRET: 'arkan:admin-api',
+  JWT_ADMIN_REFRESH_SECRET: 'arkan:admin-refresh',
+};
+
+/** گزینه‌های اعتبارسنجی iss/aud برای passport-jwt و jwtService.verify */
+export function jwtClaimOptions(name: JwtKeyName) {
+  return { issuer: JWT_ISSUER, audience: JWT_AUDIENCES[name] };
+}
+
 /** شناسه‌ی کلید: خلاصه‌ی SHA-256 — خود کلید را افشا نمی‌کند (کلید ≥ ۲۵۶ بیت اجباری است) */
 function keyIdOf(secret: string): string {
-  return createHash('sha256').update(`jwt-kid:${secret}`).digest('hex').slice(0, 16);
+  return createHash('sha256')
+    .update(`jwt-kid:${secret}`)
+    .digest('hex')
+    .slice(0, 16);
 }
 
 export interface JwtKeyStatus {
@@ -59,17 +83,29 @@ function requireSecret(name: JwtKeyName): string {
 /** گزینه‌های امضا: کلید فعلی + kid + الگوریتم ثابت */
 export function jwtSignOptions(name: JwtKeyName) {
   const secret = requireSecret(name);
-  return { secret, keyid: keyIdOf(secret), algorithm: JWT_ALGORITHM };
+  return {
+    secret,
+    keyid: keyIdOf(secret),
+    algorithm: JWT_ALGORITHM,
+    ...jwtClaimOptions(name),
+  };
 }
 
 /** کلید مناسب برای اعتبارسنجی توکن بر اساس kid هدر آن؛ اگر kid ناشناخته باشد undefined */
-export function jwtVerificationSecret(name: JwtKeyName, token: string): string | undefined {
+export function jwtVerificationSecret(
+  name: JwtKeyName,
+  token: string,
+): string | undefined {
   const current = process.env[name];
   const previous = process.env[`${name}_PREVIOUS`];
 
   let kid: unknown;
   try {
-    kid = JSON.parse(Buffer.from(token.split('.')[0] ?? '', 'base64url').toString('utf8')).kid;
+    kid = (
+      JSON.parse(
+        Buffer.from(token.split('.')[0] ?? '', 'base64url').toString('utf8'),
+      ) as { kid?: unknown }
+    ).kid;
   } catch {
     return undefined;
   }
@@ -85,5 +121,6 @@ export function jwtVerifyOptions(name: JwtKeyName, token: string) {
   return {
     secret: jwtVerificationSecret(name, token) ?? '',
     algorithms: [JWT_ALGORITHM],
+    ...jwtClaimOptions(name),
   };
 }

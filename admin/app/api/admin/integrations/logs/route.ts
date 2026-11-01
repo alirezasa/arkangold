@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
+import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
 const NEST = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 export async function GET(req: NextRequest) {
   try {
-    const token = (await cookies()).get("adminAccessToken")?.value;
+    const token = (await cookies()).get(ADMIN_ACCESS_COOKIE)?.value;
     if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     const qs = req.nextUrl.search;

@@ -7,13 +7,14 @@ import { cookies } from "next/headers";
 import { forward } from "@/app/lib/forward";
 import { NEST } from "@/app/lib/adminProxy";
 import { clientIdentityHeaders } from "@/lib/client-identity";
+import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
 
 type Ctx = { params: Promise<{ path?: string[] }> };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BASE = "/admin/livechat";
 
 async function authHeaders() {
-  const token = (await cookies()).get("adminAccessToken")?.value;
+  const token = (await cookies()).get(ADMIN_ACCESS_COOKIE)?.value;
   return token ? { Authorization: `Bearer ${token}`, ...(await clientIdentityHeaders()) } : null;
 }
 

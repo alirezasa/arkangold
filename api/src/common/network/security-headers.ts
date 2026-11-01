@@ -55,3 +55,27 @@ export function securityHeadersMiddleware() {
     next();
   };
 }
+
+/** FMT_CFG_EXT.2.6 — پسوندهای مجاز برای فایل‌های ایستای عمومی (تصاویر محصول و بسته‌بندی) */
+export const PUBLIC_STATIC_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
+
+/**
+ * فقط درخواست GET/HEAD برای فایل تصویری با پسوند مجاز به serve-static می‌رسد؛ هر چیز دیگری
+ * (فایل پیکربندی، فایل نقطه‌دار، مسیر پوشه، پسوند ناشناخته) با 404 پاسخ داده می‌شود.
+ */
+export function staticImageOnlyMiddleware() {
+  return (req: Request, res: Response, next: NextFunction) => {
+    let path: string;
+    try {
+      path = decodeURIComponent(req.path || '');
+    } catch {
+      path = '';
+    }
+    const ok =
+      (req.method === 'GET' || req.method === 'HEAD') &&
+      PUBLIC_STATIC_EXTENSIONS.test(path) &&
+      !path.split('/').some((seg) => seg.startsWith('.'));
+    if (ok) return next();
+    res.status(404).json({ statusCode: 404, message: 'یافت نشد' });
+  };
+}

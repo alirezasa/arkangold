@@ -3,6 +3,7 @@
 "use client";
 import { KeyRound, Loader2, RefreshCw } from "lucide-react";
 import axios from "axios";
+import { StepUpCancelledError } from "@/app/utils/step-up";
 
 export const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -10,6 +11,7 @@ export const fa = (n: number) => n.toLocaleString("fa-IR");
 
 export function getErrorMessage(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) return err.response?.data?.message || fallback;
+  if (err instanceof StepUpCancelledError) return err.message;
   return fallback;
 }
 

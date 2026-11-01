@@ -46,6 +46,7 @@ import {
   WalletAdjustmentDto,
   WalletTxQueryDto,
 } from './agent-trading.dto';
+import { RequireAdminStepUp } from '../common/auth-security/step-up.guard';
 
 interface AdminRequest extends Request {
   user: AdminAuthenticatedUser;
@@ -382,6 +383,8 @@ export class AgentTradingAdminController {
 
   @RequirePermission('agent.funds.manage')
   @AuditLog('agent.wallet.adjust')
+  // FTA_TSE_EXT.4.2 — کد برنامه‌ی احراز هویت برای اصلاح دستی موجودی نماینده
+  @RequireAdminStepUp('اصلاح دستی موجودی کیف پول نماینده')
   @Post(':id/wallet/adjust')
   adjustWallet(
     @Req() req: AdminRequest,

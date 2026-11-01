@@ -6,13 +6,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { NEST } from "@/app/api/_lib/proxy";
 import { clientIdentityHeaders } from "@/lib/client-identity";
+import { ACCESS_COOKIE } from "@/lib/cookie-names";
 
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const token = (await cookies()).get("accessToken")?.value;
+  const token = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!token) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }

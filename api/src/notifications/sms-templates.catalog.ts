@@ -170,6 +170,16 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
     sensitive: true,
   },
 
+  {
+    // FTA_TSE_EXT.4.2 — تأیید ثانویه پیش از عملیات حساس
+    key: 'AUTH_STEP_UP_OTP',
+    title: 'کد تأیید عملیات حساس',
+    category: 'AUTH',
+    body: '{brand}\nکد تأیید «{change}»: {code}\nاین کد را به هیچ‌کس، حتی پشتیبانی، ندهید. اگر این درخواست از شما نیست، رمز عبور را تغییر دهید.',
+    variables: [V.code, V.change, V.brand],
+    sensitive: true,
+  },
+
   // ─────────────────────────── هشدارهای امنیتی (FIA) ───────────────────────────
   {
     key: 'AUTH_NEW_DEVICE_LOGIN',

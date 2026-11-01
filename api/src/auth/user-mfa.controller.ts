@@ -26,6 +26,7 @@ import { verifyPassword } from '../common/crypto/password.util';
 import { LoginThrottleService } from '../common/auth-security/login-throttle.service';
 import { LoginAlertService } from '../common/auth-security/login-alert.service';
 import { MfaCodeDto, MfaDisableDto, MfaPasswordDto } from './dto/mfa.dto';
+import { AuthService } from './auth.service';
 
 interface AuthedRequest extends Request {
   user: { userId: string; sessionId: string; phone: string };
@@ -42,6 +43,7 @@ export class UserMfaController {
     private audit: AuditService,
     private throttle: LoginThrottleService,
     private alerts: LoginAlertService,
+    private auth: AuthService,
   ) {}
 
   @Get()
@@ -80,8 +82,9 @@ export class UserMfaController {
     );
     return {
       message:
-        'ورود دومرحله‌ای فعال شد. کدهای بازیابی را در جای امنی نگه دارید',
+        'ورود دومرحله‌ای فعال شد. کدهای بازیابی را در جای امنی نگه دارید؛ نشست‌های دستگاه‌های دیگر بسته شدند',
       recoveryCodes,
+      session: await this.rotate(req, 'mfa_enabled'),
     };
   }
 
@@ -101,7 +104,11 @@ export class UserMfaController {
       { kind: 'user', id: user.id },
       'ورود دومرحله‌ای با برنامه‌ی احراز هویت غیرفعال شد (ورود با رمز + کد پیامکی ادامه دارد)',
     );
-    return { message: 'برنامه‌ی احراز هویت از حساب شما حذف شد' };
+    return {
+      message:
+        'برنامه‌ی احراز هویت از حساب شما حذف شد؛ نشست‌های دستگاه‌های دیگر بسته شدند',
+      session: await this.rotate(req, 'mfa_disabled'),
+    };
   }
 
   @Post('recovery-codes')
@@ -122,7 +129,21 @@ export class UserMfaController {
       { kind: 'user', id: req.user.userId },
       'کدهای بازیابی جدید ساخته شد و کدهای قبلی باطل شدند',
     );
-    return { recoveryCodes };
+    return {
+      recoveryCodes,
+      session: await this.rotate(req, 'mfa_recovery_codes'),
+    };
+  }
+
+  /** FTA_TSE_EXT.3.3 — خاتمه‌ی نشست‌های دیگر + نشست جدید برای همین دستگاه */
+  private rotate(req: AuthedRequest, reason: string) {
+    return this.auth.rotateAfterFactorChange(
+      req.user.userId,
+      req.user.sessionId,
+      reason,
+      req.ip,
+      req.headers['user-agent'],
+    );
   }
 
   private async requirePassword(

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
+import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
 const NEST = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 function errRes(e: unknown) {
@@ -18,7 +19,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const token = (await cookies()).get("adminAccessToken")?.value;
+    const token = (await cookies()).get(ADMIN_ACCESS_COOKIE)?.value;
     if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     const body = await req.json();
     const res = await axios.patch(`${NEST}/admin/shop/images/${id}`, body, {
@@ -36,7 +37,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const token = (await cookies()).get("adminAccessToken")?.value;
+    const token = (await cookies()).get(ADMIN_ACCESS_COOKIE)?.value;
     if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     const res = await axios.delete(`${NEST}/admin/shop/images/${id}`, {
       headers: { Authorization: `Bearer ${token}` },

@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
 import { NEST_AUTH_URL, clearSessionCookies } from "../_session";
+import { ACCESS_COOKIE } from "@/lib/cookie-names";
 
 // خروج از همه دستگاه‌ها: باطل کردن همه نشست‌ها در بک‌اند و پاک‌سازی کامل نشست فعلی در مرورگر
 export async function POST() {
-  const token = (await cookies()).get("accessToken")?.value;
+  const token = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!token)
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   try {

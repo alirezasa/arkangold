@@ -107,6 +107,8 @@ model UserSession {
   accessTokenHash  String?  @map("access_token_hash")
   expiresAt        DateTime @map("expires_at")
   createdAt        DateTime @default(now()) @map("created_at")
+  /// FTA_TSE_EXT.2.1 — آخرین درخواست نشست؛ پس از session.user.timeout_minutes بدون فعالیت، نشست باطل می‌شود
+  lastActivityAt   DateTime @default(now()) @map("last_activity_at")
   id               String   @id @default(uuid()) @db.Uuid
   userId           String   @map("user_id") @db.Uuid
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -4068,7 +4070,7 @@ model ZarPayeshConfig {
   id                   String    @id @default("default")
   /// کلید اصلی: ثبت خودکار معاملات طلای آب‌شده در سامانه ناظر — پیش‌فرض خاموش
   enabled              Boolean   @default(false)
-  baseUrl              String    @default("http://api.rpmms.ir") @map("base_url")
+  baseUrl              String    @default("https://api.rpmms.ir") @map("base_url")
   timeoutMs            Int       @default(15000) @map("timeout_ms")
   /// شناسه‌ی نوع فلز (متد Typelist)
   typeId               BigInt?   @map("type_id")

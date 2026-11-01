@@ -22,9 +22,17 @@ export class UpdateZarPayeshSettingsDto {
   @IsString()
   @Matches(/^https?:\/\/[^\s/]+(:\d+)?$/, {
     message:
-      'آدرس سرور باید فقط شامل پروتکل و دامنه باشد (مثلاً http://api.rpmms.ir)',
+      'آدرس سرور باید فقط شامل پروتکل و دامنه باشد (مثلاً https://api.rpmms.ir)',
   })
   baseUrl?: string;
+
+  /**
+   * FTP_DIT_EXT.3.1 — تأیید صریح اتصال بدون رمزنگاری (http) وقتی سرور طرف مقابل HTTPS ندارد؛
+   * در گزارش ممیزی ثبت و در پنل امنیت به‌عنوان استثنا نمایش داده می‌شود
+   */
+  @IsOptional()
+  @IsBoolean()
+  allowInsecureHttp?: boolean;
 
   @IsOptional()
   @Type(() => Number)

@@ -4,6 +4,7 @@
 // کوکی‌ها بدون Domain ثبت می‌شوند تا نشست admin.arkan.gold و panel.arkan.gold از هم جدا بماند.
 import { NextResponse } from "next/server";
 import axios from "axios";
+import { ADMIN_ACCESS_COOKIE, ADMIN_REFRESH_COOKIE } from "@/lib/cookie-names";
 
 export interface NestLoginResponse {
   accessToken: string;
@@ -38,7 +39,15 @@ export function sessionResponse(data: NestLoginResponse) {
     admin: data.admin,
     ...(data.recoveryCodes ? { recoveryCodes: data.recoveryCodes } : {}),
   });
-  res.cookies.set("adminAccessToken", data.accessToken, {
+  return setAdminSessionCookies(res, data);
+}
+
+/** ثبت کوکی‌های نشست (ورود، یا نشست جدید پس از احراز هویت مجدد — FTA_TSE_EXT.1.4) */
+export function setAdminSessionCookies(
+  res: NextResponse,
+  data: Pick<NestLoginResponse, "accessToken" | "refreshToken" | "expiresIn" | "refreshExpiresIn">,
+) {
+  res.cookies.set(ADMIN_ACCESS_COOKIE, data.accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
@@ -46,7 +55,7 @@ export function sessionResponse(data: NestLoginResponse) {
     maxAge: Number(data.expiresIn) || 30 * 60,
     path: "/",
   });
-  res.cookies.set("adminRefreshToken", data.refreshToken, {
+  res.cookies.set(ADMIN_REFRESH_COOKIE, data.refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",

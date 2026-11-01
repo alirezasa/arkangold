@@ -19,6 +19,7 @@ import {
 import {
   JWT_ALGORITHM,
   jwtVerificationSecret,
+  jwtClaimOptions,
 } from '../../common/secrets/jwt-keyring';
 
 // نام استراتژی جدا از JwtStrategy کاربران - جلوگیری از تداخل passport
@@ -43,6 +44,8 @@ export class AdminJwtStrategy extends PassportStrategy(
       passReqToCallback: true,
       ignoreExpiration: false,
       algorithms: [JWT_ALGORITHM],
+      // FTA_TSE_EXT.6.2 — فقط توکنی که برای همین API صادر شده (iss/aud) پذیرفته می‌شود
+      ...jwtClaimOptions('JWT_ADMIN_SECRET'),
       // کلید بر اساس kid توکن (کلید فعلی یا کلید قبلی در دوره‌ی چرخش)
       secretOrKeyProvider: (
         _req: unknown,

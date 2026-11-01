@@ -7,9 +7,10 @@ import { cookies } from "next/headers";
 import axios from "axios";
 import { NEST } from "@/app/lib/adminProxy";
 import { clearAdminSessionCookies } from "@/app/lib/session-cookies";
+import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
 
 export async function POST() {
-  const token = (await cookies()).get("adminAccessToken")?.value;
+  const token = (await cookies()).get(ADMIN_ACCESS_COOKIE)?.value;
   if (token) {
     await axios
       .post(`${NEST}/admin-auth/logout`, null, {

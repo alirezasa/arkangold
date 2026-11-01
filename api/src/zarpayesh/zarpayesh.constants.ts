@@ -16,7 +16,10 @@ export const ZARPAYESH_CREDENTIAL_KEYS = {
   AES_KEY: 'AES_KEY',
 } as const;
 
-export const ZARPAYESH_DEFAULT_BASE_URL = 'http://api.rpmms.ir';
+// FTP_DIT_EXT.3.1 — پیش‌فرض ارتباط رمزنگاری‌شده؛ http فقط با استثنای صریح و ممیزی‌شده‌ی مدیر
+export const ZARPAYESH_DEFAULT_BASE_URL = 'https://api.rpmms.ir';
+/** کلید تنظیمات سیستم: اجازه‌ی صریح اتصال بدون TLS (فقط وقتی سرور طرف مقابل HTTPS ندارد) */
+export const ZARPAYESH_INSECURE_FLAG = 'zarpayesh.allow_insecure_http';
 
 /** متدهای مستند — کلید همان نام متد در مستند است و در لاگ‌ها ثبت می‌شود */
 export const ZARPAYESH_ENDPOINTS = {

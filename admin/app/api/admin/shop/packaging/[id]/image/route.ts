@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { adminProxy, NEST } from "@/app/lib/adminProxy";
 import { clientIdentityHeaders } from "@/lib/client-identity";
+import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
 
 // آپلود تصویر طرح — فرم بدون parse مجدد مستقیم به API عبور داده می‌شود
 export async function POST(
@@ -10,7 +11,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const token = (await cookies()).get("adminAccessToken")?.value;
+  const token = (await cookies()).get(ADMIN_ACCESS_COOKIE)?.value;
   if (!token) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }

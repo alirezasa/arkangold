@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { clientIdentityHeaders } from "@/lib/client-identity";
+import { ACCESS_COOKIE } from "@/lib/cookie-names";
 
 const NEST_API_URL = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
@@ -11,7 +12,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const token = (await cookies()).get("accessToken")?.value;
+    const token = (await cookies()).get(ACCESS_COOKIE)?.value;
     if (!token)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 

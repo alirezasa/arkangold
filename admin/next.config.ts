@@ -35,7 +35,9 @@ const csp = [
   "worker-src 'self'",
   "manifest-src 'self'",
   "object-src 'none'",
-  "base-uri 'self'",
+  "base-uri 'none'",
+  // FTP_DIT_EXT.2.1 — هیچ منبع ترکیبی (http) در صفحه‌ی https بارگذاری نمی‌شود
+  ...(isDev ? [] : ["upgrade-insecure-requests"]),
   "frame-ancestors 'none'",
   // ارسال فرم فقط به همین مبدأ؛ انتقال به درگاه پرداخت با تغییر نشانی صفحه انجام می‌شود (نه فرم)
   "form-action 'self'",
@@ -45,7 +47,8 @@ const securityHeaders = [
   { key: "Content-Security-Policy", value: csp },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // FMT_CFG_EXT.5.1 — هیچ نشانی (شامل مسیر و پارامتر) به سایت دیگر ارسال نمی‌شود
+  { key: "Referrer-Policy", value: "no-referrer" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   // پنل مدیریت و پنل نمایندگان نباید در هیچ موتور جستجویی نمایه شوند (کاهش سطح شناسایی)
@@ -66,6 +69,8 @@ const noStore = [
 const buildCpus = Math.max(1, Number(process.env.NEXT_BUILD_CPUS) || 2);
 
 const nextConfig: NextConfig = {
+  // FMT_CFG_EXT.2.5 — بدون سرآیند X-Powered-By: Next.js (افشای فناوری/نسخه)
+  poweredByHeader: false,
   experimental: {
     cpus: buildCpus,
   },

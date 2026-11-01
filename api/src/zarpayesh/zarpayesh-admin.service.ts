@@ -33,6 +33,9 @@ import {
   ZARPAYESH_ERROR_CODES,
 } from './zarpayesh.constants';
 import { ListQueryDto, UpdateZarPayeshSettingsDto } from './zarpayesh.dto';
+import { SystemConfigService } from '../system-config/system-config.service';
+import { AuditService } from '../common/audit/audit.service';
+import { ZARPAYESH_INSECURE_FLAG } from './zarpayesh.constants';
 
 /** آزمون اتصال پس از این مدت برای روشن کردن دوباره لازم است */
 const VERIFICATION_VALID_MS = 7 * 24 * 3600_000;
@@ -62,6 +65,8 @@ export class ZarPayeshAdminService {
     private readonly config: ZarPayeshConfigService,
     private readonly client: ZarPayeshClientService,
     private readonly users: ZarPayeshUsersService,
+    private readonly systemConfig: SystemConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   private ctx(adminId: string, extra: Partial<CallContext> = {}): CallContext {
@@ -167,6 +172,37 @@ export class ZarPayeshAdminService {
 
   async updateSettings(adminId: string, dto: UpdateZarPayeshSettingsDto) {
     const cfg = await this.config.getConfig();
+    // FTP_DIT_EXT.3.1 — اتصال http فقط با تأیید صریح (استثنای ممیزی‌شده)
+    const nextUrl = (dto.baseUrl ?? cfg.baseUrl ?? '').trim();
+    const insecure = /^http:\/\//i.test(nextUrl);
+    if (
+      insecure &&
+      dto.baseUrl !== undefined &&
+      dto.allowInsecureHttp !== true
+    ) {
+      throw new BadRequestException(
+        'آدرس http بدون رمزنگاری است؛ از https استفاده کنید یا (فقط اگر سرور سامانه‌ی ناظر HTTPS ندارد) استثنای اتصال بدون TLS را صریحاً تأیید کنید',
+      );
+    }
+    if (dto.allowInsecureHttp !== undefined || dto.baseUrl !== undefined) {
+      const allow = insecure && dto.allowInsecureHttp === true;
+      const was =
+        (await this.systemConfig.get(ZARPAYESH_INSECURE_FLAG, 'false')) ===
+        'true';
+      if (allow !== was) {
+        await this.systemConfig.set(ZARPAYESH_INSECURE_FLAG, String(allow));
+        await this.systemConfig.invalidateCache();
+        await this.audit.logAdmin({
+          adminUserId: adminId,
+          action: allow
+            ? 'zarpayesh.insecure_http_allowed'
+            : 'zarpayesh.insecure_http_revoked',
+          source: ZarPayeshAdminService.name,
+          success: true,
+          newValue: { baseUrl: nextUrl },
+        });
+      }
+    }
     const data: Prisma.ZarPayeshConfigUpdateInput = {
       updatedByAdminId: adminId,
     };

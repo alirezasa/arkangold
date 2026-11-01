@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
 import { NEST } from "@/app/lib/adminProxy";
+import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
 
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 
@@ -14,7 +15,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string; receiptId: string }> },
 ) {
-  const token = (await cookies()).get("adminAccessToken")?.value;
+  const token = (await cookies()).get(ADMIN_ACCESS_COOKIE)?.value;
   if (!token) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   const { id, receiptId } = await params;
 

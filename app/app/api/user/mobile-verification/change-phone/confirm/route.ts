@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { NEST, errorResponse, getAccessToken } from "@/app/api/_lib/proxy";
+import { ACCESS_COOKIE, REFRESH_COOKIE } from "@/lib/cookie-names";
 
 /**
  * تأیید کد پیامکی شماره‌ی جدید. API همه‌ی نشست‌های قبلی (که شماره‌ی قدیمی را در توکن
@@ -30,14 +31,14 @@ export async function POST(request: Request) {
       };
 
     const response = NextResponse.json({ success: true, message, phone });
-    response.cookies.set("accessToken", accessToken, {
+    response.cookies.set(ACCESS_COOKIE, accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       maxAge: Number(expiresIn) || 15 * 60,
       path: "/",
     });
-    response.cookies.set("refreshToken", refreshToken, {
+    response.cookies.set(REFRESH_COOKIE, refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",

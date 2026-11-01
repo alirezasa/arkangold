@@ -19,6 +19,7 @@ import {
   SourceCardDto,
   WithdrawalRequestDto,
 } from './wallet-requests.dto';
+import { RequireStepUp } from '../common/auth-security/step-up.guard';
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -96,6 +97,8 @@ export class WalletController {
   }
 
   // ── درخواست برداشت ──
+  // FTA_TSE_EXT.4.2 — تأیید ثانویه (کد پیامکی/برنامه) پیش از ثبت برداشت
+  @RequireStepUp('withdrawal')
   @Post('withdrawal/request')
   @ApiOperation({ summary: 'ثبت درخواست برداشت' })
   requestWithdrawal(
@@ -137,6 +140,7 @@ export class WalletController {
   }
 
   // ── انتقال داخلی طلا ──
+  @RequireStepUp('internal_transfer')
   @Post('transfer')
   @ApiOperation({
     summary: 'انتقال داخلی طلا به کیف پول کاربر دیگر با شماره کارت',

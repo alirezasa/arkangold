@@ -32,6 +32,7 @@ import { RequirePermission } from './decorators/require-permission.decorator';
 import { AuditLog } from './decorators/audit-log.decorator';
 import { AuditLogInterceptor } from './interceptors/audit-log.interceptor';
 import { AdminAuthenticatedUser } from './interfaces/admin-jwt-payload.interface';
+import { RequireAdminStepUp } from '../common/auth-security/step-up.guard';
 
 // FIA_UID_EXT.1.1/1.6: رمز عبور در فرم ساخت حساب وجود ندارد؛ سیستم رمز موقت را به موبایل
 // صاحب حساب پیامک می‌کند. بنابراین شماره موبایل اجباری است.
@@ -194,6 +195,7 @@ export class AdminManagementController {
 
   @AuditLog('admin.create')
   @UseInterceptors(AuditLogInterceptor)
+  @RequireAdminStepUp('ایجاد حساب ادمین')
   @Post()
   create(@Req() req: AdminRequest, @Body() dto: CreateAdminDto) {
     return this.service.create(actorOf(req), dto);
@@ -201,6 +203,7 @@ export class AdminManagementController {
 
   @AuditLog('admin.update')
   @UseInterceptors(AuditLogInterceptor)
+  @RequireAdminStepUp('تغییر نقش‌ها و وضعیت ادمین')
   @Patch(':id')
   update(
     @Req() req: AdminRequest,
@@ -212,6 +215,7 @@ export class AdminManagementController {
 
   @AuditLog('admin.reset_password')
   @UseInterceptors(AuditLogInterceptor)
+  @RequireAdminStepUp('بازنشانی رمز ادمین')
   @Post(':id/reset-password')
   resetPassword(@Req() req: AdminRequest, @Param('id') id: string) {
     return this.service.resetPassword(actorOf(req), id);
@@ -219,6 +223,7 @@ export class AdminManagementController {
 
   @AuditLog('admin.reset_mfa')
   @UseInterceptors(AuditLogInterceptor)
+  @RequireAdminStepUp('بازنشانی ورود دومرحله‌ای ادمین')
   @Post(':id/reset-mfa')
   resetMfa(@Req() req: AdminRequest, @Param('id') id: string) {
     return this.service.resetMfa(actorOf(req), id);

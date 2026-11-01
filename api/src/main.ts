@@ -8,6 +8,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { join } from 'path';
+import type Redis from 'ioredis';
 import { inspect } from 'util';
 import { PinoLoggerService } from './common/logging/pino-logger.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -18,8 +19,11 @@ import {
   parseProxyRanges,
   resolveTrustProxy,
 } from './common/network/client-ip';
-import { isOtpDebugLogEnabledInProduction } from './common/logging/otp-debug';
-import { securityHeadersMiddleware } from './common/network/security-headers';
+import { isOtpDebugLogRequestedInProduction } from './common/logging/otp-debug';
+import {
+  securityHeadersMiddleware,
+  staticImageOnlyMiddleware,
+} from './common/network/security-headers';
 import { sensitiveQueryMiddleware } from './common/network/sensitive-query';
 import { resolveCorsOrigins } from './common/network/cors-origins';
 
@@ -85,27 +89,46 @@ async function bootstrap() {
       'Bootstrap',
     );
   }
-  app.use(clientIpMiddleware());
+  // FMT_CFG_EXT.1.1 — هویت ارسالی BFF فقط با امضای HMAC تازه و nonce یک‌بارمصرف پذیرفته می‌شود
+  const redis = app.get<Redis>('REDIS_CLIENT');
+  app.use(
+    clientIpMiddleware(undefined, async (nonce, ttl) => {
+      const ok = await redis.set(`bff-nonce:${nonce}`, '1', 'EX', ttl, 'NX');
+      return ok === 'OK';
+    }),
+  );
   // FDP_ACC_EXT.1.4 / FDP_RIP_EXT.1.2 — no-store روی پاسخ‌های پویا + سرآیندهای امنیتی پایه
   app.disable('x-powered-by');
   app.use(securityHeadersMiddleware());
   // FDP_ACC_EXT.1.1 — جستجوی موبایل/کد ملی در پنل مدیریت و پرتال نمایندگی فقط از سرآیند
   app.use(['/admin', '/agent-portal'], sensitiveQueryMiddleware());
 
-  if (isOtpDebugLogEnabledInProduction()) {
+  // FMT_CFG_EXT.2.2 — حالت اشکال‌زدایی OTP در production هرگز فعال نمی‌شود
+  if (isOtpDebugLogRequestedInProduction()) {
     logger.warn(
-      'OTP_DEBUG_LOG در production روشن است و کد OTP در لاگ چاپ می‌شود؛ پس از اتصال سرویس پیامک واقعی OTP_DEBUG_LOG و OTP_DEBUG_LOG_ALLOW_PRODUCTION را حذف کنید',
+      'OTP_DEBUG_LOG در production نادیده گرفته می‌شود (حالت اشکال‌زدایی در محیط عملیاتی ممنوع است)؛ این متغیر را حذف کنید',
       'Bootstrap',
     );
   }
 
   // فایل‌های تصویر محصولات
+  // FMT_CFG_EXT.2.6 — از پوشه‌های عمومی فقط تصاویر با پسوند مجاز ارائه می‌شود
+  app.use(
+    ['/uploads/products', '/uploads/packaging'],
+    staticImageOnlyMiddleware(),
+  );
   app.useStaticAssets(join(process.cwd(), 'uploads', 'products'), {
     prefix: '/uploads/products',
+    dotfiles: 'deny',
+    index: false,
+    redirect: false,
   });
   // تصاویر طرح‌های بسته‌بندی
   app.useStaticAssets(join(process.cwd(), 'uploads', 'packaging'), {
     prefix: '/uploads/packaging',
+    dotfiles: 'deny',
+    index: false,
+    redirect: false,
   });
 
   // تنظیمات CORS

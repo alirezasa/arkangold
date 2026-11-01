@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import axios from "axios";
 import TwoFactorCard from "./TwoFactorCard";
+import LastLoginNotice from "@/app/components/LastLoginNotice";
 import {
   Lock,
   KeyRound,
@@ -235,6 +236,7 @@ export default function SecurityPage() {
       </form>
 
       {/* ورود دومرحله‌ای و دستگاه‌ها */}
+      <LastLoginNotice variant="card" />
       <TwoFactorCard />
 
       {/* نشست‌های فعال */}

@@ -17,6 +17,8 @@ import { Loader2, ShieldOff } from "lucide-react";
 import Link from "next/link";
 import { canOpenPath } from "@/app/utils/nav";
 import { logoutAndWipe } from "@/app/utils/session-cleanup";
+import AdminStepUpProvider from "@/app/components/AdminStepUpProvider";
+import LastLoginNotice from "@/app/components/LastLoginNotice";
 
 export default function DashboardLayout({
   children,
@@ -102,8 +104,9 @@ export default function DashboardLayout({
       <div className="flex-1 min-w-0 flex flex-col">
         <MobileHeader onMenuOpen={() => setDrawerOpen(true)} me={me} />
         <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-6">
+          <LastLoginNotice />
           {canOpenPath(pathname, me) ? (
-            children
+            <AdminStepUpProvider>{children}</AdminStepUpProvider>
           ) : (
             // ورود مستقیم با نشانی به بخشی که نقش ادمین دسترسی آن را ندارد
             <div className="mx-auto mt-16 max-w-md rounded-2xl border border-gray-100 bg-white p-8 text-center" dir="rtl">

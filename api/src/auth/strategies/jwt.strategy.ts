@@ -4,11 +4,13 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SystemConfigService } from '../../system-config/system-config.service';
 import { SessionContextService } from '../../common/auth-security/session-context.service';
 import { JwtPayload } from '@arkan-gold/shared';
 import {
   JWT_ALGORITHM,
   jwtVerificationSecret,
+  jwtClaimOptions,
 } from '../../common/secrets/jwt-keyring';
 
 @Injectable()
@@ -17,12 +19,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     private configService: ConfigService,
     private prisma: PrismaService,
     private sessionContext: SessionContextService,
+    private systemConfig: SystemConfigService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       passReqToCallback: true,
       ignoreExpiration: false,
       algorithms: [JWT_ALGORITHM],
+      // FTA_TSE_EXT.6.2 — فقط توکنی که برای همین API صادر شده (iss/aud) پذیرفته می‌شود
+      ...jwtClaimOptions('JWT_ACCESS_SECRET'),
       // کلید بر اساس kid توکن (کلید فعلی یا کلید قبلی در دوره‌ی چرخش)
       secretOrKeyProvider: (
         _req: unknown,
@@ -46,6 +51,29 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         await this.prisma.userSession.delete({ where: { id: session.id } });
       }
       throw new UnauthorizedException('نشست نامعتبر است');
+    }
+
+    // FTA_TSE_EXT.2.1 — انقضا پس از عدم فعالیت: نشست بدون درخواست بیش از session.user.timeout_minutes
+    // باطل می‌شود (ورود مجدد لازم است)؛ در غیر این صورت زمان آخرین فعالیت به‌روز می‌شود
+    const { accessTtlSeconds: idleSeconds } =
+      await this.systemConfig.getSessionPolicy('user');
+    const idleMs = Date.now() - session.lastActivityAt.getTime();
+    if (idleMs > idleSeconds * 1000) {
+      await this.prisma.userSession
+        .delete({ where: { id: session.id } })
+        .catch(() => undefined);
+      throw new UnauthorizedException({
+        message: 'نشست به‌دلیل عدم فعالیت منقضی شد؛ دوباره وارد شوید',
+        code: 'SESSION_IDLE_TIMEOUT',
+      });
+    }
+    if (idleMs > 30_000) {
+      await this.prisma.userSession
+        .updateMany({
+          where: { id: session.id },
+          data: { lastActivityAt: new Date() },
+        })
+        .catch(() => undefined);
     }
 
     // ⬅️ تغییر مهم: فقط کاربران BANNED/INACTIVE کامل بلاک می‌شوند.

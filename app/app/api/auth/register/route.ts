@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
+import { ACCESS_COOKIE, REFRESH_COOKIE } from "@/lib/cookie-names";
 
 // NEST_API_URL آدرس پایه‌ی API است (مثل سایر routeها)؛ مسیر /auth اینجا اضافه می‌شود
 const NEST_API_URL = `${
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const nextResponse = NextResponse.json({ success: true, user });
 
     // ست کردن اکسس توکن به صورت کوکی امن HttpOnly
-    nextResponse.cookies.set("accessToken", accessToken, {
+    nextResponse.cookies.set(ACCESS_COOKIE, accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
     });
 
     // ست کردن رفرش توکن به صورت کوکی امن HttpOnly
-    nextResponse.cookies.set("refreshToken", refreshToken, {
+    nextResponse.cookies.set(REFRESH_COOKIE, refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",

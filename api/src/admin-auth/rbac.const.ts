@@ -86,6 +86,12 @@ export const ADMIN_PERMISSIONS = [
       'استعلام مجدد کارت بانکی (تطبیق کارت با کد ملی و دریافت شبا) و تأیید/رد دستی آن',
   },
   {
+    // FTA_TSE_EXT.3.5 — خاتمه‌ی نشست‌های یک کاربر (حساب مشکوک به سرقت، درخواست پشتیبانی)
+    key: 'users.sessions.revoke',
+    group: 'users',
+    description: 'خاتمه‌ی همه‌ی نشست‌های فعال یک کاربر در همه‌ی دستگاه‌ها',
+  },
+  {
     key: 'users.mfa.reset',
     group: 'users',
     description:
@@ -549,6 +555,13 @@ export const ADMIN_PERMISSIONS = [
     group: 'security',
     description:
       'مشاهده‌ی پنل امنیت: رمزنگاری، کلیدها، اسرار، احراز هویت و ورود دومرحله‌ای',
+  },
+  {
+    // FTA_TSE_EXT.3.5 — خروج اضطراری همه (با تأیید کارشناس دوم)
+    key: 'security.sessions.emergency',
+    group: 'security',
+    description:
+      'درخواست/تأیید خروج اضطراری همه‌ی کاربران یا ادمین‌ها (اجرا فقط با تأیید کارشناس دوم و کد برنامه‌ی احراز هویت)',
   },
   {
     key: 'security.crypto.manage',

@@ -21,6 +21,8 @@ import {
   FAKE_AES_KEY,
   FakeZarPayeshServer,
 } from './fake-zarpayesh-server.helper-spec';
+import type { SystemConfigService } from '../system-config/system-config.service';
+import { ZARPAYESH_INSECURE_FLAG } from './zarpayesh.constants';
 
 const NATIONAL_CODE = '0012345679';
 const ctx = { trigger: 'ADMIN' as const, adminId: 'a1' };
@@ -55,7 +57,17 @@ function setup(server: FakeZarPayeshServer, password = 'secret') {
       return Promise.resolve();
     },
   } as unknown as ZarPayeshApiLogService;
-  const client = new ZarPayeshClientService(config, apiLog, encryption, redis);
+  const client = new ZarPayeshClientService(
+    config,
+    apiLog,
+    encryption,
+    redis,
+    // سرور شبیه‌سازی‌شده روی http محلی است؛ استثنای اتصال بدون TLS برای آزمون صریحاً فعال است
+    {
+      get: (k: string, d?: string) =>
+        Promise.resolve(k === ZARPAYESH_INSECURE_FLAG ? 'true' : d),
+    } as unknown as SystemConfigService,
+  );
   return { client, logs, store };
 }
 

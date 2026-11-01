@@ -1,18 +1,19 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import axios from 'axios';
+import { ACCESS_COOKIE } from "@/lib/cookie-names";
 
 const NEST_API_URL = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 function getToken() {
-  return cookies().then((c) => c.get('accessToken')?.value);
+  return cookies().then((c) => c.get(ACCESS_COOKIE)?.value);
 }
 
 // GET — دریافت پروفایل حقوقی
 export async function GET() {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get('accessToken')?.value;
+    const token = cookieStore.get(ACCESS_COOKIE)?.value;
     if (!token) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const res = await axios.get(`${NEST_API_URL}/users/me/legal-profile`, {
@@ -34,7 +35,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get('accessToken')?.value;
+    const token = cookieStore.get(ACCESS_COOKIE)?.value;
     if (!token) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();

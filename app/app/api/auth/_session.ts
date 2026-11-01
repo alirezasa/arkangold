@@ -3,6 +3,7 @@
 // همراه کد (مثل CAPTCHA_REQUIRED یا LOGIN_THROTTLED) تا کلاینت بتواند واکنش درست نشان دهد.
 import { NextResponse } from "next/server";
 import axios from "axios";
+import { ACCESS_COOKIE, REFRESH_COOKIE } from "@/lib/cookie-names";
 
 export const NEST_AUTH_URL = `${
   process.env.NEST_API_URL ||
@@ -17,7 +18,7 @@ export interface SessionTokens {
 }
 
 export function setSessionCookies(res: NextResponse, t: SessionTokens) {
-  res.cookies.set("accessToken", t.accessToken, {
+  res.cookies.set(ACCESS_COOKIE, t.accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
@@ -25,7 +26,7 @@ export function setSessionCookies(res: NextResponse, t: SessionTokens) {
     maxAge: Number(t.expiresIn) || 15 * 60,
     path: "/",
   });
-  res.cookies.set("refreshToken", t.refreshToken, {
+  res.cookies.set(REFRESH_COOKIE, t.refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
@@ -60,8 +61,8 @@ export function authErrorResponse(error: unknown) {
 // فضای ذخیره‌سازی (localStorage/sessionStorage/IndexedDB) همین مبدأ را پاک می‌کند.
 // پاک‌سازی سمت کلاینت (lib/session-cleanup) در صورت در دسترس نبودن سرور هم اجرا می‌شود.
 export function clearSessionCookies(res: NextResponse) {
-  res.cookies.delete("accessToken");
-  res.cookies.delete("refreshToken");
+  res.cookies.delete(ACCESS_COOKIE);
+  res.cookies.delete(REFRESH_COOKIE);
   res.headers.set("Clear-Site-Data", '"cache", "cookies", "storage"');
   res.headers.set("Cache-Control", "no-store");
   return res;

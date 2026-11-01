@@ -1155,13 +1155,62 @@ export class AuthService {
       throw new UnauthorizedException('رفرش توکن نامعتبر یا منقضی شده است');
 
     await this.prisma.userSession.delete({ where: { id: session.id } });
+    // FTA_TSE_EXT.2.1 — تمدید پس از عدم فعالیت مجاز نیست
+    const { accessTtlSeconds: idleSeconds } =
+      await this.systemConfig.getSessionPolicy('user');
+    if (Date.now() - session.lastActivityAt.getTime() > idleSeconds * 1000) {
+      throw new UnauthorizedException({
+        message: 'نشست به‌دلیل عدم فعالیت منقضی شد؛ دوباره وارد شوید',
+        code: 'SESSION_IDLE_TIMEOUT',
+      });
+    }
+    // FTA_TSE_EXT.1.4 / 2.2 — شناسه‌ی نشست جدید، ولی با همان انقضای مطلق نشست اصلی
     const tokens = await this.createSession(
       session.userId,
       session.user.phone,
       session.ip ?? undefined,
       session.device ?? undefined,
+      session.expiresAt,
     );
     return tokens;
+  }
+
+  /**
+   * FTA_TSE_EXT.3.3 / FTA_TSE_EXT.1.4 — پس از تغییر یک عامل احراز هویت (با تأیید رمز/کد): همه‌ی
+   * نشست‌های دیگر کاربر خاتمه می‌یابند و نشست فعلی با شناسه‌ی جدید (همان انقضای مطلق) جایگزین
+   * می‌شود. توکن‌های جدید فقط به BFF برمی‌گردند تا کوکی‌ها را جایگزین کند.
+   */
+  async rotateAfterFactorChange(
+    userId: string,
+    currentSessionId: string,
+    reason: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
+    const current = await this.prisma.userSession.findUnique({
+      where: { id: currentSessionId },
+      include: { user: true },
+    });
+    const { count } = await this.prisma.userSession.deleteMany({
+      where: { userId },
+    });
+    await this.auditService.logUser({
+      userId,
+      action: 'auth.sessions_rotated',
+      ip,
+      userAgent,
+      source: AUDIT_SOURCE,
+      success: true,
+      newValue: { reason, revoked: Math.max(0, count - 1) },
+    });
+    if (!current) return null;
+    return this.createSession(
+      userId,
+      current.user.phone,
+      current.ip ?? ip,
+      current.device ?? userAgent,
+      current.expiresAt,
+    );
   }
 
   async logout(
@@ -1385,11 +1434,21 @@ export class AuthService {
     phone: string,
     ip?: string,
     device?: string,
+    /** FTA_TSE_EXT.2.2 — در تمدید، انقضای مطلق نشست اصلی حفظ می‌شود (جابه‌جا نمی‌شود) */
+    absoluteExpiresAt?: Date,
   ) {
     const sessionId = crypto.randomUUID();
-    // عمر نشست از تنظیمات سیستم (session.user.*) — expiresIn پاسخ مبنای maxAge کوکی در BFF است
-    const { accessTtlSeconds, refreshTtlSeconds } =
+    // عمر نشست از تنظیمات سیستم (session.user.*): توکن و کوکی تا انقضای مطلق معتبرند و انقضا پس از
+    // عدم فعالیت در JwtStrategy بر اساس lastActivityAt اعمال می‌شود. expiresIn مبنای maxAge کوکی در BFF است.
+    const { accessTtlSeconds: idleTtlSeconds, refreshTtlSeconds: absoluteTtl } =
       await this.systemConfig.getSessionPolicy('user');
+    const refreshTtlSeconds = absoluteExpiresAt
+      ? Math.max(
+          1,
+          Math.floor((absoluteExpiresAt.getTime() - Date.now()) / 1000),
+        )
+      : absoluteTtl;
+    const accessTtlSeconds = refreshTtlSeconds;
     const accessToken = this.jwtService.sign(
       { sub: userId, phone, sessionId },
       {
@@ -1414,7 +1473,9 @@ export class AuthService {
       .update(accessToken)
       .digest('hex');
 
-    const expiresAt = new Date(Date.now() + refreshTtlSeconds * 1000);
+    // انقضای مطلق دقیقاً همان مقدار قبلی می‌ماند (گرد کردن به ثانیه آن را جلو نمی‌کشد)
+    const expiresAt =
+      absoluteExpiresAt ?? new Date(Date.now() + refreshTtlSeconds * 1000);
 
     await this.prisma.userSession.create({
       data: {
@@ -1433,6 +1494,7 @@ export class AuthService {
       refreshToken,
       expiresIn: accessTtlSeconds,
       refreshExpiresIn: refreshTtlSeconds,
+      idleTimeoutSeconds: idleTtlSeconds,
     };
   }
 

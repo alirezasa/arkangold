@@ -39,6 +39,7 @@ import {
 } from "./ui";
 import AuthSection from "./AuthSection";
 import DataProtectionSection from "./DataProtectionSection";
+import SessionCommSection from "./SessionCommSection";
 
 type SecretSource = "vault" | "file" | "env" | "missing";
 
@@ -509,7 +510,7 @@ function CryptoSection() {
   );
 }
 
-type Tab = "auth" | "data" | "crypto";
+type Tab = "auth" | "session" | "data" | "crypto";
 
 export default function SecurityPage() {
   const [tab, setTab] = useState<Tab>("auth");
@@ -524,10 +525,11 @@ export default function SecurityPage() {
           احراز هویت، کلیدها، مدیریت اسرار و چرخش — مقدار هیچ کلید، راز یا رمزی در این صفحه نمایش داده نمی‌شود
         </p>
       </div>
-      <div className="inline-flex p-1 rounded-xl gap-1" style={{ backgroundColor: "var(--color-bg-page)" }} role="tablist">
+      <div className="inline-flex flex-wrap p-1 rounded-xl gap-1" style={{ backgroundColor: "var(--color-bg-page)" }} role="tablist">
         {(
           [
             { key: "auth", label: "احراز هویت و ورود" },
+            { key: "session", label: "نشست و ارتباطات" },
             { key: "data", label: "حفاظت داده و فایل" },
             { key: "crypto", label: "رمزنگاری و کلیدها" },
           ] as const
@@ -546,7 +548,15 @@ export default function SecurityPage() {
           </button>
         ))}
       </div>
-      {tab === "auth" ? <AuthSection /> : tab === "data" ? <DataProtectionSection /> : <CryptoSection />}
+      {tab === "auth" ? (
+        <AuthSection />
+      ) : tab === "session" ? (
+        <SessionCommSection />
+      ) : tab === "data" ? (
+        <DataProtectionSection />
+      ) : (
+        <CryptoSection />
+      )}
     </div>
   );
 }

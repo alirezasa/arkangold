@@ -33,6 +33,7 @@ import { AgentOtpLoginService } from './agent-otp-login.service';
 import { AdminJwtAuthGuard } from './guards/admin-jwt-auth.guard';
 import { AdminPublic } from './decorators/admin-public.decorator';
 import { AdminAuthenticatedUser } from './interfaces/admin-jwt-payload.interface';
+import { LoginHistoryService } from '../common/auth-security/login-history.service';
 
 class AdminLoginDto {
   @IsString()
@@ -166,6 +167,7 @@ export class AdminAuthController {
   constructor(
     private readonly adminAuthService: AdminAuthService,
     private readonly agentOtpLogin: AgentOtpLoginService,
+    private readonly loginHistory: LoginHistoryService,
   ) {}
 
   // FIA_UAU_EXT.2.4: مسیرهای ورود پنل فقط این‌ها هستند: login (رمز) یا agent-otp (کد پیامکی نماینده)
@@ -299,6 +301,13 @@ export class AdminAuthController {
     );
   }
 
+  /** FTA_TAH_EXT.1.1 — آخرین ورود موفق پیش از نشست فعلی */
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('last-login')
+  lastLogin(@Req() req: AuthenticatedAdminRequest) {
+    return this.loginHistory.forAdmin(req.user.adminUserId, req.user.sessionId);
+  }
+
   @UseGuards(AdminJwtAuthGuard)
   @Get('me')
   async getMe(@Req() req: AuthenticatedAdminRequest) {
@@ -380,12 +389,20 @@ export class AdminAuthController {
     @Req() req: AuthenticatedAdminRequest,
     @Body() dto: MfaCodeDto,
   ) {
-    return this.adminAuthService.regenerateOwnRecoveryCodes(
+    const result = await this.adminAuthService.regenerateOwnRecoveryCodes(
       req.user.adminUserId,
       dto.code,
       req.ip,
       req.headers['user-agent'],
     );
+    // FTA_TSE_EXT.3.3 — تغییر عامل احراز هویت → خاتمه‌ی نشست‌های دیگر این ادمین
+    await this.adminAuthService.revokeOtherSessions(
+      req.user.adminUserId,
+      req.user.sessionId,
+      req.ip,
+      req.headers['user-agent'],
+    );
+    return result;
   }
 
   @UseGuards(AdminJwtAuthGuard)
@@ -410,12 +427,20 @@ export class AdminAuthController {
     @Req() req: AuthenticatedAdminRequest,
     @Body() dto: MfaCodeDto,
   ) {
-    return this.adminAuthService.confirmOwnMfaReconfigure(
+    const result = await this.adminAuthService.confirmOwnMfaReconfigure(
       req.user.adminUserId,
       dto.code,
       req.ip,
       req.headers['user-agent'],
     );
+    // FTA_TSE_EXT.3.3 — تغییر عامل احراز هویت → خاتمه‌ی نشست‌های دیگر این ادمین
+    await this.adminAuthService.revokeOtherSessions(
+      req.user.adminUserId,
+      req.user.sessionId,
+      req.ip,
+      req.headers['user-agent'],
+    );
+    return result;
   }
 
   // ── فعال/غیرفعال‌سازی اختیاری ورود دومرحله‌ای (فقط حساب نمایندگان) ──
@@ -433,12 +458,20 @@ export class AdminAuthController {
     @Req() req: AuthenticatedAdminRequest,
     @Body() dto: MfaCodeDto,
   ) {
-    return this.adminAuthService.confirmOwnMfaEnable(
+    const result = await this.adminAuthService.confirmOwnMfaEnable(
       req.user.adminUserId,
       dto.code,
       req.ip,
       req.headers['user-agent'],
     );
+    // FTA_TSE_EXT.3.3 — تغییر عامل احراز هویت → خاتمه‌ی نشست‌های دیگر این ادمین
+    await this.adminAuthService.revokeOtherSessions(
+      req.user.adminUserId,
+      req.user.sessionId,
+      req.ip,
+      req.headers['user-agent'],
+    );
+    return result;
   }
 
   @UseGuards(AdminJwtAuthGuard)
@@ -448,12 +481,20 @@ export class AdminAuthController {
     @Req() req: AuthenticatedAdminRequest,
     @Body() dto: MfaCodeDto,
   ) {
-    return this.adminAuthService.disableOwnMfa(
+    const result = await this.adminAuthService.disableOwnMfa(
       req.user.adminUserId,
       dto.code,
       req.ip,
       req.headers['user-agent'],
     );
+    // FTA_TSE_EXT.3.3 — تغییر عامل احراز هویت → خاتمه‌ی نشست‌های دیگر این ادمین
+    await this.adminAuthService.revokeOtherSessions(
+      req.user.adminUserId,
+      req.user.sessionId,
+      req.ip,
+      req.headers['user-agent'],
+    );
+    return result;
   }
 
   @UseGuards(AdminJwtAuthGuard)

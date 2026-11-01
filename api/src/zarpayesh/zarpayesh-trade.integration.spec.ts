@@ -27,6 +27,7 @@ import {
   FAKE_AES_KEY,
   FakeZarPayeshServer,
 } from './fake-zarpayesh-server.helper-spec';
+import { ZARPAYESH_INSECURE_FLAG } from './zarpayesh.constants';
 
 const url = process.env.INTEGRATION_DATABASE_URL;
 const run = url ? describe : describe.skip;
@@ -105,6 +106,11 @@ run('سامانه ناظر (زر پایش) — جریان معامله (PostgreS
       new ZarPayeshApiLogService(prisma),
       encryption,
       redis,
+      // سرور شبیه‌سازی‌شده روی http محلی است؛ استثنای اتصال بدون TLS برای آزمون صریحاً فعال است
+      {
+        get: (k: string, d?: string) =>
+          Promise.resolve(k === ZARPAYESH_INSECURE_FLAG ? 'true' : d),
+      } as unknown as SystemConfigService,
     );
     const users = new ZarPayeshUsersService(prisma, client);
     zp = new ZarPayeshTradeService(prisma, zpConfig, client, users, redis);

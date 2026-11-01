@@ -323,7 +323,9 @@ function SettingsCard({ data, canManage, onChange }: { data: Overview; canManage
     sellPayType: String(c.sellPayType),
     unitPriceBasis: c.unitPriceBasis,
     autoRegisterUsers: c.autoRegisterUsers,
+    allowInsecureHttp: false,
   });
+  const insecure = /^http:\/\//i.test(form.baseUrl.trim());
   const connected = !!c.connectionVerifiedAt;
   const types = useSWR<TypeItem[]>(connected ? `${API}/lookup/types` : null, fetcher);
   const vaults = useSWR<VaultItem[]>(connected ? `${API}/lookup/vaults` : null, fetcher);
@@ -340,6 +342,8 @@ function SettingsCard({ data, canManage, onChange }: { data: Overview; canManage
         sellPayType: Number(form.sellPayType),
         unitPriceBasis: form.unitPriceBasis,
         autoRegisterUsers: form.autoRegisterUsers,
+        // FTP_DIT_EXT.3.1 — اتصال بدون TLS فقط با تأیید صریح (در گزارش ممیزی ثبت می‌شود)
+        ...(insecure ? { allowInsecureHttp: form.allowInsecureHttp } : {}),
       }),
     );
     if (ok) onChange();
@@ -356,8 +360,23 @@ function SettingsCard({ data, canManage, onChange }: { data: Overview; canManage
       }
     >
       <div className="grid gap-3 md:grid-cols-2">
-        <Field label="آدرس سرور (Host)" hint="مستند: http://api.rpmms.ir — مسیرها با /api شروع می‌شوند">
+        <Field label="آدرس سرور (Host)" hint="پیش‌فرض: https://api.rpmms.ir — مسیرها با /api شروع می‌شوند">
           <input dir="ltr" className={inputCls} value={form.baseUrl} onChange={(e) => set("baseUrl", e.target.value)} disabled={!canManage} />
+          {insecure && (
+            <label className="mt-2 flex items-start gap-2 rounded-xl bg-amber-50 p-2.5 text-[11px] leading-5 text-amber-800">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={form.allowInsecureHttp}
+                onChange={(e) => set("allowInsecureHttp", e.target.checked)}
+                disabled={!canManage}
+              />
+              <span>
+                این نشانی بدون رمزنگاری (http) است و داده‌ها (توکن، کد ملی رمزشده، مبالغ) روی شبکه قابل شنود است.
+                فقط اگر سرور سامانه‌ی ناظر HTTPS ندارد، این استثنا را تأیید کنید؛ تأیید شما در گزارش ممیزی ثبت می‌شود.
+              </span>
+            </label>
+          )}
         </Field>
         <Field label="حداکثر زمان انتظار هر درخواست (میلی‌ثانیه)" hint="بین ۳۰۰۰ تا ۶۰۰۰۰ — Approve داخل تراکنش حداکثر ۱۰ ثانیه منتظر می‌ماند">
           <input dir="ltr" type="number" className={inputCls} value={form.timeoutMs} onChange={(e) => set("timeoutMs", e.target.value)} disabled={!canManage} />

@@ -659,6 +659,7 @@ export class AdminAuthService {
       session.adminUserId,
       session.ip ?? undefined,
       session.userAgent ?? undefined,
+      session.expiresAt,
     );
   }
 
@@ -913,11 +914,19 @@ export class AdminAuthService {
     adminUserId: string,
     ip?: string,
     userAgent?: string,
+    /** FTA_TSE_EXT.2.2 — در تمدید، انقضای مطلق نشست اصلی حفظ می‌شود */
+    absoluteExpiresAt?: Date,
   ) {
     const sessionId = crypto.randomUUID();
     // عمر نشست از تنظیمات سیستم (session.admin.*) — expiresIn پاسخ مبنای maxAge کوکی در BFF است
-    const { refreshTtlSeconds } =
+    const { refreshTtlSeconds: absoluteTtl } =
       await this.systemConfig.getSessionPolicy('admin');
+    const refreshTtlSeconds = absoluteExpiresAt
+      ? Math.max(
+          1,
+          Math.floor((absoluteExpiresAt.getTime() - Date.now()) / 1000),
+        )
+      : absoluteTtl;
 
     // توکن دسترسی ادمین تا پایان عمر کل نشست معتبر است؛ قفل پس از عدم فعالیت
     // (session.admin.timeout_minutes) در AdminJwtStrategy بر اساس lastActivityAt اعمال می‌شود.
@@ -942,7 +951,9 @@ export class AdminAuthService {
       .createHash('sha256')
       .update(refreshToken)
       .digest('hex');
-    const expiresAt = new Date(Date.now() + refreshTtlSeconds * 1000);
+    // انقضای مطلق دقیقاً همان مقدار قبلی می‌ماند (گرد کردن به ثانیه آن را جلو نمی‌کشد)
+    const expiresAt =
+      absoluteExpiresAt ?? new Date(Date.now() + refreshTtlSeconds * 1000);
 
     await this.prisma.adminSession.create({
       data: {
@@ -1019,10 +1030,19 @@ export class AdminAuthService {
         code: 'SESSION_TERMINATED',
       });
     }
-    await this.prisma.adminSession.update({
+    // FTA_TSE_EXT.1.4 — پس از احراز هویت مجدد، شناسه‌ی نشست عوض می‌شود: نشست قبلی باطل و نشست
+    // جدید (با همان انقضای مطلق) صادر می‌شود؛ توکن قبلی دیگر قابل استفاده نیست
+    const old = await this.prisma.adminSession.findUnique({
       where: { id: sessionId },
-      data: { lastActivityAt: new Date() },
     });
+    if (!old) throw new UnauthorizedException('نشست ادمین نامعتبر است');
+    await this.prisma.adminSession.delete({ where: { id: sessionId } });
+    const tokens = await this.createSession(
+      adminUserId,
+      old.ip ?? ip,
+      old.userAgent ?? userAgent,
+      old.expiresAt,
+    );
     await this.auditService.logAdmin({
       adminUserId,
       action: 'admin_auth.session_unlock',
@@ -1030,10 +1050,12 @@ export class AdminAuthService {
       userAgent,
       source: AUDIT_SOURCE,
       success: true,
+      newValue: { sessionRotated: true },
     });
     return {
       message: 'نشست باز شد',
       idleTimeoutSeconds: await this.idleTimeoutSeconds(),
+      ...tokens,
     };
   }
   async changeOwnPassword(

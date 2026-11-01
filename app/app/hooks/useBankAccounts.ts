@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import axios from 'axios';
 import useSWR from 'swr';
+import { STEP_UP_CANCELLED_MESSAGE, StepUpCancelledError, stepUpHeaders } from '../utils/step-up';
 
 export type BankAccountStatus = 'VERIFIED' | 'PENDING_INQUIRY' | 'REJECTED';
 
@@ -96,9 +97,15 @@ export const useAddBankAccount = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.post('/api/user/bank-accounts', { cardNumber });
+      // FTA_TSE_EXT.4.2 — تأیید ثانویه پیش از افزودن حساب بانکی (مقصد برداشت)
+      const headers = await stepUpHeaders('bank_account_add');
+      const res = await axios.post('/api/user/bank-accounts', { cardNumber }, { headers });
       return res.data as AddBankAccountResult;
     } catch (err: unknown) {
+      if (err instanceof StepUpCancelledError) {
+        setError({ message: STEP_UP_CANCELLED_MESSAGE });
+        return null;
+      }
       setError({
         message: extractMessage(err, 'خطا در ثبت کارت'),
         code: axios.isAxiosError(err) ? err.response?.data?.code : undefined,

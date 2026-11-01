@@ -173,12 +173,13 @@ export const WALLET_CONFIG_DEFAULTS = [
     key: 'session.user.timeout_minutes',
     value: '15',
     description:
-      'مدت اعتبار نشست کاربران پس از ورود (دقیقه؛ بین ۵ تا ۱۴۴۰) — پس از آن کاربر باید دوباره وارد شود',
+      'زمان عدم فعالیت کاربران (دقیقه؛ بین ۵ تا ۱۴۴۰) — پس از این مدت بدون هیچ درخواستی، نشست باطل و ورود مجدد لازم است',
   },
   {
-    key: 'session.user.refresh_days',
-    value: '7',
-    description: 'حداکثر عمر توکن تمدید (Refresh) کاربران (روز؛ بین ۱ تا ۹۰)',
+    key: 'session.user.absolute_hours',
+    value: '12',
+    description:
+      'انقضای مطلق نشست کاربران از لحظه‌ی ورود (ساعت؛ بین ۱ تا ۱۶۸) — حتی با فعالیت مداوم، پس از آن ورود مجدد لازم است',
   },
   {
     key: 'session.admin.timeout_minutes',

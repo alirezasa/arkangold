@@ -4,10 +4,12 @@
 "use client";
 import axios from "axios";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
+import { StepUpCancelledError } from "@/app/utils/step-up";
 
 export const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
 export function getErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof StepUpCancelledError) return err.message;
   if (axios.isAxiosError(err)) {
     const data = err.response?.data as { message?: string | string[] } | undefined;
     if (data?.message) return Array.isArray(data.message) ? data.message[0] : data.message;

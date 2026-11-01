@@ -7,6 +7,7 @@
 
 import { cookies } from 'next/headers';
 import { clientIdentityHeaders } from '@/lib/client-identity';
+import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
 
 const API_BASE_URL = process.env.API_BASE_URL || process.env.NEST_API_URL || (process.env.NODE_ENV === 'production' ? 'https://api.arkan.gold' : 'http://localhost:5000');
 
@@ -15,7 +16,7 @@ export async function proxyToApi(
   init: RequestInit & { isFormData?: boolean } = {},
 ): Promise<Response> {
   const cookieStore = await cookies();
-  const adminToken = cookieStore.get('adminAccessToken')?.value; // نام کوکی را هماهنگ کنید
+  const adminToken = cookieStore.get(ADMIN_ACCESS_COOKIE)?.value; // نام کوکی را هماهنگ کنید
 
   const headers: Record<string, string> = {
     ...(init.isFormData ? {} : { 'Content-Type': 'application/json' }),

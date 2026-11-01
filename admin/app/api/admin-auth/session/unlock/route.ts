@@ -5,9 +5,11 @@ import { cookies } from "next/headers";
 import axios from "axios";
 import { NEST } from "@/app/lib/adminProxy";
 import { clearAdminSessionCookies } from "@/app/lib/session-cookies";
+import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
+import { setAdminSessionCookies } from "@/app/lib/adminSession";
 
 export async function POST(req: Request) {
-  const token = (await cookies()).get("adminAccessToken")?.value;
+  const token = (await cookies()).get(ADMIN_ACCESS_COOKIE)?.value;
   if (!token) {
     return NextResponse.json({ message: "Unauthorized", code: "SESSION_TERMINATED" }, { status: 401 });
   }
@@ -18,7 +20,18 @@ export async function POST(req: Request) {
       { password: typeof body.password === "string" ? body.password : "" },
       { headers: { Authorization: `Bearer ${token}` } },
     );
-    return NextResponse.json(data);
+    // نشست جدید (شناسه‌ی چرخیده) جایگزین کوکی‌های قبلی می‌شود؛ توکن‌ها به کلاینت نمی‌رسند
+    const { accessToken, refreshToken, expiresIn, refreshExpiresIn, ...rest } = data as {
+      accessToken?: string;
+      refreshToken?: string;
+      expiresIn?: number;
+      refreshExpiresIn?: number;
+    } & Record<string, unknown>;
+    const res = NextResponse.json(rest);
+    if (accessToken && refreshToken) {
+      setAdminSessionCookies(res, { accessToken, refreshToken, expiresIn, refreshExpiresIn });
+    }
+    return res;
   } catch (e) {
     if (axios.isAxiosError(e)) {
       const data = e.response?.data as { message?: string; code?: string } | undefined;

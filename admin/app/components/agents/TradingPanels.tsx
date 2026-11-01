@@ -39,6 +39,7 @@ import {
   type BuybackOrder,
   type PurchaseOrder,
 } from "./trading";
+import { adminStepUpHeaders } from "@/app/utils/step-up";
 
 type Paged<T> = { data: T[]; page: number; totalPages: number; total: number; totalAmountRial?: string };
 
@@ -212,8 +213,12 @@ function WalletAdjustModal({ agentId, onClose, onDone }: { agentId: string; onCl
         type="button"
         disabled={busy || !amount || reason.trim().length < 10}
         onClick={async () => {
-          const ok = await run(() =>
-            axios.post(`/api/admin/agents/${agentId}/wallet/adjust`, { direction, amountRial: tomanToRial(amount), reason }),
+          const ok = await run(async () =>
+            axios.post(
+              `/api/admin/agents/${agentId}/wallet/adjust`,
+              { direction, amountRial: tomanToRial(amount), reason },
+              { headers: await adminStepUpHeaders("اصلاح دستی موجودی کیف پول نماینده") },
+            ),
           );
           if (ok) onDone();
         }}

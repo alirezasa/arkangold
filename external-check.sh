@@ -278,6 +278,76 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
+section "10. پیکربندی امن، کوکی‌ها و کانال TLS (FMT/FTA/FTP)"
+# مجموعه‌رمزهای TLS 1.2: رمزهای ضعیف/بدون رازداری پیشرو باید رد شوند (FTP_DIT_EXT.1.2)
+for base in "$APP" "$API"; do
+  h=$(host_of "$base")
+  for c in AES128-SHA AES256-SHA256 DES-CBC3-SHA ECDHE-RSA-AES128-SHA ECDHE-ECDSA-AES128-SHA; do
+    if echo | openssl s_client -connect "$h:443" -servername "$h" -tls1_2 -cipher "$c" </dev/null 2>/dev/null | grep -q "Cipher is $c"; then
+      fail "$h: رمز ضعیف $c (TLS 1.2) پذیرفته می‌شود"
+    else
+      pass "$h: رمز $c پذیرفته نمی‌شود"
+    fi
+  done
+  neg=$(echo | openssl s_client -connect "$h:443" -servername "$h" -tls1_2 </dev/null 2>/dev/null | grep -E "^ *Cipher *:" | head -1 | awk '{print $3}')
+  case "$neg" in
+    ECDHE-*GCM*|ECDHE-*CHACHA20*) pass "$h: رمز ترجیحی TLS 1.2 = $neg (ECDHE + AEAD)" ;;
+    "") info "$h: TLS 1.2 مذاکره نشد (فقط TLS 1.3؟)" ;;
+    *) warn "$h: رمز ترجیحی TLS 1.2 = $neg (باید ECDHE با GCM/CHACHA20 باشد)" ;;
+  esac
+  # OCSP Stapling (FTP_DIT_EXT.1.4)
+  if echo | openssl s_client -connect "$h:443" -servername "$h" -status </dev/null 2>/dev/null | grep -q "OCSP Response Status: successful"; then
+    pass "$h: OCSP Stapling فعال است"
+  else
+    warn "$h: OCSP Stapling فعال نیست (تنظیم CDN/وب‌سرور)"
+  fi
+  # ECH (FTP_DIT_EXT.1.5): رکورد DNS از نوع HTTPS با پارامتر ech
+  if command -v dig >/dev/null 2>&1; then
+    if dig +short HTTPS "$h" 2>/dev/null | grep -qi "ech="; then
+      pass "$h: ECH در رکورد DNS از نوع HTTPS اعلام شده است"
+    else
+      warn "$h: ECH اعلام نشده (پشتیبانی CDN لازم است)"
+    fi
+  else
+    info "dig نصب نیست؛ بررسی ECH انجام نشد"
+  fi
+done
+
+# سرآیندها: Referrer-Policy=no-referrer، base-uri 'none'، بدون X-Powered-By (FMT_CFG_EXT.2.5/5.1)
+for base in "$APP" "$ADMIN"; do
+  fetch "hdr2" "$base/login" >/dev/null
+  rp=$(header hdr2 "Referrer-Policy")
+  [ "$rp" = "no-referrer" ] && pass "$(host_of "$base"): Referrer-Policy: no-referrer" || warn "$(host_of "$base"): Referrer-Policy = '${rp:-ندارد}' (باید no-referrer باشد)"
+  csp=$(header hdr2 "Content-Security-Policy")
+  echo "$csp" | grep -q "base-uri 'none'" && pass "$(host_of "$base"): CSP base-uri 'none'" || warn "$(host_of "$base"): CSP بدون base-uri 'none'"
+  echo "$csp" | grep -q "object-src 'none'" && pass "$(host_of "$base"): CSP object-src 'none'" || warn "$(host_of "$base"): CSP بدون object-src 'none'"
+  pb=$(header hdr2 "X-Powered-By")
+  [ -z "$pb" ] && pass "$(host_of "$base"): بدون X-Powered-By" || fail "$(host_of "$base"): X-Powered-By: $pb"
+done
+
+# مسیرهای نقطه‌دار در پنل باید 404 باشند (نه هدایت به ورود) (FMT_CFG_EXT.2.1)
+for p in /.git/config /.git/HEAD /.env /.svn/entries; do
+  code=$(fetch "dot" "$ADMIN$p")
+  [ "$code" = "404" ] && pass "admin$p → 404" || warn "admin$p → $code (انتظار 404)"
+done
+# فقط تصاویر از پوشه‌ی عمومی API (FMT_CFG_EXT.2.6)
+for p in /uploads/products/x.json /uploads/products/.htaccess /uploads/packaging/a.txt; do
+  code=$(fetch "ext" "$API$p")
+  [ "$code" = "404" ] && pass "api$p → 404" || warn "api$p → $code (انتظار 404)"
+done
+
+# کوکی‌های نشست: پیشوند __Host-، Secure، HttpOnly، SameSite (FMT_CFG_EXT.4.1) — از پاسخ خروج
+# (پاک‌کردن کوکی‌ها؛ بدون ورود واقعی)
+fetch "co" "$APP/api/auth/logout" -X POST >/dev/null
+if grep -qi "^set-cookie: __Host-accessToken=" "$TMP/co.h"; then
+  pass "اپ: کوکی نشست با پیشوند __Host-"
+else
+  warn "اپ: کوکی نشست بدون پیشوند __Host- (یا پاسخ خروج کوکی تنظیم نکرد)"
+fi
+cs=$(header co "Clear-Site-Data")
+[ -n "$cs" ] && pass "اپ: خروج با Clear-Site-Data ($cs)" || warn "اپ: پاسخ خروج Clear-Site-Data ندارد"
+
+# ─────────────────────────────────────────────────────────────
 section "خلاصه"
 echo "  OK: $PASS   WARN: $WARN   FAIL: $FAIL"
 echo "  گزارش در فایل: $OUT"

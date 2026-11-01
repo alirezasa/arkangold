@@ -14,7 +14,12 @@
 //   باشند (مطابق نمونه‌ی Login/Logout) یا مستقیم؛ هر دو حالت پشتیبانی می‌شود.
 // - کد ملی (cid) و موبایل پیش از ارسال با AES-128-GCM رمز می‌شوند (zarpayesh-crypto).
 // - هر فراخوانی (موفق/ناموفق) با بدنه‌ی پاک‌سازی‌شده در zarpayesh_api_logs ثبت می‌شود.
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import axios, { AxiosError, isAxiosError } from 'axios';
 import Redis from 'ioredis';
 import { CredentialEncryptionService } from '../integrations/credentials/credential-encryption.service';
@@ -28,6 +33,7 @@ import {
 import {
   AUTH_ERROR_CODES,
   ZARPAYESH_DEFAULT_BASE_URL,
+  ZARPAYESH_INSECURE_FLAG,
   ZARPAYESH_ENDPOINTS,
   ZarPayeshMethod,
 } from './zarpayesh.constants';
@@ -38,6 +44,7 @@ import {
   zarPayeshEncrypt,
   ZarPayeshCryptoError,
 } from './zarpayesh-crypto';
+import { SystemConfigService } from '../system-config/system-config.service';
 
 // ─────────────────────────── انواع درخواست/پاسخ (عیناً مطابق مستند) ───────────────────────────
 
@@ -358,6 +365,7 @@ export class ZarPayeshClientService {
     private readonly apiLog: ZarPayeshApiLogService,
     private readonly encryption: CredentialEncryptionService,
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
+    private readonly systemConfig: SystemConfigService,
   ) {}
 
   // ════════════════════════════════════════════════════════
@@ -828,6 +836,15 @@ export class ZarPayeshClientService {
       ? `?${new URLSearchParams(opts.query).toString()}`
       : '';
     const path = `${endpoint.path}${qs}`;
+    // FTP_DIT_EXT.3.1 — ارتباط بدون TLS فقط با استثنای صریح مدیر
+    if (
+      /^http:\/\//i.test(baseUrl) &&
+      (await this.systemConfig.get(ZARPAYESH_INSECURE_FLAG, 'false')) !== 'true'
+    ) {
+      throw new ServiceUnavailableException(
+        'اتصال به سامانه‌ی ناظر بدون رمزنگاری (http) مسدود است؛ نشانی را به https تغییر دهید یا استثنا را در تنظیمات سامانه‌ی ناظر تأیید کنید',
+      );
+    }
     const auth = opts.auth ?? true;
     const timeout = ctx.timeoutMs ?? cfg.timeoutMs ?? 15_000;
 

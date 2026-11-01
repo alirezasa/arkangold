@@ -1,0 +1,25 @@
+# /etc/netplan/60-zarpayesh-mpls.yaml — نمونه؛ مقادیر را از اپراتور MPLS و زر پایش بگیرید
+#
+# - نام کارت شبکه‌ی متصل به لینک MPLS را با `ip -br link` پیدا کنید (مثلاً eno2 / ens19 / eth1).
+# - default route را این‌جا تعریف نکنید: اینترنت از کارت اصلی می‌رود، فقط شبکه‌ی زر پایش از MPLS.
+# - اگر اپراتور لینک را روی VLAN همان کارت اصلی تحویل داده، بخش vlans پایین را به‌جای ethernets استفاده کنید.
+# بعد از ذخیره:  sudo chmod 600 /etc/netplan/60-zarpayesh-mpls.yaml && sudo netplan try
+network:
+  version: 2
+  ethernets:
+    eth1:                          # ← نام کارت MPLS
+      dhcp4: false
+      dhcp6: false
+      addresses:
+        - 10.20.30.2/30            # ← IP تحویلی اپراتور برای سمت شما
+      routes:
+        - to: 10.0.0.0/24          # ← شبکه/IP سرور زر پایش (شاپرک)
+          via: 10.20.30.1          # ← Gateway روتر MPLS
+#  vlans:
+#    vlan120:
+#      id: 120                     # ← شماره‌ی VLAN تحویلی
+#      link: eth0
+#      addresses: [10.20.30.2/30]
+#      routes:
+#        - to: 10.0.0.0/24
+#          via: 10.20.30.1

@@ -14,3 +14,7 @@ export async function POST(req: Request, { params }: Ctx) {
 export async function PATCH(req: Request, { params }: Ctx) {
   return forward(req, "/admin/agents", (await params).path, "PATCH");
 }
+
+export async function DELETE(req: Request, { params }: Ctx) {
+  return forward(req, "/admin/agents", (await params).path, "DELETE");
+}

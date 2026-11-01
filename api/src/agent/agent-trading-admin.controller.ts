@@ -6,6 +6,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -128,6 +129,13 @@ export class AgentTradingAdminController {
     @Body() dto: UpdateAgentPriceItemDto,
   ) {
     return this.purchases.updatePriceItem(itemId, dto);
+  }
+
+  @RequirePermission('agent.order.manage')
+  @AuditLog('agent.price_item.delete')
+  @Delete('trading/price-items/:itemId')
+  deletePriceItem(@Param('itemId', ParseUUIDPipe) itemId: string) {
+    return this.purchases.deletePriceItem(itemId);
   }
 
   // ── سفارش‌های خرید ──

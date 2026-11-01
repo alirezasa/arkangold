@@ -8,7 +8,7 @@ import { useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import axios from "axios";
-import { Check, FileText, Loader2, Plus, X } from "lucide-react";
+import { Check, FileText, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   Alert,
   Badge,
@@ -912,58 +912,126 @@ interface PriceItemRow {
   live: { unitPriceRial: string; consumerMaxPriceRial: string };
 }
 
+type PriceItemForm = {
+  title: string;
+  weightGrams: string;
+  purityKarat: string;
+  premiumToman: string;
+  consumerPremiumToman: string;
+  maxPerOrder: string;
+  sortOrder: string;
+};
+
+const EMPTY_PRICE_FORM: PriceItemForm = {
+  title: "",
+  weightGrams: "",
+  purityKarat: "K24",
+  premiumToman: "",
+  consumerPremiumToman: "",
+  maxPerOrder: "",
+  sortOrder: "",
+};
+
+const rialToTomanStr = (rial: string) => {
+  const n = Number(rial);
+  return Number.isFinite(n) && n > 0 ? String(Math.round(n / 10)) : "";
+};
+
+function priceFormFromRow(p: PriceItemRow): PriceItemForm {
+  return {
+    title: p.title,
+    weightGrams: String(Number(p.weightGrams)),
+    purityKarat: p.purityKarat,
+    premiumToman: rialToTomanStr(p.premiumRial),
+    consumerPremiumToman: rialToTomanStr(p.consumerPremiumRial),
+    maxPerOrder: p.maxPerOrder ? String(p.maxPerOrder) : "",
+    sortOrder: p.sortOrder ? String(p.sortOrder) : "",
+  };
+}
+
+/** بدنه‌ی درخواست ایجاد/ویرایش؛ در ویرایش، سقف خالی یعنی حذف سقف (null) */
+function priceFormPayload(f: PriceItemForm, editing: boolean) {
+  return {
+    title: f.title.trim(),
+    weightGrams: Number(f.weightGrams),
+    purityKarat: f.purityKarat,
+    premiumRial: Number(f.premiumToman || 0) * 10,
+    consumerPremiumRial: Number(f.consumerPremiumToman || 0) * 10,
+    maxPerOrder: f.maxPerOrder ? Number(f.maxPerOrder) : editing ? null : undefined,
+    sortOrder: f.sortOrder ? Number(f.sortOrder) : 0,
+  };
+}
+
+const priceFormValid = (f: PriceItemForm) => f.title.trim().length >= 2 && Number(f.weightGrams) > 0;
+
+function PriceItemFields({ f, setF }: { f: PriceItemForm; setF: (f: PriceItemForm) => void }) {
+  return (
+    <>
+      <div className="sm:col-span-2">
+        <Field label="عنوان">
+          <input className={inputCls} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="شمش ۱۰ گرمی" />
+        </Field>
+      </div>
+      <Field label="وزن (گرم)">
+        <input className={inputCls} dir="ltr" inputMode="decimal" value={f.weightGrams} onChange={(e) => setF({ ...f, weightGrams: e.target.value.replace(/[^\d.]/g, "") })} />
+      </Field>
+      <Field label="عیار">
+        <select className={inputCls} value={f.purityKarat} onChange={(e) => setF({ ...f, purityKarat: e.target.value })}>
+          <option value="K24">۲۴</option>
+          <option value="K18">۱۸</option>
+        </select>
+      </Field>
+      <Field label="اجرت نمایندگی (ت)">
+        <input className={inputCls} dir="ltr" inputMode="numeric" value={f.premiumToman} onChange={(e) => setF({ ...f, premiumToman: e.target.value.replace(/\D/g, "") })} />
+      </Field>
+      <Field label="اجرت مصرف‌کننده (ت)">
+        <input className={inputCls} dir="ltr" inputMode="numeric" value={f.consumerPremiumToman} onChange={(e) => setF({ ...f, consumerPremiumToman: e.target.value.replace(/\D/g, "") })} />
+      </Field>
+      <Field label="سقف تعداد در هر سفارش">
+        <input className={inputCls} dir="ltr" inputMode="numeric" placeholder="بدون سقف" value={f.maxPerOrder} onChange={(e) => setF({ ...f, maxPerOrder: e.target.value.replace(/\D/g, "") })} />
+      </Field>
+      <Field label="ترتیب نمایش">
+        <input className={inputCls} dir="ltr" inputMode="numeric" placeholder="0" value={f.sortOrder} onChange={(e) => setF({ ...f, sortOrder: e.target.value.replace(/[^\d-]/g, "") })} />
+      </Field>
+    </>
+  );
+}
+
 export function PriceItemsPanel({ canManage }: { canManage: boolean }) {
   const { data, mutate } = useSWR<PriceItemRow[]>("/api/admin/agents/trading/price-items", fetcher);
-  const [f, setF] = useState({ title: "", weightGrams: "", purityKarat: "K24", premiumToman: "", consumerPremiumToman: "", maxPerOrder: "" });
+  const [f, setF] = useState<PriceItemForm>(EMPTY_PRICE_FORM);
+  const [editing, setEditing] = useState<{ id: string; form: PriceItemForm } | null>(null);
   const { busy, msg, run } = useAction(() => void mutate());
   if (!data) return <Spinner />;
+
+  const create = async () => {
+    const ok = await run(() => axios.post("/api/admin/agents/trading/price-items", priceFormPayload(f, false)), "قلم جدید به فهرست قیمت افزوده شد");
+    if (ok) setF(EMPTY_PRICE_FORM);
+  };
+  const saveEdit = async () => {
+    if (!editing) return;
+    const ok = await run(
+      () => axios.patch(`/api/admin/agents/trading/price-items/${editing.id}`, priceFormPayload(editing.form, true)),
+      "تغییرات قلم فهرست قیمت ذخیره شد",
+    );
+    if (ok) setEditing(null);
+  };
+  const remove = (p: PriceItemRow) => {
+    if (!confirm(`«${p.title}» از فهرست قیمت نمایندگی حذف شود؟\nسفارش‌ها و صورتحساب‌های قبلی تغییری نمی‌کنند.`)) return;
+    void run(() => axios.delete(`/api/admin/agents/trading/price-items/${p.id}`));
+  };
+
   return (
     <div className="space-y-3">
       <p className="text-[11px] text-gray-500">
         قیمت نمایندگی هر شمش = وزن × قیمت لحظه‌ای هر گرم (بر اساس عیار) × (۱ + درصد افزوده‌ی تنظیمات) + اجرت. سقف قیمت مصرف‌کننده (بند ۸-۳
         قرارداد) = وزن × قیمت گرم × (۱ + درصد مجاز مصرف‌کننده) + اجرت مصرف‌کننده.
       </p>
-      {msg && <Alert kind={msg.kind} text={msg.text} />}
+      {msg && !editing && <Alert kind={msg.kind} text={msg.text} />}
       {canManage && (
-        <div className="grid gap-2 sm:grid-cols-7 items-end rounded-xl border border-gray-100 p-3">
-          <div className="sm:col-span-2">
-            <Field label="عنوان">
-              <input className={inputCls} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="شمش ۱۰ گرمی" />
-            </Field>
-          </div>
-          <Field label="وزن (گرم)">
-            <input className={inputCls} dir="ltr" value={f.weightGrams} onChange={(e) => setF({ ...f, weightGrams: e.target.value.replace(/[^\d.]/g, "") })} />
-          </Field>
-          <Field label="عیار">
-            <select className={inputCls} value={f.purityKarat} onChange={(e) => setF({ ...f, purityKarat: e.target.value })}>
-              <option value="K24">۲۴</option>
-              <option value="K18">۱۸</option>
-            </select>
-          </Field>
-          <Field label="اجرت نمایندگی (ت)">
-            <input className={inputCls} dir="ltr" value={f.premiumToman} onChange={(e) => setF({ ...f, premiumToman: e.target.value.replace(/\D/g, "") })} />
-          </Field>
-          <Field label="اجرت مصرف‌کننده (ت)">
-            <input className={inputCls} dir="ltr" value={f.consumerPremiumToman} onChange={(e) => setF({ ...f, consumerPremiumToman: e.target.value.replace(/\D/g, "") })} />
-          </Field>
-          <button
-            type="button"
-            disabled={busy || !f.title || !f.weightGrams}
-            onClick={() =>
-              run(() =>
-                axios.post("/api/admin/agents/trading/price-items", {
-                  title: f.title,
-                  weightGrams: Number(f.weightGrams),
-                  purityKarat: f.purityKarat,
-                  premiumRial: Number(f.premiumToman || 0) * 10,
-                  consumerPremiumRial: Number(f.consumerPremiumToman || 0) * 10,
-                  maxPerOrder: f.maxPerOrder ? Number(f.maxPerOrder) : undefined,
-                }),
-              )
-            }
-            className={primaryBtn}
-            style={primaryBtnStyle}
-          >
+        <div className="grid gap-2 sm:grid-cols-4 lg:grid-cols-10 items-end rounded-xl border border-gray-100 p-3">
+          <PriceItemFields f={f} setF={setF} />
+          <button type="button" disabled={busy || !priceFormValid(f)} onClick={() => void create()} className={primaryBtn} style={primaryBtnStyle}>
             <Plus className="w-4 h-4" /> افزودن
           </button>
         </div>
@@ -972,7 +1040,7 @@ export function PriceItemsPanel({ canManage }: { canManage: boolean }) {
         <Empty text="هنوز قلمی تعریف نشده است؛ تا تعریف فهرست قیمت، نمایندگان امکان سفارش ندارند" />
       ) : (
         <div className="overflow-x-auto">
-          <table className="admin-table w-full min-w-[760px]">
+          <table className="admin-table w-full min-w-[860px]">
             <thead>
               <tr>
                 <th>عنوان</th>
@@ -981,7 +1049,9 @@ export function PriceItemsPanel({ canManage }: { canManage: boolean }) {
                 <th>اجرت مصرف‌کننده (ت)</th>
                 <th>قیمت لحظه‌ای نمایندگی (ت)</th>
                 <th>سقف مصرف‌کننده (ت)</th>
+                <th>سقف سفارش</th>
                 <th>وضعیت</th>
+                {canManage && <th>عملیات</th>}
               </tr>
             </thead>
             <tbody>
@@ -995,6 +1065,7 @@ export function PriceItemsPanel({ canManage }: { canManage: boolean }) {
                   <td>{toman(p.consumerPremiumRial)}</td>
                   <td className="font-black">{toman(p.live.unitPriceRial)}</td>
                   <td>{toman(p.live.consumerMaxPriceRial)}</td>
+                  <td>{p.maxPerOrder ? faNum(p.maxPerOrder) : "—"}</td>
                   <td>
                     {canManage ? (
                       <button
@@ -1011,11 +1082,56 @@ export function PriceItemsPanel({ canManage }: { canManage: boolean }) {
                       "غیرفعال"
                     )}
                   </td>
+                  {canManage && (
+                    <td>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setEditing({ id: p.id, form: priceFormFromRow(p) })}
+                          className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50"
+                          aria-label={`ویرایش ${p.title}`}
+                          title="ویرایش"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => remove(p)}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                          aria-label={`حذف ${p.title}`}
+                          title="حذف"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {editing && (
+        <Modal title="ویرایش قلم فهرست قیمت" onClose={() => setEditing(null)} wide>
+          {msg && <Alert kind={msg.kind} text={msg.text} />}
+          <div className="grid gap-2 sm:grid-cols-2">
+            <PriceItemFields f={editing.form} setF={(form) => setEditing({ ...editing, form })} />
+          </div>
+          <p className="text-[11px] text-gray-500">
+            تغییر قیمت و اجرت فقط روی سفارش‌های جدید اثر دارد؛ سفارش‌های ثبت‌شده با قیمت قفل‌شده‌ی لحظه‌ی ثبت باقی می‌مانند.
+          </p>
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={() => setEditing(null)} className={secondaryBtn}>
+              انصراف
+            </button>
+            <button type="button" disabled={busy || !priceFormValid(editing.form)} onClick={() => void saveEdit()} className={primaryBtn} style={primaryBtnStyle}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} ذخیره تغییرات
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

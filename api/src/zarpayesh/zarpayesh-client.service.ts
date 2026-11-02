@@ -45,6 +45,7 @@ import {
   ZarPayeshCryptoError,
 } from './zarpayesh-crypto';
 import { SystemConfigService } from '../system-config/system-config.service';
+import { getRelayOptions } from './zarpayesh-relay';
 
 // ─────────────────────────── انواع درخواست/پاسخ (عیناً مطابق مستند) ───────────────────────────
 
@@ -845,6 +846,8 @@ export class ZarPayeshClientService {
         'اتصال به سامانه‌ی ناظر بدون رمزنگاری (http) مسدود است؛ نشانی را به https تغییر دهید یا استثنا را در تنظیمات سامانه‌ی ناظر تأیید کنید',
       );
     }
+    // مسیر MPLS از طریق سرور رله (docs/zarpayesh/relay.md) — فقط وقتی Host همان ZARPAYESH_RELAY_URL است
+    const relay = getRelayOptions(baseUrl);
     const auth = opts.auth ?? true;
     const timeout = ctx.timeoutMs ?? cfg.timeoutMs ?? 15_000;
 
@@ -867,7 +870,9 @@ export class ZarPayeshClientService {
         responseType: 'text',
         transformResponse: (d: unknown) => d,
         validateStatus: () => true,
+        ...(relay.httpsAgent ? { httpsAgent: relay.httpsAgent } : {}),
         headers: {
+          ...relay.headers,
           Accept: 'application/json',
           ...(opts.body !== undefined
             ? { 'Content-Type': 'application/json' }

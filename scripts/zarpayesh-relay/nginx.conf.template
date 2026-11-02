@@ -1,0 +1,72 @@
+# /etc/nginx/conf.d/zarpayesh-relay.conf — ساخته‌شده توسط scripts/zarpayesh-relay/setup-relay.sh
+# این فایل را دستی ویرایش نکنید؛ relay.env را تغییر دهید و setup-relay.sh را دوباره اجرا کنید.
+#
+# مسیر: سرویس api رانفلر ──HTTPS + mTLS + کلید──▶ این nginx ──لینک MPLS──▶ سامانه ناظر (زر پایش)
+
+# لاگ بدون بدنه، بدون query string و بدون هدرها (توکن Bearer و کلید رله هرگز ثبت نمی‌شوند)
+log_format zp_relay '$time_iso8601 $remote_addr cn="$ssl_client_s_dn" "$request_method $uri" '
+                    '$status $request_time up=$upstream_status/$upstream_response_time';
+
+upstream zarpayesh_mpls {
+    server ${ZP_UPSTREAM_ADDR};
+    keepalive 8;
+}
+
+server {
+    listen ${RELAY_PORT} ssl;
+    server_name ${RELAY_NAME};
+    server_tokens off;
+
+    ssl_certificate         /etc/zarpayesh-relay/server.crt;
+    ssl_certificate_key     /etc/zarpayesh-relay/server.key;
+    ssl_protocols           TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_tickets     off;
+
+    # mTLS: فقط کلاینتی که گواهی‌اش با CA اختصاصی آرکان امضا شده پذیرفته می‌شود
+    ssl_client_certificate  /etc/zarpayesh-relay/ca.crt;
+    ssl_verify_client       on;
+    ssl_verify_depth        1;
+
+    client_max_body_size    1m;
+    access_log /var/log/nginx/zarpayesh-relay.log zp_relay;
+    error_log  /var/log/nginx/zarpayesh-relay.error.log warn;
+
+    # آزمون سلامت خود رله (بدون ارسال به زر پایش)
+    location = /__relay/health {
+        if ($http_x_arkan_relay_key != "${RELAY_SECRET}") { return 403; }
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location /api/ {
+        if ($http_x_arkan_relay_key != "${RELAY_SECRET}") { return 403; }
+        limit_except GET POST PUT DELETE { deny all; }
+
+        proxy_pass ${ZP_UPSTREAM_SCHEME}://zarpayesh_mpls;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host ${ZP_UPSTREAM_HOST};
+        # کلید رله و اطلاعات شبکه‌ی داخلی به زر پایش فرستاده نمی‌شود
+        proxy_set_header X-Arkan-Relay-Key "";
+        proxy_set_header X-Forwarded-For "";
+        proxy_set_header X-Real-IP "";
+
+        # وقتی زر پایش روی MPLS هم HTTPS دارد (ZP_UPSTREAM_SCHEME=https)
+        proxy_ssl_server_name on;
+        proxy_ssl_name ${ZP_UPSTREAM_HOST};
+        proxy_ssl_protocols TLSv1.2 TLSv1.3;
+        proxy_ssl_verify ${ZP_UPSTREAM_VERIFY};
+        proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+        proxy_ssl_verify_depth 4;
+
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        # Reserve/Approve تکرارپذیر نیستند: هرگز درخواست دوباره فرستاده نشود
+        proxy_next_upstream off;
+        proxy_buffering off;
+    }
+
+    location / { return 404; }
+}

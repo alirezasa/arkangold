@@ -104,7 +104,7 @@ export class VoucherDto {
   @IsString() @MinLength(3) @MaxLength(500) description!: string;
   @IsOptional() @IsString() @MaxLength(200) attachmentRef?: string;
   @IsArray()
-  @ArrayMinSize(2)
+  @ArrayMinSize(2, { message: 'سند باید حداقل دو سطر دارای مبلغ داشته باشد (مبالغ را با ارقام فارسی یا لاتین وارد کنید)' })
   @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => VoucherLineDto)

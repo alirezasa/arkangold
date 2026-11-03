@@ -27,6 +27,7 @@ export {
   fetcher,
   getErrorMessage,
   inputCls,
+  parseAmount,
   primaryBtn,
   primaryBtnStyle,
   secondaryBtn,

@@ -277,5 +277,22 @@ export function downloadCsv(filename: string, header: string[], rows: (string | 
   URL.revokeObjectURL(url);
 }
 
+/**
+ * عدد تایپ‌شده توسط کاربر → number.
+ * ارقام فارسی/عربی، جداکننده‌ی هزارگان («٬» «,» «،» فاصله) و ممیز فارسی «٫» پشتیبانی می‌شود.
+ * ورودی نامعتبر یا خالی → 0
+ */
+export function parseAmount(v: string | number | null | undefined): number {
+  if (v == null) return 0;
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const s = v
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[٬,،\s\u200c\u200f\u200e]/g, "")
+    .replace(/٫/g, ".");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /** تومان واردشده توسط کاربر → ریال برای API */
-export const tomanToRial = (v: string) => Math.round(Number(v.replace(/[,،\s]/g, "")) * 10);
+export const tomanToRial = (v: string) => Math.round(parseAmount(v) * 10);

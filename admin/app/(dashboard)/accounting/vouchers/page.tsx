@@ -196,7 +196,10 @@ function VoucherForm({ voucher, onDone }: { voucher?: Voucher; onDone: () => voi
 /** فرم سریع ثبت هزینه: حساب هزینه + حساب پرداخت + مبلغ */
 function ExpenseForm({ onDone }: { onDone: () => void }) {
   const [expense, setExpense] = useState("");
-  const [cash, setCash] = useState("1010");
+  // پیش‌فرض «پرداخت از» = حساب بانکی عملیاتی شرکت (مثلاً 101001 بانک ملت)
+  const { data: bank } = useSWR<{ resolvedCode: string }>("/api/admin/accounting/settings/bank", fetcher);
+  const [cashChoice, setCash] = useState("");
+  const cash = cashChoice || bank?.resolvedCode || "";
   const [amount, setAmount] = useState("");
   const [entryDate, setEntryDate] = useState(todayIso());
   const [description, setDescription] = useState("");
@@ -221,13 +224,15 @@ function ExpenseForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="space-y-3">
       <Field label="نوع هزینه">
-        <AccountSelect value={expense} onChange={setExpense} filter={(a) => a.type === "EXPENSE" && a.allowManualEntry} />
+        <AccountSelect value={expense} onChange={setExpense} filter={(a) => a.type === "EXPENSE" && a.allowManualEntry && !a.hasChildren} />
       </Field>
-      <Field label="پرداخت از" hint="صندوق/بانک یا حساب پرداختنی (برای هزینه‌ی پرداخت‌نشده)">
+      <Field label="پرداخت از" hint="حساب بانکی شرکت یا حساب پرداختنی (برای هزینه‌ی پرداخت‌نشده)">
         <AccountSelect
           value={cash}
           onChange={setCash}
-          filter={(a) => a.code.startsWith("1010") || a.code.startsWith("2050") || a.code.startsWith("2060") || a.code.startsWith("1070")}
+          filter={(a) =>
+            !a.hasChildren && ["1010", "2050", "2060", "2090", "1070"].some((p) => a.code.startsWith(p))
+          }
         />
       </Field>
       <div className="grid grid-cols-2 gap-3">

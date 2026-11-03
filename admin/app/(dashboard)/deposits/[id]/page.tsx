@@ -8,7 +8,10 @@ import axios from "axios";
 import {
   AlertTriangle, ArrowRight, Check, Eye, FileText, Loader2, ShieldAlert, X,
 } from "lucide-react";
-import { AccountSelect, usePerm } from "@/app/components/finance/ui";
+import {
+  BankAccountSelect,
+  usePerm,
+} from "@/app/components/finance/ui";
 
 interface Detail {
   id: string;
@@ -402,12 +405,7 @@ export default function AdminDepositDetailPage({
                 />
                 <label className="block text-[11px] font-bold text-gray-500">
                   حساب بانکی دریافت‌کننده (برای سند حسابداری)
-                  <AccountSelect
-                    value={cashAccount}
-                    onChange={setCashAccount}
-                    filter={(a) => a.code.startsWith("1010")}
-                    placeholder="حساب پیش‌فرض تنظیمات (1010)"
-                  />
+                  <BankAccountSelect value={cashAccount} onChange={setCashAccount} />
                 </label>
                 <input
                   value={note}

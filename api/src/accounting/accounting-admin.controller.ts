@@ -18,6 +18,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
@@ -29,6 +30,8 @@ import { AccountingReportsService } from './accounting-reports.service';
 import { AccountingManageService } from './accounting-manage.service';
 import { AccountingAnalyticsService } from './accounting-analytics.service';
 import { BankReconciliationService } from './bank-reconciliation.service';
+import { GoldCustodyService } from './gold-custody.service';
+import { TaxBooksService } from './tax-books/tax-books.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
 import { AdminPermissionGuard } from '../admin-auth/guards/admin-permission.guard';
 import { RequirePermission } from '../admin-auth/decorators/require-permission.decorator';
@@ -47,6 +50,10 @@ import {
   ReasonDto,
   RevaluationDto,
   StatementQueryDto,
+  TaxBookDownloadDto,
+  TaxBookExportDto,
+  TaxBookPreviewDto,
+  TaxBookQueryDto,
   TrialBalanceQueryDto,
   UpdateAccountDto,
   VoucherDto,
@@ -70,6 +77,25 @@ class BankReconcileDto {
   @IsOptional() @IsBoolean() allowDifference?: boolean;
 }
 
+class GoldCustodyDto {
+  @IsIn(['TO_BANK', 'FROM_BANK']) direction!: 'TO_BANK' | 'FROM_BANK';
+  @IsString()
+  @Matches(/^\d{1,9}(\.\d{1,4})?$/, {
+    message: 'وزن باید عدد مثبت با حداکثر ۴ رقم اعشار باشد',
+  })
+  grams!: string;
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) date?: string;
+  @IsOptional() @IsString() @MaxLength(100) reference?: string;
+  @IsOptional() @IsString() @MaxLength(300) description?: string;
+}
+
+class DefaultBankDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^(1010\d*)?$/, { message: 'کد حساب بانکی باید با 1010 شروع شود' })
+  code?: string;
+}
+
 @ApiTags('Admin - Accounting')
 @ApiBearerAuth()
 @UseGuards(AdminJwtAuthGuard, AdminPermissionGuard)
@@ -83,6 +109,8 @@ export class AccountingAdminController {
     private readonly manage: AccountingManageService,
     private readonly analytics: AccountingAnalyticsService,
     private readonly bankRec: BankReconciliationService,
+    private readonly custody: GoldCustodyService,
+    private readonly taxBooks: TaxBooksService,
   ) {}
 
   // ── خلاصه و داشبورد ──
@@ -303,6 +331,67 @@ export class AccountingAdminController {
     @Body() dto: ReasonDto,
   ) {
     return this.manage.reverseVoucher(req.user.adminUserId, id, dto.reason);
+  }
+
+  // ── حساب بانکی عملیاتی ──
+  @Get('settings/bank')
+  @ApiOperation({
+    summary: 'حساب بانکی عملیاتی شرکت (مقصد همه‌ی اسناد خودکار نقد و بانک)',
+  })
+  bankSettings() {
+    return this.manage.bankSettings();
+  }
+
+  @RequirePermission('accounting.manage')
+  @AuditLog('accounting.bank_account.default')
+  @Post('settings/bank')
+  setDefaultBank(@Body() dto: DefaultBankDto) {
+    return this.manage.setDefaultBankAccount(dto.code ?? null);
+  }
+
+  // ── طلای نزد بانک کارگشایی ──
+  @Get('gold-custody')
+  @ApiOperation({ summary: 'طلای نزد بانک کارگشایی: مانده، تسهیلات و سابقه' })
+  goldCustody() {
+    return this.custody.summary();
+  }
+
+  @RequirePermission('accounting.manage')
+  @AuditLog('accounting.gold_custody.transfer')
+  @Post('gold-custody')
+  goldCustodyTransfer(@Req() req: AdminRequest, @Body() dto: GoldCustodyDto) {
+    return this.custody.transfer(req.user.adminUserId, dto);
+  }
+
+  // ── دفاتر تجاری الکترونیکی (سازمان امور مالیاتی) ──
+  @Get('tax-books')
+  @ApiOperation({
+    summary: 'دفاتر تجاری الکترونیکی: فایل‌های قبلی و بازه‌ی بعدی بارگذاری',
+  })
+  taxBooksOverview(@Query() query: TaxBookQueryDto) {
+    return this.taxBooks.overview(query.fiscalYearId);
+  }
+
+  @Post('tax-books/preview')
+  @ApiOperation({ summary: 'پیش‌نمایش و کنترل فایل دفاتر تجاری (بدون ثبت)' })
+  taxBooksPreview(@Body() dto: TaxBookPreviewDto) {
+    return this.taxBooks.preview(dto);
+  }
+
+  @RequirePermission('accounting.period.manage')
+  @AuditLog('accounting.tax_books.export')
+  @Post('tax-books/export')
+  taxBooksExport(@Req() req: AdminRequest, @Body() dto: TaxBookExportDto) {
+    return this.taxBooks.export(req.user.adminUserId, dto);
+  }
+
+  @AuditLog('accounting.tax_books.download')
+  @Post('tax-books/:id/download')
+  taxBooksDownload(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: TaxBookDownloadDto,
+  ) {
+    return this.taxBooks.download(id, dto.format);
   }
 
   // ── سال مالی و قفل دوره ──

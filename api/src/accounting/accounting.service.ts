@@ -14,6 +14,18 @@ import { Prisma, Account, JournalSource } from '../generated/prisma/client';
 import { CHART_OF_ACCOUNTS_DEFAULTS } from './accounts.seed';
 import Decimal from 'decimal.js';
 
+/** حساب کل «موجودی نقد و بانک» — حساب‌های بانکی معین زیر آن تعریف می‌شوند */
+export const CASH_ROOT_CODE = '1010';
+/** کلید تنظیمات حساب بانکی عملیاتی پیش‌فرض شرکت (مثلاً 101001 بانک ملت) */
+export const DEFAULT_BANK_ACCOUNT_KEY = 'accounting.default_bank_account';
+/** منابع سندی که کد حساب آن‌ها دقیقاً همان‌طور که آمده ثبت می‌شود (بدون هدایت 1010) */
+const KEEP_EXACT_ACCOUNT_SOURCES = new Set<JournalSource>([
+  'MANUAL',
+  'OPENING',
+  'CLOSING',
+  'REVERSAL',
+]);
+
 // ─────────────────────────────────────────────
 // ورودی هر سطر سند حسابداری
 // ─────────────────────────────────────────────
@@ -157,6 +169,22 @@ export class AccountingService implements OnModuleInit {
 
     // ── ۲. رد سند نامتوازن قبل از هر نوشتنی ──
     this.assertBalanced(lines, description);
+
+    // ── ۲-۰. اسناد سیستمی روی «1010» → حساب بانکی عملیاتی (مثلاً 101001 بانک ملت) ──
+    // وقتی برای 1010 حساب بانکی معین تعریف شده، سند خودکار نباید روی حساب کل بنشیند؛
+    // اسناد دستی/افتتاحیه/اختتامیه و برگشتی‌ها دقیقاً همان کدی را که آمده نگه می‌دارند
+    if (
+      !params.reversalOfId &&
+      !KEEP_EXACT_ACCOUNT_SOURCES.has(params.source ?? 'SYSTEM') &&
+      lines.some((l) => l.accountCode === CASH_ROOT_CODE)
+    ) {
+      const bank = await this.resolveBankAccount(tx);
+      if (bank !== CASH_ROOT_CODE) {
+        for (const l of lines) {
+          if (l.accountCode === CASH_ROOT_CODE) l.accountCode = bank;
+        }
+      }
+    }
 
     // ── ۲-۱. سند با تاریخ صریح (مثلاً تاریخ پرداخت بانکی گذشته) نباید در دوره‌ی قفل یا
     // سال مالی بسته ثبت شود؛ اسناد سیستمی لحظه‌ای (بدون entryDate) همیشه در دوره‌ی جاری‌اند
@@ -302,6 +330,94 @@ export class AccountingService implements OnModuleInit {
     const cost = balR.div(balG).times(g).toDecimalPlaces(0);
     // هرگز بیش از کل مانده‌ی ریالی خارج نشود (خروج آخرین گرم‌ها)
     return cost.gt(balR) ? balR : cost;
+  }
+
+  // ═══════════════════════════════════════════
+  // حساب بانکی عملیاتی شرکت (زیرمجموعه‌ی 1010)
+  // ═══════════════════════════════════════════
+
+  /**
+   * کد حساب نقد و بانکی که سند سیستمی باید روی آن ثبت شود.
+   *
+   * ترتیب انتخاب:
+   *   ۱) کد صریح (انتخاب کارشناس در فرم) — باید معین فعالِ بدون زیرحساب زیر 1010 باشد، وگرنه خطا
+   *   ۲) کلید تنظیمات اختصاصی عملیات (مثلاً deposit.default_cash_account)
+   *   ۳) کلید عمومی accounting.default_bank_account
+   *   ۴) اگر زیر 1010 فقط یک حساب معین فعال وجود دارد (مثلاً تنها حساب بانک ملت) همان حساب
+   *   ۵) خود 1010
+   *
+   * مقادیر تنظیمات نامعتبر (حساب ناموجود/غیرفعال یا دارای زیرحساب) نادیده گرفته می‌شوند تا
+   * عملیات کاربر (مثلاً پرداخت درگاه) هرگز به‌خاطر تنظیم اشتباه متوقف نشود.
+   */
+  async resolveBankAccount(
+    tx: Prisma.TransactionClient | PrismaService,
+    opts: { explicit?: string | null; configKey?: string } = {},
+  ): Promise<string> {
+    const accounts = await tx.account.findMany({
+      where: { code: { startsWith: CASH_ROOT_CODE } },
+      select: { id: true, code: true, parentId: true, isActive: true },
+    });
+    const activeChildren = new Set(
+      accounts.filter((a) => a.isActive && a.parentId).map((a) => a.parentId),
+    );
+    const byCode = new Map(accounts.map((a) => [a.code, a]));
+    const isLeaf = (code: string) => {
+      const a = byCode.get(code);
+      return !!a && a.isActive && !activeChildren.has(a.id);
+    };
+
+    const explicit = opts.explicit?.trim();
+    if (explicit) {
+      if (!/^1010\d*$/.test(explicit)) {
+        throw new BadRequestException(
+          'حساب بانکی باید حساب نقد و بانک (1010 یا معین‌های آن) باشد',
+        );
+      }
+      const a = byCode.get(explicit);
+      if (!a || !a.isActive) {
+        throw new BadRequestException(
+          `حساب ${explicit} یافت نشد یا غیرفعال است`,
+        );
+      }
+      if (!isLeaf(explicit)) {
+        throw new BadRequestException(
+          `حساب ${explicit} زیرحساب دارد؛ یکی از حساب‌های بانکی معین آن را انتخاب کنید`,
+        );
+      }
+      return explicit;
+    }
+
+    // بدون حساب بانکی معین، 1010 تنها گزینه است (نیازی به خواندن تنظیمات نیست)
+    if (isLeaf(CASH_ROOT_CODE)) return CASH_ROOT_CODE;
+
+    const keys = [opts.configKey, DEFAULT_BANK_ACCOUNT_KEY].filter(
+      (k): k is string => !!k,
+    );
+    if (keys.length) {
+      const rows = await tx.systemConfig.findMany({
+        where: { key: { in: keys } },
+      });
+      for (const key of keys) {
+        const v = rows.find((r) => r.key === key)?.value?.trim();
+        if (!v) continue;
+        if (/^1010\d*$/.test(v) && isLeaf(v)) return v;
+        if (v !== CASH_ROOT_CODE) {
+          this.logger.warn(
+            `[Accounting] تنظیم ${key}=${v} حساب بانکی معتبر (معین فعال بدون زیرحساب) نیست و نادیده گرفته شد`,
+          );
+        }
+      }
+    }
+
+    const leaves = accounts
+      .filter((a) => isLeaf(a.code))
+      .map((a) => a.code)
+      .sort();
+    if (leaves.length === 1) return leaves[0];
+    this.logger.warn(
+      `[Accounting] چند حساب بانکی زیر 1010 تعریف شده ولی ${DEFAULT_BANK_ACCOUNT_KEY} تنظیم نشده؛ سند روی 1010 ثبت شد`,
+    );
+    return CASH_ROOT_CODE;
   }
 
   /** قیمت لحظه‌ای هر گرم طلای ۱۸ عیار (ریال) از جدول قیمت بازار */

@@ -995,10 +995,22 @@ export const WALLET_CONFIG_DEFAULTS = [
 
   // ══ حسابداری ══
   {
+    key: 'accounting.default_bank_account',
+    value: '',
+    description:
+      'حساب بانکی عملیاتی شرکت (کد معین زیر 1010، مثلاً 101001 بانک ملت): همه‌ی اسناد خودکار نقد و بانک روی این حساب ثبت می‌شوند — خالی = اگر فقط یک حساب بانکی معین تعریف شده همان، وگرنه 1010',
+  },
+  {
     key: 'accounting.locked_until',
     value: '',
     description:
       'تاریخ قفل دوره مالی (YYYY-MM-DD): ثبت سند دستی با تاریخ تا این روز مجاز نیست — خالی = بدون قفل',
+  },
+  {
+    key: 'taxbooks.headers',
+    value: '',
+    description:
+      'عنوان ۹ ستون فایل «دفاتر تجاری الکترونیکی» با جداکننده‌ی | — فقط اگر قالب دانلودی سامانه‌ی مالیاتی با پیش‌فرض فرق داشت پر شود (خالی = ردیف|تاریخ|کد حساب کل|عنوان حساب کل|کد حساب معین|عنوان حساب معین|شرح|مبلغ بدهکار (ریال)|مبلغ بستانکار (ریال))',
   },
   {
     key: 'accounting.allow_self_approve',
@@ -1008,6 +1020,12 @@ export const WALLET_CONFIG_DEFAULTS = [
   },
 
   // ══ خزانه و پوشش طلای آب‌شده ══
+  {
+    key: 'treasury.coverage_includes_bank_gold',
+    value: 'true',
+    description:
+      'طلای نزد بانک کارگشایی (حساب 1027، وثیقه/امانت) در محاسبه‌ی پوشش طلای کاربران شمرده شود؟ true/false — false = محافظه‌کارانه، فقط خزانه و در راه',
+  },
   {
     key: 'treasury.target_reserve_percent',
     value: '100',

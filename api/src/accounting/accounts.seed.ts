@@ -21,7 +21,7 @@ export interface AccountSeed {
  * ماهیت حساب از رقم اول کد: 1 دارایی و 5 هزینه = بدهکار؛ 2 بدهی، 3 حقوق صاحبان سهام
  * و 4 درآمد = بستانکار.
  *
- * واحد ستون گرم: حساب‌های طلای آب‌شده (1020، 1060، 1090، 2020) = گرم معادل ۷۵۰ (۱۸ عیار)؛
+ * واحد ستون گرم: حساب‌های طلای آب‌شده (1020، 1027، 1060، 1090، 2020) = گرم معادل ۷۵۰ (۱۸ عیار)؛
  * حساب‌های شمش (1025، 1030، 1095، 5050، 5060) = وزن فیزیکی شمش.
  */
 export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
@@ -48,6 +48,14 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     type: AccountType.ASSET,
     subType: 'BULLION_INVENTORY',
     description: 'شمش‌های موجود در خزانه (کددار و بدون کد) به بهای تمام‌شده',
+  },
+  {
+    code: '1027',
+    name: 'طلای نزد بانک کارگشایی (گرم ۷۵۰)',
+    type: AccountType.ASSET,
+    subType: 'GOLD_AT_BANK',
+    description:
+      'طلای شرکت که به‌عنوان وثیقه‌ی تسهیلات یا امانت به بانک کارگشایی سپرده شده — هنوز دارایی شرکت است ولی در خزانه نیست. ورود و خروج از مسیر «حسابداری ← طلای نزد بانک» به بهای میانگین ثبت شود',
   },
   {
     code: '1030',
@@ -165,6 +173,14 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     allowManualEntry: false,
     description:
       'وجه سفارش‌های پرداخت‌شده‌ای که هنوز شمش آن‌ها تخصیص و صورتحساب صادر نشده است',
+  },
+  {
+    code: '2090',
+    name: 'تسهیلات دریافتی از بانک‌ها (کارگشایی)',
+    type: AccountType.LIABILITY,
+    subType: 'BANK_LOAN',
+    description:
+      'اصل وام/تسهیلات دریافتی در برابر وثیقه‌ی طلا؛ کارمزد و سود آن هزینه‌ی 5190 است',
   },
   {
     code: '2050',
@@ -368,6 +384,14 @@ export const CHART_OF_ACCOUNTS_DEFAULTS: AccountSeed[] = [
     type: AccountType.EXPENSE,
     subType: 'IT_SERVICES',
   },
+  {
+    code: '5190',
+    name: 'هزینه کارمزد تسهیلات و نگهداری وثیقه',
+    type: AccountType.EXPENSE,
+    subType: 'FINANCE_COST',
+    description:
+      'کارمزد/سود وام بانک کارگشایی، هزینه‌ی کارشناسی و انبارداری طلای وثیقه',
+  },
 ];
 
 /** کدهای حساب پرکاربرد — برای خوانایی کد و جلوگیری از اشتباه تایپی */
@@ -375,6 +399,7 @@ export const ACC = {
   CASH: '1010',
   GOLD_VAULT: '1020',
   BULLION: '1025',
+  GOLD_AT_BANK: '1027',
   CONSIGNMENT: '1030',
   AGENT_RECEIVABLE: '1040',
   PARTNER_RECEIVABLE: '1050',
@@ -387,6 +412,7 @@ export const ACC = {
   USER_GOLD: '2020',
   TAX_PAYABLE: '2030',
   SUPPLIER_PAYABLE: '2040',
+  BANK_LOAN: '2090',
   CAPITAL: '3010',
   RETAINED_EARNINGS: '3020',
   TRADE_FEE: '4010',
@@ -402,4 +428,5 @@ export const ACC = {
   GOLD_LOSS: '5070',
   PARTNER_COMMISSION: '5080',
   GOLD_SHRINKAGE: '5090',
+  FINANCE_COST: '5190',
 } as const;

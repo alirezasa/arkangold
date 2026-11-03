@@ -24,12 +24,27 @@ import { DocumentSequenceService } from '../common/documents/document-sequence.s
 import { SystemConfigService } from '../system-config/system-config.service';
 import {
   AccountingService,
+  CASH_ROOT_CODE,
+  DEFAULT_BANK_ACCOUNT_KEY,
   LedgerLineInput,
   isDebitNature,
   toDecimal,
 } from './accounting.service';
 import { ACC } from './accounts.seed';
 import { endOfDay } from './accounting-reports.service';
+import {
+  addDays,
+  fiscalYearRange,
+  parseIsoDay,
+  storedDay,
+  tehranDayStart,
+} from '../common/utils/tehran-time';
+
+/** شرط Prisma برای اسناد داخل یک سال مالی (مرز روزها به وقت تهران) */
+function fiscalRangeWhere(y: { startDate: Date; endDate: Date }) {
+  const r = fiscalYearRange(y);
+  return { gte: r.gte, lt: r.lt };
+}
 
 type Tx = Prisma.TransactionClient;
 const TX_OPTIONS = { maxWait: 5000, timeout: 15000 };
@@ -248,6 +263,19 @@ export class AccountingManageService {
       where: { code: { in: codes } },
     });
     const byCode = new Map(accounts.map((a) => [a.code, a]));
+    // حساب دارای زیرحساب فعال (مثلاً 1010 پس از تعریف 101001 بانک ملت) فقط برای انتقال
+    // مانده‌ی قبلیِ خودش به زیرحساب‌ها قابل استفاده است؛ ثبت جدید باید روی معین باشد
+    const parentsWithChildren = new Set(
+      (
+        await tx.account.findMany({
+          where: {
+            parentId: { in: accounts.map((a) => a.id) },
+            isActive: true,
+          },
+          select: { parentId: true },
+        })
+      ).map((c) => c.parentId),
+    );
 
     let dr = new Decimal(0);
     let cr = new Decimal(0);
@@ -268,6 +296,15 @@ export class AccountingManageService {
       if (!a.allowManualEntry && input.type !== 'OPENING') {
         throw new BadRequestException(
           `سطر ${i + 1}: «${a.name}» حساب کنترلی است و فقط از مسیر عملیات سیستمی تغییر می‌کند`,
+        );
+      }
+      if (
+        parentsWithChildren.has(a.id) &&
+        toDecimal(a.balanceRial).isZero() &&
+        toDecimal(a.balanceGrams).isZero()
+      ) {
+        throw new BadRequestException(
+          `سطر ${i + 1}: حساب ${a.code} (${a.name}) زیرحساب دارد؛ سند را روی یکی از حساب‌های معین آن ثبت کنید`,
         );
       }
       if (l.side !== 'DEBIT' && l.side !== 'CREDIT') {
@@ -567,7 +604,7 @@ export class AccountingManageService {
       years.map((y) =>
         Promise.all([
           this.prisma.journalEntry.count({
-            where: { entryDate: { gte: y.startDate, lte: y.endDate } },
+            where: { entryDate: fiscalRangeWhere(y) },
           }),
           this.prisma.journalEntry.count({
             where: { fiscalYearId: y.id, permanentNumber: { not: null } },
@@ -619,6 +656,53 @@ export class AccountingManageService {
     return { message: 'سال مالی تعریف شد', id: y.id };
   }
 
+  // ═══════════════════════════════════════════
+  // حساب بانکی عملیاتی (یک حساب تجاری بانک ملت یا چند حساب در آینده)
+  // ═══════════════════════════════════════════
+  async bankSettings() {
+    const [accounts, configured, resolved] = await Promise.all([
+      this.prisma.account.findMany({
+        where: { code: { startsWith: CASH_ROOT_CODE } },
+        orderBy: { code: 'asc' },
+      }),
+      this.config.find(DEFAULT_BANK_ACCOUNT_KEY),
+      this.accounting.resolveBankAccount(this.prisma),
+    ]);
+    const parents = new Set(
+      accounts.filter((a) => a.isActive && a.parentId).map((a) => a.parentId),
+    );
+    const root = accounts.find((a) => a.code === CASH_ROOT_CODE);
+    return {
+      configuredCode: configured?.trim() || null,
+      resolvedCode: resolved,
+      rootOwnBalanceRial: toDecimal(root?.balanceRial).toString(),
+      accounts: accounts.map((a) => ({
+        code: a.code,
+        name: a.name,
+        description: a.description,
+        isActive: a.isActive,
+        isLeaf: a.isActive && !parents.has(a.id),
+        balanceRial: toDecimal(a.balanceRial).toString(),
+      })),
+    };
+  }
+
+  async setDefaultBankAccount(code: string | null) {
+    const value = code?.trim() || '';
+    if (value) {
+      // همان قواعد کد صریح: معین فعال بدون زیرحساب زیر 1010
+      await this.accounting.resolveBankAccount(this.prisma, {
+        explicit: value,
+      });
+    }
+    await this.config.set(DEFAULT_BANK_ACCOUNT_KEY, value);
+    return {
+      message: value
+        ? `حساب ${value} به‌عنوان حساب بانکی عملیاتی شرکت تنظیم شد`
+        : 'حساب بانکی عملیاتی پیش‌فرض پاک شد',
+    };
+  }
+
   async setLockDate(date: string | null) {
     if (date) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -653,12 +737,15 @@ export class AccountingManageService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(upTo)) {
       throw new BadRequestException('قالب تاریخ باید YYYY-MM-DD باشد');
     }
-    const until = endOfDay(upTo);
-    if (until.getTime() >= Date.now()) {
+    // پایان روز upTo به وقت تهران (انحصاری: ۰۰:۰۰ روز بعد)
+    const untilExcl = tehranDayStart(
+      addDays(parseIsoDay(upTo) ?? storedDay(new Date(upTo)), 1),
+    );
+    if (untilExcl.getTime() > Date.now()) {
       throw new BadRequestException('قطعی‌سازی فقط برای روزهای گذشته ممکن است');
     }
     const years = await this.prisma.fiscalYear.findMany({
-      where: { startDate: { lte: until } },
+      where: { startDate: { lt: untilExcl } },
       orderBy: { startDate: 'asc' },
     });
     if (!years.length) {
@@ -668,7 +755,8 @@ export class AccountingManageService {
     await this.prisma.$transaction(
       async (tx) => {
         for (const y of years) {
-          const yearEnd = y.endDate < until ? y.endDate : until;
+          const range = fiscalYearRange(y);
+          const yearEndExcl = range.lt < untilExcl ? range.lt : untilExcl;
           finalized += await tx.$executeRaw`
           WITH base AS (
             SELECT COALESCE(MAX("permanent_number"), 0) AS m
@@ -677,7 +765,7 @@ export class AccountingManageService {
             SELECT "id", ROW_NUMBER() OVER (ORDER BY "entry_date", "reference_number") AS rn
             FROM "journal_entries"
             WHERE "permanent_number" IS NULL
-              AND "entry_date" >= ${y.startDate} AND "entry_date" <= ${yearEnd}
+              AND "entry_date" >= ${range.gte} AND "entry_date" < ${yearEndExcl}
           )
           UPDATE "journal_entries" j
           SET "permanent_number" = (SELECT m FROM base) + n.rn,
@@ -712,7 +800,8 @@ export class AccountingManageService {
           if (year.status === 'CLOSED') {
             throw new ConflictException('این سال مالی قبلاً بسته شده است');
           }
-          if (year.endDate.getTime() > Date.now()) {
+          const range = fiscalYearRange(year);
+          if (range.lt.getTime() > Date.now()) {
             throw new BadRequestException('سال مالی هنوز به پایان نرسیده است');
           }
           const openBefore = await tx.fiscalYear.findFirst({
@@ -734,7 +823,7 @@ export class AccountingManageService {
         JOIN "journal_entries" je ON je."id" = le."journal_entry_id"
         JOIN "accounts" a ON a."id" = le."account_id"
         WHERE a."type" IN ('INCOME'::"AccountType", 'EXPENSE'::"AccountType")
-          AND je."entry_date" <= ${year.endDate}
+          AND je."entry_date" < ${range.lt}
         GROUP BY a."code"`;
 
           const lines: LedgerLineInput[] = [];
@@ -768,7 +857,8 @@ export class AccountingManageService {
               description: `سند اختتامیه‌ی حساب‌های موقت — ${year.title} (${net.gte(0) ? 'سود' : 'زیان'} خالص ${net.abs().toString()} ریال)`,
               totalRial: total,
               totalGrams: 0,
-              entryDate: year.endDate,
+              // آخرین لحظه‌ی سال به وقت تهران تا تاریخ شمسی سند همان روز پایان سال باشد
+              entryDate: new Date(range.lt.getTime() - 1),
               source: 'CLOSING',
               referenceType: 'FISCAL_YEAR',
               referenceId: year.id,

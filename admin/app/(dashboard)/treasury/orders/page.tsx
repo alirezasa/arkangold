@@ -4,30 +4,31 @@ import { useState } from "react";
 import useSWR from "swr";
 import { ClipboardList, Plus } from "lucide-react";
 import {
-  ASSET_FA,
   ActionButton,
   Alert,
+  api,
+  ASSET_FA,
   Badge,
+  BankAccountSelect,
+  cardStyle,
   CsvButton,
+  downloadCsv,
+  faDate,
+  faDateTime,
+  fetcher,
   Field,
+  grams,
+  inputCls,
   Modal,
   Num,
   PageHeader,
   Pagination,
   SETTLEMENT_METHOD_FA,
   Spinner,
-  TREASURY_STATUS,
   Table,
-  api,
-  cardStyle,
-  downloadCsv,
-  faDate,
-  faDateTime,
-  fetcher,
-  grams,
-  inputCls,
   toman,
   tomanToRial,
+  TREASURY_STATUS,
   useAction,
   usePerm,
 } from "@/app/components/finance/ui";
@@ -215,7 +216,7 @@ function OrderForm({ order, onDone }: { order?: Order; onDone: () => void }) {
 function PaymentForm({ order, onDone }: { order: OrderDetail; onDone: () => void }) {
   const [amount, setAmount] = useState(r2t(order.remainingRial));
   const [method, setMethod] = useState("BANK_TRANSFER");
-  const [cash, setCash] = useState("1010");
+  const [cash, setCash] = useState("");
   const [ref, setRef] = useState("");
   const act = useAction();
   const save = async () => {
@@ -226,7 +227,7 @@ function PaymentForm({ order, onDone }: { order: OrderDetail; onDone: () => void
         direction: order.side === "BUY" ? "PAY" : "RECEIVE",
         amountRial: String(tomanToRial(amount)),
         method,
-        cashAccountCode: cash,
+        cashAccountCode: cash || undefined,
         referenceNumber: ref || undefined,
       }),
     );
@@ -244,7 +245,7 @@ function PaymentForm({ order, onDone }: { order: OrderDetail; onDone: () => void
             </option>
           ))}
         </select>
-        <input value={cash} onChange={(e) => setCash(e.target.value)} placeholder="حساب بانک (1010...)" className={inputCls} dir="ltr" />
+        <BankAccountSelect value={cash} onChange={setCash} />
         <input value={ref} onChange={(e) => setRef(e.target.value)} placeholder="شماره پیگیری" className={inputCls} />
       </div>
       {act.error && <Alert kind="error" text={act.error} />}

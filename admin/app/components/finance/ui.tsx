@@ -210,6 +210,7 @@ export interface AccountOption {
   isActive: boolean;
   allowManualEntry: boolean;
   parentCode: string | null;
+  hasChildren?: boolean;
 }
 
 /** فهرست حساب‌ها (کش SWR مشترک بین صفحات) */
@@ -240,6 +241,14 @@ export function AccountSelect({
       ))}
     </select>
   );
+}
+
+/** فقط حساب‌های بانکی قابل ثبت: 1010 یا معین‌های آن که خودشان زیرحساب ندارند */
+export const isBankLeaf = (a: AccountOption) => a.code.startsWith("1010") && !a.hasChildren;
+
+/** انتخاب حساب بانکی شرکت؛ خالی = حساب بانکی عملیاتی پیش‌فرض (حسابداری ← سرفصل حساب‌ها) */
+export function BankAccountSelect({ value, onChange }: { value: string; onChange: (code: string) => void }) {
+  return <AccountSelect value={value} onChange={onChange} filter={isBankLeaf} placeholder="حساب بانکی پیش‌فرض شرکت" />;
 }
 
 /** دکمه‌ی اقدام با تأیید، نمایش خطا و بارگذاری */

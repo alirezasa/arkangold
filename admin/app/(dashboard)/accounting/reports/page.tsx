@@ -236,7 +236,7 @@ function GoldPosition() {
     <div className="space-y-4">
       <Alert
         kind={net >= 0 ? "success" : "error"}
-        text={`موقعیت خالص طلای آب‌شده (خزانه + در راه − کیف پول کاربران): ${net >= 0 ? "مازاد" : "کسری"} ${grams(Math.abs(net))} گرم ≈ ${toman(
+        text={`موقعیت خالص طلای آب‌شده (خزانه + نزد بانک کارگشایی + در راه − کیف پول کاربران): ${net >= 0 ? "مازاد" : "کسری"} ${grams(Math.abs(net))} گرم ≈ ${toman(
           Math.abs(Number(data.netMeltedPositionRial)),
         )} تومان — قیمت مبنا ${toman(data.pricePerGramRial)} تومان`}
       />

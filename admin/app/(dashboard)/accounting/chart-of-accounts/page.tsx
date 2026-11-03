@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { BookOpen, Lock, Pencil, Plus } from "lucide-react";
+import { BookOpen, Landmark, Lock, Pencil, Plus } from "lucide-react";
 import {
   ACCOUNT_TYPE_FA,
   ActionButton,
@@ -124,6 +124,98 @@ function AccountForm({ account, accounts, onDone }: { account?: AccountRow; acco
   );
 }
 
+
+interface BankSettings {
+  configuredCode: string | null;
+  resolvedCode: string;
+  rootOwnBalanceRial: string;
+  accounts: { code: string; name: string; isActive: boolean; isLeaf: boolean; balanceRial: string }[];
+}
+
+/** حساب بانکی عملیاتی: همه‌ی اسناد خودکار نقد و بانک (واریز، برداشت، درگاه، تسویه‌ها) روی این حساب می‌نشینند */
+function BankSettingsCard({ onChanged }: { onChanged: () => void }) {
+  const can = usePerm();
+  const { data, mutate } = useSWR<BankSettings>("/api/admin/accounting/settings/bank", fetcher);
+  const [choice, setChoice] = useState<string | null>(null);
+  const [name, setName] = useState("بانک ملت — حساب جاری تجاری");
+  const act = useAction();
+  if (!data) return null;
+  const leaves = data.accounts.filter((a) => a.isLeaf && a.code !== "1010");
+  const selected = choice ?? data.configuredCode ?? "";
+  const nextCode = (() => {
+    for (let i = 1; i < 100; i++) {
+      const c = `1010${String(i).padStart(2, "0")}`;
+      if (!data.accounts.some((a) => a.code === c)) return c;
+    }
+    return "101099";
+  })();
+  const refresh = () => {
+    void mutate();
+    onChanged();
+  };
+  const save = async () => {
+    if (await act.run(() => api.post("/api/admin/accounting/settings/bank", { code: selected || undefined }))) refresh();
+  };
+  const create = async () => {
+    const ok = await act.run(async () => {
+      await api.post("/api/admin/accounting/accounts", { code: nextCode, name, type: "ASSET", parentCode: "1010" });
+      return api.post("/api/admin/accounting/settings/bank", { code: nextCode });
+    });
+    if (ok) refresh();
+  };
+  const resolvedName = data.accounts.find((a) => a.code === data.resolvedCode)?.name ?? "";
+  return (
+    <div className="rounded-2xl p-4 space-y-3" style={cardStyle}>
+      <div className="flex items-center gap-2">
+        <Landmark className="w-5 h-5 text-amber-600" />
+        <h3 className="font-black text-gray-800">حساب بانکی عملیاتی شرکت</h3>
+      </div>
+      <p className="text-[12px] text-gray-500">
+        همه‌ی اسناد خودکار نقد و بانک (تأیید واریز، پرداخت برداشت، پرداخت درگاه فروشگاه، تسویه با نمایندگان، شرکا و تأمین‌کنندگان) روی این حساب ثبت
+        می‌شوند. حساب فعلی: <b dir="ltr">{data.resolvedCode}</b> {resolvedName && `— ${resolvedName}`}
+      </p>
+      {leaves.length === 0 ? (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label={`نام حساب بانکی (کد ${nextCode} زیر 1010 ساخته می‌شود)`}>
+            <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+          </Field>
+          {can("accounting.manage") && (
+            <ActionButton onClick={create} busy={act.busy}>
+              <Plus className="w-4 h-4" /> ساخت و انتخاب به‌عنوان حساب عملیاتی
+            </ActionButton>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="حساب بانکی عملیاتی">
+            <select value={selected} onChange={(e) => setChoice(e.target.value)} className={inputCls}>
+              <option value="">{leaves.length === 1 ? `خودکار (تنها حساب: ${leaves[0].code})` : "انتخاب کنید"}</option>
+              {leaves.map((a) => (
+                <option key={a.code} value={a.code}>
+                  {a.code} — {a.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {can("accounting.manage") && (
+            <ActionButton onClick={save} busy={act.busy}>
+              ذخیره
+            </ActionButton>
+          )}
+        </div>
+      )}
+      {leaves.length > 0 && Number(data.rootOwnBalanceRial) !== 0 && (
+        <Alert
+          kind="warn"
+          text={`حساب کل 1010 هنوز ${signedToman(data.rootOwnBalanceRial)} تومان مانده‌ی مستقیم دارد (اسناد قبل از تعریف حساب بانکی). با یک سند دستی «بدهکار ${data.resolvedCode} / بستانکار 1010» آن را منتقل کنید.`}
+        />
+      )}
+      {act.error && <Alert kind="error" text={act.error} />}
+      {act.success && <Alert kind="success" text={act.success} />}
+    </div>
+  );
+}
+
 export default function ChartOfAccountsPage() {
   const can = usePerm();
   const { data, isLoading, mutate } = useSWR<AccountRow[]>("/api/admin/accounting/accounts", fetcher);
@@ -172,6 +264,7 @@ export default function ChartOfAccountsPage() {
           </>
         }
       />
+      <BankSettingsCard onChanged={() => void mutate()} />
       <div className="rounded-2xl p-4 space-y-3" style={cardStyle}>
         <div className="flex flex-wrap gap-2">
           <select value={type} onChange={(e) => setType(e.target.value)} className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white">

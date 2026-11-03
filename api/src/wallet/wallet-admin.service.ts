@@ -410,25 +410,14 @@ export class WalletAdminService {
     return Number.isFinite(v) && v >= 0 ? v : 500_000_000;
   }
 
-  private async resolveSourceAccount(
+  private resolveSourceAccount(
     tx: Prisma.TransactionClient,
     code: string | undefined,
   ): Promise<string> {
-    const fallback = await this.systemConfig.get(
-      'withdrawal.default_source_account',
-      '1010',
-    );
-    const chosen = (code?.trim() || fallback || '1010').trim();
-    if (!/^1010\d*$/.test(chosen)) {
-      throw new BadRequestException(
-        'حساب مبدأ پرداخت باید حساب نقد و بانک (1010 یا معین‌های آن) باشد',
-      );
-    }
-    const account = await tx.account.findUnique({ where: { code: chosen } });
-    if (!account || !account.isActive) {
-      throw new BadRequestException(`حساب ${chosen} یافت نشد یا غیرفعال است`);
-    }
-    return chosen;
+    return this.accountingService.resolveBankAccount(tx, {
+      explicit: code,
+      configKey: 'withdrawal.default_source_account',
+    });
   }
 
   async pay(

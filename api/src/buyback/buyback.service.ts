@@ -1412,22 +1412,11 @@ export class BuybackService {
     return { message: 'تأیید نهایی ثبت شد؛ درخواست در صف واریز قرار گرفت' };
   }
 
-  private async resolveSourceAccount(tx: Tx, code: string | undefined) {
-    const fallback = await this.systemConfig.get(
-      'withdrawal.default_source_account',
-      '1010',
-    );
-    const chosen = (code?.trim() || fallback || '1010').trim();
-    if (!/^1010\d*$/.test(chosen)) {
-      throw new BadRequestException(
-        'حساب مبدأ پرداخت باید حساب نقد و بانک (1010 یا معین‌های آن) باشد',
-      );
-    }
-    const account = await tx.account.findUnique({ where: { code: chosen } });
-    if (!account || !account.isActive) {
-      throw new BadRequestException(`حساب ${chosen} یافت نشد یا غیرفعال است`);
-    }
-    return chosen;
+  private resolveSourceAccount(tx: Tx, code: string | undefined) {
+    return this.accounting.resolveBankAccount(tx, {
+      explicit: code,
+      configKey: 'withdrawal.default_source_account',
+    });
   }
 
   async pay(adminId: string, id: string, dto: PayBuybackDto) {

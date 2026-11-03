@@ -449,7 +449,7 @@ run('حسابداری پیشرفته (یکپارچه با PostgreSQL)', () => {
 
   it('همه‌ی گزارش‌ها و فهرست‌ها بدون خطا اجرا می‌شوند', async () => {
     const dash = await reports.dashboard();
-    expect(dash.goldPosition.meltedGold.length).toBe(4);
+    expect(dash.goldPosition.meltedGold.length).toBe(5);
     const pos = await reports.goldPosition();
     expect(pos.pricePerGramRial).toBe('55000000');
     const range = {

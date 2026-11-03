@@ -6,7 +6,13 @@ import { HandCoins, Plus } from "lucide-react";
 import {
   ActionButton,
   Alert,
+  api,
+  BankAccountSelect,
+  cardStyle,
+  faDate,
+  fetcher,
   Field,
+  inputCls,
   Modal,
   Num,
   PageHeader,
@@ -14,11 +20,6 @@ import {
   SETTLEMENT_METHOD_FA,
   Spinner,
   Table,
-  api,
-  cardStyle,
-  faDate,
-  fetcher,
-  inputCls,
   toman,
   tomanToRial,
   useAction,
@@ -55,7 +56,7 @@ function SettlementForm({ onDone }: { onDone: () => void }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("BANK_TRANSFER");
-  const [cash, setCash] = useState("1010");
+  const [cash, setCash] = useState("");
   const [ref, setRef] = useState("");
   const [paidAt, setPaidAt] = useState("");
   const [note, setNote] = useState("");
@@ -69,7 +70,7 @@ function SettlementForm({ onDone }: { onDone: () => void }) {
         partnerId,
         amountRial: String(tomanToRial(amount)),
         method,
-        cashAccountCode: cash,
+        cashAccountCode: cash || undefined,
         referenceNumber: ref || undefined,
         paidAt: paidAt || undefined,
         note: note || undefined,
@@ -111,8 +112,8 @@ function SettlementForm({ onDone }: { onDone: () => void }) {
             ))}
           </select>
         </Field>
-        <Field label="حساب بانکی مقصد" hint="1010 یا زیرحساب بانکی آن">
-          <input value={cash} onChange={(e) => setCash(e.target.value)} className={inputCls} dir="ltr" />
+        <Field label="حساب بانکی مقصد" hint="خالی = حساب بانکی عملیاتی شرکت">
+          <BankAccountSelect value={cash} onChange={setCash} />
         </Field>
         <Field label="شماره پیگیری">
           <input value={ref} onChange={(e) => setRef(e.target.value)} className={inputCls} />

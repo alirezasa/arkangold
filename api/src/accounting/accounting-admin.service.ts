@@ -170,7 +170,12 @@ export class AccountingAdminService {
 
     const accountMap = new Map(accounts.map((a) => [a.code, a]));
 
-    const cash = accountMap.get('1010');
+    // موجودی نقد = 1010 + همه‌ی حساب‌های بانکی معین زیر آن (مثلاً 101001 بانک ملت)
+    const cashAgg = await this.prisma.account.aggregate({
+      where: { code: { startsWith: '1010' } },
+      _sum: { balanceRial: true },
+    });
+    const cash = { balanceRial: cashAgg._sum.balanceRial };
     const goldInventory = accountMap.get('1020');
     const rialLiability = accountMap.get('2010');
     const goldLiability = accountMap.get('2020');

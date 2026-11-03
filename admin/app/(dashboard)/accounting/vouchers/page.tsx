@@ -23,6 +23,7 @@ import {
   fetcher,
   grams,
   inputCls,
+  parseAmount,
   todayIso,
   toman,
   tomanToRial,
@@ -96,12 +97,29 @@ function VoucherForm({ voucher, onDone }: { voucher?: Voucher; onDone: () => voi
   const { data: accounts } = useAccounts();
 
   const set = (i: number, patch: Partial<FormLine>) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
-  const n = (v: string) => Number(v.replace(/[,،\s]/g, "")) || 0;
+  // ارقام فارسی و جداکننده‌ی «٬» هم پذیرفته می‌شود (قبلاً «۱۲۳» صفر خوانده می‌شد)
+  const n = parseAmount;
+  const hasAmount = (l: FormLine) => !!(n(l.debit) || n(l.credit) || n(l.gramsDebit) || n(l.gramsCredit));
   const totals = lines.reduce(
     (t, l) => ({ dr: t.dr + n(l.debit), cr: t.cr + n(l.credit), gd: t.gd + n(l.gramsDebit), gc: t.gc + n(l.gramsCredit) }),
     { dr: 0, cr: 0, gd: 0, gc: 0 },
   );
   const balanced = Math.abs(totals.dr - totals.cr) < 0.01 && Math.abs(totals.gd - totals.gc) < 0.00001;
+  const effectiveCount = lines.filter((l) => l.accountCode && hasAmount(l)).length;
+  const missingAccount = lines.some((l) => !l.accountCode && hasAmount(l));
+  const emptyLines = lines.filter((l) => l.accountCode && !hasAmount(l)).length;
+  const isEmpty = !(totals.dr || totals.cr || totals.gd || totals.gc);
+  const problem = isEmpty
+    ? "هیچ مبلغی وارد نشده است — مبلغ بدهکار/بستانکار (تومان) یا گرم هر سطر را وارد کنید."
+    : missingAccount
+      ? "برای سطری که مبلغ دارد حساب انتخاب نشده است."
+      : effectiveCount < 2
+        ? "سند باید حداقل دو سطر دارای مبلغ داشته باشد."
+        : !balanced
+          ? "جمع بدهکار و بستانکار (تومان و گرم) باید برابر باشد."
+          : !description.trim()
+            ? "شرح سند را وارد کنید."
+            : null;
 
   const payload = () => ({
     type,
@@ -180,13 +198,18 @@ function VoucherForm({ voucher, onDone }: { voucher?: Voucher; onDone: () => voi
           <Plus className="w-4 h-4" /> سطر جدید
         </button>
       </div>
-      <div className={`p-3 rounded-xl text-[12px] font-bold ${balanced ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+      <div className={`p-3 rounded-xl text-[12px] font-bold ${balanced && !isEmpty ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
         جمع بدهکار {totals.dr.toLocaleString("fa-IR")} — جمع بستانکار {totals.cr.toLocaleString("fa-IR")} تومان
         {(totals.gd || totals.gc) ? ` | گرم: ${totals.gd.toLocaleString("fa-IR")} / ${totals.gc.toLocaleString("fa-IR")}` : ""}
-        {balanced ? " — تراز است" : " — تراز نیست"}
+        {isEmpty ? " — سند خالی است" : balanced ? " — تراز است" : " — تراز نیست"}
       </div>
+      {problem && !isEmpty && <Alert kind="warn" text={problem} />}
+      {isEmpty && <p className="text-[11px] text-gray-500">{problem}</p>}
+      {!problem && emptyLines > 0 && (
+        <p className="text-[11px] text-gray-500">{emptyLines.toLocaleString("fa-IR")} سطر بدون مبلغ ثبت نمی‌شود (مانده‌ی صفر نیازی به سطر ندارد).</p>
+      )}
       {accounts && act.error && <Alert kind="error" text={act.error} />}
-      <ActionButton onClick={save} busy={act.busy} disabled={!balanced || !description}>
+      <ActionButton onClick={save} busy={act.busy} disabled={!!problem}>
         ثبت پیش‌نویس (ارسال برای تأیید)
       </ActionButton>
     </div>

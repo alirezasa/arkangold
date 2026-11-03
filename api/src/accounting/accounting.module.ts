@@ -9,6 +9,8 @@ import { InventoryAccountingService } from './inventory-accounting.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AccountingAnalyticsService } from './accounting-analytics.service';
 import { BankReconciliationService } from './bank-reconciliation.service';
+import { GoldCustodyService } from './gold-custody.service';
+import { TaxBooksService } from './tax-books/tax-books.service';
 
 @Module({
   imports: [PrismaModule],
@@ -22,6 +24,8 @@ import { BankReconciliationService } from './bank-reconciliation.service';
     InventoryAccountingService,
     AccountingAnalyticsService,
     BankReconciliationService,
+    GoldCustodyService,
+    TaxBooksService,
   ],
   exports: [
     AccountingService,

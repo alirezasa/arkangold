@@ -185,30 +185,30 @@ model LegalProfileDocument {
 }
 
 model BankAccount {
-  bankName           String              @map("bank_name")
-  accountNumber      String              @map("account_number")
-  cardNumber         String              @map("card_number")
+  bankName           String                  @map("bank_name")
+  accountNumber      String                  @map("account_number")
+  cardNumber         String                  @map("card_number")
   sheba              String?
   // فقط وقتی true است که status=VERIFIED (برای سازگاری با برداشت و سایر ماژول‌ها نگه داشته شده)
-  isVerified         Boolean             @default(false) @map("is_verified")
-  isDefault          Boolean             @default(false) @map("is_default")
-  createdAt          DateTime            @default(now()) @map("created_at")
+  isVerified         Boolean                 @default(false) @map("is_verified")
+  isDefault          Boolean                 @default(false) @map("is_default")
+  createdAt          DateTime                @default(now()) @map("created_at")
   // ── نتیجه‌ی استعلام بانکی (تطبیق کارت با کد ملی + تبدیل کارت به شبا) ──
-  status             BankAccountStatus   @default(PENDING_INQUIRY)
+  status             BankAccountStatus       @default(PENDING_INQUIRY)
   // پیام قابل نمایش به کاربر/ادمین (دلیل رد یا انتظار)
-  statusMessage      String?             @map("status_message")
-  ownerName          String?             @map("owner_name")
+  statusMessage      String?                 @map("status_message")
+  ownerName          String?                 @map("owner_name")
   // کد وضعیت حساب طبق فینوتک: 02 فعال، 03 مسدود با قابلیت واریز، 04 مسدود بدون واریز، 05 راکد، ...
-  depositStatus      String?             @map("deposit_status")
-  cardOwnerMatched   Boolean?            @map("card_owner_matched")
-  verifiedAt         DateTime?           @map("verified_at")
-  lastInquiryAt      DateTime?           @map("last_inquiry_at")
-  inquiryProvider    String?             @map("inquiry_provider")
-  inquiryTrackId     String?             @map("inquiry_track_id")
-  updatedAt          DateTime            @default(now()) @updatedAt @map("updated_at")
-  id                 String              @id @default(uuid()) @db.Uuid
-  userId             String              @map("user_id") @db.Uuid
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  depositStatus      String?                 @map("deposit_status")
+  cardOwnerMatched   Boolean?                @map("card_owner_matched")
+  verifiedAt         DateTime?               @map("verified_at")
+  lastInquiryAt      DateTime?               @map("last_inquiry_at")
+  inquiryProvider    String?                 @map("inquiry_provider")
+  inquiryTrackId     String?                 @map("inquiry_track_id")
+  updatedAt          DateTime                @default(now()) @updatedAt @map("updated_at")
+  id                 String                  @id @default(uuid()) @db.Uuid
+  userId             String                  @map("user_id") @db.Uuid
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   withdrawalRequests WithdrawalRequest[]
   bullionBuybacks    BullionBuybackRequest[]
 
@@ -2326,56 +2326,56 @@ model AgentStockMovement {
 
 /// فروش شمش توسط نماینده به مالک نهایی — مبنای فاکتور مشتری، سند حسابداری و بدهی نماینده
 model AgentSale {
-  id                      String              @id @default(uuid()) @db.Uuid
-  saleNumber              String              @unique @map("sale_number")
-  agentId                 String              @map("agent_id") @db.Uuid
-  agent                   Agent               @relation(fields: [agentId], references: [id])
-  hologramCodeId          String              @map("hologram_code_id") @db.Uuid
-  hologramCode            HologramCode        @relation(fields: [hologramCodeId], references: [id])
-  buyerUserId             String              @map("buyer_user_id") @db.Uuid
-  buyerUser               User                @relation("AgentSaleBuyer", fields: [buyerUserId], references: [id])
+  id                      String               @id @default(uuid()) @db.Uuid
+  saleNumber              String               @unique @map("sale_number")
+  agentId                 String               @map("agent_id") @db.Uuid
+  agent                   Agent                @relation(fields: [agentId], references: [id])
+  hologramCodeId          String               @map("hologram_code_id") @db.Uuid
+  hologramCode            HologramCode         @relation(fields: [hologramCodeId], references: [id])
+  buyerUserId             String               @map("buyer_user_id") @db.Uuid
+  buyerUser               User                 @relation("AgentSaleBuyer", fields: [buyerUserId], references: [id])
   // snapshot خریدار در لحظه فروش
-  buyerFullName           String              @map("buyer_full_name")
-  buyerNationalCode       String              @map("buyer_national_code")
-  buyerPhone              String              @map("buyer_phone")
-  buyerAccountCreated     Boolean             @default(false) @map("buyer_account_created")
-  identityVerified        Boolean             @default(false) @map("identity_verified")
-  identityVerificationRef String?             @map("identity_verification_ref")
+  buyerFullName           String               @map("buyer_full_name")
+  buyerNationalCode       String               @map("buyer_national_code")
+  buyerPhone              String               @map("buyer_phone")
+  buyerAccountCreated     Boolean              @default(false) @map("buyer_account_created")
+  identityVerified        Boolean              @default(false) @map("identity_verified")
+  identityVerificationRef String?              @map("identity_verification_ref")
   // snapshot قیمت‌گذاری
-  weightGrams             Decimal             @map("weight_grams") @db.Decimal(18, 4)
-  purityKarat             GoldPurityKarat     @map("purity_karat")
-  goldPricePerGramRial    Decimal             @map("gold_price_per_gram_rial") @db.Decimal(18, 0)
-  goldValueRial           Decimal             @map("gold_value_rial") @db.Decimal(18, 0)
-  premiumRial             Decimal             @default(0) @map("premium_rial") @db.Decimal(18, 0)
-  totalRial               Decimal             @map("total_rial") @db.Decimal(18, 0)
-  commissionType          AgentCommissionType @map("commission_type")
-  commissionValue         Decimal             @map("commission_value") @db.Decimal(18, 4)
-  commissionRial          Decimal             @map("commission_rial") @db.Decimal(18, 0)
+  weightGrams             Decimal              @map("weight_grams") @db.Decimal(18, 4)
+  purityKarat             GoldPurityKarat      @map("purity_karat")
+  goldPricePerGramRial    Decimal              @map("gold_price_per_gram_rial") @db.Decimal(18, 0)
+  goldValueRial           Decimal              @map("gold_value_rial") @db.Decimal(18, 0)
+  premiumRial             Decimal              @default(0) @map("premium_rial") @db.Decimal(18, 0)
+  totalRial               Decimal              @map("total_rial") @db.Decimal(18, 0)
+  commissionType          AgentCommissionType  @map("commission_type")
+  commissionValue         Decimal              @map("commission_value") @db.Decimal(18, 4)
+  commissionRial          Decimal              @map("commission_rial") @db.Decimal(18, 0)
   /// سهم شرکت که نماینده باید تسویه کند = مبلغ فروش − حق‌العمل نماینده
-  netPayableRial          Decimal             @map("net_payable_rial") @db.Decimal(18, 0)
-  paymentMethod           String              @map("payment_method")
-  paymentReference        String?             @map("payment_reference")
+  netPayableRial          Decimal              @map("net_payable_rial") @db.Decimal(18, 0)
+  paymentMethod           String               @map("payment_method")
+  paymentReference        String?              @map("payment_reference")
   note                    String?
-  status                  AgentSaleStatus     @default(COMPLETED)
+  status                  AgentSaleStatus      @default(COMPLETED)
   /// منبع شمش: امانی (فروش هم‌زمان شرکت به نماینده) یا ملک نماینده (فقط ثبت اصالت)
   stockSource             AgentSaleStockSource @default(CONSIGNMENT) @map("stock_source")
   /// true: صورتحساب شرکت به نام نماینده صادر شده (مدل جدید)؛ false: فروش‌های قدیمی که
   /// فاکتور شرکت به نام مشتری نهایی صادر می‌شد
-  billedToAgent           Boolean             @default(false) @map("billed_to_agent")
+  billedToAgent           Boolean              @default(false) @map("billed_to_agent")
   /// شماره صورتحساب الکترونیک نماینده برای مشتری نهایی (سامانه مؤدیان) — اختیاری
-  agentInvoiceNumber      String?             @map("agent_invoice_number")
-  ownershipId             String?             @map("ownership_id") @db.Uuid
-  invoiceId               String?             @map("invoice_id") @db.Uuid
-  journalEntryId          String?             @map("journal_entry_id") @db.Uuid
-  voidJournalEntryId      String?             @map("void_journal_entry_id") @db.Uuid
-  voidReason              String?             @map("void_reason")
-  voidedAt                DateTime?           @map("voided_at")
-  voidedByAdminId         String?             @map("voided_by_admin_id") @db.Uuid
-  voidedByAdmin           AdminUser?          @relation("AgentSaleVoidedBy", fields: [voidedByAdminId], references: [id])
-  soldByAdminId           String              @map("sold_by_admin_id") @db.Uuid
-  soldByAdmin             AdminUser           @relation("AgentSaleSoldBy", fields: [soldByAdminId], references: [id])
-  createdAt               DateTime            @default(now()) @map("created_at")
-  updatedAt               DateTime            @updatedAt @map("updated_at")
+  agentInvoiceNumber      String?              @map("agent_invoice_number")
+  ownershipId             String?              @map("ownership_id") @db.Uuid
+  invoiceId               String?              @map("invoice_id") @db.Uuid
+  journalEntryId          String?              @map("journal_entry_id") @db.Uuid
+  voidJournalEntryId      String?              @map("void_journal_entry_id") @db.Uuid
+  voidReason              String?              @map("void_reason")
+  voidedAt                DateTime?            @map("voided_at")
+  voidedByAdminId         String?              @map("voided_by_admin_id") @db.Uuid
+  voidedByAdmin           AdminUser?           @relation("AgentSaleVoidedBy", fields: [voidedByAdminId], references: [id])
+  soldByAdminId           String               @map("sold_by_admin_id") @db.Uuid
+  soldByAdmin             AdminUser            @relation("AgentSaleSoldBy", fields: [soldByAdminId], references: [id])
+  createdAt               DateTime             @default(now()) @map("created_at")
+  updatedAt               DateTime             @updatedAt @map("updated_at")
 
   @@index([agentId, createdAt])
   @@index([buyerUserId])
@@ -3289,9 +3289,43 @@ model FiscalYear {
   closingJournalId String?          @map("closing_journal_id") @db.Uuid
   createdAt        DateTime         @default(now()) @map("created_at")
   journalEntries   JournalEntry[]
+  taxBookExports   TaxBookExport[]
 
   @@index([startDate, endDate])
   @@map("fiscal_years")
+}
+
+/// سابقه‌ی فایل‌های «سامانه‌ی دفاتر تجاری الکترونیکی» (سازمان امور مالیاتی) — هر بارگذاری یک بازه‌ی
+/// پیوسته از سال مالی است: ابتدای بازه = روز بعد از پایان فایل قبلی؛ اصلاح = فایل جایگزین همان بازه
+model TaxBookExport {
+  id                String        @id @default(uuid()) @db.Uuid
+  fiscalYearId      String        @map("fiscal_year_id") @db.Uuid
+  fiscalYear        FiscalYear    @relation(fields: [fiscalYearId], references: [id])
+  /// کد رهگیری پلمپ دفاتر (سازمان ثبت اسناد و املاک)
+  trackingCode      String        @map("tracking_code")
+  /// ابتدا و انتهای بازه — شمسی «1404/01/01» و میلادی «2025-03-21»
+  periodStartJalali String        @map("period_start_jalali")
+  periodEndJalali   String        @map("period_end_jalali")
+  periodStart       String        @map("period_start")
+  periodEnd         String        @map("period_end")
+  mode              TaxBookMode
+  format            String
+  includeClosing    Boolean       @default(true) @map("include_closing")
+  journalCount      Int           @map("journal_count")
+  /// تعداد رکوردها (سطرهای فایل بدون عنوان)
+  recordCount       Int           @map("record_count")
+  totalDebitRial    Decimal       @map("total_debit_rial") @db.Decimal(20, 0)
+  totalCreditRial   Decimal       @map("total_credit_rial") @db.Decimal(20, 0)
+  /// SHA-256 محتوای سطرها (مستقل از قالب CSV/Excel) برای کشف تغییر داده پس از بارگذاری
+  contentSha256     String        @map("content_sha256")
+  status            TaxBookStatus @default(ACTIVE)
+  supersededById    String?       @map("superseded_by_id") @db.Uuid
+  note              String?
+  createdByAdminId  String        @map("created_by_admin_id") @db.Uuid
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  @@index([fiscalYearId, status, periodEnd])
+  @@map("tax_book_exports")
 }
 
 /// سند حسابداری دستی — ثبت توسط حسابدار، تأیید توسط شخص دوم (کنترل دوگانه) و سپس ثبت در دفتر کل
@@ -3583,6 +3617,17 @@ model PartnerSettlement {
 
   @@index([partnerId, createdAt])
   @@map("partner_settlements")
+}
+
+/// قالب ردیف‌های فایل دفاتر تجاری: هر سند یک ردیف، یا تجمیع ماهانه
+enum TaxBookMode {
+  DOCUMENT
+  MONTHLY
+}
+
+enum TaxBookStatus {
+  ACTIVE
+  SUPERSEDED
 }
 
 enum JournalSource {
@@ -3934,10 +3979,10 @@ model BullionBuybackRequest {
   ownerNationalCode   String           @map("owner_national_code")
 
   // ── درخواست کاربر ──
-  deliveryMethod      BuybackDeliveryMethod @map("delivery_method")
-  userNote            String?               @map("user_note")
+  deliveryMethod     BuybackDeliveryMethod @map("delivery_method")
+  userNote           String?               @map("user_note")
   /// برآورد غیرقطعی قیمت در لحظه‌ی ثبت (قیمت روز × وزن − کسورات)
-  estimatedPriceRial  Decimal               @map("estimated_price_rial") @db.Decimal(18, 0)
+  estimatedPriceRial Decimal               @map("estimated_price_rial") @db.Decimal(18, 0)
 
   // ── حساب مقصد واریز (حساب پیش‌فرض تأییدشده‌ی کاربر) ──
   bankAccountId       String      @map("bank_account_id") @db.Uuid

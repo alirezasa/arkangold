@@ -59,7 +59,10 @@ interface Workspace {
 }
 
 export default function BankReconciliationPage() {
-  const [code, setCode] = useState("1010");
+  // پیش‌فرض: حساب بانکی عملیاتی شرکت (مثلاً 101001 بانک ملت)
+  const { data: bank } = useSWR<{ resolvedCode: string }>("/api/admin/accounting/settings/bank", fetcher);
+  const [codeChoice, setCode] = useState("");
+  const code = codeChoice || bank?.resolvedCode || "";
   const [date, setDate] = useState(todayIsoLocal());
   const [statementToman, setStatementToman] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());

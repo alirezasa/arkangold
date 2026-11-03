@@ -156,6 +156,8 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: "صورت‌های مالی", href: "/accounting/reports", icon: BarChart3, perm: "accounting.view" },
       { label: "مغایرت‌گیری", href: "/accounting/reconciliation", icon: ShieldCheck2, perm: "accounting.view" },
       { label: "مغایرت‌گیری بانکی", href: "/accounting/bank-reconciliation", icon: Landmark, perm: "accounting.view" },
+      { label: "طلای نزد بانک کارگشایی", href: "/accounting/gold-custody", icon: Vault, perm: "accounting.view" },
+      { label: "دفاتر تجاری الکترونیکی", href: "/accounting/tax-books", icon: FileSpreadsheet, perm: "accounting.view" },
       { label: "سال مالی و قفل دوره", href: "/accounting/fiscal-years", icon: CalendarRange, perm: "accounting.view" },
     ],
   },

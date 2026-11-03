@@ -33,25 +33,14 @@ export class DepositAdminService {
   ) {}
 
   /** حساب بانک دریافت‌کننده‌ی واریز: 1010 یا معین فعال زیر آن */
-  private async resolveCashAccount(
+  private resolveCashAccount(
     tx: Prisma.TransactionClient,
     code?: string,
   ): Promise<string> {
-    const fallback = await this.systemConfig.get(
-      'deposit.default_cash_account',
-      '1010',
-    );
-    const chosen = (code?.trim() || fallback || '1010').trim();
-    if (!/^1010\d*$/.test(chosen)) {
-      throw new BadRequestException(
-        'حساب دریافت باید حساب نقد و بانک (1010 یا معین‌های آن) باشد',
-      );
-    }
-    const account = await tx.account.findUnique({ where: { code: chosen } });
-    if (!account || !account.isActive) {
-      throw new BadRequestException(`حساب ${chosen} یافت نشد یا غیرفعال است`);
-    }
-    return chosen;
+    return this.accountingService.resolveBankAccount(tx, {
+      explicit: code,
+      configKey: 'deposit.default_cash_account',
+    });
   }
 
   private notify(

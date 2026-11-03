@@ -147,3 +147,30 @@ export class RevaluationDto {
   /** قیمت هر گرم ۷۵۰ (ریال) — خالی = قیمت لحظه‌ای بازار */
   @IsOptional() @IsNumberString() pricePerGramRial?: string;
 }
+
+// ── دفاتر تجاری الکترونیکی ──
+export class TaxBookQueryDto {
+  @IsOptional() @IsString() @Matches(/^[0-9a-f-]{36}$/i) fiscalYearId?: string;
+}
+
+export class TaxBookPreviewDto {
+  @IsString() @Matches(/^[0-9a-f-]{36}$/i) fiscalYearId!: string;
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}/) endDate?: string;
+  @IsIn(['DOCUMENT', 'MONTHLY']) mode!: 'DOCUMENT' | 'MONTHLY';
+  @IsOptional() @IsBoolean() includeClosing?: boolean;
+  @IsOptional()
+  @IsString()
+  @Matches(/^[0-9a-f-]{36}$/i)
+  replaceExportId?: string;
+}
+
+export class TaxBookExportDto extends TaxBookPreviewDto {
+  @IsString() @MinLength(3) @MaxLength(100) trackingCode!: string;
+  @IsIn(['csv', 'xlsx']) format!: 'csv' | 'xlsx';
+  @IsOptional() @IsBoolean() lockPeriod?: boolean;
+  @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
+
+export class TaxBookDownloadDto {
+  @IsOptional() @IsIn(['csv', 'xlsx']) format?: 'csv' | 'xlsx';
+}

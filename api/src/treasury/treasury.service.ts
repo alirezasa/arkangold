@@ -1074,6 +1074,7 @@ export class TreasuryService {
       bufferGrams,
       lotGrams,
       alertPercent,
+      includeBankGold,
       lastPurchase,
     ] = await Promise.all([
       this.prisma.wallet.aggregate({ _sum: { goldBalanceGrams: true } }),
@@ -1083,7 +1084,14 @@ export class TreasuryService {
       }),
       this.prisma.account.findMany({
         where: {
-          code: { in: [ACC.GOLD_VAULT, ACC.USER_GOLD, ACC.GOLD_COVERAGE] },
+          code: {
+            in: [
+              ACC.GOLD_VAULT,
+              ACC.GOLD_AT_BANK,
+              ACC.USER_GOLD,
+              ACC.GOLD_COVERAGE,
+            ],
+          },
         },
       }),
       this.prisma.treasuryOrder.aggregate({
@@ -1101,6 +1109,7 @@ export class TreasuryService {
       this.config.getDecimal('treasury.safety_buffer_grams', '0'),
       this.config.getDecimal('treasury.purchase_lot_grams', '0'),
       this.config.getDecimal('treasury.alert_coverage_percent', '95'),
+      this.config.get('treasury.coverage_includes_bank_gold', 'true'),
       this.prisma.treasuryOrder.findFirst({
         where: {
           side: 'BUY',
@@ -1121,9 +1130,12 @@ export class TreasuryService {
     const liability = toDecimal(walletSum._sum.goldBalanceGrams);
     const ledgerLiability = toDecimal(acc(ACC.USER_GOLD)?.balanceGrams);
     const vault = toDecimal(acc(ACC.GOLD_VAULT)?.balanceGrams);
+    // طلای وثیقه نزد بانک کارگشایی مالِ شرکت است؛ شمول آن در پوشش با تنظیمات
+    const atBank = toDecimal(acc(ACC.GOLD_AT_BANK)?.balanceGrams);
+    const bankCounts = includeBankGold.trim() !== 'false';
     const inTransit = toDecimal(inTransitAgg._sum.fineGrams);
     const drafts = toDecimal(draftAgg._sum.fineGrams);
-    const covered = vault.plus(inTransit);
+    const covered = vault.plus(inTransit).plus(bankCounts ? atBank : 0);
     const required = liability
       .times(new Decimal(targetPercent.toString()))
       .div(100)
@@ -1162,6 +1174,8 @@ export class TreasuryService {
       reserves: {
         vaultGrams: s(vault),
         vaultBookValueRial: s(acc(ACC.GOLD_VAULT)?.balanceRial),
+        goldAtBankGrams: s(atBank),
+        goldAtBankCounted: bankCounts,
         inTransitGrams: s(inTransit),
         inTransitOrders: inTransitAgg._count,
         draftPurchaseGrams: s(drafts),

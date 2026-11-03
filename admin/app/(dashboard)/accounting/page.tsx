@@ -63,6 +63,7 @@ export default function AccountingDashboardPage() {
   });
   const vault = data?.goldPosition.meltedGold.find((r) => r.code === "1020");
   const inTransit = data?.goldPosition.meltedGold.find((r) => r.code === "1060");
+  const atBank = data?.goldPosition.meltedGold.find((r) => r.code === "1027");
   const net = Number(data?.goldPosition.netMeltedPositionGrams ?? 0);
 
   return (
@@ -105,7 +106,13 @@ export default function AccountingDashboardPage() {
               hint={`بهای دفتری ${toman(vault?.bookValueRial)} تومان`}
               icon={Vault}
             />
-            <Kpi title="خریداری‌شده در راه" value={`${grams(inTransit?.grams)} گرم`} icon={Coins} color="#d97706" />
+            <Kpi
+              title="خریداری‌شده در راه"
+              value={`${grams(inTransit?.grams)} گرم`}
+              hint={Number(atBank?.grams) ? `نزد بانک کارگشایی: ${grams(atBank?.grams)} گرم` : undefined}
+              icon={Coins}
+              color="#d97706"
+            />
             <Kpi
               title={net >= 0 ? "مازاد پوشش" : "کسری پوشش"}
               value={`${grams(Math.abs(net))} گرم`}

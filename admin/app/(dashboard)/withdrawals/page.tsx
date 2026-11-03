@@ -10,24 +10,24 @@ import { Banknote, CheckCircle2, Download, FileText, RotateCcw, Search, Wallet, 
 import JalaliDateInput from "@/app/components/JalaliDateInput";
 import { todayIsoLocal } from "@/app/utils/jalali";
 import {
-  AccountSelect,
   ActionButton,
   Alert,
+  api,
   Badge,
+  BankAccountSelect,
+  cardStyle,
   DateRange,
+  downloadCsv,
   Empty,
+  faDateTime,
+  fetcher,
   Field,
+  inputCls,
   Modal,
   PageHeader,
   Pagination,
   Spinner,
   Table,
-  api,
-  cardStyle,
-  downloadCsv,
-  faDateTime,
-  fetcher,
-  inputCls,
   toman,
   useAction,
   usePerm,
@@ -591,7 +591,7 @@ function PayForm({
           </select>
         </Field>
         <Field label="حساب بانکی مبدأ (شرکت)">
-          <AccountSelect value={sourceAccountCode} onChange={setSource} filter={(a) => a.code.startsWith("1010")} placeholder="پیش‌فرض تنظیمات" />
+          <BankAccountSelect value={sourceAccountCode} onChange={setSource} />
         </Field>
         <Field label="تاریخ پرداخت">
           <JalaliDateInput value={paidAt} onChange={setPaidAt} max={todayIsoLocal()} clearable={false} />

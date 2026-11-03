@@ -33,11 +33,24 @@ function createFakeTx() {
 
   const tx = {
     account: {
-      findMany: ({ where }: { where: { code: { in: string[] } } }) =>
+      findMany: ({
+        where,
+      }: {
+        where: { code: { in?: string[]; startsWith?: string } };
+      }) =>
         Promise.resolve(
           CHART_OF_ACCOUNTS_DEFAULTS.filter((a) =>
-            where.code.in.includes(a.code),
-          ).map((a) => ({ ...a, id: a.code, balanceRial: 0, balanceGrams: 0 })),
+            where.code.in
+              ? where.code.in.includes(a.code)
+              : a.code.startsWith(where.code.startsWith ?? ''),
+          ).map((a) => ({
+            ...a,
+            id: a.code,
+            parentId: null,
+            isActive: true,
+            balanceRial: 0,
+            balanceGrams: 0,
+          })),
         ),
       findUnique: ({ where }: { where: { code: string } }) => {
         const b = balances.get(where.code);

@@ -24,24 +24,24 @@ import {
 import JalaliDateInput from "@/app/components/JalaliDateInput";
 import { todayIsoLocal } from "@/app/utils/jalali";
 import {
-  AccountSelect,
   ActionButton,
   Alert,
+  api,
   Badge,
+  BankAccountSelect,
+  cardStyle,
   Empty,
+  faDateTime,
+  fetcher,
   Field,
+  grams,
+  inputCls,
   Kpi,
   Modal,
   PageHeader,
   Pagination,
   Spinner,
   Table,
-  api,
-  cardStyle,
-  faDateTime,
-  fetcher,
-  grams,
-  inputCls,
   toman,
   useAction,
   usePerm,
@@ -987,7 +987,7 @@ function PayForm({
           </select>
         </Field>
         <Field label="حساب بانکی مبدأ (شرکت)">
-          <AccountSelect value={sourceAccountCode} onChange={setSource} filter={(a) => a.code.startsWith("1010")} placeholder="پیش‌فرض تنظیمات" />
+          <BankAccountSelect value={sourceAccountCode} onChange={setSource} />
         </Field>
         <Field label="تاریخ پرداخت">
           <JalaliDateInput value={paidAt} onChange={setPaidAt} max={todayIsoLocal()} clearable={false} />

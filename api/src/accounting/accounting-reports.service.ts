@@ -502,6 +502,7 @@ export class AccountingReportsService {
   async goldPosition() {
     const codes = [
       ACC.GOLD_VAULT,
+      ACC.GOLD_AT_BANK,
       ACC.GOLD_IN_TRANSIT,
       ACC.GOLD_COVERAGE,
       ACC.USER_GOLD,
@@ -532,12 +533,16 @@ export class AccountingReportsService {
       };
     };
     const vault = toDecimal(get(ACC.GOLD_VAULT)?.balanceGrams);
+    // طلای وثیقه/امانی نزد بانک کارگشایی: مالکیت شرکت، ولی خارج از خزانه
+    const atBank = toDecimal(get(ACC.GOLD_AT_BANK)?.balanceGrams);
     const inTransit = toDecimal(get(ACC.GOLD_IN_TRANSIT)?.balanceGrams);
     const liability = toDecimal(walletSum._sum.goldBalanceGrams);
+    const owned = vault.plus(atBank).plus(inTransit);
     return {
       pricePerGramRial: s(price),
       meltedGold: [
         row(ACC.GOLD_VAULT, true),
+        row(ACC.GOLD_AT_BANK, true),
         row(ACC.GOLD_IN_TRANSIT, false),
         row(ACC.USER_GOLD, true),
         row(ACC.GOLD_COVERAGE, false),
@@ -548,10 +553,13 @@ export class AccountingReportsService {
         row(ACC.BULLION_CLEARING, false),
       ],
       walletGoldGrams: s(liability),
-      netMeltedPositionGrams: s(vault.plus(inTransit).minus(liability)),
+      goldAtBankGrams: s(atBank),
+      netMeltedPositionGrams: s(owned.minus(liability)),
       netMeltedPositionRial: s(
-        vault.plus(inTransit).minus(liability).times(price).toDecimalPlaces(0),
+        owned.minus(liability).times(price).toDecimalPlaces(0),
       ),
+      /** بدون طلای وثیقه‌ی بانک — آنچه همین حالا قابل تحویل است */
+      netAvailablePositionGrams: s(vault.plus(inTransit).minus(liability)),
     };
   }
 
@@ -569,7 +577,9 @@ export class AccountingReportsService {
       throw new BadRequestException('قیمت روز طلا در دسترس نیست');
     }
     const accounts = await tx.account.findMany({
-      where: { code: { in: [ACC.GOLD_VAULT, ACC.USER_GOLD] } },
+      where: {
+        code: { in: [ACC.GOLD_VAULT, ACC.GOLD_AT_BANK, ACC.USER_GOLD] },
+      },
     });
     const lines: LedgerLineInput[] = [];
     const items = accounts.map((a) => {
@@ -619,7 +629,7 @@ export class AccountingReportsService {
   async postRevaluation(adminId: string, price?: string) {
     return this.prisma.$transaction(
       async (tx) => {
-        await tx.$executeRaw`SELECT 1 FROM "accounts" WHERE "code" IN (${ACC.GOLD_VAULT}, ${ACC.USER_GOLD}) FOR UPDATE`;
+        await tx.$executeRaw`SELECT 1 FROM "accounts" WHERE "code" IN (${ACC.GOLD_VAULT}, ${ACC.GOLD_AT_BANK}, ${ACC.USER_GOLD}) FOR UPDATE`;
         const r = await this.buildRevaluation(tx, price);
         if (!r.lines.length) {
           throw new BadRequestException(
@@ -841,8 +851,16 @@ export class AccountingReportsService {
         grams: a?.balanceGrams.toString() ?? '0',
       };
     };
+    // موجودی نقد = 1010 + حساب‌های بانکی معین آن (مثلاً 101001 بانک ملت)
+    const cashAgg = await this.prisma.account.aggregate({
+      where: { code: { startsWith: ACC.CASH } },
+      _sum: { balanceRial: true, balanceGrams: true },
+    });
     return {
-      cash: bal(ACC.CASH),
+      cash: {
+        rial: cashAgg._sum.balanceRial?.toString() ?? '0',
+        grams: cashAgg._sum.balanceGrams?.toString() ?? '0',
+      },
       userRialLiability: bal(ACC.USER_RIAL),
       agentReceivable: bal(ACC.AGENT_RECEIVABLE),
       partnerReceivable: bal(ACC.PARTNER_RECEIVABLE),

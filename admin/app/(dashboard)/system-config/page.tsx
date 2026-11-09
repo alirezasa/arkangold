@@ -147,6 +147,7 @@ const SUB_TITLES: Record<string, string> = {
   "security.password": "رمز عبور",
   "security.admin": "حساب‌های ادمین",
   "security.session": "نشست",
+  "security.login": "ورود کاربران",
   "session.user": "کاربران",
   "session.admin": "ادمین‌ها",
   "trade.gold": "طلای آب‌شده",

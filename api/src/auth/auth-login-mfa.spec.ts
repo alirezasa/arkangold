@@ -7,11 +7,17 @@ import * as bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service';
 import { LoginChallengeService } from '../common/auth-security/login-challenge.service';
 import { FakeRedis } from '../common/testing/fake-redis';
+import { hashPassword } from '../common/crypto/password.util';
 
 const PHONE = '09120000000';
 const OTP = '123456';
+const PASSWORD = 'Str0ng-Unit-Test-Pass';
 
-async function setup(opts: { totpEnabled: boolean }) {
+async function setup(opts: {
+  totpEnabled: boolean;
+  /** security.login.user_password_sms_code_enabled (پیش‌فرض روشن) */
+  passwordSmsCode?: boolean;
+}) {
   process.env.JWT_ACCESS_SECRET ??= 'unit-test-access-secret-unit-test-access';
   process.env.JWT_REFRESH_SECRET ??=
     'unit-test-refresh-secret-unit-test-refresh';
@@ -26,6 +32,7 @@ async function setup(opts: { totpEnabled: boolean }) {
     totpEnabled: opts.totpEnabled,
     failedLoginCount: 0,
     lockedUntil: null,
+    passwordHash: await hashPassword(PASSWORD),
   };
   const sessions: unknown[] = [];
   const prisma = {
@@ -36,6 +43,7 @@ async function setup(opts: { totpEnabled: boolean }) {
     userOtp: {
       deleteMany: () => Promise.resolve({ count: 1 }),
       findFirst: () => Promise.resolve(null),
+      create: () => Promise.resolve({}),
     },
     userSession: {
       create: (args: unknown) => {
@@ -50,6 +58,9 @@ async function setup(opts: { totpEnabled: boolean }) {
       Promise.resolve(code === '654321' ? 'totp' : null),
     ),
   };
+  const smsSend = jest.fn(() =>
+    Promise.resolve({ status: 'SENT', providerCode: null, logId: null }),
+  );
   const auth = new AuthService(
     prisma as never,
     { sign: () => 'jwt' } as never,
@@ -59,18 +70,25 @@ async function setup(opts: { totpEnabled: boolean }) {
     {
       getSessionPolicy: () =>
         Promise.resolve({ accessTtlSeconds: 900, refreshTtlSeconds: 86400 }),
+      getBoolean: (key: string, fallback: boolean) =>
+        Promise.resolve(
+          key === 'security.login.user_password_sms_code_enabled'
+            ? (opts.passwordSmsCode ?? fallback)
+            : fallback,
+        ),
     } as never,
     {} as never,
-    {} as never,
+    { send: smsSend } as never,
     {} as never,
     {
       assertAllowed: noop,
+      captchaRequired: () => Promise.resolve(false),
       recordFailure: () =>
         Promise.resolve({ failures: 1, delaySeconds: 0, justThrottled: false }),
       recordSuccess: noop,
     } as never,
-    {} as never,
-    {} as never,
+    { enforce: noop } as never,
+    { consume: noop } as never,
     { onSuccessfulLogin: noop, onSecurityChange: noop } as never,
     challenges,
     mfa as never,
@@ -84,8 +102,52 @@ async function setup(opts: { totpEnabled: boolean }) {
     purpose: 'login',
     identifier: PHONE,
   });
-  return { auth, token, sessions, redis };
+  return { auth, token, sessions, redis, smsSend };
 }
+
+describe('AuthService password login — ارسال کد پیامکی پس از رمز (تنظیم پنل)', () => {
+  it('روشن (پیش‌فرض): پس از رمز کد پیامکی ارسال و مرحله‌ی دوم خواسته می‌شود', async () => {
+    const { auth, sessions, smsSend } = await setup({ totpEnabled: false });
+    const res = await auth.login({ phone: PHONE, password: PASSWORD });
+    expect(res).toMatchObject({ mfaRequired: true, method: 'SMS' });
+    expect(smsSend).toHaveBeenCalledTimes(1);
+    expect(sessions).toHaveLength(0);
+  });
+
+  it('خاموش: کاربر با رمز درست مستقیم وارد می‌شود و پیامکی ارسال نمی‌شود', async () => {
+    const { auth, sessions, smsSend } = await setup({
+      totpEnabled: false,
+      passwordSmsCode: false,
+    });
+    const res = await auth.login({ phone: PHONE, password: PASSWORD });
+    expect(res).toHaveProperty('accessToken', 'jwt');
+    expect(res).not.toHaveProperty('mfaRequired');
+    expect(smsSend).not.toHaveBeenCalled();
+    expect(sessions).toHaveLength(1);
+  });
+
+  it('خاموش: رمز نادرست همچنان رد می‌شود', async () => {
+    const { auth, sessions } = await setup({
+      totpEnabled: false,
+      passwordSmsCode: false,
+    });
+    await expect(
+      auth.login({ phone: PHONE, password: 'wrong-password-123' }),
+    ).rejects.toThrow();
+    expect(sessions).toHaveLength(0);
+  });
+
+  it('خاموش: کاربری که برنامه‌ی احراز هویت را فعال کرده همچنان کد برنامه را وارد می‌کند', async () => {
+    const { auth, sessions, smsSend } = await setup({
+      totpEnabled: true,
+      passwordSmsCode: false,
+    });
+    const res = await auth.login({ phone: PHONE, password: PASSWORD });
+    expect(res).toMatchObject({ mfaRequired: true, method: 'TOTP' });
+    expect(smsSend).not.toHaveBeenCalled();
+    expect(sessions).toHaveLength(0);
+  });
+});
 
 describe('AuthService SMS login with authenticator app', () => {
   it('requires the authenticator code after the SMS code when TOTP is enabled', async () => {

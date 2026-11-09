@@ -25,6 +25,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { USER_FEE_TYPES, UserFeeType } from '../fees/user-fee-override';
 import { CreateAddressDto, UpdateAddressDto } from '@arkan-gold/shared';
@@ -100,13 +101,15 @@ class SetUserFeeDto {
   @IsIn([...USER_FEE_TYPES])
   type!: UserFeeType;
 
+  /** null = حذف کارمزد دستی و بازگشت به تنظیمات سیستم */
+  @ValidateIf((_o, v) => v !== null)
   @IsNumber(
     { maxDecimalPlaces: 2 },
     { message: 'درصد کارمزد حداکثر ۲ رقم اعشار دارد' },
   )
   @Min(0)
   @Max(100)
-  feePercent!: number;
+  feePercent!: number | null;
 }
 
 interface AdminRequest extends Request {

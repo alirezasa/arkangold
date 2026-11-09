@@ -1,12 +1,11 @@
 // api/src/fees/user-fee-override.ts
 //
-// کارمزد خرید/فروش طلای هر کاربر:
-// - هنگام ثبت‌نام، نرخ فعلی تنظیمات سیستم (fee.buy_gold / fee.sell_gold) در fee_configs کاربر
-//   ذخیره می‌شود (signupFeeRows)؛ تغییر بعدی تنظیمات روی کاربران قبلی اثری ندارد.
-// - کارشناس از صفحه‌ی کاربر همین نرخ را کم یا زیاد می‌کند؛ معامله با آخرین ردیف فعال انجام می‌شود.
-// - اگر کاربری ردیف نداشته باشد، نرخ فعلی تنظیمات سیستم ملاک است.
+// کارمزد خرید/فروش طلای هر کاربر — در هر قفل قیمت (پیش‌فاکتور معامله) بررسی می‌شود:
+// - کارمزد دستی: ردیف فعال fee_configs کاربر که فقط کارشناس از صفحه‌ی کاربر ثبت می‌کند. تغییر
+//   تنظیمات سیستم روی این کاربر اثری ندارد تا کارشناس آن را تغییر دهد یا «بازگشت به تنظیمات» بزند.
+// - بدون کارمزد دستی: نرخ همین لحظه‌ی تنظیمات سیستم (fee.buy_gold / fee.sell_gold)؛ پس هر تغییر
+//   تنظیمات بلافاصله برای همه‌ی کاربران جدید و قدیم اعمال می‌شود.
 // کارمزد برداشت و واریز برای همه یکسان است و فقط از تنظیمات سیستم خوانده می‌شود.
-import type { SystemConfigService } from '../system-config/system-config.service';
 
 export const USER_FEE_TYPES = ['BUY_GOLD', 'SELL_GOLD'] as const;
 export type UserFeeType = (typeof USER_FEE_TYPES)[number];
@@ -36,7 +35,7 @@ type FeeConfigReader = {
   };
 };
 
-/** آخرین کارمزد ثبت‌شده برای کاربر (null = بدون ردیف → نرخ تنظیمات سیستم) */
+/** کارمزد دستی کاربر (آخرین تغییر کارشناس)؛ null = تابع تنظیمات سیستم */
 export function findUserFee(
   prisma: FeeConfigReader,
   userId: string,
@@ -47,22 +46,4 @@ export function findUserFee(
     orderBy: { updatedAt: 'desc' },
     select: { feePercent: true, updatedAt: true },
   });
-}
-
-/**
- * ردیف‌های کارمزد کاربر جدید با نرخ همین لحظه‌ی تنظیمات سیستم؛ فراخواننده userId را اضافه می‌کند
- * (createMany هنگام ثبت‌نام)
- */
-export async function signupFeeRows(
-  systemConfig: Pick<SystemConfigService, 'getDecimal'>,
-) {
-  const [buy, sell] = await Promise.all(
-    USER_FEE_TYPES.map((t) =>
-      systemConfig.getDecimal(SYSTEM_FEE_KEY[t], '1.0'),
-    ),
-  );
-  return [
-    { type: 'BUY_GOLD' as const, feePercent: buy.toString() },
-    { type: 'SELL_GOLD' as const, feePercent: sell.toString() },
-  ];
 }

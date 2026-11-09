@@ -1,5 +1,5 @@
 // admin/app/api/admin/users/[id]/fees/route.ts
-// کم یا زیاد کردن کارمزد خرید/فروش طلای کاربر (برداشت و واریز برای همه از تنظیمات سیستم است)
+// کارمزد دستی خرید/فروش طلای کاربر — feePercent: null یعنی بازگشت به تنظیمات سیستم (برداشت و واریز برای همه از تنظیمات است)
 import { adminProxy } from "@/app/lib/adminProxy";
 
 export async function PATCH(

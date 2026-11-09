@@ -21,7 +21,6 @@ import {
   USER_FEE_TYPES,
   UserFeeType,
   findUserFee,
-  signupFeeRows,
 } from '../fees/user-fee-override';
 
 type Tx = Prisma.TransactionClient;
@@ -42,7 +41,8 @@ export interface AdminUpdateLimitsInput {
 
 export interface AdminSetFeeInput {
   type: UserFeeType;
-  feePercent: number;
+  /** null = حذف کارمزد دستی؛ کاربر دوباره تابع تنظیمات سیستم می‌شود */
+  feePercent: number | null;
 }
 
 /**
@@ -310,8 +310,6 @@ export class UsersAdminService {
       }
     }
 
-    // کارمزد خرید/فروش = نرخ همین لحظه‌ی تنظیمات سیستم (مثل ثبت‌نام عادی)
-    const feeRows = await signupFeeRows(this.systemConfig);
     const firstName = cleanName(input.firstName);
     const lastName = cleanName(input.lastName);
 
@@ -339,9 +337,6 @@ export class UsersAdminService {
           },
         });
         await tx.userLimit.create({ data: { userId: created.id } });
-        await tx.feeConfig.createMany({
-          data: feeRows.map((r) => ({ ...r, userId: created.id })),
-        });
         await tx.taxConfig.create({
           data: { userId: created.id, type: 'BUY', taxPercent: 0.0 },
         });
@@ -558,7 +553,7 @@ export class UsersAdminService {
 
   // ═══════════════════════════ کارمزد خرید/فروش کاربر ═══════════════════════════
 
-  /** کارمزد فعلی کاربر (آخرین تغییر) و نرخ فعلی تنظیمات سیستم برای خرید و فروش طلا */
+  /** کارمزد مؤثر کاربر (دستی یا تنظیمات سیستم) و نرخ فعلی تنظیمات برای خرید و فروش طلا */
   async getFees(userId: string) {
     const [system, rows] = await Promise.all([
       Promise.all(
@@ -573,7 +568,7 @@ export class UsersAdminService {
     return USER_FEE_TYPES.map((type, i) => ({
       type,
       feePercent: (rows[i]?.feePercent ?? system[i]).toString(),
-      /** USER = ذخیره‌شده برای کاربر؛ SYSTEM = ردیفی ندارد و نرخ فعلی تنظیمات اعمال می‌شود */
+      /** USER = کارمزد دستی کارشناس؛ SYSTEM = تابع تنظیمات سیستم (تغییر تنظیمات فوراً اعمال می‌شود) */
       source: rows[i] ? ('USER' as const) : ('SYSTEM' as const),
       updatedAt: rows[i]?.updatedAt ?? null,
       systemFeePercent: system[i].toString(),
@@ -581,11 +576,23 @@ export class UsersAdminService {
   }
 
   /**
-   * تغییر کارمزد خرید/فروش کاربر. ردیف‌های قبلی همان نوع جایگزین می‌شوند تا معامله همیشه با آخرین
-   * تغییر محاسبه شود. پیش‌فاکتورهای (قفل قیمت) صادرشده با نرخ قبلی معتبر می‌مانند.
+   * ثبت کارمزد دستی کاربر (یا حذف آن با null). ردیف‌های قبلی همان نوع جایگزین می‌شوند تا معامله
+   * همیشه با آخرین تغییر محاسبه شود. پیش‌فاکتورهای (قفل قیمت) صادرشده با نرخ قبلی معتبر می‌مانند.
    */
   async setFee(userId: string, input: AdminSetFeeInput) {
     await this.assertUser(userId);
+    const previous = await findUserFee(this.prisma, userId, input.type);
+    if (input.feePercent === null) {
+      await this.prisma.feeConfig.deleteMany({
+        where: { userId, type: input.type },
+      });
+      return {
+        message: 'کارمزد دستی حذف شد؛ کاربر تابع تنظیمات سیستم است',
+        type: input.type,
+        previousFeePercent: previous ? previous.feePercent.toString() : null,
+        feePercent: null,
+      };
+    }
     const percent = input.feePercent;
     if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
       throw new BadRequestException('درصد کارمزد باید بین ۰ تا ۱۰۰ باشد');
@@ -593,7 +600,6 @@ export class UsersAdminService {
     if (Math.abs(Math.round(percent * 100) - percent * 100) > 1e-9) {
       throw new BadRequestException('درصد کارمزد حداکثر ۲ رقم اعشار دارد');
     }
-    const previous = await findUserFee(this.prisma, userId, input.type);
 
     await this.prisma.$transaction([
       this.prisma.feeConfig.deleteMany({ where: { userId, type: input.type } }),
@@ -602,7 +608,8 @@ export class UsersAdminService {
       }),
     ]);
     return {
-      message: 'کارمزد کاربر بروزرسانی شد',
+      message:
+        'کارمزد دستی کاربر ثبت شد؛ تغییر تنظیمات سیستم روی این کاربر اثر ندارد',
       type: input.type,
       previousFeePercent: previous ? previous.feePercent.toString() : null,
       feePercent: String(percent),

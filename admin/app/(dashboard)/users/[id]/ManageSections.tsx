@@ -831,7 +831,7 @@ type FeeType = "BUY_GOLD" | "SELL_GOLD";
 export type UserFees = {
   type: FeeType;
   feePercent: string;
-  /** USER = ذخیره‌شده برای کاربر (ثبت‌نام یا تغییر کارشناس)؛ SYSTEM = بدون ردیف، نرخ فعلی تنظیمات */
+  /** USER = کارمزد دستی کارشناس؛ SYSTEM = تابع تنظیمات سیستم */
   source: "USER" | "SYSTEM";
   updatedAt: string | null;
   systemFeePercent: string;
@@ -861,18 +861,12 @@ export function FeesSection({
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   if (!fees?.length) return null;
 
-  const save = async (type: FeeType, current: string) => {
-    const raw = toLatinNumber(percent);
-    const p = Number(raw);
-    if (!/^\d+(\.\d{1,2})?$/.test(raw) || p > 100) {
-      setNote({ ok: false, text: "درصد کارمزد باید بین ۰ تا ۱۰۰ و حداکثر ۲ رقم اعشار باشد" });
-      return;
-    }
-    if (!confirm(`${FEE_LABELS[type]} این کاربر از ${faPercent(current)} به ${faPercent(p)} تغییر کند؟`)) return;
+  const send = async (type: FeeType, feePercent: number | null, confirmText: string) => {
+    if (!confirm(confirmText)) return;
     setBusy(true);
     setNote(null);
     try {
-      const { data } = await axios.patch(`/api/admin/users/${userId}/fees`, { type, feePercent: p });
+      const { data } = await axios.patch(`/api/admin/users/${userId}/fees`, { type, feePercent });
       setNote({ ok: true, text: data?.message ?? "انجام شد" });
       setEditing(null);
       await onUpdated();
@@ -883,6 +877,20 @@ export function FeesSection({
     }
   };
 
+  const save = (type: FeeType, current: string) => {
+    const raw = toLatinNumber(percent);
+    const p = Number(raw);
+    if (!/^\d+(\.\d{1,2})?$/.test(raw) || p > 100) {
+      setNote({ ok: false, text: "درصد کارمزد باید بین ۰ تا ۱۰۰ و حداکثر ۲ رقم اعشار باشد" });
+      return;
+    }
+    void send(
+      type,
+      p,
+      `${FEE_LABELS[type]} این کاربر از ${faPercent(current)} به ${faPercent(p)} تغییر کند؟\nاز این پس تغییر تنظیمات سیستم روی این کاربر اثر ندارد.`,
+    );
+  };
+
   return (
     <div className="rounded-2xl p-5" style={CARD_STYLE}>
       <h2 className="mb-3 flex items-center gap-2 text-[13px] font-black text-gray-700">
@@ -891,23 +899,25 @@ export function FeesSection({
       </h2>
       <div className="space-y-2">
         {fees.map((f) => {
-          const differs = Number(f.feePercent) !== Number(f.systemFeePercent);
+          const manual = f.source === "USER";
           return (
             <div key={f.type} className="rounded-xl border border-gray-100 p-3 text-[12px]">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-black text-gray-700">{FEE_LABELS[f.type]}</span>
-                <span
-                  className="badge"
-                  style={differs ? { background: "#fdf4e3", color: "#b07d1e" } : { background: "#f3f4f6", color: "#374151" }}
-                >
-                  {faPercent(f.feePercent)}
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="badge"
+                    style={manual ? { background: "#fdf4e3", color: "#b07d1e" } : { background: "#f3f4f6", color: "#6b7280" }}
+                  >
+                    {manual ? "دستی" : "طبق تنظیمات"}
+                  </span>
+                  <span className="text-[13px] font-black text-gray-800">{faPercent(f.feePercent)}</span>
                 </span>
               </div>
               <p className="mt-1 text-[10px] leading-5 text-gray-400">
-                {f.source === "USER" && f.updatedAt
-                  ? `آخرین تغییر: ${new Date(f.updatedAt).toLocaleString("fa-IR")}`
-                  : "طبق تنظیمات سیستم"}
-                {` · تنظیمات فعلی سیستم: ${faPercent(f.systemFeePercent)}`}
+                {manual
+                  ? `کارمزد دستی${f.updatedAt ? ` (${new Date(f.updatedAt).toLocaleString("fa-IR")})` : ""} · تغییر تنظیمات (${faPercent(f.systemFeePercent)}) روی این کاربر اثر ندارد`
+                  : "با تغییر تنظیمات سیستم، کارمزد این کاربر هم تغییر می‌کند"}
               </p>
 
               {editing === f.type ? (
@@ -923,7 +933,7 @@ export function FeesSection({
                       aria-label={`درصد ${FEE_LABELS[f.type]}`}
                     />
                     <span className="text-[11px] text-gray-400">درصد</span>
-                    {differs && (
+                    {Number(percent) !== Number(f.systemFeePercent) && (
                       <button
                         type="button"
                         onClick={() => setPercent(String(Number(f.systemFeePercent)))}
@@ -955,17 +965,35 @@ export function FeesSection({
                 </div>
               ) : (
                 canManage && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPercent(String(Number(f.feePercent)));
-                      setEditing(f.type);
-                      setNote(null);
-                    }}
-                    className="mt-2 flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline"
-                  >
-                    <Pencil className="h-3 w-3" /> کم یا زیاد کردن کارمزد
-                  </button>
+                  <div className="mt-2 flex flex-wrap gap-3 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPercent(String(Number(f.feePercent)));
+                        setEditing(f.type);
+                        setNote(null);
+                      }}
+                      className="flex items-center gap-1 text-emerald-700 hover:underline"
+                    >
+                      <Pencil className="h-3 w-3" /> کم یا زیاد کردن کارمزد
+                    </button>
+                    {manual && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          void send(
+                            f.type,
+                            null,
+                            `کارمزد دستی حذف شود و ${FEE_LABELS[f.type]} این کاربر دوباره طبق تنظیمات (${faPercent(f.systemFeePercent)}) باشد؟`,
+                          )
+                        }
+                        className="text-red-600 hover:underline disabled:opacity-50"
+                      >
+                        بازگشت به تنظیمات
+                      </button>
+                    )}
+                  </div>
                 )
               )}
             </div>
@@ -973,8 +1001,8 @@ export function FeesSection({
         })}
       </div>
       <p className="mt-2 text-[10px] leading-5 text-gray-400">
-        نرخ هنگام ثبت‌نام از تنظیمات سیستم برداشته می‌شود و معاملات با آخرین تغییر محاسبه می‌شوند. کارمزد برداشت و
-        واریز برای همه یکسان و از تنظیمات سیستم است.
+        کارمزد در هر معامله (هنگام صدور پیش‌فاکتور) بررسی می‌شود: کارمزد دستی کاربر، وگرنه نرخ فعلی تنظیمات. کارمزد
+        برداشت و واریز برای همه یکسان و از تنظیمات سیستم است.
       </p>
       <Note note={note} />
     </div>

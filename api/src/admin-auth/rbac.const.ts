@@ -62,6 +62,18 @@ export const ADMIN_PERMISSIONS = [
     description: 'مشاهده لیست و جزئیات کاربران',
   },
   {
+    key: 'users.create',
+    group: 'users',
+    description:
+      'تعریف کاربر جدید از پنل (با یا بدون پیامک اطلاع‌رسانی به کاربر)',
+  },
+  {
+    key: 'users.manage',
+    group: 'users',
+    description:
+      'مدیریت پرونده‌ی کاربر: تغییر وضعیت حساب، ویرایش نام، آدرس‌ها و سقف‌های معاملاتی',
+  },
+  {
     key: 'users.identity.reinquire',
     group: 'users',
     description:

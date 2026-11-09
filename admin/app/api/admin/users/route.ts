@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import axios from "axios";
 import { ADMIN_ACCESS_COOKIE } from "@/lib/cookie-names";
+import { adminProxy } from "@/app/lib/adminProxy";
 const NEST = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
 
 export async function GET(req: Request) {
@@ -24,4 +25,10 @@ export async function GET(req: Request) {
       );
     return NextResponse.json({ message: "خطای سرور" }, { status: 500 });
   }
+}
+
+// تعریف کاربر جدید از پنل (اختیاری: پیامک اطلاع‌رسانی به کاربر)
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  return adminProxy("/admin/users", { method: "POST", data: body });
 }

@@ -2,6 +2,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import axios from "axios";
 import {
@@ -11,7 +12,10 @@ import {
   ShieldCheck,
   ShieldAlert,
   Gift,
+  UserPlus,
 } from "lucide-react";
+import { useAdminMe } from "@/app/hooks/useAdminMe";
+import CreateUserModal from "./CreateUserModal";
 
 const fetcher = (url: string) => axios.get(url).then((r) => r.data);
 
@@ -46,21 +50,50 @@ export default function UsersPage() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
+  const [creating, setCreating] = useState(false);
+  const router = useRouter();
+  const { me } = useAdminMe();
+  const canCreate = me?.permissions.includes("users.create") ?? false;
 
   const qs = new URLSearchParams({ page: String(page), limit: "20" });
   if (search) qs.set("search", search);
 
-  const { data, isLoading } = useSWR(
+  const { data, isLoading, mutate } = useSWR(
     `/api/admin/users?${qs.toString()}`,
     fetcher,
   );
 
   return (
     <div>
-      <h1 className="text-lg font-black text-gray-900 mb-1">کاربران</h1>
-      <p className="text-[12px] text-gray-400 mb-5">
-        {data ? `${data.total.toLocaleString("fa-IR")} کاربر` : "..."}
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+        <div>
+          <h1 className="text-lg font-black text-gray-900 mb-1">کاربران</h1>
+          <p className="text-[12px] text-gray-400">
+            {data ? `${data.total.toLocaleString("fa-IR")} کاربر` : "..."}
+          </p>
+        </div>
+        {canCreate && (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-bold text-white"
+            style={{ backgroundColor: "var(--color-emerald)" }}
+          >
+            <UserPlus className="w-4 h-4" />
+            کاربر جدید
+          </button>
+        )}
+      </div>
+
+      {creating && (
+        <CreateUserModal
+          onClose={() => {
+            setCreating(false);
+            void mutate();
+          }}
+          onCreated={(u) => router.push(`/users/${u.id}`)}
+        />
+      )}
 
       <div className="relative mb-4">
         <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

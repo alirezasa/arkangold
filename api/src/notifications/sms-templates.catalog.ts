@@ -133,6 +133,13 @@ const V = {
   },
   incidentType: { name: 'incidentType', label: 'نوع گزارش', sample: 'سرقت' },
   status: { name: 'status', label: 'وضعیت', sample: 'تأییدشده' },
+  phone: { name: 'phone', label: 'شماره موبایل', sample: '09121234567' },
+  appUrl: { name: 'appUrl', label: 'نشانی اپلیکیشن', sample: 'app.arkan.gold' },
+  walletChange: {
+    name: 'walletChange',
+    label: 'شرح تغییر موجودی',
+    sample: 'افزایش ۵۰۰,۰۰۰ تومان',
+  },
 } satisfies Record<string, SmsVariableDef>;
 
 export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
@@ -178,6 +185,16 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
     body: '{brand}\nکد تأیید «{change}»: {code}\nاین کد را به هیچ‌کس، حتی پشتیبانی، ندهید. اگر این درخواست از شما نیست، رمز عبور را تغییر دهید.',
     variables: [V.code, V.change, V.brand],
     sensitive: true,
+  },
+
+  {
+    // حساب ساخته‌شده توسط پشتیبانی: کاربر بدون رمز است و با «فراموشی رمز عبور» رمز تعیین می‌کند
+    key: 'USER_CREATED_BY_ADMIN',
+    title: 'ایجاد حساب کاربری توسط پشتیبانی',
+    category: 'AUTH',
+    body: '{name} عزیز، حساب کاربری شما در {brand} با شماره {phone} ایجاد شد.\nبرای ورود به {appUrl} مراجعه کنید و با گزینه‌ی «فراموشی رمز عبور» رمز خود را تعیین کنید.',
+    variables: [V.name, V.phone, V.appUrl, V.brand],
+    defaultActive: true,
   },
 
   // ─────────────────────────── هشدارهای امنیتی (FIA) ───────────────────────────
@@ -337,6 +354,14 @@ export const SMS_TEMPLATE_CATALOG: SmsTemplateDef[] = [
   },
 
   // ─────────────────────────── مالی ───────────────────────────
+  {
+    key: 'WALLET_MANUAL_ADJUSTMENT',
+    title: 'اصلاح دستی موجودی کیف پول',
+    category: 'FINANCE',
+    body: '{name} عزیز، موجودی کیف پول شما در {brand} اصلاح شد: {walletChange}\nشرح: {reason}',
+    variables: [V.name, V.walletChange, V.reason, V.brand],
+    defaultActive: true,
+  },
   {
     key: 'DEPOSIT_APPROVED',
     title: 'تأیید واریز و شارژ کیف پول',

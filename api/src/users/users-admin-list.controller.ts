@@ -18,7 +18,6 @@ import { Throttle } from '@nestjs/throttler';
 import {
   IsBoolean,
   IsIn,
-  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -26,7 +25,6 @@ import {
   Max,
   MaxLength,
   Min,
-  ValidateIf,
 } from 'class-validator';
 import { USER_FEE_TYPES, UserFeeType } from '../fees/user-fee-override';
 import { CreateAddressDto, UpdateAddressDto } from '@arkan-gold/shared';
@@ -102,21 +100,13 @@ class SetUserFeeDto {
   @IsIn([...USER_FEE_TYPES])
   type!: UserFeeType;
 
-  /** null = بازگشت به نرخ پیش‌فرض سیستم */
-  @ValidateIf((_, v) => v !== null)
   @IsNumber(
     { maxDecimalPlaces: 2 },
     { message: 'درصد کارمزد حداکثر ۲ رقم اعشار دارد' },
   )
   @Min(0)
   @Max(100)
-  feePercent!: number | null;
-
-  /** فقط برداشت: کارمزد ثابت (ریال) */
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  feeFixedRial?: number;
+  feePercent!: number;
 }
 
 interface AdminRequest extends Request {
@@ -234,7 +224,7 @@ export class UsersAdminListController {
     return this.service.updateLimits(id, dto);
   }
 
-  // ── کارمزد اختصاصی کاربر ──
+  // ── کارمزد خرید/فروش طلای کاربر ──
   @RequirePermission('users.fee.manage')
   @AuditLog('user.set_fee')
   @UseInterceptors(AuditLogInterceptor)

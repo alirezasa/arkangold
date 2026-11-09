@@ -824,32 +824,26 @@ export function LimitsSection({
   );
 }
 
-// ───────────────────────────── کارمزد اختصاصی ─────────────────────────────
+// ───────────────────────────── کارمزد خرید/فروش ─────────────────────────────
 
-type FeeType = "BUY_GOLD" | "SELL_GOLD" | "WITHDRAWAL";
+type FeeType = "BUY_GOLD" | "SELL_GOLD";
 
-export interface UserFees {
-  withdrawalFeeMaxRial: string;
-  items: {
-    type: FeeType;
-    default: { feePercent: string; feeFixedRial: string | null };
-    override: { feePercent: string; feeFixedRial: string | null } | null;
-  }[];
-}
+export type UserFees = {
+  type: FeeType;
+  feePercent: string;
+  /** USER = ذخیره‌شده برای کاربر (ثبت‌نام یا تغییر کارشناس)؛ SYSTEM = بدون ردیف، نرخ فعلی تنظیمات */
+  source: "USER" | "SYSTEM";
+  updatedAt: string | null;
+  systemFeePercent: string;
+}[];
 
 const FEE_LABELS: Record<FeeType, string> = {
-  BUY_GOLD: "خرید طلا",
-  SELL_GOLD: "فروش طلا",
-  WITHDRAWAL: "برداشت وجه",
+  BUY_GOLD: "کارمزد خرید طلا",
+  SELL_GOLD: "کارمزد فروش طلا",
 };
 
 const faPercent = (v: string | number) =>
   `${Number(v).toLocaleString("fa-IR", { maximumFractionDigits: 2 })}٪`;
-
-const feeText = (f: { feePercent: string; feeFixedRial: string | null }) =>
-  f.feeFixedRial !== null && Number(f.feeFixedRial) > 0
-    ? `${faPercent(f.feePercent)} + ${(Number(f.feeFixedRial) / 10).toLocaleString("fa-IR")} ت`
-    : faPercent(f.feePercent);
 
 export function FeesSection({
   userId,
@@ -863,25 +857,22 @@ export function FeesSection({
   const canManage = useCan("users.fee.manage");
   const [editing, setEditing] = useState<FeeType | null>(null);
   const [percent, setPercent] = useState("");
-  const [fixedToman, setFixedToman] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
-  if (!fees) return null;
+  if (!fees?.length) return null;
 
-  const open = (item: UserFees["items"][number]) => {
-    const src = item.override ?? item.default;
-    setPercent(String(Number(src.feePercent)));
-    setFixedToman(src.feeFixedRial !== null ? String(Math.round(Number(src.feeFixedRial) / 10)) : "");
-    setEditing(item.type);
-    setNote(null);
-  };
-
-  const send = async (type: FeeType, body: Record<string, unknown>, confirmText: string) => {
-    if (!confirm(confirmText)) return;
+  const save = async (type: FeeType, current: string) => {
+    const raw = toLatinNumber(percent);
+    const p = Number(raw);
+    if (!/^\d+(\.\d{1,2})?$/.test(raw) || p > 100) {
+      setNote({ ok: false, text: "درصد کارمزد باید بین ۰ تا ۱۰۰ و حداکثر ۲ رقم اعشار باشد" });
+      return;
+    }
+    if (!confirm(`${FEE_LABELS[type]} این کاربر از ${faPercent(current)} به ${faPercent(p)} تغییر کند؟`)) return;
     setBusy(true);
     setNote(null);
     try {
-      const { data } = await axios.patch(`/api/admin/users/${userId}/fees`, { type, ...body });
+      const { data } = await axios.patch(`/api/admin/users/${userId}/fees`, { type, feePercent: p });
       setNote({ ok: true, text: data?.message ?? "انجام شد" });
       setEditing(null);
       await onUpdated();
@@ -892,130 +883,98 @@ export function FeesSection({
     }
   };
 
-  const save = (type: FeeType) => {
-    const p = Number(toLatinNumber(percent));
-    if (!Number.isFinite(p) || p < 0 || p > 100 || !/^\d+(\.\d{1,2})?$/.test(toLatinNumber(percent))) {
-      setNote({ ok: false, text: "درصد کارمزد باید بین ۰ تا ۱۰۰ و حداکثر ۲ رقم اعشار باشد" });
-      return;
-    }
-    const body: Record<string, unknown> = { feePercent: p };
-    let label = faPercent(p);
-    if (type === "WITHDRAWAL") {
-      const raw = toLatinNumber(fixedToman);
-      const t = raw === "" ? 0 : Number(raw);
-      if (!Number.isInteger(t) || t < 0) {
-        setNote({ ok: false, text: "کارمزد ثابت باید عدد صحیح تومانی باشد" });
-        return;
-      }
-      body.feeFixedRial = t * 10;
-      if (t > 0) label += ` + ${t.toLocaleString("fa-IR")} تومان`;
-    }
-    void send(type, body, `کارمزد اختصاصی «${FEE_LABELS[type]}» این کاربر ${label} شود؟`);
-  };
-
   return (
     <div className="rounded-2xl p-5" style={CARD_STYLE}>
       <h2 className="mb-3 flex items-center gap-2 text-[13px] font-black text-gray-700">
         <Percent className="h-4 w-4 text-gold-500" />
-        کارمزد کاربر
+        کارمزد معاملات طلا
       </h2>
       <div className="space-y-2">
-        {fees.items.map((item) => (
-          <div key={item.type} className="rounded-xl border border-gray-100 p-3 text-[12px]">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-black text-gray-700">{FEE_LABELS[item.type]}</span>
-              {item.override ? (
-                <span className="badge" style={{ background: "#fdf4e3", color: "#b07d1e" }}>
-                  اختصاصی: {feeText(item.override)}
+        {fees.map((f) => {
+          const differs = Number(f.feePercent) !== Number(f.systemFeePercent);
+          return (
+            <div key={f.type} className="rounded-xl border border-gray-100 p-3 text-[12px]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-black text-gray-700">{FEE_LABELS[f.type]}</span>
+                <span
+                  className="badge"
+                  style={differs ? { background: "#fdf4e3", color: "#b07d1e" } : { background: "#f3f4f6", color: "#374151" }}
+                >
+                  {faPercent(f.feePercent)}
                 </span>
-              ) : (
-                <span className="font-bold text-gray-600">{feeText(item.default)}</span>
-              )}
-            </div>
-            <p className="mt-1 text-[10px] text-gray-400">
-              پیش‌فرض سیستم: {feeText(item.default)}
-              {item.type === "WITHDRAWAL" && Number(fees.withdrawalFeeMaxRial) > 0
-                ? ` · سقف کارمزد ${(Number(fees.withdrawalFeeMaxRial) / 10).toLocaleString("fa-IR")} ت`
-                : ""}
-            </p>
-
-            {editing === item.type ? (
-              <div className="mt-2 space-y-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    dir="ltr"
-                    inputMode="decimal"
-                    value={percent}
-                    onChange={(e) => setPercent(e.target.value)}
-                    className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-[12px] outline-none focus:border-emerald-500"
-                    aria-label={`درصد کارمزد ${FEE_LABELS[item.type]}`}
-                  />
-                  <span className="text-[11px] text-gray-400">درصد</span>
-                  {item.type === "WITHDRAWAL" && (
-                    <>
-                      <span className="text-gray-300">+</span>
-                      <input
-                        dir="ltr"
-                        inputMode="numeric"
-                        value={fixedToman}
-                        onChange={(e) => setFixedToman(e.target.value)}
-                        className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-[12px] outline-none focus:border-emerald-500"
-                        aria-label="کارمزد ثابت برداشت (تومان)"
-                      />
-                      <span className="text-[11px] text-gray-400">تومان</span>
-                    </>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => save(item.type)}
-                    disabled={busy}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-1.5 text-[12px] font-black text-white disabled:opacity-50"
-                    style={{ backgroundColor: "var(--color-emerald)" }}
-                  >
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    ثبت
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditing(null)}
-                    className="rounded-xl border border-gray-200 px-3 text-[12px] font-bold text-gray-500"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
               </div>
-            ) : (
-              canManage && (
-                <div className="mt-2 flex gap-3 text-[11px] font-bold">
-                  <button type="button" onClick={() => open(item)} className="text-emerald-700 hover:underline">
-                    {item.override ? "تغییر کارمزد اختصاصی" : "تعیین کارمزد اختصاصی"}
-                  </button>
-                  {item.override && (
+              <p className="mt-1 text-[10px] leading-5 text-gray-400">
+                {f.source === "USER" && f.updatedAt
+                  ? `آخرین تغییر: ${new Date(f.updatedAt).toLocaleString("fa-IR")}`
+                  : "طبق تنظیمات سیستم"}
+                {` · تنظیمات فعلی سیستم: ${faPercent(f.systemFeePercent)}`}
+              </p>
+
+              {editing === f.type ? (
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      autoFocus
+                      dir="ltr"
+                      inputMode="decimal"
+                      value={percent}
+                      onChange={(e) => setPercent(e.target.value)}
+                      className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-[12px] outline-none focus:border-emerald-500"
+                      aria-label={`درصد ${FEE_LABELS[f.type]}`}
+                    />
+                    <span className="text-[11px] text-gray-400">درصد</span>
+                    {differs && (
+                      <button
+                        type="button"
+                        onClick={() => setPercent(String(Number(f.systemFeePercent)))}
+                        className="text-[11px] font-bold text-gray-500 hover:underline"
+                      >
+                        برابر تنظیمات ({faPercent(f.systemFeePercent)})
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
                     <button
                       type="button"
+                      onClick={() => void save(f.type, f.feePercent)}
                       disabled={busy}
-                      onClick={() =>
-                        void send(
-                          item.type,
-                          { feePercent: null },
-                          `کارمزد اختصاصی «${FEE_LABELS[item.type]}» حذف و نرخ پیش‌فرض سیستم اعمال شود؟`,
-                        )
-                      }
-                      className="text-red-600 hover:underline disabled:opacity-50"
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-1.5 text-[12px] font-black text-white disabled:opacity-50"
+                      style={{ backgroundColor: "var(--color-emerald)" }}
                     >
-                      بازگشت به پیش‌فرض
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      ثبت
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => setEditing(null)}
+                      className="rounded-xl border border-gray-200 px-3 text-[12px] font-bold text-gray-500"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-              )
-            )}
-          </div>
-        ))}
+              ) : (
+                canManage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPercent(String(Number(f.feePercent)));
+                      setEditing(f.type);
+                      setNote(null);
+                    }}
+                    className="mt-2 flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:underline"
+                  >
+                    <Pencil className="h-3 w-3" /> کم یا زیاد کردن کارمزد
+                  </button>
+                )
+              )}
+            </div>
+          );
+        })}
       </div>
       <p className="mt-2 text-[10px] leading-5 text-gray-400">
-        از قفل قیمت یا درخواست برداشت بعدی کاربر اعمال می‌شود؛ پیش‌فاکتورهای صادرشده با نرخ قبلی معتبرند.
+        نرخ هنگام ثبت‌نام از تنظیمات سیستم برداشته می‌شود و معاملات با آخرین تغییر محاسبه می‌شوند. کارمزد برداشت و
+        واریز برای همه یکسان و از تنظیمات سیستم است.
       </p>
       <Note note={note} />
     </div>

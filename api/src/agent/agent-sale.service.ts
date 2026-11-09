@@ -41,6 +41,7 @@ import { AgentPurchaseService } from './agent-purchase.service';
 import { AccountingService } from '../accounting/accounting.service';
 import { CreateAgentSaleDto, ListSalesQueryDto } from './agent.dto';
 import { toPersianDigits } from '../common/utils/jalali.util';
+import { signupFeeRows } from '../fees/user-fee-override';
 
 type Tx = Prisma.TransactionClient;
 
@@ -692,7 +693,7 @@ export class AgentSaleService {
     return { userId: user.id, fullName, created };
   }
 
-  /** همان ساختار ثبت‌نام عادی: کاربر + کیف پول + سقف‌ها + مالیات پیش‌فرض (کارمزد از تنظیمات سیستم) */
+  /** همان ساختار ثبت‌نام عادی: کاربر + کیف پول + سقف‌ها + کارمزد (از تنظیمات سیستم) و مالیات پیش‌فرض */
   private async createUser(tx: Tx, phone: string) {
     const referralCode = await this.uniqueReferralCode(tx);
     const cardNumber = await this.uniqueCardNumber(tx);
@@ -707,6 +708,12 @@ export class AgentSaleService {
     });
     await tx.wallet.create({ data: { userId: user.id, cardNumber } });
     await tx.userLimit.create({ data: { userId: user.id } });
+    await tx.feeConfig.createMany({
+      data: (await signupFeeRows(this.systemConfig)).map((r) => ({
+        ...r,
+        userId: user.id,
+      })),
+    });
     await tx.taxConfig.create({
       data: { userId: user.id, type: 'BUY', taxPercent: 0.0 },
     });

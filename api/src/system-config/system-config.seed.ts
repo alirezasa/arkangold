@@ -441,8 +441,18 @@ export const WALLET_CONFIG_DEFAULTS = [
   },
 
   // ══ کارمزد و مالیات ══
-  { key: 'fee.buy_gold', value: '1.0', description: 'کارمزد خرید طلا (درصد)' },
-  { key: 'fee.sell_gold', value: '1.0', description: 'کارمزد فروش طلا (درصد)' },
+  {
+    key: 'fee.buy_gold',
+    value: '1.0',
+    description:
+      'کارمزد خرید طلا (درصد) — هنگام ثبت‌نام برای کاربر ذخیره می‌شود و از صفحه‌ی هر کاربر قابل تغییر است',
+  },
+  {
+    key: 'fee.sell_gold',
+    value: '1.0',
+    description:
+      'کارمزد فروش طلا (درصد) — هنگام ثبت‌نام برای کاربر ذخیره می‌شود و از صفحه‌ی هر کاربر قابل تغییر است',
+  },
   { key: 'tax.buy', value: '0', description: 'مالیات خرید طلا (درصد)' },
   { key: 'tax.sell', value: '0', description: 'مالیات فروش طلا (درصد)' },
 

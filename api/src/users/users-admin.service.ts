@@ -17,9 +17,11 @@ import { SmsTemplateService } from '../notifications/sms-template.service';
 import { normalizeIranMobile } from '../integrations/providers/sms-common/sms-live.util';
 import { SystemConfigService } from '../system-config/system-config.service';
 import {
+  SYSTEM_FEE_KEY,
   USER_FEE_TYPES,
   UserFeeType,
-  findUserFeeOverride,
+  findUserFee,
+  signupFeeRows,
 } from '../fees/user-fee-override';
 
 type Tx = Prisma.TransactionClient;
@@ -40,10 +42,7 @@ export interface AdminUpdateLimitsInput {
 
 export interface AdminSetFeeInput {
   type: UserFeeType;
-  /** null = حذف کارمزد اختصاصی و بازگشت به نرخ پیش‌فرض سیستم */
-  feePercent: number | null;
-  /** فقط برای برداشت: مبلغ ثابت ریالی */
-  feeFixedRial?: number;
+  feePercent: number;
 }
 
 /**
@@ -311,6 +310,8 @@ export class UsersAdminService {
       }
     }
 
+    // کارمزد خرید/فروش = نرخ همین لحظه‌ی تنظیمات سیستم (مثل ثبت‌نام عادی)
+    const feeRows = await signupFeeRows(this.systemConfig);
     const firstName = cleanName(input.firstName);
     const lastName = cleanName(input.lastName);
 
@@ -338,6 +339,9 @@ export class UsersAdminService {
           },
         });
         await tx.userLimit.create({ data: { userId: created.id } });
+        await tx.feeConfig.createMany({
+          data: feeRows.map((r) => ({ ...r, userId: created.id })),
+        });
         await tx.taxConfig.create({
           data: { userId: created.id, type: 'BUY', taxPercent: 0.0 },
         });
@@ -552,106 +556,56 @@ export class UsersAdminService {
     };
   }
 
-  // ═══════════════════════════ کارمزد اختصاصی ═══════════════════════════
+  // ═══════════════════════════ کارمزد خرید/فروش کاربر ═══════════════════════════
 
-  /** نرخ پیش‌فرض سیستم + کارمزد اختصاصی کاربر (در صورت وجود) برای هر نوع */
+  /** کارمزد فعلی کاربر (آخرین تغییر) و نرخ فعلی تنظیمات سیستم برای خرید و فروش طلا */
   async getFees(userId: string) {
-    const [buy, sell, wPercent, wFixed, wMax, overrides] = await Promise.all([
-      this.systemConfig.getDecimal('fee.buy_gold', '1.0'),
-      this.systemConfig.getDecimal('fee.sell_gold', '1.0'),
-      this.systemConfig.getDecimal('withdrawal.fee_percent', '0'),
-      this.systemConfig.getDecimal('withdrawal.fee_fixed_rial', '0'),
-      this.systemConfig.getDecimal('withdrawal.fee_max_rial', '0'),
+    const [system, rows] = await Promise.all([
       Promise.all(
-        USER_FEE_TYPES.map((t) => findUserFeeOverride(this.prisma, userId, t)),
+        USER_FEE_TYPES.map((t) =>
+          this.systemConfig.getDecimal(SYSTEM_FEE_KEY[t], '1.0'),
+        ),
+      ),
+      Promise.all(
+        USER_FEE_TYPES.map((t) => findUserFee(this.prisma, userId, t)),
       ),
     ]);
-    const defaults: Record<
-      UserFeeType,
-      { feePercent: string; feeFixedRial: string | null }
-    > = {
-      BUY_GOLD: { feePercent: buy.toString(), feeFixedRial: null },
-      SELL_GOLD: { feePercent: sell.toString(), feeFixedRial: null },
-      WITHDRAWAL: {
-        feePercent: wPercent.toString(),
-        feeFixedRial: wFixed.toString(),
-      },
-    };
-    return {
-      withdrawalFeeMaxRial: wMax.toString(),
-      items: USER_FEE_TYPES.map((type, i) => {
-        const o = overrides[i];
-        return {
-          type,
-          default: defaults[type],
-          override: o
-            ? {
-                feePercent: o.feePercent.toString(),
-                feeFixedRial:
-                  type === 'WITHDRAWAL'
-                    ? (o.feeFixedRial ?? 0).toString()
-                    : null,
-              }
-            : null,
-        };
-      }),
-    };
+    return USER_FEE_TYPES.map((type, i) => ({
+      type,
+      feePercent: (rows[i]?.feePercent ?? system[i]).toString(),
+      /** USER = ذخیره‌شده برای کاربر؛ SYSTEM = ردیفی ندارد و نرخ فعلی تنظیمات اعمال می‌شود */
+      source: rows[i] ? ('USER' as const) : ('SYSTEM' as const),
+      updatedAt: rows[i]?.updatedAt ?? null,
+      systemFeePercent: system[i].toString(),
+    }));
   }
 
   /**
-   * تعیین/حذف کارمزد اختصاصی. ردیف‌های قبلی همان نوع (از جمله ردیف‌های خودکار غیرفعال قدیمی)
-   * جایگزین می‌شوند تا برای هر نوع حداکثر یک ردیف بماند. قفل‌های قیمت صادرشده با نرخ قبلی معتبرند.
+   * تغییر کارمزد خرید/فروش کاربر. ردیف‌های قبلی همان نوع جایگزین می‌شوند تا معامله همیشه با آخرین
+   * تغییر محاسبه شود. پیش‌فاکتورهای (قفل قیمت) صادرشده با نرخ قبلی معتبر می‌مانند.
    */
   async setFee(userId: string, input: AdminSetFeeInput) {
     await this.assertUser(userId);
-    const before = await this.getFees(userId);
-    const prev = before.items.find((i) => i.type === input.type)?.override;
-
-    if (input.feePercent === null) {
-      await this.prisma.feeConfig.deleteMany({
-        where: { userId, type: input.type },
-      });
-      return {
-        message: 'کارمزد اختصاصی حذف شد؛ نرخ پیش‌فرض سیستم اعمال می‌شود',
-        type: input.type,
-        previous: prev,
-        override: null,
-      };
-    }
-
     const percent = input.feePercent;
     if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
       throw new BadRequestException('درصد کارمزد باید بین ۰ تا ۱۰۰ باشد');
     }
-    if (Math.round(percent * 100) !== percent * 100) {
+    if (Math.abs(Math.round(percent * 100) - percent * 100) > 1e-9) {
       throw new BadRequestException('درصد کارمزد حداکثر ۲ رقم اعشار دارد');
     }
-    const fixed =
-      input.type === 'WITHDRAWAL' ? (input.feeFixedRial ?? 0) : null;
-    if (fixed !== null && (!Number.isInteger(fixed) || fixed < 0)) {
-      throw new BadRequestException('کارمزد ثابت باید عدد صحیح نامنفی باشد');
-    }
+    const previous = await findUserFee(this.prisma, userId, input.type);
 
     await this.prisma.$transaction([
       this.prisma.feeConfig.deleteMany({ where: { userId, type: input.type } }),
       this.prisma.feeConfig.create({
-        data: {
-          userId,
-          type: input.type,
-          feePercent: percent,
-          feeFixedRial: fixed,
-          isActive: true,
-        },
+        data: { userId, type: input.type, feePercent: percent, isActive: true },
       }),
     ]);
     return {
-      message: 'کارمزد اختصاصی کاربر ثبت شد',
+      message: 'کارمزد کاربر بروزرسانی شد',
       type: input.type,
-      previous: prev,
-      override: {
-        feePercent: String(percent),
-        feeFixedRial: fixed === null ? null : String(fixed),
-      },
+      previousFeePercent: previous ? previous.feePercent.toString() : null,
+      feePercent: String(percent),
     };
   }
 }

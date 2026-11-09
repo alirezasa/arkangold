@@ -16,10 +16,6 @@ import {
   startOfJalaliMonthTehran,
   startOfTehranDay,
 } from '../common/utils/jalali.util';
-import {
-  UserFeeOverride,
-  findUserFeeOverride,
-} from '../fees/user-fee-override';
 
 /**
  * آغاز بازه‌ی سقف‌های روزانه/ماهانه به وقت تهران و ماه شمسی (همانند سقف معاملات طلا)؛
@@ -383,7 +379,7 @@ export class WalletService {
     if (!bankAccount)
       throw new NotFoundException('حساب بانکی تایید شده یافت نشد');
 
-    const feeRial = await this.calcWithdrawalFee(amount, userId);
+    const feeRial = await this.calcWithdrawalFee(amount);
     if (feeRial >= amount) {
       throw new BadRequestException('مبلغ برداشت باید بیشتر از کارمزد باشد');
     }
@@ -492,35 +488,13 @@ export class WalletService {
     };
   }
 
-  /**
-   * نرخ کارمزد برداشت کاربر: کارمزد اختصاصی (درصد + مبلغ ثابت) از پنل، در غیر این صورت
-   * تنظیمات سیستم. سقف کارمزد (withdrawal.fee_max_rial) در هر دو حالت از تنظیمات سیستم است.
-   */
-  private async withdrawalFeeRates(userId?: string) {
-    const overridePromise: Promise<UserFeeOverride | null> = userId
-      ? findUserFeeOverride(this.prisma, userId, 'WITHDRAWAL')
-      : Promise.resolve<UserFeeOverride | null>(null);
-    const [sysPercent, sysFixed, max, override] = await Promise.all([
+  /** کارمزد برداشت طبق تنظیمات سیستم (درصد + ثابت، با سقف اختیاری) */
+  async calcWithdrawalFee(amountRial: number): Promise<number> {
+    const [percent, fixed, max] = await Promise.all([
       this.systemConfig.getNumber('withdrawal.fee_percent', 0),
       this.systemConfig.getNumber('withdrawal.fee_fixed_rial', 0),
       this.systemConfig.getNumber('withdrawal.fee_max_rial', 0),
-      overridePromise,
     ]);
-    return override
-      ? {
-          percent: Number(override.feePercent.toString()),
-          fixed: Number(override.feeFixedRial?.toString() ?? 0),
-          max,
-        }
-      : { percent: sysPercent, fixed: sysFixed, max };
-  }
-
-  /** کارمزد برداشت (درصد + ثابت، با سقف اختیاری) */
-  async calcWithdrawalFee(
-    amountRial: number,
-    userId?: string,
-  ): Promise<number> {
-    const { percent, fixed, max } = await this.withdrawalFeeRates(userId);
     let fee =
       Math.round((amountRial * Math.max(0, percent)) / 100) +
       Math.max(0, fixed);
@@ -636,10 +610,11 @@ export class WalletService {
       }),
     ]);
 
-    const rates = await this.withdrawalFeeRates(userId);
-    const feePercent = rates.percent;
-    const feeFixedRial = rates.fixed;
-    const feeMaxRial = rates.max;
+    const [feePercent, feeFixedRial, feeMaxRial] = await Promise.all([
+      this.systemConfig.getNumber('withdrawal.fee_percent', 0),
+      this.systemConfig.getNumber('withdrawal.fee_fixed_rial', 0),
+      this.systemConfig.getNumber('withdrawal.fee_max_rial', 0),
+    ]);
 
     return {
       minAmount,

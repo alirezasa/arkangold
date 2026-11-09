@@ -77,7 +77,7 @@ export const ADMIN_PERMISSIONS = [
     key: 'users.fee.manage',
     group: 'users',
     description:
-      'تعیین کارمزد اختصاصی کاربر (خرید و فروش طلا، برداشت وجه) به‌جای نرخ پیش‌فرض سیستم',
+      'کم یا زیاد کردن کارمزد خرید و فروش طلای کاربر (کارمزد برداشت و واریز برای همه از تنظیمات است)',
   },
   {
     key: 'users.identity.reinquire',

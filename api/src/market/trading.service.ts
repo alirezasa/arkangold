@@ -20,7 +20,7 @@ import {
   startOfTehranDay,
 } from '../common/utils/jalali.util';
 import { ZarPayeshTradeService } from '../zarpayesh/zarpayesh-trade.service';
-import { findUserFeeOverride } from '../fees/user-fee-override';
+import { SYSTEM_FEE_KEY, findUserFee } from '../fees/user-fee-override';
 
 type Side = 'BUY' | 'SELL';
 
@@ -769,23 +769,20 @@ export class TradingService {
   // ════════════════════════════════════════════════════════
   // helpers
   // ════════════════════════════════════════════════════════
-  /** کارمزد اختصاصی کاربر (از پنل) بر نرخ پیش‌فرض سیستم مقدم است */
+  /**
+   * کارمزد کاربر: آخرین نرخ ذخیره‌شده برای او (هنگام ثبت‌نام از تنظیمات، سپس تغییر از پنل)؛
+   * کاربر بدون ردیف → نرخ فعلی تنظیمات سیستم
+   */
   private async resolveFeePercent(
     side: Side,
     userId?: string,
   ): Promise<Prisma.Decimal> {
+    const type = side === 'BUY' ? 'BUY_GOLD' : 'SELL_GOLD';
     if (userId) {
-      const override = await findUserFeeOverride(
-        this.prisma,
-        userId,
-        side === 'BUY' ? 'BUY_GOLD' : 'SELL_GOLD',
-      );
-      if (override) return new Prisma.Decimal(override.feePercent.toString());
+      const row = await findUserFee(this.prisma, userId, type);
+      if (row) return new Prisma.Decimal(row.feePercent.toString());
     }
-    return this.systemConfig.getDecimal(
-      side === 'BUY' ? 'fee.buy_gold' : 'fee.sell_gold',
-      '1.0',
-    );
+    return this.systemConfig.getDecimal(SYSTEM_FEE_KEY[type], '1.0');
   }
 
   private async getTradeConfig(

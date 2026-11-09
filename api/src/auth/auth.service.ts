@@ -48,6 +48,7 @@ import type { ChangePasswordDto } from './dto/change-password.dto';
 // FAU_GEN_EXT.1.4: شرط چاپ کد OTP در لاگ (توضیح در همان فایل)
 import { isOtpDebugLogEnabled } from '../common/logging/otp-debug';
 import { SmsTemplateService } from '../notifications/sms-template.service';
+import { signupFeeRows } from '../fees/user-fee-override';
 
 const AUDIT_SOURCE = 'AuthService';
 
@@ -293,6 +294,8 @@ export class AuthService {
     const passwordHash = await hashPassword(dto.password);
     const referralCode = await this.generateReferralCode();
     const cardNumber = await this.generateCardNumber();
+    // کارمزد خرید/فروش کاربر = نرخ همین لحظه‌ی تنظیمات سیستم (بعداً از صفحه‌ی کاربر قابل تغییر)
+    const feeRows = await signupFeeRows(this.systemConfig);
 
     const user = await this.prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
@@ -318,7 +321,9 @@ export class AuthService {
         data: { userId: newUser.id },
       });
 
-      // کارمزد از تنظیمات سیستم است؛ کارمزد اختصاصی فقط از پنل (fees/user-fee-override.ts)
+      await tx.feeConfig.createMany({
+        data: feeRows.map((r) => ({ ...r, userId: newUser.id })),
+      });
 
       await tx.taxConfig.create({
         data: { userId: newUser.id, type: 'BUY', taxPercent: 0.0 },

@@ -20,6 +20,7 @@ import {
   startOfTehranDay,
 } from '../common/utils/jalali.util';
 import { ZarPayeshTradeService } from '../zarpayesh/zarpayesh-trade.service';
+import { SYSTEM_FEE_KEY, findUserFee } from '../fees/user-fee-override';
 
 type Side = 'BUY' | 'SELL';
 
@@ -94,7 +95,7 @@ export class TradingService {
       throw new BadRequestException('مقدار وارد شده نامعتبر است');
     }
 
-    const cfg = await this.getTradeConfig(side);
+    const cfg = await this.getTradeConfig(side, userId);
 
     if (amountGrams.lessThan(cfg.minGrams)) {
       throw new BadRequestException(
@@ -218,8 +219,8 @@ export class TradingService {
   // ════════════════════════════════════════════════════════
   async getTradeInfo(userId: string) {
     const [buy, sell, serviceEnabled, quote, wallet] = await Promise.all([
-      this.getTradeConfig('BUY'),
-      this.getTradeConfig('SELL'),
+      this.getTradeConfig('BUY', userId),
+      this.getTradeConfig('SELL', userId),
       this.systemConfig.getBoolean('service.melted_gold.enabled', true),
       this.priceService.getTradableGoldQuote(),
       this.prisma.wallet.findUnique({
@@ -364,10 +365,7 @@ export class TradingService {
           let taxRial = lock.taxRial;
           if (feeRial.isZero() && taxRial.isZero()) {
             const [feePercent, taxPercent] = await Promise.all([
-              this.systemConfig.getDecimal(
-                side === 'BUY' ? 'fee.buy_gold' : 'fee.sell_gold',
-                '1.0',
-              ),
+              this.resolveFeePercent(side, userId),
               this.systemConfig.getDecimal(
                 side === 'BUY' ? 'tax.buy' : 'tax.sell',
                 '0',
@@ -771,7 +769,26 @@ export class TradingService {
   // ════════════════════════════════════════════════════════
   // helpers
   // ════════════════════════════════════════════════════════
-  private async getTradeConfig(side: Side): Promise<TradeConfig> {
+  /**
+   * کارمزد کاربر در لحظه‌ی صدور پیش‌فاکتور: کارمزد دستی کارشناس (آخرین تغییر)، وگرنه نرخ همین
+   * لحظه‌ی تنظیمات سیستم
+   */
+  private async resolveFeePercent(
+    side: Side,
+    userId?: string,
+  ): Promise<Prisma.Decimal> {
+    const type = side === 'BUY' ? 'BUY_GOLD' : 'SELL_GOLD';
+    if (userId) {
+      const row = await findUserFee(this.prisma, userId, type);
+      if (row) return new Prisma.Decimal(row.feePercent.toString());
+    }
+    return this.systemConfig.getDecimal(SYSTEM_FEE_KEY[type], '1.0');
+  }
+
+  private async getTradeConfig(
+    side: Side,
+    userId?: string,
+  ): Promise<TradeConfig> {
     const [
       minGrams,
       maxGrams,
@@ -788,10 +805,7 @@ export class TradingService {
       this.systemConfig.getDecimal('trade.gold.max_grams', '1000'),
       this.systemConfig.getDecimal('trade.gold.spread_percent', '0'),
       this.systemConfig.getNumber('trade.lock_duration_seconds', 120),
-      this.systemConfig.getDecimal(
-        side === 'BUY' ? 'fee.buy_gold' : 'fee.sell_gold',
-        '1.0',
-      ),
+      this.resolveFeePercent(side, userId),
       this.systemConfig.getDecimal(
         side === 'BUY' ? 'tax.buy' : 'tax.sell',
         '0',

@@ -25,6 +25,8 @@ function setup(opts: {
   disableBuy?: boolean;
   wallet?: { rial: number; grams: number };
   holds?: { rial?: number; grams?: number };
+  /** کارمزد دستی کاربر (ردیف فعال fee_configs) بر حسب نوع */
+  feeOverrides?: Partial<Record<'BUY_GOLD' | 'SELL_GOLD', string>>;
   /** سامانه ناظر (زر پایش) — پیش‌فرض خاموش */
   supervisor?: Partial<Record<keyof ZarPayeshTradeService, jest.Mock>>;
 }) {
@@ -127,8 +129,18 @@ function setup(opts: {
     },
   };
 
+  const feeConfig = {
+    findFirst: ({ where }: { where: { type: 'BUY_GOLD' | 'SELL_GOLD' } }) => {
+      const v = opts.feeOverrides?.[where.type];
+      return Promise.resolve(
+        v === undefined ? null : { feePercent: D(v), feeFixedRial: null },
+      );
+    },
+  };
+
   const prisma = {
     ...tx,
+    feeConfig,
     user: {
       findUnique: () =>
         Promise.resolve({
@@ -183,6 +195,41 @@ describe('TradingService — طلای آب‌شده', () => {
     expect(order.netToman).toBe('15150000');
     expect(wallet.rialBalance.toString()).toBe('48500000');
     expect(wallet.goldBalanceGrams.toString()).toBe('1.5');
+  });
+
+  it('کارمزد دستی کاربر بر نرخ تنظیمات سیستم مقدم است', async () => {
+    const { service } = setup({
+      wallet: { rial: 200_000_000, grams: 2 },
+      feeOverrides: { BUY_GOLD: '0.25' },
+    });
+    const buy = await service.lockPrice(USER_ID, 'BUY', 1);
+    expect(buy.feePercent).toBe('0.25');
+    expect(buy.feeRial).toBe('250000');
+    // فروش کارمزد دستی ندارد → همان ۱٪ تنظیمات
+    const sell = await service.lockPrice(USER_ID, 'SELL', 1);
+    expect(sell.feePercent).toBe('1');
+    expect(sell.feeRial).toBe('1000000');
+  });
+
+  it('کاربر بدون کارمزد دستی: تغییر تنظیمات بلافاصله در معامله‌ی بعدی اعمال می‌شود', async () => {
+    const { service, config } = setup({ wallet: { rial: 0, grams: 0 } });
+    const before = await service.lockPrice(USER_ID, 'BUY', 1);
+    expect(before.feePercent).toBe('1');
+    config['fee.buy_gold'] = '1.5';
+    const after = await service.lockPrice(USER_ID, 'BUY', 1);
+    expect(after.feePercent).toBe('1.5');
+    expect(after.feeRial).toBe('1500000');
+  });
+
+  it('کاربر با کارمزد دستی: تغییر تنظیمات روی او اثری ندارد', async () => {
+    const { service, config } = setup({
+      wallet: { rial: 0, grams: 0 },
+      feeOverrides: { BUY_GOLD: '0.4' },
+    });
+    config['fee.buy_gold'] = '2';
+    const lock = await service.lockPrice(USER_ID, 'BUY', 1);
+    expect(lock.feePercent).toBe('0.4');
+    expect(lock.feeRial).toBe('400000');
   });
 
   it('تغییر کارمزد بین قفل و تأیید، مبلغ پیش‌فاکتور را تغییر نمی‌دهد', async () => {

@@ -23,6 +23,15 @@ import {
 } from "lucide-react";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
 import { StepUpCancelledError, adminStepUpHeaders } from "@/app/utils/step-up";
+import {
+  AccountSection,
+  AddressesSection,
+  FeesSection,
+  LimitsSection,
+  WalletSection,
+  type UserFees,
+  type UserLimits,
+} from "./ManageSections";
 
 // تعریف اینترفیس‌ها برای تایپ‌سیف کردن پروژه
 interface BankAccount {
@@ -59,6 +68,7 @@ const ACCOUNT_STATUS_META: Record<UserDetail["status"], { label: string; bg: str
   ACTIVE: { label: "فعال", bg: "#dcfce7", color: "#16a34a" },
   BANNED: { label: "مسدود", bg: "#fee2e2", color: "#dc2626" },
   INACTIVE: { label: "غیرفعال", bg: "#f3f4f6", color: "#6b7280" },
+  PENDING_ACTIVATION: { label: "در انتظار فعال‌سازی", bg: "#fef3c7", color: "#b45309" },
 };
 
 const BANK_STATUS_META: Record<BankAccount["status"], { label: string; bg: string; color: string }> = {
@@ -121,8 +131,11 @@ interface ReferredBy {
 interface UserDetail {
   id: string;
   phone: string;
-  status: "ACTIVE" | "BANNED" | "INACTIVE";
+  type?: "REAL" | "LEGAL";
+  status: "ACTIVE" | "BANNED" | "INACTIVE" | "PENDING_ACTIVATION";
   referralCode: string;
+  limits: UserLimits | null;
+  fees?: UserFees;
   mfa?: { totpEnabled: boolean; totpEnabledAt: string | null; recoveryCodesRemaining: number };
   identity: UserIdentity | null;
   wallet: UserWallet | null;
@@ -955,6 +968,13 @@ export default function UserDetailPage() {
         <div className="space-y-5 lg:col-span-2">
           <IdentitySection user={data} onUpdated={() => mutate()} />
 
+          <WalletSection
+            userId={data.id}
+            rialBalance={data.wallet?.rialBalance ?? 0}
+            goldBalanceGrams={data.wallet?.goldBalanceGrams ?? 0}
+            onUpdated={() => mutate()}
+          />
+
           <div
             className="rounded-2xl p-5"
             style={{
@@ -1018,10 +1038,26 @@ export default function UserDetailPage() {
             )}
           </div>
 
+          <AddressesSection
+            userId={data.id}
+            defaultReceiverName={fullName ?? ""}
+            defaultReceiverPhone={data.phone}
+          />
+
           <ReferralSection user={data} />
         </div>
 
-        <div className="space-y-5 lg:sticky lg:top-4">
+        <div className="space-y-5">
+          <AccountSection
+            userId={data.id}
+            status={data.status}
+            firstName={data.identity?.firstName ?? null}
+            lastName={data.identity?.lastName ?? null}
+            identityVerified={data.identity?.status === "VERIFIED"}
+            onUpdated={() => mutate()}
+          />
+          <FeesSection userId={data.id} fees={data.fees} onUpdated={() => mutate()} />
+          <LimitsSection userId={data.id} limits={data.limits} onUpdated={() => mutate()} />
           <MobileSection user={data} onUpdated={() => mutate()} />
           <MfaSection user={data} onUpdated={() => mutate()} />
           <SessionsSection user={data} />

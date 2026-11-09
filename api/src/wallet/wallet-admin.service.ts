@@ -917,6 +917,7 @@ export class WalletAdminService {
     amountRial: number,
     amountGrams: number,
     description: string,
+    notifyUser = false,
   ) {
     if (!amountRial && !amountGrams) {
       throw new BadRequestException(
@@ -924,7 +925,7 @@ export class WalletAdminService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.findUnique({ where: { userId } });
       if (!wallet) throw new NotFoundException('کیف پول کاربر یافت نشد');
 
@@ -1029,5 +1030,42 @@ export class WalletAdminService {
         adminUserId,
       };
     });
+
+    if (!notifyUser) return result;
+
+    // پیامک پس از ثبت قطعی؛ شکست ارسال اصلاح موجودی را برنمی‌گرداند
+    const parts: string[] = [];
+    if (amountRial) {
+      parts.push(
+        `${amountRial > 0 ? 'افزایش' : 'کسر'} ${toman(Math.abs(amountRial))} تومان`,
+      );
+    }
+    if (amountGrams) {
+      parts.push(
+        `${amountGrams > 0 ? 'افزایش' : 'کسر'} ${Math.abs(amountGrams).toLocaleString('fa-IR', { maximumFractionDigits: 4 })} گرم طلا`,
+      );
+    }
+    let smsStatus = 'FAILED';
+    try {
+      const sms = await this.smsTemplates.sendToUser(
+        'WALLET_MANUAL_ADJUSTMENT',
+        userId,
+        { walletChange: parts.join(' و '), reason: description },
+        { referenceType: 'TRANSACTION', referenceId: result.transactionId },
+      );
+      smsStatus = sms.status;
+    } catch (err) {
+      this.logger.warn(
+        `پیامک اصلاح موجودی ${result.transactionId} ارسال نشد: ${(err as Error).message}`,
+      );
+    }
+    const delivered = smsStatus === 'SENT' || smsStatus === 'DRY_RUN';
+    return {
+      ...result,
+      message: delivered
+        ? `${result.message} و به کاربر پیامک شد`
+        : `${result.message}، اما پیامک ارسال نشد`,
+      smsStatus,
+    };
   }
 }

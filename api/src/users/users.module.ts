@@ -11,8 +11,14 @@ import { LegalDocumentsController } from './legal-documents.controller';
 import { LegalDocumentsService } from './legal-documents.service';
 import { ReferralModule } from '../referral/referral.module';
 import { KycModule } from '../kyc/kyc.module';
+import { AddressesModule } from '../addresses/addresses.module';
 @Module({
-  imports: [IdentityVerificationModule, ReferralModule, KycModule],
+  imports: [
+    IdentityVerificationModule,
+    ReferralModule,
+    KycModule,
+    AddressesModule,
+  ],
   controllers: [
     UsersController,
     UsersAdminController,

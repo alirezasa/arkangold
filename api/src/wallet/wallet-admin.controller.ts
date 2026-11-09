@@ -17,7 +17,10 @@ import { Request } from 'express';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
+  IsInt,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
@@ -88,14 +91,28 @@ class PayBatchDto extends PayWithdrawalDto {
 }
 
 class AdjustWalletDto {
+  /** مبلغ ریالی؛ مثبت = افزایش، منفی = کسر */
   @IsOptional()
+  @IsInt({ message: 'مبلغ ریالی باید عدد صحیح باشد' })
   amountRial?: number;
 
+  /** گرم طلا؛ مثبت = افزایش، منفی = کسر (حداکثر ۴ رقم اعشار) */
   @IsOptional()
+  @IsNumber(
+    { maxDecimalPlaces: 4 },
+    { message: 'مقدار طلا حداکثر ۴ رقم اعشار دارد' },
+  )
   amountGrams?: number;
 
   @IsString()
+  @MinLength(3, { message: 'شرح اصلاح موجودی را وارد کنید' })
+  @MaxLength(300)
   description!: string;
+
+  /** اطلاع‌رسانی پیامکی تغییر موجودی به کاربر */
+  @IsOptional()
+  @IsBoolean()
+  notifyUser?: boolean;
 }
 
 class ListWithdrawalsQueryDto {
@@ -252,7 +269,7 @@ export class WalletAdjustmentController {
   @Post(':id/adjust')
   adjust(
     @Req() req: AdminRequest,
-    @Param('id') userId: string,
+    @Param('id', ParseUUIDPipe) userId: string,
     @Body() dto: AdjustWalletDto,
   ) {
     return this.walletAdminService.adjustBalance(
@@ -261,6 +278,7 @@ export class WalletAdjustmentController {
       dto.amountRial ? Number(dto.amountRial) : 0,
       dto.amountGrams ? Number(dto.amountGrams) : 0,
       dto.description,
+      dto.notifyUser === true,
     );
   }
 }

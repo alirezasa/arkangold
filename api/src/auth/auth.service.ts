@@ -318,12 +318,7 @@ export class AuthService {
         data: { userId: newUser.id },
       });
 
-      await tx.feeConfig.create({
-        data: { userId: newUser.id, type: 'BUY_GOLD', feePercent: 1.0 },
-      });
-      await tx.feeConfig.create({
-        data: { userId: newUser.id, type: 'SELL_GOLD', feePercent: 1.0 },
-      });
+      // کارمزد خرید/فروش از تنظیمات سیستم؛ کارمزد دستی فقط از پنل (fees/user-fee-override.ts)
 
       await tx.taxConfig.create({
         data: { userId: newUser.id, type: 'BUY', taxPercent: 0.0 },

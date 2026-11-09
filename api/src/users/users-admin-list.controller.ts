@@ -3,6 +3,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Body,
   Param,
   ParseUUIDPipe,
@@ -13,7 +15,20 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
-import { IsOptional, IsString, IsIn } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  ValidateIf,
+} from 'class-validator';
+import { USER_FEE_TYPES, UserFeeType } from '../fees/user-fee-override';
+import { CreateAddressDto, UpdateAddressDto } from '@arkan-gold/shared';
 import { UsersAdminService } from './users-admin.service';
 import { UsersService } from './users.service';
 import { AdminJwtAuthGuard } from '../admin-auth/guards/admin-jwt-auth.guard';
@@ -35,6 +50,66 @@ class ListUsersQueryDto {
 class SetUserStatusDto {
   @IsIn(['ACTIVE', 'BANNED', 'INACTIVE'])
   status!: 'ACTIVE' | 'BANNED' | 'INACTIVE';
+}
+
+class CreateUserDto {
+  @IsString()
+  @MaxLength(20)
+  phone!: string;
+
+  @IsIn(['REAL', 'LEGAL'])
+  type!: 'REAL' | 'LEGAL';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{11}$/, { message: 'شناسه ملی شرکت باید ۱۱ رقم باشد' })
+  companyNationalId?: string;
+
+  /** ارسال پیامک اطلاع‌رسانی ایجاد حساب به کاربر */
+  @IsBoolean()
+  sendSms!: boolean;
+}
+
+class UpdateUserNameDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  lastName?: string;
+}
+
+class UpdateUserLimitsDto {
+  @IsOptional() @IsNumber() @Min(0) physicalDeliveryMinGrams?: number;
+  @IsOptional() @IsNumber() @Min(0) physicalDeliveryMaxGrams?: number;
+}
+
+class SetUserFeeDto {
+  @IsIn([...USER_FEE_TYPES])
+  type!: UserFeeType;
+
+  /** null = حذف کارمزد دستی و بازگشت به تنظیمات سیستم */
+  @ValidateIf((_o, v) => v !== null)
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'درصد کارمزد حداکثر ۲ رقم اعشار دارد' },
+  )
+  @Min(0)
+  @Max(100)
+  feePercent!: number | null;
 }
 
 interface AdminRequest extends Request {
@@ -60,6 +135,15 @@ export class UsersAdminListController {
       status: query.status,
       type: query.type,
     });
+  }
+
+  @RequirePermission('users.create')
+  @AuditLog('user.create')
+  @UseInterceptors(AuditLogInterceptor)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post()
+  create(@Body() dto: CreateUserDto) {
+    return this.service.createUser(dto);
   }
 
   @RequirePermission('users.view')
@@ -117,5 +201,90 @@ export class UsersAdminListController {
     @Body() dto: SetUserStatusDto,
   ) {
     return this.service.setStatus(id, dto.status);
+  }
+
+  // ── نام نمایشی (فقط پیش از تأیید هویت) ──
+  @RequirePermission('users.manage')
+  @AuditLog('user.update_name')
+  @UseInterceptors(AuditLogInterceptor)
+  @Patch(':id/name')
+  updateName(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserNameDto,
+  ) {
+    return this.service.updateName(id, dto.firstName, dto.lastName);
+  }
+
+  // ── سقف‌های معاملاتی کاربر ──
+  @RequirePermission('users.manage')
+  @AuditLog('user.update_limits')
+  @UseInterceptors(AuditLogInterceptor)
+  @Patch(':id/limits')
+  updateLimits(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserLimitsDto,
+  ) {
+    return this.service.updateLimits(id, dto);
+  }
+
+  // ── کارمزد خرید/فروش طلای کاربر ──
+  @RequirePermission('users.fee.manage')
+  @AuditLog('user.set_fee')
+  @UseInterceptors(AuditLogInterceptor)
+  @Patch(':id/fees')
+  setFee(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetUserFeeDto) {
+    return this.service.setFee(id, dto);
+  }
+
+  // ── آدرس‌های کاربر ──
+  @RequirePermission('users.view')
+  @Get(':id/addresses')
+  listAddresses(@Param('id', ParseUUIDPipe) id: string) {
+    return this.service.listAddresses(id);
+  }
+
+  @RequirePermission('users.manage')
+  @AuditLog('user.address_create')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post(':id/addresses')
+  createAddress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateAddressDto,
+  ) {
+    return this.service.createAddress(id, dto);
+  }
+
+  @RequirePermission('users.manage')
+  @AuditLog('user.address_update')
+  @UseInterceptors(AuditLogInterceptor)
+  @Patch(':id/addresses/:addressId')
+  updateAddress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('addressId', ParseUUIDPipe) addressId: string,
+    @Body() dto: UpdateAddressDto,
+  ) {
+    return this.service.updateAddress(id, addressId, dto);
+  }
+
+  @RequirePermission('users.manage')
+  @AuditLog('user.address_default')
+  @UseInterceptors(AuditLogInterceptor)
+  @Post(':id/addresses/:addressId/default')
+  setDefaultAddress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('addressId', ParseUUIDPipe) addressId: string,
+  ) {
+    return this.service.setDefaultAddress(id, addressId);
+  }
+
+  @RequirePermission('users.manage')
+  @AuditLog('user.address_delete')
+  @UseInterceptors(AuditLogInterceptor)
+  @Delete(':id/addresses/:addressId')
+  removeAddress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('addressId', ParseUUIDPipe) addressId: string,
+  ) {
+    return this.service.removeAddress(id, addressId);
   }
 }

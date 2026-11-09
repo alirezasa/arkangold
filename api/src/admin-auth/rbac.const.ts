@@ -62,6 +62,24 @@ export const ADMIN_PERMISSIONS = [
     description: 'مشاهده لیست و جزئیات کاربران',
   },
   {
+    key: 'users.create',
+    group: 'users',
+    description:
+      'تعریف کاربر جدید از پنل (با یا بدون پیامک اطلاع‌رسانی به کاربر)',
+  },
+  {
+    key: 'users.manage',
+    group: 'users',
+    description:
+      'مدیریت پرونده‌ی کاربر: ویرایش نام، آدرس‌ها و سقف تحویل فیزیکی',
+  },
+  {
+    key: 'users.fee.manage',
+    group: 'users',
+    description:
+      'کم یا زیاد کردن کارمزد خرید و فروش طلای کاربر (کارمزد برداشت و واریز برای همه از تنظیمات است)',
+  },
+  {
     key: 'users.identity.reinquire',
     group: 'users',
     description:
@@ -599,6 +617,7 @@ export const ADMIN_ROLES = [
       'physical_delivery.view',
       'physical_delivery.approve',
       'users.view',
+      'users.fee.manage',
       'bank_account.view',
       'bank_account.manage',
       'accounting.view',

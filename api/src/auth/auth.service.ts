@@ -26,7 +26,7 @@ import {
   ResetPasswordDto,
   RefreshTokenDto,
 } from '@arkan-gold/shared';
-import { OtpPurpose, UserType } from '../generated/prisma/client';
+import { OtpPurpose, UserStatus, UserType } from '../generated/prisma/client';
 import {
   jwtSignOptions,
   jwtVerifyOptions,
@@ -87,6 +87,22 @@ export interface MfaChallengeResponse {
   maskedPhone?: string;
   expiresIn?: number;
   resendAfter?: number;
+}
+
+/** نشست صادرشده پس از ورود موفق (BFF آن را در کوکی HttpOnly قرار می‌دهد) */
+export interface UserLoginSession {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  refreshExpiresIn: number;
+  idleTimeoutSeconds: number;
+  user: {
+    id: string;
+    phone: string;
+    type: UserType;
+    status: UserStatus;
+    referralCode: string;
+  };
 }
 
 @Injectable()
@@ -391,7 +407,7 @@ export class AuthService {
     dto: LoginDto,
     ip?: string,
     userAgent?: string,
-  ): Promise<MfaChallengeResponse> {
+  ): Promise<MfaChallengeResponse | UserLoginSession> {
     const phone = this.normalizePhone(dto.phone);
     const maskedPhone = maskPhone(phone);
 
@@ -459,6 +475,25 @@ export class AuthService {
     }
 
     const method = user.totpEnabled ? 'TOTP' : 'SMS';
+
+    // ورود فقط با رمز وقتی ارسال کد پیامکی پس از رمز از پنل خاموش شده باشد
+    // (security.login.user_password_sms_code_enabled). کاربری که خودش برنامه‌ی احراز هویت را فعال
+    // کرده همچنان کد برنامه را وارد می‌کند؛ این تنظیم فقط پیامک را حذف می‌کند.
+    if (
+      method === 'SMS' &&
+      !(await this.systemConfig.getBoolean(
+        'security.login.user_password_sms_code_enabled',
+        true,
+      ))
+    ) {
+      return this.completeUserLogin(user, {
+        ip,
+        userAgent,
+        mfa: 'none',
+        via: 'password',
+      });
+    }
+
     if (method === 'SMS') {
       await this.issueOtp(phone, OtpPurpose.LOGIN);
     }
@@ -647,6 +682,36 @@ export class AuthService {
         'مرحله‌ی ورود نامعتبر است؛ دوباره وارد شوید',
       );
     }
+    return this.completeUserLogin(user, {
+      ip,
+      userAgent,
+      mfa: usedMethod,
+      via: ch.via === 'sms_otp' ? 'sms_otp' : 'password',
+    });
+  }
+
+  /**
+   * پایان ورود موفق: پاک کردن شمارنده‌های تلاش ناموفق، صدور نشست، ثبت ممیزی و هشدار ورود از دستگاه
+   * جدید. mfa = 'none' یعنی ورود فقط با رمز (ارسال کد پیامکی پس از رمز از پنل خاموش است).
+   */
+  private async completeUserLogin(
+    user: {
+      id: string;
+      phone: string;
+      type: UserLoginSession['user']['type'];
+      status: UserLoginSession['user']['status'];
+      referralCode: string;
+      failedLoginCount: number;
+      lockedUntil: Date | null;
+    },
+    opts: {
+      ip?: string;
+      userAgent?: string;
+      mfa: string;
+      via: 'password' | 'sms_otp';
+    },
+  ): Promise<UserLoginSession> {
+    const { ip, userAgent } = opts;
     await this.loginThrottle.recordSuccess('user', user.phone);
     await this.loginThrottle.recordSuccess('mfa', `user:${user.id}`);
     if (user.failedLoginCount !== 0 || user.lockedUntil) {
@@ -658,23 +723,20 @@ export class AuthService {
     const tokens = await this.createSession(user.id, user.phone, ip, userAgent);
     await this.auditService.logUser({
       userId: user.id,
-      actorLabel: maskedPhone,
+      actorLabel: maskPhone(user.phone),
       action: 'auth.login',
       ip,
       userAgent,
       source: AUDIT_SOURCE,
       success: true,
-      newValue: {
-        mfa: usedMethod,
-        via: ch.via === 'sms_otp' ? 'sms_otp' : 'password',
-      },
+      newValue: { mfa: opts.mfa, via: opts.via },
     });
     await this.loginAlerts.onSuccessfulLogin(
       { kind: 'user', id: user.id },
       ip,
       userAgent,
     );
-    if (usedMethod === 'recovery_code') {
+    if (opts.mfa === 'recovery_code') {
       await this.loginAlerts.onSecurityChange(
         { kind: 'user', id: user.id },
         'ورود با یکی از کدهای بازیابی انجام شد',

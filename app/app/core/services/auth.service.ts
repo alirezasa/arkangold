@@ -16,6 +16,12 @@ export interface LoginChallenge {
   resendAfter?: number;
 }
 
+/** ورود فقط با رمز (ارسال کد پیامکی پس از رمز از پنل خاموش است): نشست در کوکی ست شده است */
+export interface LoginSuccess {
+  success: true;
+  mfaRequired?: undefined;
+}
+
 export const AuthService = {
   // ==========================================
   // ─── بخش اول: متدهای ثبت نام (کدهای قبلی شما)
@@ -61,9 +67,10 @@ export const AuthService = {
   // ─── بخش دوم: ورود دومرحله‌ای (FIA_UAU_EXT.2.3)
   // ==========================================
 
-  // مرحله‌ی اول: رمز عبور (از طریق BFF). پاسخ نشست نیست؛ توکن مرحله و روش عامل دوم است.
+  // مرحله‌ی اول: رمز عبور (از طریق BFF). معمولاً توکن مرحله و روش عامل دوم برمی‌گردد؛ اگر کد
+  // پیامکی پس از رمز از پنل خاموش باشد، نشست مستقیم صادر و کوکی ست می‌شود (LoginSuccess).
   login: async (phone: string, password: string, captcha?: string) => {
-    const response = await axios.post<LoginChallenge>(`/api/auth/login`, {
+    const response = await axios.post<LoginChallenge | LoginSuccess>(`/api/auth/login`, {
       phone,
       password,
       captcha,

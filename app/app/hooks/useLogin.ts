@@ -33,10 +33,16 @@ export const useLogin = () => {
     setLoading(true);
     setError(null);
     try {
-      const ch = await withCaptcha(
+      const res = await withCaptcha(
         (captcha) => AuthService.login(phone, password, captcha),
         setChecking,
       );
+      // کد پیامکی پس از رمز از پنل خاموش است: نشست صادر شده و مرحله‌ی دوم نداریم
+      if (!res.mfaRequired) {
+        router.replace(consumeReturnPath() ?? "/dashboard");
+        return 0;
+      }
+      const ch = res;
       setChallenge(ch);
       setStep("second_factor");
       return ch.resendAfter ?? 0;

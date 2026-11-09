@@ -15,6 +15,12 @@ import { AddressesService } from '../addresses/addresses.service';
 import { IRAN_PROVINCES } from '../shipping/iran-provinces';
 import { SmsTemplateService } from '../notifications/sms-template.service';
 import { normalizeIranMobile } from '../integrations/providers/sms-common/sms-live.util';
+import { SystemConfigService } from '../system-config/system-config.service';
+import {
+  USER_FEE_TYPES,
+  UserFeeType,
+  findUserFeeOverride,
+} from '../fees/user-fee-override';
 
 type Tx = Prisma.TransactionClient;
 
@@ -28,13 +34,27 @@ export interface AdminCreateUserInput {
 }
 
 export interface AdminUpdateLimitsInput {
-  dailyBuyLimitGrams?: number;
-  dailySellLimitGrams?: number;
-  monthlyWithdrawLimitRial?: number;
-  dailyTransferLimitGrams?: number;
   physicalDeliveryMinGrams?: number;
   physicalDeliveryMaxGrams?: number;
 }
+
+export interface AdminSetFeeInput {
+  type: UserFeeType;
+  /** null = حذف کارمزد اختصاصی و بازگشت به نرخ پیش‌فرض سیستم */
+  feePercent: number | null;
+  /** فقط برای برداشت: مبلغ ثابت ریالی */
+  feeFixedRial?: number;
+}
+
+/**
+ * سقف‌هایی که واقعاً برای هر کاربر اعمال می‌شوند. سقف خرید/فروش/انتقال/برداشت فعلاً از تنظیمات
+ * سیستم خوانده می‌شود و ستون‌های متناظر user_limits در محاسبات استفاده نمی‌شوند؛ پس از پنل قابل
+ * ویرایش نیستند تا کارشناس به کنترل بی‌اثر اعتماد نکند.
+ */
+const EDITABLE_LIMIT_FIELDS = [
+  'physicalDeliveryMinGrams',
+  'physicalDeliveryMaxGrams',
+] as const;
 
 const LIMIT_FIELDS = [
   'dailyBuyLimitGrams',
@@ -64,6 +84,7 @@ export class UsersAdminService {
     private referralService: ReferralService,
     private addresses: AddressesService,
     private smsTemplates: SmsTemplateService,
+    private systemConfig: SystemConfigService,
   ) {}
 
   async list(query: ListUsersQuery) {
@@ -147,9 +168,10 @@ export class UsersAdminService {
     });
     if (!user) throw new NotFoundException('کاربر یافت نشد');
 
-    const [referralStats, referredBy] = await Promise.all([
+    const [referralStats, referredBy, fees] = await Promise.all([
       this.referralService.statsForReferrer(user.id),
       this.referralService.referrerOf(user.id),
+      this.getFees(user.id),
     ]);
 
     return {
@@ -218,6 +240,7 @@ export class UsersAdminService {
             LIMIT_FIELDS.map((f) => [f, String(user.limits[f])]),
           )
         : null,
+      fees,
       referralStats,
       referredBy,
       createdAt: user.createdAt.toISOString(),
@@ -315,12 +338,6 @@ export class UsersAdminService {
           },
         });
         await tx.userLimit.create({ data: { userId: created.id } });
-        await tx.feeConfig.createMany({
-          data: [
-            { userId: created.id, type: 'BUY_GOLD', feePercent: 1.0 },
-            { userId: created.id, type: 'SELL_GOLD', feePercent: 1.0 },
-          ],
-        });
         await tx.taxConfig.create({
           data: { userId: created.id, type: 'BUY', taxPercent: 0.0 },
         });
@@ -489,14 +506,16 @@ export class UsersAdminService {
 
   async updateLimits(userId: string, input: AdminUpdateLimitsInput) {
     await this.assertUser(userId);
-    const data: Partial<Record<(typeof LIMIT_FIELDS)[number], number>> = {};
-    for (const f of LIMIT_FIELDS) {
+    const data: Partial<
+      Record<(typeof EDITABLE_LIMIT_FIELDS)[number], number>
+    > = {};
+    for (const f of EDITABLE_LIMIT_FIELDS) {
       const v = input[f];
       if (v === undefined || v === null) continue;
       if (!Number.isFinite(v) || v < 0) {
         throw new BadRequestException('مقدار سقف باید عددی نامنفی باشد');
       }
-      data[f] = f === 'monthlyWithdrawLimitRial' ? Math.round(v) : v;
+      data[f] = v;
     }
     if (Object.keys(data).length === 0) {
       throw new BadRequestException('هیچ مقداری برای تغییر ارسال نشده است');
@@ -530,6 +549,109 @@ export class UsersAdminService {
       message: 'سقف‌های کاربر بروزرسانی شد',
       previous: view(current),
       limits: view(updated),
+    };
+  }
+
+  // ═══════════════════════════ کارمزد اختصاصی ═══════════════════════════
+
+  /** نرخ پیش‌فرض سیستم + کارمزد اختصاصی کاربر (در صورت وجود) برای هر نوع */
+  async getFees(userId: string) {
+    const [buy, sell, wPercent, wFixed, wMax, overrides] = await Promise.all([
+      this.systemConfig.getDecimal('fee.buy_gold', '1.0'),
+      this.systemConfig.getDecimal('fee.sell_gold', '1.0'),
+      this.systemConfig.getDecimal('withdrawal.fee_percent', '0'),
+      this.systemConfig.getDecimal('withdrawal.fee_fixed_rial', '0'),
+      this.systemConfig.getDecimal('withdrawal.fee_max_rial', '0'),
+      Promise.all(
+        USER_FEE_TYPES.map((t) => findUserFeeOverride(this.prisma, userId, t)),
+      ),
+    ]);
+    const defaults: Record<
+      UserFeeType,
+      { feePercent: string; feeFixedRial: string | null }
+    > = {
+      BUY_GOLD: { feePercent: buy.toString(), feeFixedRial: null },
+      SELL_GOLD: { feePercent: sell.toString(), feeFixedRial: null },
+      WITHDRAWAL: {
+        feePercent: wPercent.toString(),
+        feeFixedRial: wFixed.toString(),
+      },
+    };
+    return {
+      withdrawalFeeMaxRial: wMax.toString(),
+      items: USER_FEE_TYPES.map((type, i) => {
+        const o = overrides[i];
+        return {
+          type,
+          default: defaults[type],
+          override: o
+            ? {
+                feePercent: o.feePercent.toString(),
+                feeFixedRial:
+                  type === 'WITHDRAWAL'
+                    ? (o.feeFixedRial ?? 0).toString()
+                    : null,
+              }
+            : null,
+        };
+      }),
+    };
+  }
+
+  /**
+   * تعیین/حذف کارمزد اختصاصی. ردیف‌های قبلی همان نوع (از جمله ردیف‌های خودکار غیرفعال قدیمی)
+   * جایگزین می‌شوند تا برای هر نوع حداکثر یک ردیف بماند. قفل‌های قیمت صادرشده با نرخ قبلی معتبرند.
+   */
+  async setFee(userId: string, input: AdminSetFeeInput) {
+    await this.assertUser(userId);
+    const before = await this.getFees(userId);
+    const prev = before.items.find((i) => i.type === input.type)?.override;
+
+    if (input.feePercent === null) {
+      await this.prisma.feeConfig.deleteMany({
+        where: { userId, type: input.type },
+      });
+      return {
+        message: 'کارمزد اختصاصی حذف شد؛ نرخ پیش‌فرض سیستم اعمال می‌شود',
+        type: input.type,
+        previous: prev,
+        override: null,
+      };
+    }
+
+    const percent = input.feePercent;
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      throw new BadRequestException('درصد کارمزد باید بین ۰ تا ۱۰۰ باشد');
+    }
+    if (Math.round(percent * 100) !== percent * 100) {
+      throw new BadRequestException('درصد کارمزد حداکثر ۲ رقم اعشار دارد');
+    }
+    const fixed =
+      input.type === 'WITHDRAWAL' ? (input.feeFixedRial ?? 0) : null;
+    if (fixed !== null && (!Number.isInteger(fixed) || fixed < 0)) {
+      throw new BadRequestException('کارمزد ثابت باید عدد صحیح نامنفی باشد');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.feeConfig.deleteMany({ where: { userId, type: input.type } }),
+      this.prisma.feeConfig.create({
+        data: {
+          userId,
+          type: input.type,
+          feePercent: percent,
+          feeFixedRial: fixed,
+          isActive: true,
+        },
+      }),
+    ]);
+    return {
+      message: 'کارمزد اختصاصی کاربر ثبت شد',
+      type: input.type,
+      previous: prev,
+      override: {
+        feePercent: String(percent),
+        feeFixedRial: fixed === null ? null : String(fixed),
+      },
     };
   }
 }

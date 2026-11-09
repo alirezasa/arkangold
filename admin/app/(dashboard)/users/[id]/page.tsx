@@ -26,8 +26,10 @@ import { StepUpCancelledError, adminStepUpHeaders } from "@/app/utils/step-up";
 import {
   AccountSection,
   AddressesSection,
+  FeesSection,
   LimitsSection,
   WalletSection,
+  type UserFees,
   type UserLimits,
 } from "./ManageSections";
 
@@ -133,6 +135,7 @@ interface UserDetail {
   status: "ACTIVE" | "BANNED" | "INACTIVE" | "PENDING_ACTIVATION";
   referralCode: string;
   limits: UserLimits | null;
+  fees?: UserFees;
   mfa?: { totpEnabled: boolean; totpEnabledAt: string | null; recoveryCodesRemaining: number };
   identity: UserIdentity | null;
   wallet: UserWallet | null;
@@ -1053,6 +1056,7 @@ export default function UserDetailPage() {
             identityVerified={data.identity?.status === "VERIFIED"}
             onUpdated={() => mutate()}
           />
+          <FeesSection userId={data.id} fees={data.fees} onUpdated={() => mutate()} />
           <LimitsSection userId={data.id} limits={data.limits} onUpdated={() => mutate()} />
           <MobileSection user={data} onUpdated={() => mutate()} />
           <MfaSection user={data} onUpdated={() => mutate()} />

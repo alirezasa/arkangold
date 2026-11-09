@@ -71,7 +71,13 @@ export const ADMIN_PERMISSIONS = [
     key: 'users.manage',
     group: 'users',
     description:
-      'مدیریت پرونده‌ی کاربر: تغییر وضعیت حساب، ویرایش نام، آدرس‌ها و سقف‌های معاملاتی',
+      'مدیریت پرونده‌ی کاربر: ویرایش نام، آدرس‌ها و سقف تحویل فیزیکی',
+  },
+  {
+    key: 'users.fee.manage',
+    group: 'users',
+    description:
+      'تعیین کارمزد اختصاصی کاربر (خرید و فروش طلا، برداشت وجه) به‌جای نرخ پیش‌فرض سیستم',
   },
   {
     key: 'users.identity.reinquire',
@@ -611,6 +617,7 @@ export const ADMIN_ROLES = [
       'physical_delivery.view',
       'physical_delivery.approve',
       'users.view',
+      'users.fee.manage',
       'bank_account.view',
       'bank_account.manage',
       'accounting.view',

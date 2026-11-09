@@ -25,6 +25,8 @@ function setup(opts: {
   disableBuy?: boolean;
   wallet?: { rial: number; grams: number };
   holds?: { rial?: number; grams?: number };
+  /** کارمزد اختصاصی کاربر (ردیف فعال fee_configs) بر حسب نوع */
+  feeOverrides?: Partial<Record<'BUY_GOLD' | 'SELL_GOLD', string>>;
   /** سامانه ناظر (زر پایش) — پیش‌فرض خاموش */
   supervisor?: Partial<Record<keyof ZarPayeshTradeService, jest.Mock>>;
 }) {
@@ -127,8 +129,18 @@ function setup(opts: {
     },
   };
 
+  const feeConfig = {
+    findFirst: ({ where }: { where: { type: 'BUY_GOLD' | 'SELL_GOLD' } }) => {
+      const v = opts.feeOverrides?.[where.type];
+      return Promise.resolve(
+        v === undefined ? null : { feePercent: D(v), feeFixedRial: null },
+      );
+    },
+  };
+
   const prisma = {
     ...tx,
+    feeConfig,
     user: {
       findUnique: () =>
         Promise.resolve({
@@ -183,6 +195,20 @@ describe('TradingService — طلای آب‌شده', () => {
     expect(order.netToman).toBe('15150000');
     expect(wallet.rialBalance.toString()).toBe('48500000');
     expect(wallet.goldBalanceGrams.toString()).toBe('1.5');
+  });
+
+  it('کارمزد اختصاصی کاربر بر نرخ پیش‌فرض سیستم مقدم است', async () => {
+    const { service } = setup({
+      wallet: { rial: 200_000_000, grams: 2 },
+      feeOverrides: { BUY_GOLD: '0.25' },
+    });
+    const buy = await service.lockPrice(USER_ID, 'BUY', 1);
+    expect(buy.feePercent).toBe('0.25');
+    expect(buy.feeRial).toBe('250000');
+    // فروش کارمزد اختصاصی ندارد → همان ۱٪ سیستم
+    const sell = await service.lockPrice(USER_ID, 'SELL', 1);
+    expect(sell.feePercent).toBe('1');
+    expect(sell.feeRial).toBe('1000000');
   });
 
   it('تغییر کارمزد بین قفل و تأیید، مبلغ پیش‌فاکتور را تغییر نمی‌دهد', async () => {

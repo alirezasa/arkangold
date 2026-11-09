@@ -890,6 +890,7 @@ model FeeConfig {
   user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([type, isActive])
+  @@index([userId, type, isActive])
   @@map("fee_configs")
 }
 

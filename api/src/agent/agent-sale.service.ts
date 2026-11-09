@@ -692,7 +692,7 @@ export class AgentSaleService {
     return { userId: user.id, fullName, created };
   }
 
-  /** همان ساختار ثبت‌نام عادی: کاربر + کیف پول + سقف‌ها + کارمزد و مالیات پیش‌فرض */
+  /** همان ساختار ثبت‌نام عادی: کاربر + کیف پول + سقف‌ها + مالیات پیش‌فرض (کارمزد از تنظیمات سیستم) */
   private async createUser(tx: Tx, phone: string) {
     const referralCode = await this.uniqueReferralCode(tx);
     const cardNumber = await this.uniqueCardNumber(tx);
@@ -707,12 +707,6 @@ export class AgentSaleService {
     });
     await tx.wallet.create({ data: { userId: user.id, cardNumber } });
     await tx.userLimit.create({ data: { userId: user.id } });
-    await tx.feeConfig.createMany({
-      data: [
-        { userId: user.id, type: 'BUY_GOLD', feePercent: 1.0 },
-        { userId: user.id, type: 'SELL_GOLD', feePercent: 1.0 },
-      ],
-    });
     await tx.taxConfig.create({
       data: { userId: user.id, type: 'BUY', taxPercent: 0.0 },
     });

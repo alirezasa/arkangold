@@ -27,6 +27,7 @@
 | `nginx.conf.template` | الگوی پیکربندی nginx رله |
 | `relay.env.example` | تنظیمات رله (پورت، کلید، مقصد MPLS، فایروال) |
 | `60-zarpayesh-mpls.yaml.example` | نمونه‌ی netplan برای کارت شبکه‌ی MPLS |
+| `setup-mpls-router.sh`، `mpls.env.example`، `zarpayesh-mpls-status.sh` | روتر پلتفرم روی اوبونتو برای بستر MPLS جدید شاپرک — [mpls-router.md](./mpls-router.md) |
 
 ---
 
@@ -58,6 +59,11 @@ sudo apt update && sudo apt -y full-upgrade && sudo apt -y install unattended-up
 - ساعت سرور برای اعتبار گواهی‌ها مهم است: `timedatectl` باید `System clock synchronized: yes` نشان دهد.
 
 ## مرحله ۲ — کارت شبکه‌ی MPLS (بعد از تحویل لینک)
+
+> **بستر MPLS جدید شاپرک (پروژه‌ی طلا):** طبق سند شاپرک، روی لینک MPLS باید دو تانل GRE over IPsec، مسیریابی OSPF و
+> NAT Pool اختصاصی برقرار شود. اگر دیتاسنتر فقط لینک خام را تحویل می‌دهد و روتر جداگانه ندارید، **به‌جای این مرحله**
+> راهنمای [mpls-router.md](./mpls-router.md) را اجرا کنید (خود سرور نقش روتر پلتفرم را می‌گیرد). این مرحله فقط وقتی
+> کافی است که یک روتر مدیریت‌شده تانل‌ها و NAT را انجام دهد و به سرور فقط یک route ساده بدهد.
 
 ```bash
 ip -br link            # نام کارت MPLS (مثلاً eth1 / eno2 / ens19)

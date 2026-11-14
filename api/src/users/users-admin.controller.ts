@@ -2,8 +2,11 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Body,
   Param,
+  ParseUUIDPipe,
   Query,
   Res,
   UseGuards,
@@ -11,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { IsOptional, IsString, IsBoolean } from 'class-validator';
+import { UpdateLegalProfileDto } from '@arkan-gold/shared';
 import { UsersService } from './users.service';
 import {
   LegalDocumentsService,
@@ -134,6 +138,38 @@ export class UsersAdminController {
       dto.reason,
       dto.editable,
     );
+  }
+
+  // تبدیل حساب حقوقی به حقیقی (در هر مرحله؛ اطلاعات و مدارک حقوقی حذف می‌شود)
+  @RequirePermission('legal_profile.approve')
+  @AuditLog('legal_profile.convert_to_real')
+  @Post(':userId/convert-to-real')
+  convertToReal(@Param('userId', ParseUUIDPipe) userId: string) {
+    return this.usersService.convertToRealByAdmin(userId);
+  }
+
+  @RequirePermission('legal_profile.approve')
+  @AuditLog('legal_profile.update')
+  @Patch(':userId')
+  update(
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() dto: UpdateLegalProfileDto,
+  ) {
+    return this.usersService.updateLegalProfileByAdmin(userId, dto);
+  }
+
+  @RequirePermission('legal_profile.approve')
+  @AuditLog('legal_profile.delete')
+  @Delete(':userId')
+  removeProfile(@Param('userId', ParseUUIDPipe) userId: string) {
+    return this.usersService.deleteLegalProfileByAdmin(userId);
+  }
+
+  @RequirePermission('legal_profile.approve')
+  @AuditLog('legal_profile.document_delete')
+  @Delete('documents/:documentId')
+  removeDocument(@Param('documentId', ParseUUIDPipe) documentId: string) {
+    return this.legalDocumentsService.removeForAdmin(documentId);
   }
 
   @RequirePermission('legal_profile.view')

@@ -27,9 +27,11 @@ import {
   AccountSection,
   AddressesSection,
   FeesSection,
+  LegalSection,
   LimitsSection,
   WalletSection,
   type UserFees,
+  type UserLegalProfile,
   type UserLimits,
 } from "./ManageSections";
 
@@ -138,6 +140,7 @@ interface UserDetail {
   fees?: UserFees;
   mfa?: { totpEnabled: boolean; totpEnabledAt: string | null; recoveryCodesRemaining: number };
   identity: UserIdentity | null;
+  legalProfile?: UserLegalProfile | null;
   wallet: UserWallet | null;
   bankAccounts: BankAccount[];
   mobileVerification?: MobileVerification;
@@ -967,6 +970,13 @@ export default function UserDetailPage() {
       <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
         <div className="space-y-5 lg:col-span-2">
           <IdentitySection user={data} onUpdated={() => mutate()} />
+
+          <LegalSection
+            userId={data.id}
+            type={data.type}
+            legalProfile={data.legalProfile ?? null}
+            onUpdated={() => mutate()}
+          />
 
           <WalletSection
             userId={data.id}

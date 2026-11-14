@@ -244,6 +244,10 @@ export default function ProductDetailView({
     (unitPrice === null ||
       Math.round(Number(preview.finalPriceToman)) !== Math.round(unitPrice));
 
+  // عیار از خود محصول (یا محاسبه‌ی لحظه‌ای) خوانده می‌شود؛ پیش‌فرض ۱۸
+  const purity = product.purityKarat ?? preview?.purityKarat ?? null;
+  const karatLabel = purity === "K24" ? "۲۴" : "۱۸";
+
   const addButtonLabel = outOfStock ? "ناموجود" : "افزودن به سبد خرید";
 
   return (
@@ -346,9 +350,9 @@ export default function ProductDetailView({
                   {product.category.name}
                 </span>
               )}
-              {preview?.purityKarat && (
+              {purity && (
                 <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-black text-gray-600">
-                  عیار {preview.purityKarat === "K18" ? "۱۸" : "۲۴"}
+                  عیار {karatLabel}
                 </span>
               )}
               {!isWeightRange && selectedVariant && (
@@ -492,12 +496,14 @@ export default function ProductDetailView({
 
           {/* ══ جزئیات فرمول قیمت‌گذاری (فقط اگر محصول عیار طلا + فرمول دارد) ══ */}
           {product.hasPricingFormula && preview && (
-            <details className="group rounded-2xl border border-gray-100 bg-gray-50">
+            <details
+              open
+              className="group rounded-2xl border border-gray-100 bg-gray-50"
+            >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-[12px] font-bold text-gray-600 [&::-webkit-details-marker]:hidden">
                 <span className="flex items-center gap-1.5">
                   <Info className="w-3.5 h-3.5 text-gold-600" />
-                  جزئیات محاسبه قیمت (عیار{" "}
-                  {preview.purityKarat === "K18" ? "۱۸" : "۲۴"})
+                  جزئیات محاسبه قیمت (عیار {karatLabel})
                 </span>
                 <ChevronDown className="w-4 h-4 text-gray-400 transition-transform group-open:rotate-180" />
               </summary>
@@ -670,7 +676,7 @@ export default function ProductDetailView({
               {(
                 [
                   [ShieldCheck, "پلمپ امنیتی", "هولوگرام‌دار"],
-                  [BadgeCheck, "طلای ۲۴ عیار", "شمش شرکتی"],
+                  [BadgeCheck, `طلای ${karatLabel} عیار`, "شمش شرکتی"],
                   [ReceiptText, "فاکتور رسمی", "همراه سفارش"],
                 ] as const
               ).map(([Icon, title, sub]) => (

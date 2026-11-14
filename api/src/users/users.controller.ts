@@ -75,4 +75,12 @@ export class UsersController {
   requestLegalUpgrade(@Req() req: AuthenticatedRequest) {
     return this.usersService.requestLegalUpgrade(req.user.userId);
   }
+
+  @Post('me/cancel-legal-request')
+  @ApiOperation({
+    summary: 'انصراف از درخواست حقوقی و بازگشت به حساب حقیقی (پیش از ثبت شرکت)',
+  })
+  cancelLegalRequest(@Req() req: AuthenticatedRequest) {
+    return this.usersService.cancelLegalRequest(req.user.userId);
+  }
 }

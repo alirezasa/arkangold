@@ -61,6 +61,11 @@ export class LegalDocumentsService {
     if (!legalProfile) {
       throw new NotFoundException('ابتدا باید اطلاعات شرکت را ثبت کنید');
     }
+    if (legalProfile.verified) {
+      throw new BadRequestException(
+        'پروفایل حقوقی تایید شده است و مدارک آن قابل تغییر نیست',
+      );
+    }
 
     // بررسی نوع واقعی، پویش ضدبدافزار و حذف فراداده پیش از نوشتن روی دیسک
     const clean = await this.fileSecurity.process(
@@ -118,9 +123,23 @@ export class LegalDocumentsService {
   async remove(userId: string, documentId: string) {
     const doc = await this.prisma.legalProfileDocument.findFirst({
       where: { id: documentId, legalProfile: { userId } },
+      include: { legalProfile: { select: { verified: true } } },
     });
     if (!doc) throw new NotFoundException('مدرک یافت نشد');
+    if (doc.legalProfile.verified) {
+      throw new BadRequestException(
+        'پروفایل حقوقی تایید شده است و مدارک آن قابل تغییر نیست',
+      );
+    }
+    return this.deleteDocument(doc);
+  }
 
+  /** (ادمین) حذف مدرک بدون محدودیت مالکیت/وضعیت */
+  async removeForAdmin(documentId: string) {
+    return this.deleteDocument(await this.getForAdmin(documentId));
+  }
+
+  private async deleteDocument(doc: { id: string; filePath: string }) {
     await this.prisma.legalProfileDocument.delete({ where: { id: doc.id } });
     let full: string;
     try {

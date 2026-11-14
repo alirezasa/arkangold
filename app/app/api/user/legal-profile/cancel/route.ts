@@ -1,0 +1,33 @@
+// app/app/api/user/legal-profile/cancel/route.ts
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import axios from "axios";
+import { ACCESS_COOKIE } from "@/lib/cookie-names";
+
+const NEST_API_URL = process.env.NEST_API_URL || (process.env.NODE_ENV === "production" ? "https://api.arkan.gold" : "http://localhost:5000");
+
+export async function POST() {
+  try {
+    const token = (await cookies()).get(ACCESS_COOKIE)?.value;
+    if (!token)
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+    const res = await axios.post(
+      `${NEST_API_URL}/users/me/cancel-legal-request`,
+      {},
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
+    return NextResponse.json(res.data);
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      const data = error.response?.data as { message?: string } | undefined;
+      return NextResponse.json(
+        { message: data?.message || "خطا" },
+        { status: error.response?.status || 500 },
+      );
+    }
+    return NextResponse.json({ message: "خطای سرور" }, { status: 500 });
+  }
+}

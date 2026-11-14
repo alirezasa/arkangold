@@ -71,6 +71,8 @@ export interface ProductItem {
   status: "ACTIVE" | "INACTIVE" | "OUT_OF_STOCK";
   pricingMode: ProductPricingMode;
   hasPricingFormula: boolean; // ← این خط جدید
+  // عیار طلای محصول (K18 / K24)؛ null = محصول غیرطلایی
+  purityKarat?: string | null;
   category?: { id: string; name: string; slug: string } | null;
   images: ProductImageItem[];
   primaryImageUrl: string | null;

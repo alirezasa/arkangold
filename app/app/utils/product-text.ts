@@ -22,8 +22,35 @@ export function parseSpecLine(line: string): ProductSpecRow | null {
   return { label: label.trim(), value: value.trim() };
 }
 
+// توضیحاتی که با ویرایشگر متن پنل ادمین نوشته شده HTML است؛ متن‌های قدیمی ساده‌اند
+const RICH_TEXT_HINT =
+  /<\/?(p|h[1-6]|ul|ol|li|blockquote|div|table|hr|br|strong|em|b|i|u|a|span)\b/i;
+
+export function isRichText(text: string | null | undefined): boolean {
+  return !!text && RICH_TEXT_HINT.test(text);
+}
+
+const ENTITIES: Record<string, string> = {
+  "&nbsp;": " ",
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&#39;": "'",
+};
+
+// HTML → متن ساده‌ی خط‌به‌خط (ردیف جدول = «عنوان: مقدار») برای جستجوی مشخصات
+export function richTextToPlain(html: string): string {
+  return html
+    .replace(/<\/(td|th)>\s*<(td|th)\b[^>]*>/gi, ": ")
+    .replace(/<br\s*\/?>|<\/(p|h[1-6]|li|tr|div|blockquote)>|<hr\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&(nbsp|amp|lt|gt|quot|#39);/g, (m) => ENTITIES[m] ?? m);
+}
+
 export function parseProductText(text: string | null | undefined): ProductTextBlock[] {
   if (!text) return [];
+  if (isRichText(text)) text = richTextToPlain(text);
   const blocks: ProductTextBlock[] = [];
 
   for (const rawLine of text.replace(/\r\n?/g, "\n").split("\n")) {

@@ -19,6 +19,7 @@ import {
   Box,
 } from "lucide-react";
 import { adminApi } from "@/app/core/api";
+import RichTextEditor from "@/app/components/editor/RichTextEditor";
 import ProductImagesManager from "./ProductImagesManager";
 import PricingFormulaEditor from "./PricingFormulaEditor";
 import ProductVariantsManager from "./ProductVariantsManager";
@@ -511,15 +512,11 @@ function BasicInfoTab({
         <label className="text-[12px] font-bold text-gray-500">
           توضیحات کامل محصول
         </label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={6}
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm outline-none focus:border-gold-500 resize-y"
-        />
+        <RichTextEditor value={description} onChange={setDescription} />
         <p className="text-[10px] text-gray-400 leading-relaxed">
-          هر خط جداگانه نمایش داده می‌شود. خطوطی به شکل «عنوان: مقدار» (مثلاً
-          «کشور سازنده: ایران») در صفحه محصول به‌صورت جدول نمایش داده می‌شوند.
+          با نوار ابزار می‌توانید تیتر، لیست، جدول، لینک و نکته اضافه کنید؛
+          متن دقیقاً با همین قالب‌بندی در صفحه محصول اپ (موبایل و دسکتاپ)
+          نمایش داده می‌شود. دکمه‌ی موبایل، پیش‌نمایش عرض گوشی را نشان می‌دهد.
         </p>
       </div>
 

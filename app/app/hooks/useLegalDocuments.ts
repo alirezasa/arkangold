@@ -103,3 +103,28 @@ export const useRequestLegalUpgrade = () => {
 
   return { request, loading, error, setError };
 };
+
+/** انصراف از درخواست حقوقی و بازگشت به حساب حقیقی (فقط پیش از ثبت اطلاعات شرکت) */
+export const useCancelLegalRequest = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cancel = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await axios.post("/api/user/legal-profile/cancel");
+      return true;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const msg = err.response?.data?.message;
+        setError(Array.isArray(msg) ? msg[0] : msg || "خطا در لغو درخواست");
+      } else setError("خطای ناشناخته");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { cancel, loading, error };
+};

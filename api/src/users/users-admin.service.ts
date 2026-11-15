@@ -257,8 +257,29 @@ export class UsersAdminService {
   }
 
   async setStatus(userId: string, status: 'ACTIVE' | 'BANNED' | 'INACTIVE') {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { legalProfile: { select: { verified: true } } },
+    });
     if (!user) throw new NotFoundException('کاربر یافت نشد');
+
+    // حساب حقوقیِ تاییدنشده با «فعال‌سازی» از مسیر تایید پروفایل حقوقی عبور نمی‌کند:
+    // به «در انتظار فعال‌سازی» برمی‌گردد تا تایید حقوقی (یا تبدیل به حقیقی) انجام شود
+    if (
+      status === 'ACTIVE' &&
+      user.type === 'LEGAL' &&
+      !user.legalProfile?.verified
+    ) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { status: 'PENDING_ACTIVATION' },
+      });
+      return {
+        message:
+          'پروفایل حقوقی این کاربر هنوز تایید نشده است؛ حساب در وضعیت «در انتظار فعال‌سازی» قرار گرفت. برای فعال‌سازی، پروفایل حقوقی را تایید یا حساب را به حقیقی تبدیل کنید',
+        status: 'PENDING_ACTIVATION',
+      };
+    }
 
     await this.prisma.user.update({ where: { id: userId }, data: { status } });
 

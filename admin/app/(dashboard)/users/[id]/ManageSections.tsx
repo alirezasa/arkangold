@@ -20,6 +20,9 @@ import {
   Save,
   X,
   Percent,
+  Building2,
+  Download,
+  Undo2,
 } from "lucide-react";
 import { useAdminMe } from "@/app/hooks/useAdminMe";
 import { StepUpCancelledError, adminStepUpHeaders } from "@/app/utils/step-up";
@@ -1133,6 +1136,294 @@ export function AccountSection({
                 ذخیره‌ی نام
               </button>
             </div>
+          )}
+        </div>
+      )}
+      <Note note={note} />
+    </div>
+  );
+}
+
+// ───────────────────────────── اطلاعات حقوقی ─────────────────────────────
+
+export interface UserLegalProfile {
+  companyName: string;
+  nationalId: string;
+  economicCode: string | null;
+  registrationNumber: string | null;
+  verified: boolean;
+  status: "PENDING" | "VERIFIED" | "REJECTED";
+  rejectionReason: string | null;
+}
+
+interface LegalDoc {
+  id: string;
+  type: string;
+  fileName: string;
+  fileSize: number;
+  uploadedAt: string;
+}
+
+const LEGAL_DOC_LABELS: Record<string, string> = {
+  INTRODUCTION_LETTER: "معرفی‌نامه نماینده",
+  ARTICLES_OF_ASSOCIATION: "اساسنامه شرکت",
+  OTHER: "سایر مدارک",
+};
+
+/**
+ * مدیریت وضعیت حقوقی کاربر: مشاهده/ویرایش اطلاعات شرکت، حذف مدارک، حذف کل اطلاعات حقوقی
+ * و تبدیل حساب به حقیقی. تایید/رد درخواست همچنان از صفحه‌ی «پروفایل‌های حقوقی» انجام می‌شود.
+ */
+export function LegalSection({
+  userId,
+  type,
+  legalProfile,
+  onUpdated,
+}: {
+  userId: string;
+  type?: "REAL" | "LEGAL";
+  legalProfile: UserLegalProfile | null;
+  onUpdated: () => Promise<unknown>;
+}) {
+  const canView = useCan("legal_profile.view");
+  const canManage = useCan("legal_profile.approve");
+  const isLegal = type === "LEGAL";
+  const submitted = Boolean(legalProfile?.companyName?.trim());
+
+  const { data: docs, mutate: mutateDocs } = useSWR<LegalDoc[]>(
+    isLegal && canView && legalProfile ? `/api/admin/legal-profiles/${userId}/documents` : null,
+    (url: string) => axios.get(url).then((r) => r.data),
+    { revalidateOnFocus: false },
+  );
+
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ companyName: "", nationalId: "", economicCode: "", registrationNumber: "" });
+  const [busy, setBusy] = useState<null | "save" | "convert" | "delete" | string>(null);
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+
+  if (!isLegal || !canView) return null;
+
+  const stateLabel = !submitted
+    ? { text: "درخواست حقوقی — اطلاعات شرکت ثبت نشده", bg: "#fef3c7", color: "#b45309" }
+    : legalProfile?.verified
+      ? { text: "تایید شده", bg: "#dcfce7", color: "#15803d" }
+      : legalProfile?.status === "REJECTED"
+        ? { text: "رد شده (قابل اصلاح توسط کاربر)", bg: "#fee2e2", color: "#b91c1c" }
+        : { text: "در انتظار بررسی", bg: "#fef3c7", color: "#b45309" };
+
+  const run = async (key: string, fn: () => Promise<{ data?: { message?: string } }>, fallback: string) => {
+    setBusy(key);
+    setNote(null);
+    try {
+      const { data } = await fn();
+      setNote({ ok: true, text: data?.message ?? "انجام شد" });
+      await Promise.all([onUpdated(), mutateDocs()]);
+      return true;
+    } catch (err) {
+      setNote({ ok: false, text: apiError(err, fallback) });
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const startEdit = () => {
+    setForm({
+      companyName: legalProfile?.companyName ?? "",
+      nationalId: legalProfile?.nationalId ?? "",
+      economicCode: legalProfile?.economicCode ?? "",
+      registrationNumber: legalProfile?.registrationNumber ?? "",
+    });
+    setNote(null);
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const nationalId = toLatinNumber(form.nationalId);
+    const economicCode = toLatinNumber(form.economicCode);
+    if (form.companyName.trim().length < 2) return setNote({ ok: false, text: "نام شرکت را وارد کنید" });
+    if (!/^\d{11}$/.test(nationalId)) return setNote({ ok: false, text: "شناسه ملی شرکت باید ۱۱ رقم باشد" });
+    if (economicCode && !/^\d{12}$/.test(economicCode)) return setNote({ ok: false, text: "کد اقتصادی باید ۱۲ رقم باشد" });
+    const ok = await run(
+      "save",
+      () =>
+        axios.patch(`/api/admin/legal-profiles/${userId}`, {
+          companyName: form.companyName.trim(),
+          nationalId,
+          ...(economicCode ? { economicCode } : {}),
+          ...(form.registrationNumber.trim() ? { registrationNumber: form.registrationNumber.trim() } : {}),
+        }),
+      "ذخیره‌ی اطلاعات حقوقی انجام نشد",
+    );
+    if (ok) setEditing(false);
+  };
+
+  const convertToReal = () => {
+    if (!confirm("حساب این کاربر به «حقیقی» تبدیل شود؟ اطلاعات و مدارک حقوقی او حذف می‌شود و قابل بازگشت نیست.")) return;
+    void run("convert", () => axios.post(`/api/admin/legal-profiles/${userId}/convert-to-real`), "تبدیل به حقیقی انجام نشد");
+  };
+
+  const deleteProfile = () => {
+    if (!confirm("اطلاعات و مدارک حقوقی این کاربر حذف شود؟ حساب حقوقی می‌ماند و کاربر باید اطلاعات شرکت را دوباره ثبت کند.")) return;
+    void run("delete", () => axios.delete(`/api/admin/legal-profiles/${userId}`), "حذف اطلاعات حقوقی انجام نشد");
+  };
+
+  const deleteDoc = (doc: LegalDoc) => {
+    if (!confirm(`مدرک «${doc.fileName}» حذف شود؟`)) return;
+    void run(doc.id, () => axios.delete(`/api/admin/legal-profiles/documents/${doc.id}`), "حذف مدرک انجام نشد");
+  };
+
+  const rows: [string, string | null | undefined][] = [
+    ["نام شرکت", legalProfile?.companyName],
+    ["شناسه ملی", legalProfile?.nationalId],
+    ["کد اقتصادی", legalProfile?.economicCode],
+    ["شماره ثبت", legalProfile?.registrationNumber],
+  ];
+
+  return (
+    <div className="rounded-2xl p-5" style={CARD_STYLE}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-[13px] font-black text-gray-700">
+          <Building2 className="h-4 w-4 text-gold-500" />
+          اطلاعات حقوقی
+        </h2>
+        <span className="rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ backgroundColor: stateLabel.bg, color: stateLabel.color }}>
+          {stateLabel.text}
+        </span>
+      </div>
+
+      {legalProfile?.status === "REJECTED" && legalProfile.rejectionReason && (
+        <p className="mb-3 rounded-xl bg-red-50 p-3 text-[12px] leading-5 text-red-600">علت رد: {legalProfile.rejectionReason}</p>
+      )}
+
+      {editing ? (
+        <div className="space-y-2">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Field label="نام شرکت / موسسه">
+              <input className={INPUT} maxLength={100} value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} />
+            </Field>
+            <Field label="شناسه ملی (۱۱ رقم)">
+              <input className={INPUT} dir="ltr" maxLength={11} inputMode="numeric" value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} />
+            </Field>
+            <Field label="کد اقتصادی (اختیاری — ۱۲ رقم)">
+              <input className={INPUT} dir="ltr" maxLength={12} inputMode="numeric" value={form.economicCode} onChange={(e) => setForm({ ...form, economicCode: e.target.value })} />
+            </Field>
+            <Field label="شماره ثبت (اختیاری)">
+              <input className={INPUT} dir="ltr" maxLength={30} value={form.registrationNumber} onChange={(e) => setForm({ ...form, registrationNumber: e.target.value })} />
+            </Field>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={busy !== null}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-[12px] font-black text-white disabled:opacity-40"
+              style={{ backgroundColor: "var(--color-emerald)" }}
+            >
+              {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              ذخیره
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditing(false)}
+              disabled={busy !== null}
+              className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-[12px] font-bold text-gray-600 disabled:opacity-40"
+            >
+              <X className="h-4 w-4" />
+              انصراف
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {rows.map(([label, value]) => (
+            <div key={label} className="rounded-xl bg-gray-50 p-2.5">
+              <p className="text-[10px] font-bold text-gray-400">{label}</p>
+              <p className="mt-0.5 text-[12px] font-bold text-gray-700">{value?.trim() || "—"}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {legalProfile && (
+        <div className="mt-4">
+          <p className="mb-2 text-[11px] font-bold text-gray-400">مدارک</p>
+          {!docs ? (
+            <p className="text-[11px] text-gray-400">در حال بارگذاری...</p>
+          ) : docs.length === 0 ? (
+            <p className="text-[11px] text-gray-400">مدرکی بارگذاری نشده است</p>
+          ) : (
+            <div className="space-y-1.5">
+              {docs.map((doc) => (
+                <div key={doc.id} className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-[12px] text-gray-700">
+                    <span className="font-bold">{LEGAL_DOC_LABELS[doc.type] ?? doc.type}</span> — {doc.fileName}
+                  </span>
+                  <a
+                    href={`/api/admin/legal-profiles/documents/${doc.id}/download`}
+                    className="shrink-0 text-gray-500 hover:text-emerald-600"
+                    title="دانلود"
+                    aria-label="دانلود مدرک"
+                  >
+                    <Download className="h-4 w-4" />
+                  </a>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => deleteDoc(doc)}
+                      disabled={busy !== null}
+                      className="shrink-0 text-red-400 hover:text-red-600 disabled:opacity-40"
+                      title="حذف"
+                      aria-label="حذف مدرک"
+                    >
+                      {busy === doc.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {canManage && !editing && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={startEdit}
+            disabled={busy !== null}
+            className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[12px] font-bold text-gray-700 disabled:opacity-40"
+          >
+            <Pencil className="h-4 w-4" />
+            {legalProfile ? "ویرایش اطلاعات شرکت" : "ثبت اطلاعات شرکت"}
+          </button>
+          <button
+            type="button"
+            onClick={convertToReal}
+            disabled={busy !== null}
+            className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-700 disabled:opacity-40"
+          >
+            {busy === "convert" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+            تبدیل به حساب حقیقی
+          </button>
+          {legalProfile && (
+            <button
+              type="button"
+              onClick={deleteProfile}
+              disabled={busy !== null}
+              className="flex items-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-bold text-red-600 disabled:opacity-40"
+            >
+              {busy === "delete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              حذف اطلاعات حقوقی
+            </button>
+          )}
+          {submitted && !legalProfile?.verified && (
+            <Link
+              href="/legal-profiles"
+              className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2 text-[12px] font-bold text-gray-700"
+            >
+              تایید / رد درخواست
+            </Link>
           )}
         </div>
       )}

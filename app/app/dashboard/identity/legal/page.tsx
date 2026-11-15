@@ -16,7 +16,7 @@ import {
   Upload,
   Trash2,
   File as FileIcon,
-  CheckCircle2,
+  Undo2,
 } from "lucide-react";
 import {
   useProfilePage,
@@ -26,6 +26,7 @@ import {
   useLegalDocuments,
   useUploadLegalDocument,
   useRemoveLegalDocument,
+  useCancelLegalRequest,
   DOC_TYPES,
 } from "@/app/hooks/useLegalDocuments";
 import { digitsOnly } from "@/app/utils/digits";
@@ -165,7 +166,12 @@ function DocumentsUploader() {
 export default function LegalProfileCompletionPage() {
   const router = useRouter();
   const { data, loading, refetch } = useProfilePage();
-  const { loading: submitting, error, success, submit } = useLegalProfileForm();
+  const { loading: submitting, error, submit } = useLegalProfileForm();
+  const {
+    cancel: cancelRequest,
+    loading: cancelling,
+    error: cancelError,
+  } = useCancelLegalRequest();
 
   const initialForm = useMemo<LegalForm>(
     () => ({
@@ -200,7 +206,24 @@ export default function LegalProfileCompletionPage() {
   const isPending =
     legalStatus === "PENDING" &&
     Boolean(data?.legalProfile?.companyName?.trim());
-  const showForm = !data?.legalProfile?.companyName?.trim() || isRejected; // فرم برای ثبت اولیه یا اصلاح بعد از رد
+  // تا وقتی اطلاعات شرکت ثبت نشده، کاربر می‌تواند از درخواست حقوقی انصراف دهد
+  const canCancelRequest = !data?.legalProfile?.companyName?.trim();
+  // آپلود مدرک به رکورد پروفایل حقوقی نیاز دارد (پس از اولین ثبت اطلاعات شرکت ساخته می‌شود)
+  const canUploadDocuments = Boolean(data?.legalProfile);
+
+  const handleCancelRequest = async () => {
+    if (
+      !confirm(
+        "از درخواست حساب حقوقی انصراف می‌دهید؟ حساب شما به حالت حقیقی برمی‌گردد.",
+      )
+    )
+      return;
+    const ok = await cancelRequest();
+    if (ok) {
+      await refetch();
+      router.replace("/dashboard/me");
+    }
+  };
 
   const updateForm = (field: keyof LegalForm, value: string) => {
     setForm((prev) => ({ ...(prev ?? initialForm), [field]: value }));
@@ -245,7 +268,7 @@ export default function LegalProfileCompletionPage() {
   if (!data) return null;
 
   // ── حالت: در انتظار بررسی ادمین (نه رد شده) ──
-  if (isPending && !success) {
+  if (isPending) {
     return (
       <div className="max-w-md mx-auto mt-8" dir="rtl">
         <div
@@ -279,6 +302,12 @@ export default function LegalProfileCompletionPage() {
                 {data.legalProfile?.nationalId}
               </span>
             </div>
+          </div>
+          <div className="text-right mb-6">
+            <p className="text-[12px] font-bold text-gray-500 mb-3">
+              مدارک هویتی شرکت و نماینده
+            </p>
+            <DocumentsUploader />
           </div>
           <button
             onClick={() => refetch()}
@@ -432,7 +461,14 @@ export default function LegalProfileCompletionPage() {
           <p className="text-[12px] font-bold text-gray-500 mb-3">
             مدارک هویتی شرکت و نماینده
           </p>
-          <DocumentsUploader />
+          {canUploadDocuments ? (
+            <DocumentsUploader />
+          ) : (
+            <p className="text-[12px] text-gray-400 leading-relaxed">
+              پس از ثبت اطلاعات شرکت، در همین صفحه می‌توانید مدارک (معرفی‌نامه
+              نماینده، اساسنامه و ...) را بارگذاری کنید.
+            </p>
+          )}
         </div>
 
         <button
@@ -451,6 +487,39 @@ export default function LegalProfileCompletionPage() {
           )}
         </button>
       </form>
+
+      {canCancelRequest && (
+        <div
+          className="rounded-2xl p-5 mt-4"
+          style={{
+            backgroundColor: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <p className="text-[12px] text-gray-500 leading-relaxed mb-3">
+            اگر از درخواست حساب حقوقی منصرف شده‌اید، تا پیش از ثبت اطلاعات شرکت
+            می‌توانید حساب خود را به حالت حقیقی برگردانید.
+          </p>
+          {cancelError && (
+            <p className="text-[12px] text-red-600 font-bold mb-3">
+              {cancelError}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={handleCancelRequest}
+            disabled={cancelling || submitting}
+            className="w-full py-3 rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 border border-gray-200 bg-white text-gray-700 disabled:opacity-60"
+          >
+            {cancelling ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Undo2 className="w-4 h-4" />
+            )}
+            انصراف و بازگشت به حساب حقیقی
+          </button>
+        </div>
+      )}
     </div>
   );
 }

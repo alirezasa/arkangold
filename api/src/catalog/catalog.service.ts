@@ -7,6 +7,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { cleanProductDescription } from '../common/utils/rich-text.util';
 import {
   Prisma,
   ProductPricingMode as PrismaProductPricingMode,
@@ -405,7 +406,7 @@ export class CatalogService implements OnModuleInit {
         categoryId: dto.categoryId,
         name: dto.name,
         slug,
-        description: dto.description,
+        description: cleanProductDescription(dto.description),
         shortDescription: dto.shortDescription,
         basePriceRial: dto.basePriceRial,
         seoTitle: dto.seoTitle,
@@ -477,7 +478,7 @@ export class CatalogService implements OnModuleInit {
           ? { connect: { id: dto.categoryId } }
           : undefined,
       name: dto.name,
-      description: dto.description,
+      description: cleanProductDescription(dto.description),
       shortDescription: dto.shortDescription,
       basePriceRial: dto.basePriceRial,
       seoTitle: dto.seoTitle,

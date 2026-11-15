@@ -249,3 +249,139 @@ body {
     font-size: 16px !important;
   }
 }
+
+/* ── محتوای متنی قالب‌بندی‌شده (توضیحات محصول) ───────────────
+   همین قواعد در اپ کاربر و ویرایشگر پنل ادمین یکسان است تا آنچه ادمین
+   می‌بیند همان چیزی باشد که کاربر می‌بیند. */
+.rich-content {
+  font-size: 14px;
+  line-height: 2.05;
+  color: var(--color-gray-600, #4b5563);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.rich-content > * + * {
+  margin-top: 0.85em;
+}
+.rich-content h2,
+.rich-content h3,
+.rich-content h4 {
+  color: var(--color-gray-900, #111827);
+  font-weight: 900;
+  line-height: 1.7;
+}
+.rich-content h2 {
+  font-size: 18px;
+  padding-inline-start: 12px;
+  border-inline-start: 4px solid var(--color-gold-500);
+  border-radius: 2px;
+}
+.rich-content h3 {
+  font-size: 16px;
+}
+.rich-content h4 {
+  font-size: 14px;
+  font-weight: 800;
+}
+.rich-content > h2:not(:first-child) {
+  margin-top: 1.7em;
+}
+.rich-content > h3:not(:first-child),
+.rich-content > h4:not(:first-child) {
+  margin-top: 1.4em;
+}
+.rich-content strong {
+  font-weight: 800;
+  color: var(--color-gray-800, #1f2937);
+}
+.rich-content em {
+  font-style: italic;
+}
+.rich-content u {
+  text-underline-offset: 4px;
+}
+.rich-content a {
+  color: var(--color-gold-600);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.rich-content ul,
+.rich-content ol {
+  padding-inline-start: 1.5em;
+}
+.rich-content ul {
+  list-style: disc;
+}
+.rich-content ol {
+  list-style: persian;
+}
+.rich-content li + li {
+  margin-top: 0.3em;
+}
+.rich-content li::marker {
+  color: var(--color-gold-500);
+  font-weight: 800;
+}
+.rich-content blockquote {
+  padding: 12px 16px;
+  border-inline-start: 4px solid var(--color-gold-500);
+  border-radius: 12px;
+  background: var(--color-gold-50);
+  color: var(--color-gray-700, #374151);
+}
+.rich-content blockquote > * + * {
+  margin-top: 0.6em;
+}
+.rich-content hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin-block: 1.6em;
+}
+.rich-content .rich-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  -webkit-overflow-scrolling: touch;
+}
+.rich-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.9;
+}
+.rich-content th,
+.rich-content td {
+  padding: 9px 14px;
+  text-align: start;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border);
+}
+.rich-content tr:last-child > th,
+.rich-content tr:last-child > td {
+  border-bottom: 0;
+}
+.rich-content th {
+  font-weight: 800;
+  color: var(--color-gray-700, #374151);
+  background: var(--color-gray-50, #f9fafb);
+  white-space: nowrap;
+}
+.rich-content td {
+  min-width: 96px;
+  color: var(--color-gray-800, #1f2937);
+}
+@media (min-width: 640px) {
+  .rich-content {
+    font-size: 15px;
+  }
+  .rich-content h2 {
+    font-size: 20px;
+  }
+  .rich-content h3 {
+    font-size: 17px;
+  }
+  .rich-content h4 {
+    font-size: 15px;
+  }
+}

@@ -20,6 +20,7 @@ import { ReferralService } from '../referral/referral.service';
 import { MobileVerificationService } from '../kyc/mobile-verification.service';
 import { AuditService } from '../common/audit/audit.service';
 import { maskNationalCode } from '../common/privacy/masking';
+import { assertInsideLegalDir } from './legal-documents.service';
 
 @Injectable()
 export class UsersService {
@@ -429,27 +430,29 @@ export class UsersService {
       throw new ConflictException('پروفایل حقوقی شما قبلاً تایید شده است');
     }
 
-    const legalProfile = await this.prisma.legalProfile.upsert({
-      where: { userId },
-      create: {
-        userId,
-        companyName: dto.companyName,
-        nationalId: dto.nationalId,
-        economicCode: dto.economicCode,
-        registrationNumber: dto.registrationNumber,
-        representativeId: user.identity.id,
-        status: 'PENDING',
-      },
-      update: {
-        companyName: dto.companyName,
-        nationalId: dto.nationalId,
-        economicCode: dto.economicCode,
-        registrationNumber: dto.registrationNumber,
-        representativeId: user.identity.id,
-        status: 'PENDING',
-        rejectionReason: null, // ارسال مجدد یعنی وضعیت قبلی پاک می‌شود
-      },
-    });
+    const legalProfile = await this.prisma.legalProfile
+      .upsert({
+        where: { userId },
+        create: {
+          userId,
+          companyName: dto.companyName,
+          nationalId: dto.nationalId,
+          economicCode: dto.economicCode,
+          registrationNumber: dto.registrationNumber,
+          representativeId: user.identity.id,
+          status: 'PENDING',
+        },
+        update: {
+          companyName: dto.companyName,
+          nationalId: dto.nationalId,
+          economicCode: dto.economicCode,
+          registrationNumber: dto.registrationNumber,
+          representativeId: user.identity.id,
+          status: 'PENDING',
+          rejectionReason: null, // ارسال مجدد یعنی وضعیت قبلی پاک می‌شود
+        },
+      })
+      .catch(rethrowDuplicateCompany);
 
     return {
       message: 'اطلاعات شرکت ثبت شد و در انتظار تایید ادمین است',
@@ -489,8 +492,9 @@ export class UsersService {
         where: { userId },
         data: { verified: true, status: 'VERIFIED', rejectionReason: null },
       }),
-      this.prisma.user.update({
-        where: { id: userId },
+      // فقط حسابِ «در انتظار فعال‌سازی» فعال می‌شود؛ حساب مسدود/غیرفعال دست نمی‌خورد
+      this.prisma.user.updateMany({
+        where: { id: userId, status: 'PENDING_ACTIVATION' },
         data: { status: 'ACTIVE' },
       }),
     ]);
@@ -533,21 +537,7 @@ export class UsersService {
     }
 
     // ── رد کامل: حذف اطلاعات حقوقی + بازگشت کاربر به حقیقی ──
-    const documents = user.legalProfile.documents;
-    await this.prisma.$transaction([
-      this.prisma.legalProfile.delete({ where: { userId } }),
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { type: 'REAL', status: 'ACTIVE' },
-      }),
-    ]);
-
-    // پاکسازی فایل‌های فیزیکی (best-effort، نباید عملیات اصلی را fail کند)
-    for (const doc of documents) {
-      fs.unlink(doc.filePath).catch(() => {
-        this.logger.warn(`[LegalProfile] حذف فایل ${doc.filePath} ناموفق بود`);
-      });
-    }
+    await this.revertToReal(userId);
 
     this.logger.log(
       `[LegalProfile] پروفایل حقوقی کاربر ${userId} کاملاً رد و کاربر به حقیقی تبدیل شد`,
@@ -587,4 +577,160 @@ export class UsersService {
         'درخواست تبدیل حساب به حقوقی ثبت شد. لطفاً اطلاعات شرکت را تکمیل کنید',
     };
   }
+
+  // ── انصراف کاربر از درخواست حقوقی (فقط تا پیش از ثبت اطلاعات شرکت) ──
+  async cancelLegalRequest(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { legalProfile: true },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    if (user.type !== 'LEGAL') {
+      throw new BadRequestException('حساب شما حقوقی نیست');
+    }
+    if (user.legalProfile?.companyName?.trim()) {
+      throw new ConflictException(
+        'اطلاعات شرکت ثبت شده است؛ برای بازگشت به حساب حقیقی با پشتیبانی تماس بگیرید',
+      );
+    }
+
+    await this.revertToReal(userId);
+    this.logger.log(
+      `[LegalProfile] کاربر ${userId} از درخواست حقوقی انصراف داد و به حقیقی برگشت`,
+    );
+    return { message: 'درخواست حقوقی لغو شد و حساب شما حقیقی است' };
+  }
+
+  // ── (ادمین) تبدیل حساب حقوقی به حقیقی در هر مرحله ──
+  async convertToRealByAdmin(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { type: true },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    if (user.type !== 'LEGAL') {
+      throw new BadRequestException('این کاربر حقوقی نیست');
+    }
+    await this.revertToReal(userId);
+    this.logger.log(
+      `[LegalProfile] حساب کاربر ${userId} توسط ادمین به حقیقی تبدیل شد`,
+    );
+    return { message: 'حساب کاربر به حقیقی تبدیل و اطلاعات حقوقی حذف شد' };
+  }
+
+  // ── (ادمین) ویرایش/ثبت اطلاعات شرکت؛ وضعیت بررسی تغییر نمی‌کند ──
+  async updateLegalProfileByAdmin(userId: string, dto: UpdateLegalProfileDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { identity: true },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    if (user.type !== 'LEGAL') {
+      throw new BadRequestException('این کاربر حقوقی نیست');
+    }
+    const fields = {
+      companyName: dto.companyName.trim(),
+      nationalId: dto.nationalId,
+      economicCode: dto.economicCode || null,
+      registrationNumber: dto.registrationNumber?.trim() || null,
+    };
+    const legalProfile = await this.prisma.legalProfile
+      .upsert({
+        where: { userId },
+        create: {
+          userId,
+          ...fields,
+          representativeId: user.identity?.id ?? null,
+          status: 'PENDING',
+        },
+        update: fields,
+      })
+      .catch(rethrowDuplicateCompany);
+    return { message: 'اطلاعات حقوقی بروزرسانی شد', legalProfile };
+  }
+
+  // ── (ادمین) حذف اطلاعات و مدارک حقوقی؛ حساب حقوقی می‌ماند و کاربر باید دوباره ثبت کند ──
+  async deleteLegalProfileByAdmin(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { legalProfile: { include: { documents: true } } },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+    if (!user.legalProfile) {
+      throw new BadRequestException(
+        'اطلاعات حقوقی برای این کاربر ثبت نشده است',
+      );
+    }
+    const documents = user.legalProfile.documents;
+    await this.prisma.$transaction([
+      this.prisma.legalProfile.delete({ where: { userId } }),
+      // حساب حقوقیِ بدون پروفایل تاییدشده نباید فعال بماند
+      this.prisma.user.updateMany({
+        where: { id: userId, type: 'LEGAL', status: 'ACTIVE' },
+        data: { status: 'PENDING_ACTIVATION' },
+      }),
+    ]);
+    this.unlinkLegalFiles(documents);
+    this.logger.log(
+      `[LegalProfile] اطلاعات حقوقی کاربر ${userId} توسط ادمین حذف شد`,
+    );
+    return {
+      message:
+        'اطلاعات و مدارک حقوقی حذف شد؛ کاربر باید اطلاعات شرکت را دوباره ثبت کند',
+    };
+  }
+
+  /**
+   * بازگشت به حساب حقیقی: حذف پروفایل و مدارک حقوقی + type=REAL.
+   * فقط وضعیت «در انتظار فعال‌سازی» به فعال برمی‌گردد؛ حساب مسدود/غیرفعال دست نمی‌خورد.
+   */
+  private async revertToReal(userId: string) {
+    const documents = await this.prisma.legalProfileDocument.findMany({
+      where: { legalProfile: { userId } },
+      select: { filePath: true },
+    });
+    await this.prisma.$transaction([
+      this.prisma.legalProfile.deleteMany({ where: { userId } }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { type: 'REAL' },
+      }),
+      this.prisma.user.updateMany({
+        where: { id: userId, status: 'PENDING_ACTIVATION' },
+        data: { status: 'ACTIVE' },
+      }),
+    ]);
+    this.unlinkLegalFiles(documents);
+  }
+
+  /** پاکسازی فایل‌های فیزیکی (best-effort؛ فقط داخل پوشه‌ی مدارک) */
+  private unlinkLegalFiles(documents: { filePath: string }[]) {
+    for (const doc of documents) {
+      let full: string;
+      try {
+        full = assertInsideLegalDir(doc.filePath);
+      } catch {
+        this.logger.warn(
+          `[LegalProfile] مسیر ${doc.filePath} خارج از پوشه‌ی مدارک است؛ حذف نشد`,
+        );
+        continue;
+      }
+      fs.unlink(full).catch(() => {
+        this.logger.warn(`[LegalProfile] حذف فایل ${doc.filePath} ناموفق بود`);
+      });
+    }
+  }
+}
+
+/** شناسه ملی شرکت یکتاست → خطای قابل فهم به‌جای ۵۰۰ */
+function rethrowDuplicateCompany(err: unknown): never {
+  if (
+    err instanceof Prisma.PrismaClientKnownRequestError &&
+    err.code === 'P2002'
+  ) {
+    throw new ConflictException(
+      'این شناسه ملی شرکت قبلاً برای حساب دیگری ثبت شده است',
+    );
+  }
+  throw err;
 }

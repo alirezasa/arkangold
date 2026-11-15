@@ -20,10 +20,15 @@ import { Prisma, ShippingMethodType } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeIranMobile } from '../integrations/providers/sms-common/sms-live.util';
 import { ZarPayeshShopOrderService } from '../zarpayesh/zarpayesh-shop-order.service';
+import { HologramService } from '../hologram/hologram.service';
 import {
   ORDER_STATUS_FA,
   ShopOrderEventsService,
 } from './shop-order-events.service';
+
+/** مسیر تأیید دریافت مرسوله (shippings.delivery_confirmed_via / shop_orders.delivery_code_verified_via) */
+export type DeliveryConfirmVia =
+  'DELIVERY_CODE' | 'COURIER_LINK' | 'USER_APP' | 'ADMIN_OVERRIDE';
 
 /** سقف تلاش ناموفق ورود کد تحویل؛ پس از آن باید کد جدید صادر شود */
 export const MAX_DELIVERY_CODE_ATTEMPTS = 5;
@@ -118,6 +123,8 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     private readonly events: ShopOrderEventsService,
     /** سامانه ناظر (زر پایش): ارسال دارایی سفارش‌های تحویل طلای آب‌شده */
     @Optional() private readonly zarpayesh?: ZarPayeshShopOrderService,
+    /** ثبت شمش‌ها به نام مالک پس از تأیید کد تحویل */
+    @Optional() private readonly hologram?: HologramService,
   ) {}
 
   async onModuleInit() {
@@ -302,10 +309,10 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     const zarpayeshCode = this.zarpayesh
       ? await this.zarpayesh.prepareShipment(orderId, adminId)
       : false;
-    const deliveryCode =
-      method.requiresDeliveryCode && !zarpayeshCode
-        ? String(randomInt(0, 1_000_000)).padStart(6, '0')
-        : null;
+    // قانون تحویل: هر مرسوله کد تحویل دارد (شمش فقط پس از ارائه/ثبت آن به نام مالک ثبت می‌شود)
+    const deliveryCode = !zarpayeshCode
+      ? String(randomInt(0, 1_000_000)).padStart(6, '0')
+      : null;
     const courierToken =
       method.courierLinkEnabled && courierPhone
         ? randomBytes(24).toString('base64url')
@@ -450,21 +457,31 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     });
   }
 
+  /**
+   * تأیید دریافت مرسوله.
+   *
+   * قانون تحویل: شمش‌های سفارش فقط وقتی به نام مالک ثبت می‌شوند که مشتری کد تحویل را ارائه کرده (ادمین یا
+   * پیک وارد کرده) یا خودش در اپ ثبت کرده باشد. کد تحویل آرکان است، یا برای تبدیل طلای آب‌شده به شمش کدی
+   * که سامانه ناظر (زر پایش) پیامک کرده. «تأیید بدون کد» (ADMIN_OVERRIDE) سفارش را تحویل‌شده می‌کند ولی
+   * شمش‌ها در انتظار کد تحویل می‌مانند تا مشتری بعداً کد را ارائه/ثبت کند (همین متد با سفارش DELIVERED).
+   */
   private async confirmDelivery(
     orderId: string,
     p: {
       code?: string;
-      via: 'DELIVERY_CODE' | 'COURIER_LINK' | 'ADMIN_OVERRIDE';
-      actor: { type: 'ADMIN' | 'COURIER'; id?: string | null };
+      via: DeliveryConfirmVia;
+      actor: { type: 'ADMIN' | 'COURIER' | 'USER'; id?: string | null };
       receivedByName?: string;
       note?: string;
     },
   ) {
     const zarpayeshMode =
       !!this.zarpayesh && (await this.zarpayesh.usesZarPayeshCode(orderId));
+    let zarpayeshApproved = false;
     if (zarpayeshMode && p.via !== 'ADMIN_OVERRIDE') {
       const early = await this.approveWithZarPayesh(orderId, p);
       if (early) return early;
+      zarpayeshApproved = true;
     }
     const outcome = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${orderId}::uuid FOR UPDATE`;
@@ -479,8 +496,15 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
         },
       });
       if (!order) throw new NotFoundException('سفارش یافت نشد');
-      if (order.status === 'DELIVERED') return { kind: 'already' as const };
-      if (order.status !== 'SHIPPED') {
+      // سفارش تحویل‌شده (بدون کد) که هنوز کد تحویلش ثبت نشده: فقط ثبت کد و مالکیت
+      const lateVerify =
+        order.status === 'DELIVERED' &&
+        !order.deliveryCodeVerifiedAt &&
+        p.via !== 'ADMIN_OVERRIDE';
+      if (order.status === 'DELIVERED' && !lateVerify) {
+        return { kind: 'already' as const };
+      }
+      if (order.status !== 'SHIPPED' && !lateVerify) {
         throw new ConflictException('این سفارش هنوز ارسال نشده است');
       }
       const shipping = order.shippings[0];
@@ -513,47 +537,80 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
           };
         }
       }
+      if (lateVerify && !codeRequired && !zarpayeshApproved) {
+        throw new ConflictException(
+          'برای این مرسوله کد تحویلی صادر نشده است؛ ابتدا «صدور کد جدید» را بزنید تا مشتری کد را ثبت کند',
+        );
+      }
 
       const now = new Date();
-      if (shipping) {
-        await tx.shipping.update({
-          where: { id: shipping.id },
-          data: {
-            status: 'DELIVERED',
-            deliveredAt: now,
-            deliveryConfirmedVia: p.via,
-            receivedByName: p.receivedByName?.trim() || null,
-            deliveredByAdminId:
-              p.actor.type === 'ADMIN' ? (p.actor.id ?? null) : null,
-            // لینک پیک پس از تحویل بی‌اثر می‌شود
-            courierTokenExpiresAt: now,
-          },
-        });
-      }
-      await tx.shopOrder.update({
-        where: { id: orderId },
-        data: { status: 'DELIVERED', deliveredAt: now },
-      });
       const viaFa =
         p.via === 'COURIER_LINK'
           ? 'ثبت پیک با کد تحویل مشتری'
           : p.via === 'DELIVERY_CODE'
             ? 'تأیید با کد تحویل مشتری'
-            : `تأیید بدون کد: ${p.note ?? ''}`;
-      await this.events.recordStatus(
-        tx,
-        orderId,
-        'SHIPPED',
-        'DELIVERED',
-        p.actor,
-        `${viaFa}${p.receivedByName ? ` — تحویل‌گیرنده: ${p.receivedByName.trim()}` : ''}`,
-      );
-      return { kind: 'ok' as const };
+            : p.via === 'USER_APP'
+              ? 'ثبت کد تحویل توسط خود مشتری در اپ'
+              : `تأیید بدون کد: ${p.note ?? ''}`;
+      if (!lateVerify) {
+        if (shipping) {
+          await tx.shipping.update({
+            where: { id: shipping.id },
+            data: {
+              status: 'DELIVERED',
+              deliveredAt: now,
+              deliveryConfirmedVia: p.via,
+              receivedByName: p.receivedByName?.trim() || null,
+              deliveredByAdminId:
+                p.actor.type === 'ADMIN' ? (p.actor.id ?? null) : null,
+              // لینک پیک پس از تحویل بی‌اثر می‌شود
+              courierTokenExpiresAt: now,
+            },
+          });
+        }
+        await tx.shopOrder.update({
+          where: { id: orderId },
+          data: { status: 'DELIVERED', deliveredAt: now },
+        });
+        await this.events.recordStatus(
+          tx,
+          orderId,
+          'SHIPPED',
+          'DELIVERED',
+          p.actor,
+          `${viaFa}${p.receivedByName ? ` — تحویل‌گیرنده: ${p.receivedByName.trim()}` : ''}`,
+        );
+      }
+
+      // کد تحویل تأیید شد → شمش‌های سفارش به نام مالک ثبت می‌شوند
+      const verified =
+        p.via !== 'ADMIN_OVERRIDE' && (codeRequired || zarpayeshApproved);
+      let owned = 0;
+      if (verified) {
+        await tx.shopOrder.update({
+          where: { id: orderId },
+          data: { deliveryCodeVerifiedAt: now, deliveryCodeVerifiedVia: p.via },
+        });
+        owned = this.hologram
+          ? await this.hologram.finalizeOrderOwnership(tx, orderId)
+          : 0;
+        if (lateVerify || owned > 0) {
+          await this.events.recordStatus(
+            tx,
+            orderId,
+            'DELIVERED',
+            'DELIVERED',
+            p.actor,
+            `${lateVerify ? `${viaFa} — ` : ''}${owned.toLocaleString('fa-IR')} شمش به نام مالک ثبت شد`,
+          );
+        }
+      }
+      return { kind: 'ok' as const, lateVerify, verified, owned };
     });
 
     if (outcome.kind === 'already') {
       return {
-        message: 'این سفارش قبلاً تحویل داده شده است',
+        message: 'این سفارش قبلاً تحویل داده شده و کد تحویل آن ثبت شده است',
         alreadyProcessed: true,
       };
     }
@@ -567,8 +624,34 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     if (zarpayeshMode && p.via === 'ADMIN_OVERRIDE') {
       void this.zarpayesh.noteDeliveredWithoutCode(orderId);
     }
-    await this.events.notify(orderId, 'DELIVERED');
-    return { message: 'تحویل سفارش ثبت شد', alreadyProcessed: false };
+    if (!outcome.lateVerify) await this.events.notify(orderId, 'DELIVERED');
+    const ownedText =
+      outcome.owned > 0
+        ? ` و ${outcome.owned.toLocaleString('fa-IR')} شمش به نام مالک ثبت شد`
+        : '';
+    return {
+      message: outcome.lateVerify
+        ? `کد تحویل ثبت شد${ownedText}`
+        : outcome.verified
+          ? `تحویل سفارش ثبت شد${ownedText}`
+          : 'تحویل ثبت شد؛ شمش‌ها تا ارائه یا ثبت کد تحویل توسط مشتری به نام او ثبت نمی‌شوند',
+      alreadyProcessed: false,
+      ownershipRegistered: outcome.owned,
+    };
+  }
+
+  /** ثبت کد تحویل توسط خود مشتری در اپ (پس از دریافت مرسوله) */
+  async confirmByUser(userId: string, orderId: string, code: string) {
+    const order = await this.prisma.shopOrder.findFirst({
+      where: { id: orderId, userId },
+      select: { id: true },
+    });
+    if (!order) throw new NotFoundException('سفارش یافت نشد');
+    return this.confirmDelivery(orderId, {
+      code,
+      via: 'USER_APP',
+      actor: { type: 'USER', id: userId },
+    });
   }
 
   /**
@@ -579,7 +662,7 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     orderId: string,
     p: {
       code?: string;
-      actor: { type: 'ADMIN' | 'COURIER'; id?: string | null };
+      actor: { type: 'ADMIN' | 'COURIER' | 'USER'; id?: string | null };
     },
   ) {
     const order = await this.prisma.shopOrder.findUnique({
@@ -587,13 +670,13 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
       include: { shippings: { orderBy: { createdAt: 'desc' }, take: 1 } },
     });
     if (!order) throw new NotFoundException('سفارش یافت نشد');
-    if (order.status === 'DELIVERED') {
+    if (order.status === 'DELIVERED' && order.deliveryCodeVerifiedAt) {
       return {
-        message: 'این سفارش قبلاً تحویل داده شده است',
+        message: 'این سفارش قبلاً تحویل داده شده و کد تحویل آن ثبت شده است',
         alreadyProcessed: true,
       };
     }
-    if (order.status !== 'SHIPPED') {
+    if (order.status !== 'SHIPPED' && order.status !== 'DELIVERED') {
       throw new ConflictException('این سفارش هنوز ارسال نشده است');
     }
     const shipping = order.shippings[0];
@@ -607,7 +690,10 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
       p.code,
       p.actor.type === 'ADMIN'
         ? { trigger: 'ADMIN', adminId: p.actor.id ?? null }
-        : { trigger: 'SYSTEM' },
+        : {
+            trigger: 'SYSTEM',
+            userId: p.actor.type === 'USER' ? p.actor.id : null,
+          },
     );
     if (r.kind === 'ok') return null;
     const updated = await this.prisma.shipping.update({
@@ -637,9 +723,12 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
       include: { shippings: { orderBy: { createdAt: 'desc' }, take: 1 } },
     });
     if (!order) throw new NotFoundException('سفارش یافت نشد');
-    if (order.status !== 'SHIPPED') {
+    // سفارش تحویل‌شده‌ی بدون کد هم تا ثبت کد تحویل، کد می‌گیرد (شرط ثبت شمش به نام مالک)
+    const awaitingCode =
+      order.status === 'DELIVERED' && !order.deliveryCodeVerifiedAt;
+    if (order.status !== 'SHIPPED' && !awaitingCode) {
       throw new ConflictException(
-        'کد تحویل فقط برای سفارش ارسال‌شده قابل ارسال است',
+        'کد تحویل فقط برای سفارش ارسال‌شده (یا تحویل‌شده‌ی در انتظار کد) قابل ارسال است',
       );
     }
     const shipping = order.shippings[0];
@@ -656,8 +745,8 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
         await this.events.recordStatus(
           tx,
           orderId,
-          'SHIPPED',
-          'SHIPPED',
+          order.status,
+          order.status,
           { type: 'ADMIN', id: adminId },
           'باز کردن قفل کد تحویل سامانه ناظر',
         );
@@ -689,8 +778,8 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
         await this.events.recordStatus(
           tx,
           orderId,
-          'SHIPPED',
-          'SHIPPED',
+          order.status,
+          order.status,
           { type: 'ADMIN', id: adminId },
           'صدور کد تحویل جدید',
         );
@@ -821,10 +910,20 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     });
     if (!order) return null;
     const s = order.shippings[0];
+    const awaitingCode =
+      order.status === 'SHIPPED' ||
+      (order.status === 'DELIVERED' && !order.deliveryCodeVerifiedAt);
     const code =
-      includeCode && order.status === 'SHIPPED'
+      includeCode && awaitingCode
         ? await this.events.decryptDeliveryCode(order.id, s?.deliveryCodeEnc)
         : null;
+    // شمش‌هایی که به سفارش متصل شده‌اند ولی تا ثبت کد تحویل به نام مالک ثبت نمی‌شوند
+    const ownershipPending = await this.prisma.hologramCode.count({
+      where: {
+        status: 'AWAITING_DELIVERY',
+        shopOrderItem: { orderId: order.id },
+      },
+    });
     return {
       orderNumber: order.orderNumber,
       timestamps: {
@@ -835,6 +934,12 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
         cancelledAt: order.cancelledAt,
       },
       cancelReason: order.cancelReason,
+      /** کد تحویل (آرکان یا زر پایش) تأیید شده و شمش‌ها به نام مالک ثبت شده‌اند */
+      deliveryCodeVerifiedAt: order.deliveryCodeVerifiedAt,
+      deliveryCodeVerifiedVia: order.deliveryCodeVerifiedVia,
+      /** مشتری باید کد تحویل را ارائه/ثبت کند (ارسال‌شده، یا تحویل بدون کد) */
+      awaitingDeliveryCode: awaitingCode && !!s,
+      ownershipPending,
       shipping: s
         ? {
             method: s.shippingMethod

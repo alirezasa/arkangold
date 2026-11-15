@@ -389,66 +389,153 @@ export class HologramService {
           },
         });
 
+        // پیش‌شرط‌های ثبت مالکیت همین حالا بررسی می‌شوند تا پس از تحویل مانعی نماند
         if (item.recipientType === 'OTHER') {
           if (!item.recipientPhoneNumber) {
             throw new BadRequestException(
               'شماره موبایل گیرنده برای این آیتم ثبت نشده است',
             );
           }
-          await this.transferService.createAdminInitiated(tx, {
-            hologramCodeId: hologramCode.id,
-            shopOrderItemId: item.id,
-            recipientPhoneNumber: item.recipientPhoneNumber,
-            initiatedByAdminId: adminId,
+        } else {
+          const buyer = await tx.user.findUnique({
+            where: { id: item.order.userId },
+            include: { identity: true },
           });
+          if (!buyer?.identity || buyer.identity.status !== 'VERIFIED') {
+            throw new ConflictException(
+              'خریدار هنوز احراز هویت خود را تکمیل نکرده است',
+            );
+          }
+        }
+
+        // قانون تحویل: شمش فقط پس از ارائه/ثبت کد تحویل توسط مشتری به نام مالک ثبت می‌شود
+        if (!item.order.deliveryCodeVerifiedAt) {
           await tx.hologramCode.update({
             where: { id: hologramCode.id },
-            data: { status: 'TRANSFER_PENDING' },
+            data: { status: 'AWAITING_DELIVERY' },
           });
+          this.logger.log(
+            `[Hologram] کد ${code} به سفارش ${item.orderId} متصل شد؛ در انتظار کد تحویل مشتری`,
+          );
           return {
-            status: 'TRANSFER_PENDING' as const,
-            message: 'کد به آیتم تخصیص یافت و برای تأیید گیرنده ارسال شد',
+            status: 'AWAITING_DELIVERY' as const,
+            message:
+              'کد به شمش این سفارش متصل شد؛ پس از ارائه یا ثبت کد تحویل توسط مشتری، شمش به نام مالک ثبت می‌شود',
           };
         }
 
-        // خرید برای خود — نیازمند احراز هویت تکمیل‌شده خریدار برای snapshot نام/کدملی
-        const buyer = await tx.user.findUnique({
-          where: { id: item.order.userId },
-          include: { identity: true },
-        });
-        if (!buyer?.identity || buyer.identity.status !== 'VERIFIED') {
-          throw new ConflictException(
-            'خریدار هنوز احراز هویت خود را تکمیل نکرده است',
-          );
-        }
-
-        await tx.hologramOwnership.create({
-          data: {
-            hologramCodeId: hologramCode.id,
-            ownerUserId: buyer.id,
-            shopOrderId: item.orderId,
-            fullName:
-              `${buyer.identity.firstName ?? ''} ${buyer.identity.lastName ?? ''}`.trim(),
-            nationalCode: buyer.identity.nationalCode ?? '',
-            status: 'ACTIVE',
-            transferType: 'INITIAL_PURCHASE',
-          },
-        });
-        await tx.hologramCode.update({
-          where: { id: hologramCode.id },
-          data: { status: 'ASSIGNED' },
-        });
-
-        this.logger.log(
-          `[Hologram] کد ${code} توسط ادمین ${adminId} به خریدار ${buyer.id} تخصیص یافت`,
+        const finalized = await this.finalizeCodeOwnership(
+          tx,
+          hologramCode.id,
+          adminId,
         );
-        return {
-          status: 'ASSIGNED' as const,
-          message: 'کد با موفقیت تخصیص یافت',
-        };
+        this.logger.log(
+          `[Hologram] کد ${code} توسط ادمین ${adminId} تخصیص یافت (${finalized})`,
+        );
+        return finalized === 'TRANSFER_PENDING'
+          ? {
+              status: 'TRANSFER_PENDING' as const,
+              message: 'کد به آیتم تخصیص یافت و برای تأیید گیرنده ارسال شد',
+            }
+          : {
+              status: 'ASSIGNED' as const,
+              message: 'کد با موفقیت تخصیص یافت',
+            };
       },
       { maxWait: 5000, timeout: 15000 },
     );
+  }
+
+  /**
+   * ثبت مالکیت شمش‌های سفارش پس از تأیید کد تحویل (همان تراکنش تأیید تحویل).
+   * فقط کدهای AWAITING_DELIVERY همین سفارش؛ خروجی: تعداد شمش‌هایی که ثبت شدند.
+   */
+  async finalizeOrderOwnership(
+    tx: Prisma.TransactionClient,
+    shopOrderId: string,
+  ): Promise<number> {
+    const codes = await tx.hologramCode.findMany({
+      where: {
+        status: 'AWAITING_DELIVERY',
+        shopOrderItem: { orderId: shopOrderId },
+      },
+      select: { id: true, code: true, assignedByAdminId: true },
+    });
+    let done = 0;
+    for (const c of codes) {
+      await tx.$executeRaw`SELECT 1 FROM "hologram_codes" WHERE "id" = ${c.id}::uuid FOR UPDATE`;
+      try {
+        await this.finalizeCodeOwnership(tx, c.id, c.assignedByAdminId);
+        done += 1;
+      } catch (err) {
+        // نباید رخ دهد (پیش‌شرط‌ها هنگام اتصال کد بررسی شده‌اند)؛ کد در انتظار می‌ماند
+        this.logger.error(
+          `[Hologram] ثبت مالکیت کد ${c.code} سفارش ${shopOrderId} ناموفق بود: ${(err as Error).message}`,
+        );
+      }
+    }
+    return done;
+  }
+
+  /** ساخت مالکیت (خرید برای خود) یا درخواست انتقال (خرید برای دیگری) برای کد متصل به ردیف سفارش */
+  private async finalizeCodeOwnership(
+    tx: Prisma.TransactionClient,
+    hologramCodeId: string,
+    adminId: string | null,
+  ): Promise<'ASSIGNED' | 'TRANSFER_PENDING'> {
+    const hc = await tx.hologramCode.findUniqueOrThrow({
+      where: { id: hologramCodeId },
+      include: { shopOrderItem: { include: { order: true } } },
+    });
+    const item = hc.shopOrderItem;
+    if (!item) throw new ConflictException('کد به ردیف سفارشی متصل نیست');
+
+    if (item.recipientType === 'OTHER') {
+      if (!item.recipientPhoneNumber) {
+        throw new BadRequestException(
+          'شماره موبایل گیرنده برای این آیتم ثبت نشده است',
+        );
+      }
+      await this.transferService.createAdminInitiated(tx, {
+        hologramCodeId,
+        shopOrderItemId: item.id,
+        recipientPhoneNumber: item.recipientPhoneNumber,
+        initiatedByAdminId: adminId,
+      });
+      await tx.hologramCode.update({
+        where: { id: hologramCodeId },
+        data: { status: 'TRANSFER_PENDING' },
+      });
+      return 'TRANSFER_PENDING';
+    }
+
+    // خرید برای خود — نیازمند احراز هویت تکمیل‌شده خریدار برای snapshot نام/کدملی
+    const buyer = await tx.user.findUnique({
+      where: { id: item.order.userId },
+      include: { identity: true },
+    });
+    if (!buyer?.identity || buyer.identity.status !== 'VERIFIED') {
+      throw new ConflictException(
+        'خریدار هنوز احراز هویت خود را تکمیل نکرده است',
+      );
+    }
+    await tx.hologramOwnership.create({
+      data: {
+        hologramCodeId,
+        ownerUserId: buyer.id,
+        shopOrderId: item.orderId,
+        fullName:
+          `${buyer.identity.firstName ?? ''} ${buyer.identity.lastName ?? ''}`.trim(),
+        nationalCode: buyer.identity.nationalCode ?? '',
+        status: 'ACTIVE',
+        transferType: 'INITIAL_PURCHASE',
+      },
+    });
+    await tx.hologramCode.update({
+      where: { id: hologramCodeId },
+      data: { status: 'ASSIGNED' },
+    });
+    return 'ASSIGNED';
   }
 
   // ══════════════════════════════════════════
@@ -497,6 +584,10 @@ export class HologramService {
         where: { id: hologramCode.id },
         data: {
           status: 'REVOKED',
+          // کد متصل به سفارشی که هنوز تحویل نشده: ردیف سفارش آزاد می‌شود تا کد جدید بگیرد
+          ...(hologramCode.status === 'AWAITING_DELIVERY'
+            ? { shopOrderItemId: null }
+            : {}),
           revokedByAdminId: adminId,
           revokedAt: new Date(),
           revokeReason: reason,
@@ -574,7 +665,9 @@ export class HologramService {
             incidentAlert?.message ??
             (heldByAgent
               ? 'اصالت این شمش تأیید می‌شود؛ شمش نزد نماینده‌ی مجاز است و هنوز به نام مالک نهایی ثبت نشده است'
-              : 'این شمش هنوز به مالکی تخصیص نیافته است'),
+              : hologramCode.status === 'AWAITING_DELIVERY'
+                ? 'اصالت این شمش تأیید می‌شود؛ شمش فروخته شده و پس از ثبت کد تحویل توسط خریدار به نام او ثبت می‌شود'
+                : 'این شمش هنوز به مالکی تخصیص نیافته است'),
           incident: incidentAlert,
           ...(custody ? { custody } : {}),
         };

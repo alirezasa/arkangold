@@ -19,8 +19,10 @@ import {
   ShoppingBag,
   FileText,
 } from "lucide-react";
+import axios from "axios";
 import {
   useShopOrder,
+  useConfirmShopDelivery,
   useCancelShopOrder,
   usePayShopOrder,
 } from "@/app/hooks/useShop";
@@ -35,6 +37,75 @@ const METHOD_HINT: Record<string, string> = {
   COURIER: "هنگام تحویل، این کد را به پیک بگویید تا تحویل ثبت شود.",
   PICKUP: "هنگام مراجعه حضوری همراه با کارت ملی این کد را ارائه کنید.",
 };
+
+/** «شمش را دریافت کردم»: ثبت کد تحویل توسط خود مشتری — تا آن زمان شمش به نام او ثبت نمی‌شود */
+function ConfirmDeliveryBox({
+  orderId,
+  delivery,
+  onDone,
+}: {
+  orderId: string;
+  delivery: ShopOrderDeliveryDto;
+  onDone: () => void;
+}) {
+  const { loading, confirm } = useConfirmShopDelivery();
+  const [code, setCode] = useState("");
+  const [received, setReceived] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const zarpayesh = delivery.shipping?.deliveryCodeSource === "ZARPAYESH";
+  const pending = delivery.ownershipPending ?? 0;
+
+  const submit = async () => {
+    setMsg(null);
+    try {
+      const r = await confirm(orderId, code.trim());
+      setMsg({ ok: true, text: r.message });
+      setCode("");
+      onDone();
+    } catch (e) {
+      const m = axios.isAxiosError(e) ? (e.response?.data as { message?: string } | undefined)?.message : undefined;
+      setMsg({ ok: false, text: m ?? "ثبت کد تحویل انجام نشد" });
+    }
+  };
+
+  return (
+    <div className="rounded-xl p-4 space-y-2.5" style={{ border: "1px solid #e5e7eb" }}>
+      <p className="text-[13px] font-black text-gray-800">ثبت کد تحویل — شمش را دریافت کردم</p>
+      <p className="text-[11px] text-gray-600 leading-6">
+        {pending > 0 ? `${pending.toLocaleString("fa-IR")} شمش این سفارش` : "شمش‌های این سفارش"} تا ثبت کد تحویل به نام شما ثبت
+        نمی‌شوند. کد را یا هنگام تحویل به مأمور/کارشناس بگویید، یا پس از دریافت مرسوله خودتان این‌جا وارد کنید.
+        {zarpayesh ? " کد تحویل همان کدی است که «سامانه ناظر (زر پایش)» برایتان پیامک کرده است." : ""}
+      </p>
+      <label className="flex items-start gap-2 text-[12px] text-gray-700">
+        <input type="checkbox" checked={received} onChange={(e) => setReceived(e.target.checked)} className="mt-1" />
+        مرسوله را سالم دریافت کرده‌ام و هولوگرام شمش‌ها را بررسی کرده‌ام.
+      </label>
+      <input
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        inputMode="numeric"
+        maxLength={zarpayesh ? 19 : 8}
+        placeholder={zarpayesh ? "کد پیامک زر پایش" : "کد تحویل"}
+        className="w-full px-3 py-3 rounded-xl border border-gray-200 text-center text-lg font-black tracking-[0.3em] outline-none"
+        dir="ltr"
+      />
+      {msg && (
+        <div className={`p-3 rounded-xl text-[12px] font-bold ${msg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+          {msg.text}
+        </div>
+      )}
+      <button
+        type="button"
+        disabled={loading || !received || code.trim().length === 0}
+        onClick={() => void submit()}
+        className="w-full py-3 rounded-xl text-white text-[13px] font-black disabled:opacity-50"
+        style={{ backgroundColor: "var(--color-emerald)" }}
+      >
+        {loading ? "در حال ثبت…" : "ثبت کد و ثبت شمش به نام من"}
+      </button>
+    </div>
+  );
+}
 
 function DeliveryBox({ delivery }: { delivery: ShopOrderDeliveryDto }) {
   const s = delivery.shipping!;
@@ -389,6 +460,10 @@ export default function ShopOrderDetailPage() {
         )}
 
         {order.delivery?.shipping && <DeliveryBox delivery={order.delivery} />}
+
+        {order.delivery?.shipping && order.delivery.awaitingDeliveryCode && (
+          <ConfirmDeliveryBox orderId={order.id} delivery={order.delivery} onDone={refresh} />
+        )}
 
         {order.trackingCode && !order.delivery?.shipping && (
           <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50">

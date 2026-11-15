@@ -16,6 +16,7 @@ import { GoldBarDeliveryService } from './gold-bar-delivery.service';
 import { GoldBarDeliveryController } from './gold-bar-delivery.controller';
 import { ShippingModule } from '../shipping/shipping.module';
 import { ZarPayeshModule } from '../zarpayesh/zarpayesh.module';
+import { HologramModule } from '../hologram/hologram.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ZarPayeshModule } from '../zarpayesh/zarpayesh.module';
     MarketModule,
     ShippingModule,
     ZarPayeshModule, // سامانه ناظر: ارسال دارایی سفارش تحویل شمش با طلای آب‌شده
+    HologramModule, // ثبت شمش به نام مالک پس از تأیید کد تحویل
   ],
   controllers: [
     GoldBarDeliveryController,

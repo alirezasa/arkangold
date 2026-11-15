@@ -30,6 +30,12 @@ import {
   FakeZarPayeshServer,
 } from './fake-zarpayesh-server.helper-spec';
 import { ZARPAYESH_INSECURE_FLAG } from './zarpayesh.constants';
+import { HologramService } from '../hologram/hologram.service';
+import { HologramTransferService } from '../hologram/hologram-transfer.service';
+import type { HologramSecurityService } from '../hologram/hologram-security.service';
+import type { IdentityVerificationService } from '../integrations/services/identity-verification.service';
+import { DocumentSequenceService } from '../common/documents/document-sequence.service';
+import { generateHologramCode } from '../hologram/hologram-code.util';
 
 const url = process.env.INTEGRATION_DATABASE_URL;
 const ADMIN = randomUUID();
@@ -49,6 +55,8 @@ run('سامانه ناظر (زر پایش) — سفارش تحویل شمش (Pos
   let server: FakeZarPayeshServer;
   let zp: ZarPayeshShopOrderService;
   let fulfillment: ShopOrderFulfillmentService;
+  let hologram: HologramService;
+  let batchId: string;
   let userId: string;
   let addressId: string;
   let courierMethodId: string;
@@ -77,7 +85,8 @@ run('سامانه ناظر (زر پایش) — سفارش تحویل شمش (Pos
     prisma.zarPayeshConfig.update({ where: { id: 'default' }, data });
 
   let seq = 0;
-  async function paidOrder(goldGrams: string) {
+  /** سفارش پرداخت‌شده با یک ردیف شمش؛ goldGrams = null یعنی خرید مستقیم شمش (بدون طلای آب‌شده) */
+  async function paidOrder(goldGrams: string | null) {
     seq += 1;
     const o = await prisma.shopOrder.create({
       data: {
@@ -86,15 +95,41 @@ run('سامانه ناظر (زر پایش) — سفارش تحویل شمش (Pos
         addressId,
         subtotalRial: new Prisma.Decimal(500_000_000),
         totalRial: new Prisma.Decimal(500_000_000),
-        fundingSource: 'MELTED_GOLD',
-        goldAppliedGrams: new Prisma.Decimal(goldGrams),
-        goldAppliedRial: new Prisma.Decimal(400_000_000),
+        fundingSource: goldGrams ? 'MELTED_GOLD' : null,
+        goldAppliedGrams: new Prisma.Decimal(goldGrams ?? 0),
+        goldAppliedRial: new Prisma.Decimal(goldGrams ? 400_000_000 : 0),
         status: 'PAID',
         paidAt: new Date(),
+        items: {
+          create: {
+            quantity: 1,
+            priceRial: new Prisma.Decimal(500_000_000),
+            recipientType: 'SELF',
+          },
+        },
       },
     });
     return o.id;
   }
+  /** اتصال یک کد هولوگرام به ردیف سفارش (همان مسیر پنل) */
+  async function attachHologram(orderId: string) {
+    const item = await prisma.shopOrderItem.findFirstOrThrow({
+      where: { orderId },
+    });
+    let code = generateHologramCode();
+    while (await prisma.hologramCode.findUnique({ where: { code } }))
+      code = generateHologramCode();
+    await prisma.hologramCode.create({ data: { code, batchId } });
+    const r = await hologram.assignCode(ADMIN, code, {
+      shopOrderItemId: item.id,
+    });
+    return { code, status: r.status };
+  }
+  const holo = (code: string) =>
+    prisma.hologramCode.findUniqueOrThrow({
+      where: { code },
+      include: { ownerships: true },
+    });
   const row = (orderId: string) =>
     prisma.zarPayeshDelivery.findUnique({ where: { shopOrderId: orderId } });
   const lastShipping = (orderId: string) =>
@@ -160,7 +195,36 @@ run('سامانه ناظر (زر پایش) — سفارش تحویل شمش (Pos
     } as unknown as SmsTemplateService;
     const events = new ShopOrderEventsService(prisma, smsTemplates, encryption);
     jest.spyOn(events, 'notifyCourier').mockResolvedValue(undefined);
-    fulfillment = new ShopOrderFulfillmentService(prisma, events, zp);
+    await prisma.adminUser.create({
+      data: {
+        id: ADMIN,
+        username: `zp-it-${Date.now()}`,
+        passwordHash: 'x',
+        fullName: 'آزمون',
+      },
+    });
+    batchId = (
+      await prisma.hologramBatch.create({
+        data: {
+          batchNumber: `ZP-IT-${Date.now()}`,
+          quantity: 10,
+          createdByAdminId: ADMIN,
+        },
+      })
+    ).id;
+    const systemConfig = new SystemConfigService(prisma);
+    hologram = new HologramService(
+      prisma,
+      new DocumentSequenceService(prisma),
+      new HologramTransferService(
+        prisma,
+        systemConfig,
+        {} as IdentityVerificationService,
+        redis,
+      ),
+      {} as HologramSecurityService,
+    );
+    fulfillment = new ShopOrderFulfillmentService(prisma, events, zp, hologram);
     await fulfillment.onModuleInit();
     const methods = await prisma.shippingMethod.findMany();
     courierMethodId = methods.find((m) => m.code === 'COURIER').id;
@@ -227,6 +291,10 @@ run('سامانه ناظر (زر پایش) — سفارش تحویل شمش (Pos
     });
     const id = await paidOrder('1.2345');
     await zp.registerPending();
+    // شمش به سفارش وصل می‌شود ولی تا کد تحویل به نام مالک ثبت نمی‌شود
+    const bar = await attachHologram(id);
+    expect(bar.status).toBe('AWAITING_DELIVERY');
+    expect((await holo(bar.code)).ownerships).toHaveLength(0);
 
     const r = await row(id);
     expect(r?.state).toBe('REQUESTED');
@@ -274,8 +342,15 @@ run('سامانه ناظر (زر پایش) — سفارش تحویل شمش (Pos
 
     const code = server.deliveries.get(tracking).approveCode;
     const persianDigits = code.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
+    expect((await holo(bar.code)).status).toBe('AWAITING_DELIVERY');
     const done = await fulfillment.deliverWithCode(id, persianDigits, ADMIN);
     expect(done.alreadyProcessed).toBe(false);
+    expect(done.message).toContain('۱ شمش به نام مالک ثبت شد');
+    const owned = await holo(bar.code);
+    expect(owned.status).toBe('ASSIGNED');
+    expect(owned.ownerships).toHaveLength(1);
+    expect(owned.ownerships[0].ownerUserId).toBe(userId);
+    expect((await order(id)).deliveryCodeVerifiedVia).toBe('DELIVERY_CODE');
     expect((await order(id)).status).toBe('DELIVERED');
     expect(server.deliveries.get(tracking)?.statuses).toEqual([2, 3, 1]);
     const after = await row(id);
@@ -368,5 +443,80 @@ run('سامانه ناظر (زر پایش) — سفارش تحویل شمش (Pos
       (d) => d.src === String(pending.srcTrackingNumber),
     );
     expect(srcs).toHaveLength(1);
+  });
+
+  it('خرید مستقیم شمش (بدون طلای آب‌شده): بدون زر پایش، کد آرکان؛ مالکیت پس از ثبت کد توسط خود مشتری', async () => {
+    const before = server.requests.length;
+    const id = await paidOrder(null);
+    await zp.registerPending();
+    const bar = await attachHologram(id);
+    expect(bar.status).toBe('AWAITING_DELIVERY');
+    await ship(id);
+    expect(server.requests.length).toBe(before); // هیچ فراخوانی سامانه ناظر
+    expect(await row(id)).toBeNull();
+    const s = await lastShipping(id);
+    expect(s.deliveryCodeSource).toBeNull();
+    const view = await fulfillment.deliveryView(id, true);
+    expect(view?.awaitingDeliveryCode).toBe(true);
+    expect(view?.ownershipPending).toBe(1);
+    const arkanCode = view.shipping.deliveryCode;
+    expect(arkanCode).toMatch(/^\d{6}$/);
+
+    await expect(
+      fulfillment.confirmByUser(userId, id, '000000'),
+    ).rejects.toThrow(/نادرست/);
+    const done = await fulfillment.confirmByUser(userId, id, arkanCode);
+    expect(done.message).toContain('شمش به نام مالک ثبت شد');
+    expect((await order(id)).status).toBe('DELIVERED');
+    expect((await order(id)).deliveryCodeVerifiedVia).toBe('USER_APP');
+    expect((await holo(bar.code)).status).toBe('ASSIGNED');
+    // کاربر دیگری نمی‌تواند برای این سفارش کد ثبت کند
+    await expect(
+      fulfillment.confirmByUser(randomUUID(), id, arkanCode),
+    ).rejects.toThrow(/یافت نشد/);
+  });
+
+  it('تأیید بدون کد: تحویل‌شده ولی شمش در انتظار کد؛ ثبت بعدی کد زر پایش توسط مشتری → Approve و مالکیت', async () => {
+    const id = await paidOrder('0.8');
+    await zp.registerPending();
+    const bar = await attachHologram(id);
+    await ship(id);
+    await new Promise((res) => setTimeout(res, 300));
+    const r = await fulfillment.deliverOverride(
+      id,
+      'رسید امضاشده‌ی پیک موجود است',
+      ADMIN,
+    );
+    expect(r.message).toContain('به نام او ثبت نمی‌شوند');
+    expect((await order(id)).status).toBe('DELIVERED');
+    expect((await order(id)).deliveryCodeVerifiedAt).toBeNull();
+    expect((await holo(bar.code)).status).toBe('AWAITING_DELIVERY');
+    await new Promise((res) => setTimeout(res, 200));
+    expect((await row(id))?.errorCode).toBe('APPROVE_PENDING');
+
+    const tracking = Number((await row(id)).trackingCode);
+    const done = await fulfillment.confirmByUser(
+      userId,
+      id,
+      server.deliveries.get(tracking).approveCode,
+    );
+    expect(done.message).toContain('کد تحویل ثبت شد');
+    expect(server.deliveries.get(tracking)?.statuses).toEqual([2, 3, 1]);
+    expect((await holo(bar.code)).status).toBe('ASSIGNED');
+    expect((await row(id))?.remoteStatus).toBe(1);
+    // دوباره: قبلاً ثبت شده
+    const again = await fulfillment.confirmByUser(userId, id, '1');
+    expect(again.alreadyProcessed).toBe(true);
+  });
+
+  it('کد هولوگرام پس از تأیید کد تحویل متصل شود → مستقیم به نام مالک', async () => {
+    const id = await paidOrder(null);
+    await ship(id);
+    const code = (await fulfillment.deliveryView(id, true)).shipping
+      .deliveryCode;
+    await fulfillment.deliverWithCode(id, code, ADMIN);
+    const bar = await attachHologram(id);
+    expect(bar.status).toBe('ASSIGNED');
+    expect((await holo(bar.code)).ownerships).toHaveLength(1);
   });
 });

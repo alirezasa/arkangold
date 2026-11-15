@@ -18,7 +18,7 @@
 | 3 | Cancel | `POST .../Cancel` | `cancel` ← `cancelTrade` | شکست سفارش داخلی؛ پیگیری خودکار؛ لغو دستی پنل |
 | 4 | TxnFollowup | `GET .../TxnFollowup?srcTrackingNumber=` | `txnFollowup` ← `followupTrade` | نتیجه‌ی نامشخص (Timeout، خطای ۱۰۴۷)؛ پیگیری خودکار هر دقیقه؛ پنل |
 | 5 | GetUserBalance | `POST .../GetUserBalance` | `getUserBalance` | مقایسه‌ی موجودی سامانه ناظر با کیف طلای کاربر (پنل) |
-| 6 | MakeDeliveries | `POST .../MakeDeliveries` | `makeDeliveries` ← `ZarPayeshDeliveryService.create` | تب «ارسال دارایی» |
+| 6 | MakeDeliveries | `POST .../MakeDeliveries` | `makeDeliveries` ← `ZarPayeshShopOrderService.register`، `ZarPayeshDeliveryService.create` | خودکار پس از پرداخت سفارش تحویل شمش (بخش ۲-۱)؛ تب «ارسال دارایی» |
 | 7 | MakeDeliverFollowup | `GET .../MakeDeliverFollowup?srcTrackingNumber=` | `makeDeliverFollowup` | پیگیری ثبت ارسال نامشخص |
 | 8 | SetDeliveries | `POST .../SetDeliveries` | `setDeliveries` | مراحل ۱ Approve (با کد تأیید)، ۲ Ship، ۳ Delivery، ۴ Cancel |
 | 9 | GetDeliveries | `POST .../GetDeliveries` | `getDeliveries` | استعلام مرسوله (`Trackingcode` / `srcTrackingcode`) |
@@ -57,6 +57,23 @@
 - `payType` پیش‌فرض برای خرید و فروش: **۱۱ — کیف پول کاربر نزد سکو** (قابل تغییر در پنل).
 - `orderType`: ۱ خرید کاربر از پلتفرم، ۲ فروش کاربر به پلتفرم.
 
+## ۲-۱. سفارش تحویل شمش با طلای آب‌شده (ارسال دارایی)
+
+سفارش فروشگاه با `fundingSource = MELTED_GOLD` (خرید شمش با کیف طلایی، `shop-orders/gold-bar-delivery.service.ts`)
+وقتی کلید زر پایش روشن است به ارسال دارایی سامانه ناظر وصل است (`zarpayesh/zarpayesh-shop-order.service.ts`):
+
+| رویداد سفارش | سامانه ناظر | توضیح |
+| --- | --- | --- |
+| پرداخت (کسر طلا از کیف) | `MakeDeliveries` با `amount` = `goldAppliedGrams` به میلی‌گرم | Cron هر دقیقه؛ نتیجه‌ی نامشخص با `MakeDeliverFollowup` تعیین تکلیف می‌شود. **سامانه ناظر کد تأیید تحویل را مستقیم برای کاربر پیامک می‌کند** (اطلاعیه‌ی ۱ زر پایش) |
+| ثبت ارسال در پنل | پیش از ارسال باید ثبت شده باشد؛ بعد `SetDeliveries` ۲ و (غیرحضوری) ۳ | اگر ثبت ممکن نشد ارسال متوقف می‌شود، مگر ادمین «ادامه بدون ثبت» را با دلیل بزند (`SKIPPED` — روند کد آرکان مثل قبل) |
+| تأیید تحویل (پنل یا لینک پیک) | `SetDeliveries` ۱ با `approveCode` = کدی که مشتری از زر پایش گرفته | کد تحویل جداگانه‌ی آرکان برای این مرسوله‌ها صادر نمی‌شود (`shippings.delivery_code_source = ZARPAYESH`)؛ کد نادرست (۱۰۲۲/۱۰۳۵) مثل کد آرکان شمرده و پس از ۵ بار قفل می‌شود؛ «وضعیت تکراری» (۱۰۳۴) موفق حساب می‌شود؛ اگر سامانه ناظر ترتیب مراحل (۱۰۱۲) را بخواهد، ۳ و بعد ۱ دوباره ارسال می‌شود |
+| تحویل بدون کد (مجوز override) | — | Approve بدون کد ممکن نیست؛ روی ردیف «APPROVE_PENDING» ثبت می‌شود تا از تب «ارسال دارایی» با کد کاربر ثبت شود |
+| لغو سفارش پرداخت‌شده | `SetDeliveries` ۴ | |
+
+پنل: در جزئیات سفارش فروشگاه، بخش «سامانه ناظر (زر پایش) — ارسال دارایی» وضعیت، کد پیگیری، آخرین مرحله و خطا را
+نشان می‌دهد و دکمه‌های «ثبت در زر پایش» و «ادامه بدون ثبت» دارد (`zarpayesh.manage`). اپ کاربر به‌جای کد آرکان توضیح
+می‌دهد که کد تحویل را زر پایش پیامک کرده است. `approveCode` در `zarpayesh_api_logs` ذخیره نمی‌شود (`[REDACTED]`).
+
 ## ۳. پنل ادمین — «سیستم ← سامانه ناظر طلا (زر پایش)» (`/zarpayesh`)
 
 | تب | امکانات |
@@ -89,10 +106,14 @@
 ```bash
 cd api
 npx jest src/zarpayesh src/market                     # رمزنگاری، کلاینت در برابر سرور شبیه‌سازی‌شده، جریان TradingService
-INTEGRATION_DATABASE_URL=postgresql://... npx jest zarpayesh-trade   # جریان کامل روی PostgreSQL واقعی
+INTEGRATION_DATABASE_URL=postgresql://... npx jest --runInBand zarpayesh-trade zarpayesh-shop-order   # جریان کامل روی PostgreSQL واقعی
 ```
 
 ## ۷. مواردی که باید با زر پایش هماهنگ/تأیید شود
+
+0. **کد تأیید تحویل**: پیاده‌سازی فرض می‌کند پیامکی که سامانه ناظر هنگام «تحویل» برای کاربر می‌فرستد همان `approveCode`
+   متد SetDeliveries است و پس از MakeDeliveries ارسال می‌شود. ترتیب مراحل ۲ ← ۳ ← ۱ (و برای تحویل حضوری ۲ ← ۱) را هم
+   تأیید بگیرید.
 
 1. **نمونه‌ی رمزنگاری با کلید اختصاصی**: نمونه‌های رمزشده‌ی صفحه‌ی ۳۱ مستند با کلید نمونه‌ی صفحه‌ی ۳۰ رمزگشایی نمی‌شوند
    (چیدمان و طول بایت‌ها دقیقاً درست است ولی Tag تطبیق نمی‌کند — با کلید دیگری ساخته شده‌اند). یک نمونه با کلید اختصاصی آرکان گلد

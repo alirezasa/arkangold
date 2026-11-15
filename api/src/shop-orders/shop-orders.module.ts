@@ -15,6 +15,7 @@ import { MarketModule } from '../market/market.module';
 import { GoldBarDeliveryService } from './gold-bar-delivery.service';
 import { GoldBarDeliveryController } from './gold-bar-delivery.controller';
 import { ShippingModule } from '../shipping/shipping.module';
+import { ZarPayeshModule } from '../zarpayesh/zarpayesh.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ShippingModule } from '../shipping/shipping.module';
     CatalogModule,
     MarketModule,
     ShippingModule,
+    ZarPayeshModule, // سامانه ناظر: ارسال دارایی سفارش تحویل شمش با طلای آب‌شده
   ],
   controllers: [
     GoldBarDeliveryController,

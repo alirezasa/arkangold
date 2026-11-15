@@ -6,6 +6,7 @@ import { ZarPayeshClientService } from './zarpayesh-client.service';
 import { ZarPayeshUsersService } from './zarpayesh-users.service';
 import { ZarPayeshTradeService } from './zarpayesh-trade.service';
 import { ZarPayeshDeliveryService } from './zarpayesh-delivery.service';
+import { ZarPayeshShopOrderService } from './zarpayesh-shop-order.service';
 import { ZarPayeshAdminService } from './zarpayesh-admin.service';
 import { ZarPayeshAdminController } from './zarpayesh-admin.controller';
 
@@ -22,8 +23,9 @@ import { ZarPayeshAdminController } from './zarpayesh-admin.controller';
     ZarPayeshUsersService,
     ZarPayeshTradeService,
     ZarPayeshDeliveryService,
+    ZarPayeshShopOrderService,
     ZarPayeshAdminService,
   ],
-  exports: [ZarPayeshTradeService],
+  exports: [ZarPayeshTradeService, ZarPayeshShopOrderService],
 })
 export class ZarPayeshModule {}

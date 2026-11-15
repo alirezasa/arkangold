@@ -109,6 +109,28 @@ export const DELIVERY_STATUS = {
   CANCEL: 4,
 } as const;
 
+/** کدهای خطای SetDeliveries که یعنی «کد تأیید (approveCode) کاربر نادرست است» */
+export const WRONG_APPROVE_CODE_ERRORS = new Set([1022, 1035]);
+
+const LONG_MAX = 9223372036854775807n;
+
+/**
+ * approveCode متد SetDeliveries (long، الزامی برای وضعیت ۱): ارقام فارسی/عربی پذیرفته و نرمال می‌شوند.
+ * صفر یا خارج از محدوده‌ی long نامعتبر است (سامانه ناظر آن را با ۱۰۳۵ رد می‌کند). خروجی: رشته‌ی ارقام یا null.
+ */
+export function normalizeApproveCode(
+  raw: string | null | undefined,
+): string | null {
+  const digits = String(raw ?? '')
+    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+    .replace(/[\s-]/g, '');
+  if (!/^\d{1,19}$/.test(digits)) return null;
+  const n = BigInt(digits);
+  if (n <= 0n || n > LONG_MAX) return null;
+  return n.toString();
+}
+
 export const DELIVERY_STATUS_FA: Record<number, string> = {
   1: 'Approve — دارایی تحویل کاربر گردید',
   2: 'Ship — دارایی آماده ارسال',

@@ -615,6 +615,8 @@ model ShopOrder {
   id                  String                   @id @default(uuid()) @db.Uuid
   userId              String                   @map("user_id") @db.Uuid
   addressId           String                   @map("address_id") @db.Uuid
+  /// ثبت ارسال دارایی در سامانه ناظر (زر پایش) — فقط سفارش‌های MELTED_GOLD
+  zarpayeshDelivery   ZarPayeshDelivery?
   statusHistory       ShopOrderStatusHistory[]
   payments            Payment[]
   items               ShopOrderItem[]
@@ -1009,6 +1011,8 @@ model Shipping {
   courierPhone          String?                  @map("courier_phone")
   /// کد تحویل مشتری — رمزنگاری‌شده (AES-GCM) تا در اپ کاربر نمایش داده شود
   deliveryCodeEnc       String?                  @map("delivery_code_enc")
+  /// صادرکننده‌ی کد تحویل: null = آرکان (deliveryCodeEnc)، ZARPAYESH = approveCode پیامک‌شده توسط سامانه ناظر
+  deliveryCodeSource    String?                  @map("delivery_code_source")
   deliveryCodeSentAt    DateTime?                @map("delivery_code_sent_at")
   /// تلاش‌های ناموفق ورود کد تحویل — پس از سقف، کد قفل و باید کد جدید صادر شود
   deliveryCodeAttempts  Int                      @default(0) @map("delivery_code_attempts")
@@ -4214,31 +4218,37 @@ model ZarPayeshTrade {
 
 /// درخواست‌های ارسال/تحویل دارایی (MakeDeliveries / SetDeliveries / GetDeliveries)
 model ZarPayeshDelivery {
-  id                String    @id @default(uuid()) @db.Uuid
-  srcTrackingNumber BigInt    @unique @map("src_tracking_number")
-  userId            String    @map("user_id") @db.Uuid
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  typeId            BigInt    @map("type_id")
-  amountMg          Decimal   @map("amount_mg") @db.Decimal(18, 0)
+  id                String     @id @default(uuid()) @db.Uuid
+  srcTrackingNumber BigInt     @unique @map("src_tracking_number")
+  userId            String     @map("user_id") @db.Uuid
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  typeId            BigInt     @map("type_id")
+  amountMg          Decimal    @map("amount_mg") @db.Decimal(18, 0)
   description       String?
   /// مرجع داخلی اختیاری (شماره سفارش فروشگاه، تحویل فیزیکی و ...)
   reference         String?
   /// کد پیگیری مرسوله در سامانه ناظر (trackingcode)
-  trackingCode      BigInt?   @unique @map("tracking_code")
-  requestedAt       DateTime? @map("requested_at")
+  trackingCode      BigInt?    @unique @map("tracking_code")
+  requestedAt       DateTime?  @map("requested_at")
   /// آخرین وضعیت (setStatusDeleveries): ۱ Approve، ۲ Ship، ۳ Delivery، ۴ Cancel — null یعنی ثبت‌شده
-  remoteStatus      Int?      @map("remote_status")
-  /// REQUESTING | REQUESTED | FAILED
-  state             String    @default("REQUESTING")
-  approvedAt        DateTime? @map("approved_at")
-  shippedAt         DateTime? @map("shipped_at")
-  deliveredAt       DateTime? @map("delivered_at")
-  cancelledAt       DateTime? @map("cancelled_at")
-  errorCode         String?   @map("error_code")
-  errorMessage      String?   @map("error_message")
-  createdByAdminId  String?   @map("created_by_admin_id") @db.Uuid
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  remoteStatus      Int?       @map("remote_status")
+  /// REQUESTING | REQUESTED | FAILED | SKIPPED (سفارش شمش با تصمیم ادمین بدون ثبت در سامانه ناظر ارسال شد)
+  state             String     @default("REQUESTING")
+  /// سفارش «تحویل شمش با طلای آب‌شده» (fundingSource = MELTED_GOLD) که این ارسال برای آن ثبت شده است
+  shopOrderId       String?    @unique @map("shop_order_id") @db.Uuid
+  shopOrder         ShopOrder? @relation(fields: [shopOrderId], references: [id], onDelete: SetNull)
+  skippedReason     String?    @map("skipped_reason")
+  skippedByAdminId  String?    @map("skipped_by_admin_id") @db.Uuid
+  skippedAt         DateTime?  @map("skipped_at")
+  approvedAt        DateTime?  @map("approved_at")
+  shippedAt         DateTime?  @map("shipped_at")
+  deliveredAt       DateTime?  @map("delivered_at")
+  cancelledAt       DateTime?  @map("cancelled_at")
+  errorCode         String?    @map("error_code")
+  errorMessage      String?    @map("error_message")
+  createdByAdminId  String?    @map("created_by_admin_id") @db.Uuid
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
 
   @@index([userId, createdAt])
   @@map("zarpayesh_deliveries")

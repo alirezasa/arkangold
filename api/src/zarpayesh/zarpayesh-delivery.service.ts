@@ -23,6 +23,7 @@ import { ZarPayeshError } from './zarpayesh-errors';
 import {
   DELIVERY_STATUS,
   DUPLICATE_TRACKING_CODES,
+  normalizeApproveCode,
 } from './zarpayesh.constants';
 import { gramsToMg } from './zarpayesh-trade.service';
 
@@ -156,17 +157,17 @@ export class ZarPayeshDeliveryService {
       throw new BadRequestException('وضعیت ارسال نامعتبر است');
     }
     // «برای تغییر به وضعیت ۱ (Approve) کد تأیید الزامی است؛ برای ۲، ۳ و ۴ نیازی به ارسال ندارد»
-    const code = (approveCode ?? '').trim();
-    if (status === DELIVERY_STATUS.APPROVE && !/^\d+$/.test(code)) {
+    const code = normalizeApproveCode(approveCode);
+    if (status === DELIVERY_STATUS.APPROVE && !code) {
       throw new BadRequestException(
-        'برای تحویل به کاربر (Approve) کد تأیید عددی الزامی است',
+        'برای تحویل به کاربر (Approve) کد تأییدی که سامانه ناظر برای کاربر پیامک کرده لازم است (عدد مثبت)',
       );
     }
     const r = await this.client.setDeliveries(
       {
         trackingcode: d.trackingCode.toString(),
         setStatusDeleveries: status,
-        approveCode: status === DELIVERY_STATUS.APPROVE ? code : 0,
+        approveCode: status === DELIVERY_STATUS.APPROVE && code ? code : 0,
       },
       {
         trigger: 'ADMIN',

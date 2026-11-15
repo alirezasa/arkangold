@@ -33,6 +33,8 @@ const SECRET_FIELDS = new Set([
   'refreshtoken',
   'authorization',
   'challenge_id',
+  // کد تأیید تحویل دارایی (SetDeliveries) — هر کس آن را داشته باشد می‌تواند تحویل را تأیید کند
+  'approvecode',
 ]);
 const MAX_BODY_CHARS = 20_000;
 const LOG_RETENTION_DAYS = Number(

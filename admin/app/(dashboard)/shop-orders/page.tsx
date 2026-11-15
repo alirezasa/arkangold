@@ -122,6 +122,8 @@ interface ShippingView {
   courierName: string | null;
   courierPhone: string | null;
   deliveryCodeRequired: boolean;
+  /** ZARPAYESH = کد تحویل را سامانه ناظر (زر پایش) برای مشتری پیامک کرده (approveCode) */
+  deliveryCodeSource?: "ARKAN" | "ZARPAYESH";
   deliveryCodeAttempts: number;
   deliveryCodeLocked: boolean;
   deliveryCodeSentAt: string | null;
@@ -140,6 +142,26 @@ interface OrderDetail extends Omit<OrderRow, "shipping"> {
     timeline: { id: string; toStatus: OrderStatus; toStatusLabel: string; actorType: string; note: string | null; createdAt: string }[];
   } | null;
   smsLogs: { id: string; templateKey: string | null; status: string; providerCode: string | null; errorMessage: string | null; createdAt: string }[];
+  /** ارسال دارایی در سامانه ناظر (فقط سفارش تحویل طلای آب‌شده) */
+  zarpayesh: ZarPayeshOrderView | null;
+}
+interface ZarPayeshOrderView {
+  enabled: boolean;
+  amountMg: number;
+  deliveryId: string | null;
+  /** REQUESTING | REQUESTED | FAILED | SKIPPED — null یعنی هنوز ثبت نشده */
+  state: string | null;
+  srcTrackingNumber: string | null;
+  trackingCode: string | null;
+  requestedAt: string | null;
+  remoteStatus: number | null;
+  remoteStatusLabel: string | null;
+  approvedAt: string | null;
+  cancelledAt: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  skippedReason: string | null;
+  skippedAt: string | null;
 }
 interface ShippingMethod {
   id: string;
@@ -445,7 +467,33 @@ function OrderDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
                   <Truck className="w-4 h-4" /> ثبت ارسال
                 </ActionButton>
               )}
-              {o.status === "SHIPPED" && (
+              {o.status === "SHIPPED" && o.delivery?.shipping?.deliveryCodeSource === "ZARPAYESH" && (
+                <>
+                  <ActionButton onClick={() => setModal("deliver")}>
+                    <PackageCheck className="w-4 h-4" /> ثبت تحویل با کد زر پایش
+                  </ActionButton>
+                  {o.delivery.shipping.deliveryCodeAttempts > 0 && (
+                    <ActionButton
+                      variant="secondary"
+                      busy={act.busy}
+                      onClick={() =>
+                        void run(
+                          () => api.post(`/api/admin/shop-orders/${o.id}/delivery-code/resend`, { regenerate: false }),
+                          "شمارنده‌ی تلاش‌های نادرست صفر شود؟ کد را سامانه ناظر صادر کرده و آرکان آن را دوباره ارسال نمی‌کند.",
+                        )
+                      }
+                    >
+                      <KeyRound className="w-4 h-4" /> باز کردن قفل کد
+                    </ActionButton>
+                  )}
+                  {can("shop.delivery.override") && (
+                    <ActionButton variant="danger" onClick={() => setModal("override")}>
+                      تأیید تحویل بدون کد
+                    </ActionButton>
+                  )}
+                </>
+              )}
+              {o.status === "SHIPPED" && o.delivery?.shipping?.deliveryCodeSource !== "ZARPAYESH" && (
                 <>
                   <ActionButton onClick={() => setModal("deliver")}>
                     <PackageCheck className="w-4 h-4" /> ثبت تحویل با کد مشتری
@@ -488,6 +536,8 @@ function OrderDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
               )}
             </div>
           )}
+
+          {o.zarpayesh && <ZarPayeshPanel orderId={o.id} status={o.status} z={o.zarpayesh} onChanged={refresh} />}
 
           <div className="grid gap-4 md:grid-cols-2">
             {/* مشتری و نشانی */}
@@ -694,6 +744,89 @@ function OrderDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
   );
 }
 
+const ZP_STATE: Record<string, { label: string; cls: string }> = {
+  REQUESTED: { label: "ثبت‌شده در زر پایش", cls: "bg-green-50 text-green-700" },
+  REQUESTING: { label: "نتیجه‌ی ثبت نامشخص — پیگیری خودکار", cls: "bg-amber-50 text-amber-700" },
+  FAILED: { label: "ثبت ناموفق", cls: "bg-red-50 text-red-600" },
+  SKIPPED: { label: "ارسال بدون ثبت در زر پایش", cls: "bg-gray-100 text-gray-600" },
+};
+
+/** ارسال دارایی سفارش تحویل طلای آب‌شده در سامانه ناظر (زر پایش) */
+function ZarPayeshPanel({ orderId, status, z, onChanged }: { orderId: string; status: OrderStatus; z: ZarPayeshOrderView; onChanged: () => void }) {
+  const can = usePerm();
+  const act = useAction();
+  const [skipReason, setSkipReason] = useState<string | null>(null);
+  const beforeShip = status === "PAID" || status === "PROCESSING";
+  const run = async (fn: () => Promise<unknown>, confirmText?: string) => {
+    if (await act.run(fn, confirmText)) {
+      setSkipReason(null);
+      onChanged();
+    }
+  };
+  return (
+    <div className="rounded-xl border border-amber-100 bg-amber-50/30 p-3 space-y-2 text-[12px]">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="font-black text-[12px] text-gray-600">سامانه ناظر (زر پایش) — ارسال دارایی</p>
+        {z.state ? (
+          <Badge map={ZP_STATE} value={z.state} />
+        ) : (
+          <span className="text-gray-500">{z.enabled ? "هنوز ثبت نشده (ثبت خودکار تا یک دقیقه پس از پرداخت)" : "زر پایش خاموش است"}</span>
+        )}
+        <span className="text-gray-500">مقدار: {z.amountMg.toLocaleString("fa-IR")} میلی‌گرم</span>
+      </div>
+      {z.trackingCode && (
+        <p>
+          کد پیگیری مرسوله: <span dir="ltr" className="font-bold">{z.trackingCode}</span>
+          {z.requestedAt && <span className="text-gray-500"> — {faDateTime(z.requestedAt)}</span>}
+          {z.remoteStatusLabel && <span> — آخرین مرحله: <b>{z.remoteStatusLabel}</b></span>}
+        </p>
+      )}
+      {z.state === "REQUESTED" && z.remoteStatus !== 1 && z.remoteStatus !== 4 && (
+        <p className="text-gray-600">
+          سامانه ناظر کد تحویل را مستقیم برای مشتری پیامک می‌کند؛ کد تحویل آرکان برای این سفارش صادر نمی‌شود و هنگام تحویل همان کد زر پایش وارد می‌شود.
+        </p>
+      )}
+      {z.skippedReason && <p className="text-gray-600">دلیل ارسال بدون ثبت: {z.skippedReason}</p>}
+      {z.errorMessage && <p className="text-red-600">{z.errorCode ? `[${z.errorCode}] ` : ""}{z.errorMessage}</p>}
+      {act.error && <Alert kind="error" text={act.error} />}
+      {act.success && <Alert kind="success" text={act.success} />}
+      {can("zarpayesh.manage") && beforeShip && z.enabled && z.state !== "REQUESTED" && z.state !== "SKIPPED" && (
+        <div className="flex flex-wrap gap-2">
+          <ActionButton busy={act.busy} onClick={() => void run(() => api.post(`/api/admin/zarpayesh/shop-orders/${orderId}/register`))}>
+            {z.state ? "ثبت دوباره در زر پایش" : "ثبت در زر پایش"}
+          </ActionButton>
+          {z.state !== "REQUESTING" && skipReason === null && (
+            <ActionButton variant="secondary" onClick={() => setSkipReason("")}>
+              ادامه بدون ثبت
+            </ActionButton>
+          )}
+        </div>
+      )}
+      {skipReason !== null && (
+        <div className="space-y-2">
+          <Alert kind="warn" text="این سفارش بدون گزارش به سامانه ناظر ارسال می‌شود و کد تحویل آرکان برای مشتری پیامک می‌شود. فقط وقتی استفاده کنید که ثبت در زر پایش ممکن نیست (مثلاً طلای خریداری‌شده پیش از راه‌اندازی زر پایش). اقدام با نام شما ثبت می‌شود." />
+          <Field label="دلیل (حداقل ۱۰ کاراکتر)">
+            <textarea value={skipReason} onChange={(e) => setSkipReason(e.target.value)} rows={2} className={inputCls} />
+          </Field>
+          <div className="flex gap-2">
+            <ActionButton
+              variant="danger"
+              busy={act.busy}
+              disabled={skipReason.trim().length < 10}
+              onClick={() => void run(() => api.post(`/api/admin/zarpayesh/shop-orders/${orderId}/skip`, { reason: skipReason.trim() }))}
+            >
+              ثبت «ادامه بدون ثبت»
+            </ActionButton>
+            <ActionButton variant="secondary" onClick={() => setSkipReason(null)}>
+              انصراف
+            </ActionButton>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ShippingSummary({ s }: { s: ShippingView }) {
   return (
     <div className="space-y-1 text-[12px]">
@@ -718,9 +851,11 @@ function ShippingSummary({ s }: { s: ShippingView }) {
       {s.estimatedDelivery && <p>تحویل تخمینی: {faDateTime(s.estimatedDelivery)}</p>}
       {s.deliveryCodeRequired && !s.deliveredAt && (
         <p className={s.deliveryCodeLocked ? "text-red-600 font-bold" : "text-gray-600"}>
-          کد تحویل برای مشتری پیامک شد{s.deliveryCodeSentAt ? ` (${faDateTime(s.deliveryCodeSentAt)})` : ""}
+          {s.deliveryCodeSource === "ZARPAYESH"
+            ? "کد تحویل را سامانه ناظر (زر پایش) برای مشتری پیامک کرده است"
+            : `کد تحویل برای مشتری پیامک شد${s.deliveryCodeSentAt ? ` (${faDateTime(s.deliveryCodeSentAt)})` : ""}`}
           {s.deliveryCodeAttempts > 0 && ` — ${s.deliveryCodeAttempts.toLocaleString("fa-IR")} تلاش نادرست`}
-          {s.deliveryCodeLocked && " — قفل شده؛ کد جدید صادر کنید"}
+          {s.deliveryCodeLocked && (s.deliveryCodeSource === "ZARPAYESH" ? " — قفل شده؛ «باز کردن قفل کد» را بزنید" : " — قفل شده؛ کد جدید صادر کنید")}
         </p>
       )}
       {s.deliveredAt && (
@@ -846,6 +981,7 @@ function DeliverModal({ order, onClose, onDone }: { order: OrderDetail; onClose:
   const [receiver, setReceiver] = useState("");
   const act = useAction();
   const needsCode = order.delivery?.shipping?.deliveryCodeRequired ?? false;
+  const zarpayeshCode = order.delivery?.shipping?.deliveryCodeSource === "ZARPAYESH";
   const submit = async () => {
     const ok = await act.run(() =>
       api.post(`/api/admin/shop-orders/${order.id}/deliver`, { deliveryCode: code || undefined, receivedByName: receiver || undefined }),
@@ -858,18 +994,23 @@ function DeliverModal({ order, onClose, onDone }: { order: OrderDetail; onClose:
   return (
     <Modal title="ثبت تحویل سفارش" onClose={onClose}>
       <div className="space-y-3">
-        {needsCode ? (
+        {zarpayeshCode ? (
+          <p className="text-[12px] text-gray-600">
+            کد تحویلی را که <b>سامانه ناظر (زر پایش)</b> برای مشتری پیامک کرده و مشتری هنگام دریافت اعلام می‌کند وارد کنید. کد در سامانه ناظر
+            بررسی می‌شود و با تأیید آن، تحویل دارایی در زر پایش (Approve) هم ثبت می‌شود.
+          </p>
+        ) : needsCode ? (
           <p className="text-[12px] text-gray-600">کد تحویلی را که مشتری هنگام دریافت مرسوله به مأمور تحویل/پست اعلام کرده وارد کنید.</p>
         ) : (
           <p className="text-[12px] text-gray-600">برای این ارسال کد تحویل صادر نشده است (ارسال قدیمی یا مرجع بدون کد).</p>
         )}
         {needsCode && (
-          <Field label="کد تحویل مشتری">
+          <Field label={zarpayeshCode ? "کد تحویل (پیامک زر پایش)" : "کد تحویل مشتری"}>
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
               inputMode="numeric"
-              maxLength={8}
+              maxLength={zarpayeshCode ? 19 : 8}
               className={`${inputCls} text-center tracking-[0.5em] text-lg font-black`}
               dir="ltr"
             />
@@ -879,7 +1020,7 @@ function DeliverModal({ order, onClose, onDone }: { order: OrderDetail; onClose:
           <input value={receiver} onChange={(e) => setReceiver(e.target.value)} className={inputCls} />
         </Field>
         {act.error && <Alert kind="error" text={act.error} />}
-        <ActionButton busy={act.busy} disabled={needsCode && code.length < 4} onClick={() => void submit()}>
+        <ActionButton busy={act.busy} disabled={needsCode && code.length < (zarpayeshCode ? 1 : 4)} onClick={() => void submit()}>
           تأیید تحویل
         </ActionButton>
       </div>

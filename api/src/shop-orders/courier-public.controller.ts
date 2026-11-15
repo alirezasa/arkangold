@@ -10,7 +10,8 @@ import { ShopOrderFulfillmentService } from './shop-order-fulfillment.service';
 
 class CourierConfirmDto {
   @IsString()
-  @Matches(/^[0-9۰-۹]{4,8}$/, { message: 'کد تحویل نامعتبر است' })
+  // کد آرکان ۶ رقمی؛ کد پیامک‌شده‌ی سامانه ناظر (زر پایش) تا ۱۹ رقم
+  @Matches(/^[0-9۰-۹]{4,19}$/, { message: 'کد تحویل نامعتبر است' })
   code!: string;
   @IsOptional() @IsString() @MaxLength(80) receivedByName?: string;
 }

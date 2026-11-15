@@ -24,6 +24,8 @@ interface CourierInfo {
   itemCount: number;
   attemptsLeft: number;
   deliveredAt: string | null;
+  /** ZARPAYESH = کد را سامانه ناظر (زر پایش) برای مشتری پیامک کرده */
+  deliveryCodeSource?: "ARKAN" | "ZARPAYESH";
 }
 
 function errorMessage(e: unknown, fallback: string) {
@@ -162,13 +164,15 @@ export default function CourierDeliveryPage() {
             ) : (
               <form onSubmit={submit} className="rounded-2xl p-5 space-y-3" style={card}>
                 <p className="text-[12px] text-gray-600">
-                  پس از تحویل مرسوله، کد تحویلی را که برای مشتری پیامک شده از او بگیرید و وارد کنید. بدون کد صحیح، تحویل ثبت نمی‌شود.
+                  {info.deliveryCodeSource === "ZARPAYESH"
+                    ? "پس از تحویل مرسوله، کد تحویلی را که «سامانه ناظر (زر پایش)» برای مشتری پیامک کرده از او بگیرید و وارد کنید. بدون کد صحیح، تحویل ثبت نمی‌شود."
+                    : "پس از تحویل مرسوله، کد تحویلی را که برای مشتری پیامک شده از او بگیرید و وارد کنید. بدون کد صحیح، تحویل ثبت نمی‌شود."}
                 </p>
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   inputMode="numeric"
-                  maxLength={8}
+                  maxLength={info.deliveryCodeSource === "ZARPAYESH" ? 19 : 8}
                   placeholder="کد تحویل"
                   className="w-full px-3 py-3 rounded-xl border border-gray-200 text-center text-xl font-black tracking-[0.4em] outline-none"
                   dir="ltr"

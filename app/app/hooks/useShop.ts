@@ -230,6 +230,8 @@ export interface ShopOrderDeliveryDto {
     courierPhone: string | null;
     contactPhone: string | null;
     deliveryCodeRequired: boolean;
+    /** ZARPAYESH = کد تحویل را سامانه ناظر (زر پایش) مستقیم پیامک کرده و در اپ نمایش داده نمی‌شود */
+    deliveryCodeSource?: "ARKAN" | "ZARPAYESH";
     // فقط تا زمان تحویل و فقط برای مالک سفارش
     deliveryCode: string | null;
     deliveredAt: string | null;

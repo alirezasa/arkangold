@@ -57,7 +57,8 @@ class ShipOrderDto {
 }
 
 class DeliverOrderDto {
-  @IsOptional() @IsString() @MaxLength(10) deliveryCode?: string;
+  // کد آرکان ۶ رقمی؛ کد سامانه ناظر (approveCode) تا ۱۹ رقم (long)
+  @IsOptional() @IsString() @MaxLength(24) deliveryCode?: string;
   @IsOptional() @IsString() @MaxLength(80) receivedByName?: string;
 }
 

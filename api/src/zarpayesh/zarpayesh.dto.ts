@@ -170,10 +170,18 @@ export class SetDeliveryStatusDto {
   @Max(4)
   status!: number;
 
+  /** کد پیامک‌شده‌ی سامانه ناظر؛ ارقام فارسی هم پذیرفته می‌شوند (normalizeApproveCode) */
   @IsOptional()
   @IsString()
-  @Matches(/^\d{0,19}$/)
+  @MaxLength(40)
   approveCode?: string;
+}
+
+export class SkipShopOrderDeliveryDto {
+  @IsString()
+  @MinLength(10)
+  @MaxLength(500)
+  reason!: string;
 }
 
 export class ListQueryDto {

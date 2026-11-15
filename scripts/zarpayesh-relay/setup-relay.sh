@@ -90,6 +90,13 @@ ok "nginx روی پورت $RELAY_PORT گوش می‌دهد"
 if [[ -z "${SKIP_UFW:-}" ]]; then
   ufw default deny incoming >/dev/null
   ufw default allow outgoing >/dev/null
+  # پورت واقعی sshd را هم باز می‌گذاریم تا با SSH_PORT اشتباه، دسترسی به سرور قطع نشود
+  for p in $(sshd -T 2>/dev/null | awk '$1=="port"{print $2}'); do
+    if [[ "$p" != "$SSH_PORT" ]]; then
+      echo "! sshd روی پورت $p گوش می‌دهد ولی SSH_PORT=$SSH_PORT است؛ پورت $p هم باز شد. relay.env را اصلاح کنید."
+      ufw allow "$p/tcp" >/dev/null
+    fi
+  done
   if [[ -n "$SSH_ALLOW_FROM" ]]; then
     for ip in $SSH_ALLOW_FROM; do ufw allow from "$ip" to any port "$SSH_PORT" proto tcp >/dev/null; done
   else

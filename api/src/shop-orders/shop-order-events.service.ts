@@ -137,7 +137,11 @@ export class ShopOrderEventsService {
             method?.trackingUrlTemplate ?? method?.carrier?.trackingUrlTemplate,
             shipping?.trackingCode ?? null,
           ) ?? '',
-        deliveryCode: deliveryCode ?? '—',
+        // کد تحویل سفارش تحویل طلای آب‌شده را سامانه ناظر (زر پایش) جداگانه پیامک می‌کند
+        deliveryCode:
+          shipping?.deliveryCodeSource === 'ZARPAYESH'
+            ? 'همان کدی که سامانه ناظر (زر پایش) برایتان پیامک کرده'
+            : (deliveryCode ?? '—'),
         reason: extra.reason ? `\nدلیل: ${extra.reason}` : '',
       };
 

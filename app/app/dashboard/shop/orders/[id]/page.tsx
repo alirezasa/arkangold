@@ -40,6 +40,19 @@ function DeliveryBox({ delivery }: { delivery: ShopOrderDeliveryDto }) {
   const s = delivery.shipping!;
   return (
     <div className="space-y-3">
+      {s.deliveryCodeSource === "ZARPAYESH" && !s.deliveredAt && (
+        <div className="rounded-xl p-4 space-y-1.5" style={{ backgroundColor: "#fffbeb", border: "1px dashed #f59e0b" }}>
+          <p className="text-[12px] font-black text-gray-700">کد تحویل: پیامک «سامانه ناظر (زر پایش)»</p>
+          <p className="text-[11px] text-gray-600 leading-6">
+            تحویل طلای آب‌شده در سامانه ناظر بر خرید و فروش طلا (زر پایش) ثبت شده است و کد تحویل را همین سامانه مستقیم برای شما پیامک
+            کرده است. {METHOD_HINT[s.method?.type ?? "POST"]} این کد را پیش از دریافت مرسوله در اختیار هیچ‌کس قرار ندهید.
+          </p>
+          <p className="text-[11px] text-gray-500 leading-6">
+            شماره‌ی فرستنده‌ی پیامک زر پایش ممکن است ناشناس باشد و در برخی گوشی‌ها ارقام کد ملیِ پوشانده‌شده در آن جابه‌جا نمایش داده شود؛
+            این پیامک معتبر است.
+          </p>
+        </div>
+      )}
       {s.deliveryCode && !s.deliveredAt && (
         <div className="rounded-xl p-4 text-center" style={{ backgroundColor: "#ecfdf5", border: "1px dashed var(--color-emerald)" }}>
           <p className="text-[12px] font-bold text-gray-600">کد تحویل سفارش</p>

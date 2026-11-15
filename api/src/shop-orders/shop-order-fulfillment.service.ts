@@ -10,6 +10,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
   Logger,
   NotFoundException,
   OnModuleInit,
@@ -18,6 +19,7 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from 'crypto';
 import { Prisma, ShippingMethodType } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeIranMobile } from '../integrations/providers/sms-common/sms-live.util';
+import { ZarPayeshShopOrderService } from '../zarpayesh/zarpayesh-shop-order.service';
 import {
   ORDER_STATUS_FA,
   ShopOrderEventsService,
@@ -114,6 +116,8 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: ShopOrderEventsService,
+    /** سامانه ناظر (زر پایش): ارسال دارایی سفارش‌های تحویل طلای آب‌شده */
+    @Optional() private readonly zarpayesh?: ZarPayeshShopOrderService,
   ) {}
 
   async onModuleInit() {
@@ -293,9 +297,15 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
       );
     }
 
-    const deliveryCode = method.requiresDeliveryCode
-      ? String(randomInt(0, 1_000_000)).padStart(6, '0')
-      : null;
+    // سفارش تحویل طلای آب‌شده: پیش از ارسال باید در سامانه ناظر ثبت شده باشد؛ در این حالت کد تحویل
+    // همان approveCode است که سامانه ناظر مستقیم برای مشتری پیامک کرده (کد آرکان صادر نمی‌شود)
+    const zarpayeshCode = this.zarpayesh
+      ? await this.zarpayesh.prepareShipment(orderId, adminId)
+      : false;
+    const deliveryCode =
+      method.requiresDeliveryCode && !zarpayeshCode
+        ? String(randomInt(0, 1_000_000)).padStart(6, '0')
+        : null;
     const courierToken =
       method.courierLinkEnabled && courierPhone
         ? randomBytes(24).toString('base64url')
@@ -337,6 +347,7 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
             ? await this.events.encryptDeliveryCode(orderId, deliveryCode)
             : null,
           deliveryCodeSentAt: deliveryCode ? new Date() : null,
+          deliveryCodeSource: zarpayeshCode ? 'ZARPAYESH' : null,
           courierTokenHash: courierToken ? this.hashToken(courierToken) : null,
           courierTokenExpiresAt: courierToken
             ? new Date(Date.now() + COURIER_LINK_TTL_DAYS * 86_400_000)
@@ -382,6 +393,9 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     }
 
     await this.events.notify(orderId, 'SHIPPED');
+    if (zarpayeshCode) {
+      void this.zarpayesh.afterShipped(orderId, method.type, adminId);
+    }
     if (courierToken && courierPhone) {
       await this.events.notifyCourier(
         orderId,
@@ -390,9 +404,11 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
       );
     }
     return {
-      message: deliveryCode
-        ? 'سفارش ارسال شد و کد تحویل برای مشتری پیامک شد'
-        : 'اطلاعات ارسال ثبت شد',
+      message: zarpayeshCode
+        ? 'سفارش ارسال شد؛ کد تحویل را سامانه ناظر (زر پایش) برای مشتری پیامک کرده است'
+        : deliveryCode
+          ? 'سفارش ارسال شد و کد تحویل برای مشتری پیامک شد'
+          : 'اطلاعات ارسال ثبت شد',
       alreadyProcessed: false,
     };
   }
@@ -444,6 +460,12 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
       note?: string;
     },
   ) {
+    const zarpayeshMode =
+      !!this.zarpayesh && (await this.zarpayesh.usesZarPayeshCode(orderId));
+    if (zarpayeshMode && p.via !== 'ADMIN_OVERRIDE') {
+      const early = await this.approveWithZarPayesh(orderId, p);
+      if (early) return early;
+    }
     const outcome = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT 1 FROM "shop_orders" WHERE "id" = ${orderId}::uuid FOR UPDATE`;
       const order = await tx.shopOrder.findUnique({
@@ -542,8 +564,66 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
           : 'کد تحویل نادرست است و قفل شد؛ کد جدید برای مشتری صادر کنید',
       );
     }
+    if (zarpayeshMode && p.via === 'ADMIN_OVERRIDE') {
+      void this.zarpayesh.noteDeliveredWithoutCode(orderId);
+    }
     await this.events.notify(orderId, 'DELIVERED');
     return { message: 'تحویل سفارش ثبت شد', alreadyProcessed: false };
+  }
+
+  /**
+   * کد تحویل مرسوله‌ای که سامانه ناظر صادر کرده: Approve (SetDeliveries ۱) با همان کد در سامانه ناظر.
+   * کد نادرست مثل کد آرکان شمرده و پس از ۵ بار قفل می‌شود. خروجی غیر null یعنی کار تمام است.
+   */
+  private async approveWithZarPayesh(
+    orderId: string,
+    p: {
+      code?: string;
+      actor: { type: 'ADMIN' | 'COURIER'; id?: string | null };
+    },
+  ) {
+    const order = await this.prisma.shopOrder.findUnique({
+      where: { id: orderId },
+      include: { shippings: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    });
+    if (!order) throw new NotFoundException('سفارش یافت نشد');
+    if (order.status === 'DELIVERED') {
+      return {
+        message: 'این سفارش قبلاً تحویل داده شده است',
+        alreadyProcessed: true,
+      };
+    }
+    if (order.status !== 'SHIPPED') {
+      throw new ConflictException('این سفارش هنوز ارسال نشده است');
+    }
+    const shipping = order.shippings[0];
+    if (shipping.deliveryCodeAttempts >= MAX_DELIVERY_CODE_ATTEMPTS) {
+      throw new ForbiddenException(
+        'ثبت کد تحویل به‌دلیل ورود نادرست مکرر قفل شده است؛ پس از بررسی پیامک زر پایش مشتری، از پنل «باز کردن قفل کد تحویل» را بزنید',
+      );
+    }
+    const r = await this.zarpayesh.approve(
+      orderId,
+      p.code,
+      p.actor.type === 'ADMIN'
+        ? { trigger: 'ADMIN', adminId: p.actor.id ?? null }
+        : { trigger: 'SYSTEM' },
+    );
+    if (r.kind === 'ok') return null;
+    const updated = await this.prisma.shipping.update({
+      where: { id: shipping.id },
+      data: { deliveryCodeAttempts: { increment: 1 } },
+      select: { deliveryCodeAttempts: true },
+    });
+    const remaining = Math.max(
+      0,
+      MAX_DELIVERY_CODE_ATTEMPTS - updated.deliveryCodeAttempts,
+    );
+    throw new BadRequestException(
+      remaining > 0
+        ? `${r.message} (${remaining.toLocaleString('fa-IR')} تلاش باقی‌مانده)`
+        : `${r.message} و ثبت کد قفل شد`,
+    );
   }
 
   /** ارسال مجدد کد تحویل (در صورت قفل شدن، کد جدید صادر می‌شود) */
@@ -565,6 +645,28 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     const shipping = order.shippings[0];
     if (!shipping)
       throw new ConflictException('اطلاعات ارسال سفارش ثبت نشده است');
+
+    if (shipping.deliveryCodeSource === 'ZARPAYESH') {
+      // کد را سامانه ناظر صادر و پیامک کرده؛ آرکان کد نمی‌سازد — فقط قفل تلاش‌های نادرست باز می‌شود
+      await this.prisma.$transaction(async (tx) => {
+        await tx.shipping.update({
+          where: { id: shipping.id },
+          data: { deliveryCodeAttempts: 0 },
+        });
+        await this.events.recordStatus(
+          tx,
+          orderId,
+          'SHIPPED',
+          'SHIPPED',
+          { type: 'ADMIN', id: adminId },
+          'باز کردن قفل کد تحویل سامانه ناظر',
+        );
+      });
+      return {
+        message:
+          'قفل ثبت کد باز شد. کد تحویل این سفارش را سامانه ناظر (زر پایش) برای مشتری پیامک کرده است و آرکان آن را دوباره ارسال نمی‌کند',
+      };
+    }
 
     const mustRegenerate =
       regenerate ||
@@ -655,7 +757,7 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
   /** اطلاعات حداقلی مرسوله برای پیک — بدون اطلاعات مالی */
   async courierInfo(token: string) {
     const s = await this.findByCourierToken(token);
-    const order = s.shopOrder!;
+    const order = s.shopOrder;
     const expired =
       !s.courierTokenExpiresAt || s.courierTokenExpiresAt < new Date();
     const receiver = order.address?.receiverName ?? '';
@@ -676,6 +778,7 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
       address: active ? (order.address?.fullAddress ?? '') : '',
       receiverPhone: active ? (order.address?.receiverPhone ?? null) : null,
       itemCount: order.items.reduce((sum, i) => sum + i.quantity, 0),
+      deliveryCodeSource: s.deliveryCodeSource ?? 'ARKAN',
       attemptsLeft: Math.max(
         0,
         MAX_DELIVERY_CODE_ATTEMPTS - s.deliveryCodeAttempts,
@@ -689,7 +792,7 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
     if (!s.courierTokenExpiresAt || s.courierTokenExpiresAt < new Date()) {
       throw new ForbiddenException('اعتبار این لینک به پایان رسیده است');
     }
-    return this.confirmDelivery(s.shopOrder!.id, {
+    return this.confirmDelivery(s.shopOrder.id, {
       code,
       via: 'COURIER_LINK',
       actor: { type: 'COURIER', id: s.courierPhone },
@@ -752,7 +855,10 @@ export class ShopOrderFulfillmentService implements OnModuleInit {
             courierName: s.courierName,
             courierPhone: s.courierPhone,
             contactPhone: s.shippingMethod?.contactPhone ?? null,
-            deliveryCodeRequired: !!s.deliveryCodeEnc,
+            deliveryCodeRequired:
+              !!s.deliveryCodeEnc || s.deliveryCodeSource === 'ZARPAYESH',
+            /** ZARPAYESH = کد را سامانه ناظر پیامک کرده (در اپ نمایش داده نمی‌شود) */
+            deliveryCodeSource: s.deliveryCodeSource ?? 'ARKAN',
             deliveryCode: code,
             deliveryCodeAttempts: s.deliveryCodeAttempts,
             deliveryCodeLocked:

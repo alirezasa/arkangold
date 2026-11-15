@@ -42,6 +42,12 @@ export class FakeZarPayeshServer {
   readonly requests: FakeRequest[] = [];
   readonly users = new Set<string>();
   readonly reservations = new Map<string, Reservation>();
+  /** مرسوله‌ها (MakeDeliveries): کد تأیید همان است که سامانه ناظر برای کاربر پیامک می‌کند */
+  readonly deliveries = new Map<
+    number,
+    { src: string; amount: number; approveCode: string; statuses: number[] }
+  >();
+  nextDeliveryCode = 55501;
   /** بازنویسی پاسخ یک مسیر (برای شبیه‌سازی خطا) — مقدار null یعنی رفتار عادی */
   readonly overrides = new Map<
     string,
@@ -261,19 +267,54 @@ export class FakeZarPayeshServer {
           201,
         );
       }
-      case '/api/aure/Aurelink/MakeDeliveries':
+      case '/api/aure/Aurelink/MakeDeliveries': {
+        const src = String(b.srcTrackingNumber);
+        for (const d of this.deliveries.values())
+          if (d.src === src) return this.err(1037);
+        const trackingcode = this.nextDeliveryCode++;
+        this.deliveries.set(trackingcode, {
+          src,
+          amount: Number(b.amount),
+          approveCode: String(731000 + trackingcode),
+          statuses: [],
+        });
         return this.env(
           {
-            trackingcode: 55501,
+            trackingcode,
             requestedAt: new Date().toISOString(),
             mobile: '0912*****67',
             cid: '163****613',
           },
           201,
         );
-      case '/api/aure/Aurelink/SetDeliveries':
-        if (Number(b.setStatusDeleveries) === 1 && !Number(b.approveCode))
+      }
+      case '/api/aure/Aurelink/MakeDeliverFollowup': {
+        const src = r.query.get('srcTrackingNumber');
+        for (const [trackingcode, d] of this.deliveries)
+          if (d.src === src)
+            return this.env({
+              trackingcode,
+              requestedAt: new Date().toISOString(),
+              mobile: '0912*****67',
+              cid: '163****613',
+            });
+        return this.err(1008);
+      }
+      case '/api/aure/Aurelink/SetDeliveries': {
+        const status = Number(b.setStatusDeleveries);
+        const d = this.deliveries.get(Number(b.trackingcode));
+        if (d) {
+          if (d.statuses.includes(1)) return this.err(1026);
+          if (d.statuses.includes(status)) return this.err(1034);
+          if (status === 1) {
+            if (!Number(b.approveCode)) return this.err(1035);
+            if (String(b.approveCode) !== d.approveCode) return this.err(1022);
+            if (!d.statuses.includes(2)) return this.err(1012);
+          }
+          d.statuses.push(status);
+        } else if (status === 1 && !Number(b.approveCode)) {
           return this.err(1035);
+        }
         return this.env(
           {
             actionTime: new Date().toISOString(),
@@ -281,6 +322,7 @@ export class FakeZarPayeshServer {
           },
           201,
         );
+      }
       case '/api/aure/Aurelink/Typelist':
         return this.env([
           {

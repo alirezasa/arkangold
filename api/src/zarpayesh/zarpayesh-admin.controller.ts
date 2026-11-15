@@ -28,6 +28,7 @@ import { AdminAuthenticatedUser } from '../admin-auth/interfaces/admin-jwt-paylo
 import { ZarPayeshAdminService, serialize } from './zarpayesh-admin.service';
 import { ZarPayeshTradeService } from './zarpayesh-trade.service';
 import { ZarPayeshDeliveryService } from './zarpayesh-delivery.service';
+import { ZarPayeshShopOrderService } from './zarpayesh-shop-order.service';
 import { ZarPayeshError } from './zarpayesh-errors';
 import {
   ApproveTradeDto,
@@ -37,6 +38,7 @@ import {
   ListQueryDto,
   ReviewTradeDto,
   SetDeliveryStatusDto,
+  SkipShopOrderDeliveryDto,
   SetZarPayeshCredentialDto,
   TestReserveDto,
   ToggleZarPayeshDto,
@@ -65,6 +67,7 @@ export class ZarPayeshAdminController {
     private readonly admin: ZarPayeshAdminService,
     private readonly trades: ZarPayeshTradeService,
     private readonly deliveries: ZarPayeshDeliveryService,
+    private readonly shopOrders: ZarPayeshShopOrderService,
   ) {}
 
   // ── وضعیت و تنظیمات ──
@@ -311,6 +314,50 @@ export class ZarPayeshAdminController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return asHttp(() => this.deliveries.refresh(req.user.adminUserId, id));
+  }
+
+  // ── سفارش تحویل شمش با طلای آب‌شده ──
+  @RequirePermission('zarpayesh.view')
+  @Get('shop-orders/:orderId')
+  shopOrderView(@Param('orderId', ParseUUIDPipe) orderId: string) {
+    return asHttp(() => this.shopOrders.view(orderId));
+  }
+
+  @RequirePermission('zarpayesh.manage')
+  @AuditLog('zarpayesh.shop_order.register')
+  @Post('shop-orders/:orderId/register')
+  registerShopOrder(
+    @Req() req: AdminRequest,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    return asHttp(async () => {
+      const row = await this.shopOrders.register(orderId, {
+        trigger: 'ADMIN',
+        adminId: req.user.adminUserId,
+      });
+      if (!row) {
+        throw new BadRequestException('این سفارش تحویل طلای آب‌شده نیست');
+      }
+      return {
+        message:
+          row.state === 'REQUESTED'
+            ? 'ارسال این سفارش در سامانه ناظر ثبت شد؛ سامانه ناظر کد تحویل را برای مشتری پیامک می‌کند'
+            : 'وضعیت ثبت به‌روزرسانی شد',
+      };
+    });
+  }
+
+  @RequirePermission('zarpayesh.manage')
+  @AuditLog('zarpayesh.shop_order.skip')
+  @Post('shop-orders/:orderId/skip')
+  skipShopOrder(
+    @Req() req: AdminRequest,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Body() dto: SkipShopOrderDeliveryDto,
+  ) {
+    return asHttp(() =>
+      this.shopOrders.skip(orderId, req.user.adminUserId, dto.reason),
+    );
   }
 
   // ── لاگ فراخوانی‌ها ──

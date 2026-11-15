@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Inject,
+  Optional,
   Injectable,
   Logger,
   NotFoundException,
@@ -17,6 +18,10 @@ import {
   ShopOrderItemRecipientType,
 } from '@arkan-gold/shared';
 import { Prisma } from '../generated/prisma/client';
+import {
+  ZarPayeshOrderView,
+  ZarPayeshShopOrderService,
+} from '../zarpayesh/zarpayesh-shop-order.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentGatewayFactory } from '../payment-gateway/payment-gateway.factory';
 import { SystemConfigService } from '../system-config/system-config.service';
@@ -113,6 +118,8 @@ export class ShopOrdersService {
     private readonly events: ShopOrderEventsService,
     private readonly fulfillment: ShopOrderFulfillmentService,
     private readonly shipping: ShippingService,
+    /** سامانه ناظر (زر پایش): ارسال دارایی سفارش‌های تحویل طلای آب‌شده */
+    @Optional() private readonly zarpayesh?: ZarPayeshShopOrderService,
   ) {}
 
   /**
@@ -281,7 +288,11 @@ export class ShopOrdersService {
       });
       await tx.shopOrder.update({
         where: { id: order.id },
-        data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: reason },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancelReason: reason,
+        },
       });
       await this.events.recordStatus(
         tx,
@@ -1376,7 +1387,7 @@ export class ShopOrdersService {
         ? {
             id: latest.id,
             orderNumber: latest.orderNumber,
-            paidAt: latest.paidAt!.toISOString(),
+            paidAt: latest.paidAt.toISOString(),
           }
         : null,
     };
@@ -1465,7 +1476,8 @@ export class ShopOrdersService {
                 methodType: s.shippingMethod?.type ?? null,
                 trackingCode: s.trackingCode,
                 courierName: s.courierName,
-                deliveryCodeRequired: !!s.deliveryCodeEnc,
+                deliveryCodeRequired:
+                  !!s.deliveryCodeEnc || s.deliveryCodeSource === 'ZARPAYESH',
                 deliveryConfirmedVia: s.deliveryConfirmedVia,
               }
             : null,
@@ -1513,7 +1525,10 @@ export class ShopOrdersService {
     });
     if (!order) throw new NotFoundException('سفارش یافت نشد');
     // کد تحویل به ادمین نمایش داده نمی‌شود تا تأیید تحویل بدون حضور مشتری ممکن نباشد
-    const [delivery, invoiceIds, smsLogs] = await Promise.all([
+    const zarpayeshView: Promise<ZarPayeshOrderView | null> = this.zarpayesh
+      ? this.zarpayesh.viewOrNull(order.id)
+      : Promise.resolve<ZarPayeshOrderView | null>(null);
+    const [delivery, invoiceIds, smsLogs, zarpayesh] = await Promise.all([
       this.fulfillment.deliveryView(order.id, false),
       this.invoiceService.findInvoiceIdsBySource('SHOP_ORDER', [order.id]),
       this.prisma.smsLog.findMany({
@@ -1529,6 +1544,7 @@ export class ShopOrdersService {
           createdAt: true,
         },
       }),
+      zarpayeshView,
     ]);
     return {
       ...this.toDto({ ...order, shippings: undefined }),
@@ -1555,6 +1571,7 @@ export class ShopOrdersService {
       })),
       delivery,
       smsLogs,
+      zarpayesh: zarpayesh ?? null,
       invoiceId: invoiceIds.get(order.id) ?? null,
     };
   }
@@ -1794,6 +1811,8 @@ export class ShopOrdersService {
       void this.events.notify(orderId, 'CANCELLED', {
         reason: dto.reason?.trim() || null,
       });
+      // ارسال دارایی ثبت‌شده در سامانه ناظر لغو می‌شود (SetDeliveries ۴)
+      void this.zarpayesh?.cancel(orderId, adminId);
     }
     return result;
   }

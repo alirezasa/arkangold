@@ -25,6 +25,15 @@ import {
 import { OwnedResource } from '../common/audit/owned-resource.decorator';
 import { AuditService } from '../common/audit/audit.service';
 import { getBusinessRuleViolation } from '../common/audit/business-rule.util';
+import { IsString, Matches } from 'class-validator';
+import { ShopOrderFulfillmentService } from './shop-order-fulfillment.service';
+
+class ConfirmDeliveryDto {
+  // کد آرکان ۶ رقمی؛ کد پیامک‌شده‌ی سامانه ناظر (زر پایش) تا ۱۹ رقم
+  @IsString()
+  @Matches(/^[0-9۰-۹]{1,19}$/, { message: 'کد تحویل نامعتبر است' })
+  code!: string;
+}
 
 interface AuthenticatedRequest extends Request {
   user: { userId: string; phone: string; sessionId: string };
@@ -38,6 +47,7 @@ export class ShopOrdersController {
   constructor(
     private readonly service: ShopOrdersService,
     private readonly auditService: AuditService,
+    private readonly fulfillment: ShopOrderFulfillmentService,
   ) {}
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
@@ -132,5 +142,21 @@ export class ShopOrdersController {
   @ApiOperation({ summary: 'لغو سفارش توسط کاربر (فقط قبل از پرداخت)' })
   cancel(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.cancelByUser(req.user.userId, id);
+  }
+
+  // تلاش نادرست کد در خود سرویس شمرده و پس از ۵ بار قفل می‌شود
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @OwnedResource({ model: 'shopOrder', ownerPath: 'userId' })
+  @Post(':id/confirm-delivery')
+  @ApiOperation({
+    summary:
+      'ثبت کد تحویل توسط مشتری پس از دریافت مرسوله — شرط ثبت شمش به نام مالک',
+  })
+  confirmDelivery(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: ConfirmDeliveryDto,
+  ) {
+    return this.fulfillment.confirmByUser(req.user.userId, id, dto.code);
   }
 }

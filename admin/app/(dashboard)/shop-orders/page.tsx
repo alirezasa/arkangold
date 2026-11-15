@@ -138,6 +138,13 @@ interface OrderDetail extends Omit<OrderRow, "shipping"> {
   payments: { id: string; method: string; status: string; amountToman: string; gatewayProvider: string | null; gatewayTrackingCode: string | null; paidAt: string | null }[];
   delivery: {
     cancelReason: string | null;
+    /** کد تحویل تأیید و شمش‌ها به نام مالک ثبت شده‌اند */
+    deliveryCodeVerifiedAt?: string | null;
+    deliveryCodeVerifiedVia?: string | null;
+    /** مشتری هنوز باید کد تحویل را ارائه/ثبت کند */
+    awaitingDeliveryCode?: boolean;
+    /** شمش‌های کددار این سفارش که تا ثبت کد تحویل به نام مالک ثبت نمی‌شوند */
+    ownershipPending?: number;
     shipping: ShippingView | null;
     timeline: { id: string; toStatus: OrderStatus; toStatusLabel: string; actorType: string; note: string | null; createdAt: string }[];
   } | null;
@@ -196,6 +203,7 @@ const FILTERS: { key: string; label: string }[] = [
 const VIA_FA: Record<string, string> = {
   DELIVERY_CODE: "تأیید ادمین با کد تحویل مشتری",
   COURIER_LINK: "ثبت پیک با کد تحویل مشتری",
+  USER_APP: "ثبت کد تحویل توسط خود مشتری در اپ",
   ADMIN_OVERRIDE: "تأیید استثنایی بدون کد",
 };
 const ACTOR_FA: Record<string, string> = { USER: "مشتری", ADMIN: "پنل", SYSTEM: "سیستم", COURIER: "پیک" };
@@ -467,6 +475,27 @@ function OrderDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
                   <Truck className="w-4 h-4" /> ثبت ارسال
                 </ActionButton>
               )}
+              {o.status === "DELIVERED" && o.delivery?.awaitingDeliveryCode && (
+                <>
+                  <ActionButton onClick={() => setModal("deliver")}>
+                    <KeyRound className="w-4 h-4" /> ثبت کد تحویل مشتری
+                  </ActionButton>
+                  {o.delivery.shipping?.deliveryCodeSource !== "ZARPAYESH" && (
+                    <ActionButton
+                      variant="secondary"
+                      busy={act.busy}
+                      onClick={() =>
+                        void run(
+                          () => api.post(`/api/admin/shop-orders/${o.id}/delivery-code/resend`, { regenerate: false }),
+                          "کد تحویل مجدداً برای مشتری پیامک شود؟",
+                        )
+                      }
+                    >
+                      <MessageSquareText className="w-4 h-4" /> ارسال مجدد کد
+                    </ActionButton>
+                  )}
+                </>
+              )}
               {o.status === "SHIPPED" && o.delivery?.shipping?.deliveryCodeSource === "ZARPAYESH" && (
                 <>
                   <ActionButton onClick={() => setModal("deliver")}>
@@ -537,6 +566,24 @@ function OrderDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
             </div>
           )}
 
+          {o.delivery?.awaitingDeliveryCode && (o.status === "DELIVERED" || (o.delivery.ownershipPending ?? 0) > 0) && (
+            <Alert
+              kind="warn"
+              text={
+                (o.status === "DELIVERED"
+                  ? "تحویل بدون کد ثبت شده است. "
+                  : "") +
+                `شمش‌های این سفارش${(o.delivery.ownershipPending ?? 0) > 0 ? ` (${(o.delivery.ownershipPending ?? 0).toLocaleString("fa-IR")} عدد)` : ""} تا وقتی مشتری کد تحویل${
+                  o.delivery.shipping?.deliveryCodeSource === "ZARPAYESH" ? " (پیامک زر پایش)" : ""
+                } را ارائه نکند یا خودش در اپ ثبت نکند، به نام او ثبت نمی‌شوند.`
+              }
+            />
+          )}
+          {o.delivery?.deliveryCodeVerifiedAt && (
+            <p className="text-[12px] text-green-700 font-bold">
+              کد تحویل تأیید شد ({VIA_FA[o.delivery.deliveryCodeVerifiedVia ?? ""] ?? o.delivery.deliveryCodeVerifiedVia} — {faDateTime(o.delivery.deliveryCodeVerifiedAt)})؛ شمش‌ها به نام مالک ثبت شده‌اند
+            </p>
+          )}
           {o.zarpayesh && <ZarPayeshPanel orderId={o.id} status={o.status} z={o.zarpayesh} onChanged={refresh} />}
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -992,7 +1039,7 @@ function DeliverModal({ order, onClose, onDone }: { order: OrderDetail; onClose:
     }
   };
   return (
-    <Modal title="ثبت تحویل سفارش" onClose={onClose}>
+    <Modal title={order.status === "DELIVERED" ? "ثبت کد تحویل مشتری" : "ثبت تحویل سفارش"} onClose={onClose}>
       <div className="space-y-3">
         {zarpayeshCode ? (
           <p className="text-[12px] text-gray-600">
@@ -1045,6 +1092,12 @@ function OverrideModal({ order, onClose, onDone }: { order: OrderDetail; onClose
     <Modal title="تأیید تحویل بدون کد (استثنایی)" onClose={onClose}>
       <div className="space-y-3">
         <Alert kind="warn" text="این اقدام با نام شما در گزارش فعالیت‌ها ثبت می‌شود. فقط وقتی استفاده کنید که تحویل با مدارک دیگر (رسید امضاشده پست، تماس ضبط‌شده و ...) محرز است." />
+        <Alert
+          kind="info"
+          text={`سفارش «تحویل‌شده» می‌شود، ولی شمش‌ها تا وقتی مشتری کد تحویل${
+            order.delivery?.shipping?.deliveryCodeSource === "ZARPAYESH" ? " (پیامک زر پایش)" : ""
+          } را ارائه نکند یا خودش در اپ ثبت نکند به نام او ثبت نمی‌شوند.`}
+        />
         <Field label="دلیل و مستند تحویل (الزامی)">
           <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputCls} />
         </Field>

@@ -6,6 +6,7 @@
 //   AT_AGENT         امانی نزد نماینده (ملک شرکت)
 //   AGENT_OWNED      فروخته‌شده به نماینده (ملک نماینده، هنوز به مشتری نهایی فروخته نشده)
 //   TRANSFER_PENDING فروخته‌شده و منتظر تأیید گیرنده (خرید برای دیگری)
+//   AWAITING_DELIVERY فروخته‌شده (فروشگاه)، کد متصل شده؛ تا ثبت کد تحویل مشتری به نام او ثبت نمی‌شود
 //   SOLD             فروخته‌شده و دارای مالک فعال (کانال: فروشگاه / نماینده / شریک)
 //   BUYBACK_PENDING  مالک درخواست فروش به آرکان گلد داده (در حال تحویل/اصالت‌سنجی/واریز)
 //   REVOKED          کد باطل‌شده
@@ -46,6 +47,8 @@ function bucketWhere(bucket: string): Prisma.HologramCodeWhereInput {
       return { status: 'AGENT_OWNED' };
     case 'TRANSFER_PENDING':
       return { status: 'TRANSFER_PENDING' };
+    case 'AWAITING_DELIVERY':
+      return { status: 'AWAITING_DELIVERY' };
     case 'SOLD':
       return { status: 'ASSIGNED' };
     case 'BUYBACK_PENDING':
@@ -280,6 +283,10 @@ export class BullionInventoryService {
         transferPending: {
           count: st('TRANSFER_PENDING')?._count ?? 0,
           grams: s(st('TRANSFER_PENDING')?._sum.weightGrams),
+        },
+        awaitingDelivery: {
+          count: st('AWAITING_DELIVERY')?._count ?? 0,
+          grams: s(st('AWAITING_DELIVERY')?._sum.weightGrams),
         },
         soldWithOwner: {
           count: st('ASSIGNED')?._count ?? 0,

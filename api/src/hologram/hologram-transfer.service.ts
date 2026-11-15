@@ -36,7 +36,7 @@ interface CreateAdminInitiatedInput {
   hologramCodeId: string;
   shopOrderItemId: string;
   recipientPhoneNumber: string;
-  initiatedByAdminId: string;
+  initiatedByAdminId: string | null;
 }
 
 @Injectable()

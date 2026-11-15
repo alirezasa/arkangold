@@ -220,6 +220,12 @@ export interface ShopOrderDto {
 export interface ShopOrderDeliveryDto {
   orderNumber: string | null;
   cancelReason: string | null;
+  /** کد تحویل تأیید و شمش‌ها به نام مالک ثبت شده‌اند */
+  deliveryCodeVerifiedAt?: string | null;
+  /** مشتری باید کد تحویل را ارائه/ثبت کند تا شمش به نامش ثبت شود */
+  awaitingDeliveryCode?: boolean;
+  /** شمش‌های کددار این سفارش که تا ثبت کد تحویل به نام مالک ثبت نمی‌شوند */
+  ownershipPending?: number;
   shipping: {
     method: { id: string; name: string; type: "POST" | "COURIER" | "EXPRESS" | "PICKUP" } | null;
     carrierName: string | null;
@@ -626,6 +632,26 @@ export const useShopOrder = (id: string | null) => {
     fetcher,
   );
   return { order: data ?? null, loading: isLoading, error, refresh: mutate };
+};
+
+/** ثبت کد تحویل توسط خود مشتری پس از دریافت مرسوله — شرط ثبت شمش به نام او */
+export const useConfirmShopDelivery = () => {
+  const [loading, setLoading] = useState(false);
+
+  const confirm = useCallback(async (id: string, code: string) => {
+    setLoading(true);
+    try {
+      const res = await axios.post<{ message: string }>(
+        `/api/orders/shop/${id}/confirm-delivery`,
+        { code },
+      );
+      return res.data;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { loading, confirm };
 };
 
 export const useCancelShopOrder = () => {

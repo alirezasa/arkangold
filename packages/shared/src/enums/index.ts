@@ -317,6 +317,8 @@ export enum HologramCodeStatus {
   BUYBACK_PENDING = 'BUYBACK_PENDING',
   /** فروخته‌شده به نماینده (ملک نماینده) — هنوز به مالک نهایی فروخته نشده */
   AGENT_OWNED = 'AGENT_OWNED',
+  /** متصل به سفارش فروشگاه؛ تا ارائه/ثبت کد تحویل توسط مشتری به نام او ثبت نمی‌شود */
+  AWAITING_DELIVERY = 'AWAITING_DELIVERY',
 }
 
 export enum HologramOwnershipStatus {
@@ -399,6 +401,7 @@ export const HOLOGRAM_CODE_STATUS_FA: Record<HologramCodeStatus, string> = {
   [HologramCodeStatus.AT_AGENT]: 'امانی نزد نماینده',
   [HologramCodeStatus.BUYBACK_PENDING]: 'در فرآیند بازخرید',
   [HologramCodeStatus.AGENT_OWNED]: 'ملک نماینده (فروخته‌شده به نماینده)',
+  [HologramCodeStatus.AWAITING_DELIVERY]: 'فروخته‌شده — در انتظار کد تحویل مشتری',
 };
 
 export const HOLOGRAM_TRANSFER_REQUEST_STATUS_FA: Record<HologramTransferRequestStatus, string> = {

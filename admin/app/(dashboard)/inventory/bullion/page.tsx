@@ -39,6 +39,8 @@ interface Summary {
     /** فروخته‌شده به نمایندگان — ملک نماینده، خارج از دارایی شرکت */
     agentOwned?: { count: number; grams: string };
     transferPending: { count: number; grams: string };
+    /** فروخته و کددار، در انتظار ارائه/ثبت کد تحویل توسط مشتری (هنوز به نام او ثبت نشده) */
+    awaitingDelivery?: { count: number; grams: string };
     soldWithOwner: { count: number; grams: string };
     /** شمش‌هایی که مالک برای فروش به آرکان گلد (بازخرید) درخواست داده است */
     buybackPending?: { count: number; grams: string };
@@ -57,13 +59,14 @@ interface Summary {
   };
 }
 
-type Bucket = "VAULT_CODED" | "AT_AGENT" | "AGENT_OWNED" | "SOLD" | "TRANSFER_PENDING" | "BUYBACK_PENDING" | "AWAITING_CODE" | "BLANK" | "REVOKED";
+type Bucket = "VAULT_CODED" | "AT_AGENT" | "AGENT_OWNED" | "SOLD" | "TRANSFER_PENDING" | "AWAITING_DELIVERY" | "BUYBACK_PENDING" | "AWAITING_CODE" | "BLANK" | "REVOKED";
 const BUCKETS: { key: Bucket; label: string }[] = [
   { key: "VAULT_CODED", label: "کددار در خزانه" },
   { key: "AT_AGENT", label: "امانی نزد نمایندگان" },
   { key: "AGENT_OWNED", label: "فروخته به نمایندگان" },
   { key: "SOLD", label: "فروخته‌شده" },
   { key: "TRANSFER_PENDING", label: "در انتظار تأیید گیرنده" },
+  { key: "AWAITING_DELIVERY", label: "در انتظار کد تحویل مشتری" },
   { key: "BUYBACK_PENDING", label: "در فرآیند بازخرید" },
   { key: "AWAITING_CODE", label: "فروخته — در انتظار کد" },
   { key: "BLANK", label: "کد خام" },
@@ -274,6 +277,15 @@ export default function BullionInventoryPage() {
               color="#d97706"
             />
             <Kpi title="در انتظار تأیید گیرنده" value={`${data.totals.transferPending.count.toLocaleString("fa-IR")} عدد`} hint={`${grams(data.totals.transferPending.grams)} گرم`} icon={Hourglass} color="#6b7280" />
+            {data.totals.awaitingDelivery && (
+              <Kpi
+                title="در انتظار کد تحویل مشتری"
+                value={`${data.totals.awaitingDelivery.count.toLocaleString("fa-IR")} عدد`}
+                hint={`${grams(data.totals.awaitingDelivery.grams)} گرم — هنوز به نام مالک ثبت نشده`}
+                icon={Hourglass}
+                color="#a16207"
+              />
+            )}
             <Kpi
               title="کدهای هولوگرام"
               value={`${data.codes.blank.toLocaleString("fa-IR")} خام`}

@@ -576,58 +576,62 @@ model CartItem {
 }
 
 model ShopOrder {
-  status              ShopOrderStatus          @default(PENDING_PAYMENT)
+  status                  ShopOrderStatus          @default(PENDING_PAYMENT)
   // جمع اقلام قبل از تخفیف
-  subtotalRial        Decimal                  @map("subtotal_rial") @db.Decimal(18, 0)
+  subtotalRial            Decimal                  @map("subtotal_rial") @db.Decimal(18, 0)
   // مبلغ تخفیف کد تخفیف (ریال)؛ totalRial = subtotalRial - discountRial = مبلغ قابل پرداخت
-  discountRial        Decimal                  @default(0) @map("discount_rial") @db.Decimal(18, 0)
-  totalRial           Decimal                  @map("total_rial") @db.Decimal(18, 0)
+  discountRial            Decimal                  @default(0) @map("discount_rial") @db.Decimal(18, 0)
+  totalRial               Decimal                  @map("total_rial") @db.Decimal(18, 0)
   // snapshot متن کد تخفیف در لحظه ثبت سفارش (حتی اگر کد بعداً حذف شود)
-  discountCodeText    String?                  @map("discount_code_text")
-  discountCodeId      String?                  @map("discount_code_id") @db.Uuid
-  discountCode        DiscountCode?            @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
+  discountCodeText        String?                  @map("discount_code_text")
+  discountCodeId          String?                  @map("discount_code_id") @db.Uuid
+  discountCode            DiscountCode?            @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
   // هزینه بسته‌بندی دریافت‌شده از کاربر (ریال) — خارج از subtotal و مشمول کد تخفیف نیست؛
   // totalRial = subtotalRial - discountRial + packagingRial
-  packagingRial       Decimal                  @default(0) @map("packaging_rial") @db.Decimal(18, 0)
+  packagingRial           Decimal                  @default(0) @map("packaging_rial") @db.Decimal(18, 0)
   // هزینه بسته‌بندی‌ای که به‌دلیل رسیدن خرید به آستانه، رایگان شد (ریال)
-  packagingWaivedRial Decimal                  @default(0) @map("packaging_waived_rial") @db.Decimal(18, 0)
+  packagingWaivedRial     Decimal                  @default(0) @map("packaging_waived_rial") @db.Decimal(18, 0)
   /// تحویل فیزیکی طلای آب‌شده = خرید شمش با کیف طلایی: MELTED_GOLD (سفارش عادی: null)
-  fundingSource       String?                  @map("funding_source")
+  fundingSource           String?                  @map("funding_source")
   /// مقدار طلای کسرشده از کیف طلایی کاربر برای این سفارش (گرم)
-  goldAppliedGrams    Decimal                  @default(0) @map("gold_applied_grams") @db.Decimal(18, 4)
+  goldAppliedGrams        Decimal                  @default(0) @map("gold_applied_grams") @db.Decimal(18, 4)
   /// ارزش ریالی همان طلا با نرخ لحظه‌ی ثبت سفارش؛ مبلغ قابل پرداخت ریالی = totalRial - goldAppliedRial
-  goldAppliedRial     Decimal                  @default(0) @map("gold_applied_rial") @db.Decimal(18, 0)
+  goldAppliedRial         Decimal                  @default(0) @map("gold_applied_rial") @db.Decimal(18, 0)
   /// نرخ هر گرم طلای آب‌شده در لحظه‌ی ثبت سفارش (ریال)
-  goldRateRial        Decimal?                 @map("gold_rate_rial") @db.Decimal(18, 0)
-  trackingCode        String?                  @map("tracking_code")
+  goldRateRial            Decimal?                 @map("gold_rate_rial") @db.Decimal(18, 0)
+  trackingCode            String?                  @map("tracking_code")
   /// شماره سفارش قابل ارائه به مشتری (AG-1405-SHO-000128)
-  orderNumber         String?                  @unique @map("order_number")
+  orderNumber             String?                  @unique @map("order_number")
   /// یادداشت داخلی انبار/پشتیبانی
-  adminNote           String?                  @map("admin_note")
-  cancelReason        String?                  @map("cancel_reason")
-  paidAt              DateTime?                @map("paid_at")
-  processingAt        DateTime?                @map("processing_at")
-  shippedAt           DateTime?                @map("shipped_at")
-  deliveredAt         DateTime?                @map("delivered_at")
-  cancelledAt         DateTime?                @map("cancelled_at")
-  createdAt           DateTime                 @default(now()) @map("created_at")
-  updatedAt           DateTime                 @updatedAt @map("updated_at")
-  id                  String                   @id @default(uuid()) @db.Uuid
-  userId              String                   @map("user_id") @db.Uuid
-  addressId           String                   @map("address_id") @db.Uuid
+  adminNote               String?                  @map("admin_note")
+  cancelReason            String?                  @map("cancel_reason")
+  paidAt                  DateTime?                @map("paid_at")
+  processingAt            DateTime?                @map("processing_at")
+  shippedAt               DateTime?                @map("shipped_at")
+  /// تأیید نهایی دریافت با کد تحویل (آرکان یا زر پایش) — شرط ثبت شمش‌ها به نام مالک
+  deliveryCodeVerifiedAt  DateTime?                @map("delivery_code_verified_at")
+  /// DELIVERY_CODE (ادمین با کد مشتری) | COURIER_LINK | USER_APP (خود مشتری در اپ)
+  deliveryCodeVerifiedVia String?                  @map("delivery_code_verified_via")
+  deliveredAt             DateTime?                @map("delivered_at")
+  cancelledAt             DateTime?                @map("cancelled_at")
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  updatedAt               DateTime                 @updatedAt @map("updated_at")
+  id                      String                   @id @default(uuid()) @db.Uuid
+  userId                  String                   @map("user_id") @db.Uuid
+  addressId               String                   @map("address_id") @db.Uuid
   /// ثبت ارسال دارایی در سامانه ناظر (زر پایش) — فقط سفارش‌های MELTED_GOLD
-  zarpayeshDelivery   ZarPayeshDelivery?
-  statusHistory       ShopOrderStatusHistory[]
-  payments            Payment[]
-  items               ShopOrderItem[]
-  address             Address                  @relation(fields: [addressId], references: [id], onDelete: Cascade)
-  user                User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions        Transaction[]
-  shippings           Shipping[]
-  hologramOwnerships  HologramOwnership[]
+  zarpayeshDelivery       ZarPayeshDelivery?
+  statusHistory           ShopOrderStatusHistory[]
+  payments                Payment[]
+  items                   ShopOrderItem[]
+  address                 Address                  @relation(fields: [addressId], references: [id], onDelete: Cascade)
+  user                    User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions            Transaction[]
+  shippings               Shipping[]
+  hologramOwnerships      HologramOwnership[]
   /// دفعات چاپ برچسب ارسال و آخرین زمان چاپ (برای جلوگیری از جاماندن/تکرار)
-  labelPrintCount     Int                      @default(0) @map("label_print_count")
-  labelPrintedAt      DateTime?                @map("label_printed_at")
+  labelPrintCount         Int                      @default(0) @map("label_print_count")
+  labelPrintedAt          DateTime?                @map("label_printed_at")
 
   // ── روش ارسال انتخابی مشتری هنگام ثبت سفارش (snapshot تا ویرایش تعرفه سابقه را تغییر ندهد) ──
   shippingMethodId      String?             @map("shipping_method_id") @db.Uuid
@@ -3089,6 +3093,9 @@ enum HologramCodeStatus {
   BUYBACK_PENDING
   /// فروخته‌شده به نماینده (ملک نماینده، با صورتحساب به نام نماینده) — هنوز به مشتری نهایی فروخته نشده
   AGENT_OWNED
+  /// به ردیف سفارش فروشگاه متصل و فروخته شده، ولی مشتری هنوز کد تحویل را ارائه/ثبت نکرده است؛
+  /// مالکیت (hologram_ownerships) فقط پس از تأیید کد تحویل ساخته می‌شود
+  AWAITING_DELIVERY
 }
 
 enum HologramOwnershipStatus {
